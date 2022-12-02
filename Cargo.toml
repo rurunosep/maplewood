@@ -1,0 +1,9 @@
+[package]
+name = "maplewood"
+version = "0.1.0"
+authors = ["Kevin Hernandez-Rives <rurunosep@gmail.com>"]
+edition = "2018"
+
+[dependencies.sdl2]
+version = "0.35.2"
+features = ["image"]
