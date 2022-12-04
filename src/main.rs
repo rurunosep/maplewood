@@ -11,7 +11,9 @@ const SCREEN_COLS: u32 = 16;
 const SCREEN_ROWS: u32 = 12;
 const SCREEN_SCALE: u32 = 2;
 
-#[derive(Clone, Copy)]
+const PLAYER_MOVE_SPEED: f64 = 0.12;
+
+#[derive(Clone, Copy, PartialEq, Eq)]
 enum Direction {
     Up,
     Down,
@@ -20,9 +22,59 @@ enum Direction {
 }
 
 #[derive(Clone, Copy)]
+struct Point {
+    x: f64,
+    y: f64,
+}
+
+impl std::ops::Add for Point {
+    type Output = Self;
+    fn add(self, other: Self) -> Self {
+        Self { x: self.x + other.x, y: self.y + other.y }
+    }
+}
+
+impl std::ops::AddAssign for Point {
+    fn add_assign(&mut self, other: Self) {
+        *self = *self + other;
+    }
+}
+
+#[derive(Clone, Copy)]
 struct Cell {
     tile_1: Option<u32>,
     tile_2: Option<u32>,
+}
+
+struct Player {
+    position: Point,
+    direction: Direction,
+    speed: f64,
+}
+
+impl Player {
+    fn update(&mut self) {
+        self.position += match self.direction {
+            Direction::Up => Point { x: 0.0, y: -self.speed },
+            Direction::Down => Point { x: 0.0, y: self.speed },
+            Direction::Left => Point { x: -self.speed, y: 0.0 },
+            Direction::Right => Point { x: self.speed, y: 0.0 },
+        };
+    }
+
+    fn get_standing_cell(&self) -> (i32, i32) {
+        (self.position.x.floor() as i32, self.position.y.floor() as i32)
+    }
+
+    fn get_facing_cell(&self) -> (i32, i32) {
+        let standing_cell = self.get_standing_cell();
+        match self.direction {
+            Direction::Up => (standing_cell.0, standing_cell.1 - 1),
+            Direction::Down => (standing_cell.0, standing_cell.1 + 1),
+            Direction::Left => (standing_cell.0 - 1, standing_cell.1),
+            Direction::Right => (standing_cell.0 + 1, standing_cell.1),
+        }
+    }
 }
 
 fn main() {
@@ -45,7 +97,6 @@ fn main() {
     let mut event_pump = sdl_context.event_pump().unwrap();
 
     let tileset = texture_creator.load_texture("assets/basictiles.png").unwrap();
-    let tileset_cols = tileset.query().width / TILE_SIZE;
 
     let mut tile_map: [[Cell; 16]; 12] =
         [[Cell { tile_1: Some(11), tile_2: None }; 16]; 12];
@@ -54,12 +105,16 @@ fn main() {
     tile_map[5][7].tile_2 = Some(38);
 
     let spritesheet = texture_creator.load_texture("assets/characters.png").unwrap();
-    let mut player_position = (0, 0);
-    let mut player_direction = Direction::Down;
+    let mut player = Player {
+        position: Point { x: 0.0, y: 0.0 },
+        direction: Direction::Down,
+        speed: 0.0,
+    };
 
     // Main Loop
     let mut running = true;
     while running {
+        // Handle input
         for event in event_pump.poll_iter() {
             match event {
                 Event::Quit { .. }
@@ -67,35 +122,43 @@ fn main() {
                     running = false;
                 }
                 Event::KeyDown { keycode: Some(Keycode::Left), .. } => {
-                    player_position.0 -= 1;
-                    player_direction = Direction::Left;
+                    player.speed = PLAYER_MOVE_SPEED;
+                    player.direction = Direction::Left;
                 }
                 Event::KeyDown { keycode: Some(Keycode::Right), .. } => {
-                    player_position.0 += 1;
-                    player_direction = Direction::Right;
+                    player.speed = PLAYER_MOVE_SPEED;
+                    player.direction = Direction::Right;
                 }
                 Event::KeyDown { keycode: Some(Keycode::Up), .. } => {
-                    player_position.1 -= 1;
-                    player_direction = Direction::Up;
+                    player.speed = PLAYER_MOVE_SPEED;
+                    player.direction = Direction::Up;
                 }
                 Event::KeyDown { keycode: Some(Keycode::Down), .. } => {
-                    player_position.1 += 1;
-                    player_direction = Direction::Down;
+                    player.speed = PLAYER_MOVE_SPEED;
+                    player.direction = Direction::Down;
+                }
+                Event::KeyUp { keycode: Some(keycode), .. }
+                    if keycode
+                        == match player.direction {
+                            Direction::Left => Keycode::Left,
+                            Direction::Right => Keycode::Right,
+                            Direction::Up => Keycode::Up,
+                            Direction::Down => Keycode::Down,
+                        } =>
+                {
+                    player.speed = 0.0;
                 }
                 _ => {}
             }
         }
 
-        render(
-            &mut canvas,
-            &tileset,
-            tileset_cols,
-            tile_map,
-            &spritesheet,
-            player_position,
-            player_direction,
-        );
+        // Update
+        player.update();
 
+        // Render
+        render(&mut canvas, &tileset, &tile_map, &spritesheet, &player);
+
+        // Sleep
         ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
     }
 }
@@ -103,16 +166,15 @@ fn main() {
 fn render(
     canvas: &mut WindowCanvas,
     tileset: &Texture,
-    tileset_cols: u32,
-    tile_map: [[Cell; 16]; 12],
+    tile_map: &[[Cell; 16]; 12],
     spritesheet: &Texture,
-    player_position: (i32, i32),
-    player_direction: Direction,
+    player: &Player,
 ) {
     canvas.set_draw_color(Color::RGB(255, 255, 255));
     canvas.clear();
 
     // Draw tiles
+    let tileset_cols = tileset.query().width / TILE_SIZE;
     for r in 0..SCREEN_ROWS {
         for c in 0..SCREEN_COLS {
             let screen_rect = Rect::new(
@@ -142,8 +204,28 @@ fn render(
         }
     }
 
+    // Draw player standing and facing cells
+    canvas.set_draw_color(Color::RGB(255, 0, 0));
+    canvas
+        .draw_rect(Rect::new(
+            player.get_standing_cell().0 * TILE_SIZE as i32,
+            player.get_standing_cell().1 * TILE_SIZE as i32,
+            TILE_SIZE,
+            TILE_SIZE,
+        ))
+        .unwrap();
+    canvas.set_draw_color(Color::RGB(0, 0, 255));
+    canvas
+        .draw_rect(Rect::new(
+            player.get_facing_cell().0 * TILE_SIZE as i32,
+            player.get_facing_cell().1 * TILE_SIZE as i32,
+            TILE_SIZE,
+            TILE_SIZE,
+        ))
+        .unwrap();
+
     // Draw player
-    let sprite_row = match player_direction {
+    let sprite_row = match player.direction {
         Direction::Up => 3,
         Direction::Down => 0,
         Direction::Left => 1,
@@ -151,8 +233,8 @@ fn render(
     };
     let sprite_rect = Rect::new(7 * 16, sprite_row * 16, 16, 16);
     let screen_rect = Rect::new(
-        player_position.0 * TILE_SIZE as i32,
-        player_position.1 * TILE_SIZE as i32,
+        (player.position.x * TILE_SIZE as f64) as i32 - (TILE_SIZE / 2) as i32,
+        (player.position.y * TILE_SIZE as f64) as i32 - (TILE_SIZE / 2) as i32,
         16,
         16,
     );
