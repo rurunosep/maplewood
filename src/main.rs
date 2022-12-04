@@ -21,35 +21,44 @@ enum Direction {
     Right,
 }
 
+type Point = Coords<f64>;
+type CellPos = Coords<i32>;
+
 #[derive(Clone, Copy)]
-struct Point {
-    x: f64,
-    y: f64,
+struct Coords<T> {
+    x: T,
+    y: T,
 }
 
-impl std::ops::Add for Point {
+impl<T> Coords<T> {
+    fn new(x: T, y: T) -> Coords<T> {
+        Coords { x, y }
+    }
+}
+
+impl<T: std::ops::Add<Output = T>> std::ops::Add for Coords<T> {
     type Output = Self;
     fn add(self, rhs: Self) -> Self {
         Self { x: self.x + rhs.x, y: self.y + rhs.y }
     }
 }
 
-impl std::ops::AddAssign for Point {
+impl<T: std::ops::Add<Output = T> + Copy> std::ops::AddAssign for Coords<T> {
     fn add_assign(&mut self, rhs: Self) {
         *self = *self + rhs;
     }
 }
 
-impl std::ops::Sub for Point {
+impl<T: std::ops::Sub<Output = T>> std::ops::Sub for Coords<T> {
     type Output = Self;
     fn sub(self, rhs: Self) -> Self {
         Self { x: self.x - rhs.x, y: self.y - rhs.y }
     }
 }
 
-impl std::ops::Mul<f64> for Point {
+impl<T: std::ops::Mul<Output = T> + Copy> std::ops::Mul<T> for Coords<T> {
     type Output = Self;
-    fn mul(self, rhs: f64) -> Self {
+    fn mul(self, rhs: T) -> Self {
         Self { x: self.x * rhs, y: self.y * rhs }
     }
 }
@@ -58,6 +67,21 @@ impl std::ops::Mul<f64> for Point {
 struct Cell {
     tile_1: Option<u32>,
     tile_2: Option<u32>,
+    passable: bool,
+}
+
+fn get_cell(tile_map: &[[Cell; 16]; 12], col: i32, row: i32) -> Option<Cell> {
+    if col > 0 && col < 16 && row > 0 && row < 12 {
+        Some(tile_map[row as usize][col as usize])
+    } else {
+        None
+    }
+}
+
+fn get_cell_from_point(tile_map: &[[Cell; 16]; 12], x: f64, y: f64) -> Option<Cell> {
+    let x = x.floor() as i32;
+    let y = y.floor() as i32;
+    get_cell(&tile_map, x, y)
 }
 
 struct Player {
@@ -67,17 +91,17 @@ struct Player {
 }
 
 impl Player {
-    fn get_standing_cell(&self) -> (i32, i32) {
-        (self.position.x.floor() as i32, self.position.y.floor() as i32)
+    fn get_standing_cell(&self) -> CellPos {
+        CellPos::new(self.position.x.floor() as i32, self.position.y.floor() as i32)
     }
 
-    fn get_facing_cell(&self) -> (i32, i32) {
+    fn get_facing_cell(&self) -> CellPos {
         let standing_cell = self.get_standing_cell();
         match self.direction {
-            Direction::Up => (standing_cell.0, standing_cell.1 - 1),
-            Direction::Down => (standing_cell.0, standing_cell.1 + 1),
-            Direction::Left => (standing_cell.0 - 1, standing_cell.1),
-            Direction::Right => (standing_cell.0 + 1, standing_cell.1),
+            Direction::Up => CellPos::new(standing_cell.x, standing_cell.y - 1),
+            Direction::Down => CellPos::new(standing_cell.x, standing_cell.y + 1),
+            Direction::Left => CellPos::new(standing_cell.x - 1, standing_cell.y),
+            Direction::Right => CellPos::new(standing_cell.x + 1, standing_cell.y),
         }
     }
 }
@@ -104,19 +128,17 @@ fn main() {
     let tileset = texture_creator.load_texture("assets/basictiles.png").unwrap();
 
     let mut tile_map: [[Cell; 16]; 12] =
-        [[Cell { tile_1: Some(11), tile_2: None }; 16]; 12];
+        [[Cell { tile_1: Some(11), tile_2: None, passable: true }; 16]; 12];
     tile_map[5][6].tile_1 = Some(12);
     tile_map[5][7].tile_1 = Some(12);
     tile_map[5][7].tile_2 = Some(38);
+    tile_map[5][7].passable = false;
 
     let spritesheet = texture_creator.load_texture("assets/characters.png").unwrap();
-    let mut player = Player {
-        position: Point { x: 0.5, y: 0.5 },
-        direction: Direction::Down,
-        speed: 0.0,
-    };
+    let mut player =
+        Player { position: Point::new(1.5, 1.5), direction: Direction::Down, speed: 0.0 };
 
-    let mut camera_position = Point { x: 7.0, y: 5.0 };
+    let mut camera_position = Point::new(7.0, 5.0);
 
     // Main Loop
     let mut running = true;
@@ -171,20 +193,66 @@ fn main() {
             }
         }
 
-        // Update player
-        player.position += match player.direction {
-            Direction::Up => Point { x: 0.0, y: -player.speed },
-            Direction::Down => Point { x: 0.0, y: player.speed },
-            Direction::Left => Point { x: -player.speed, y: 0.0 },
-            Direction::Right => Point { x: player.speed, y: 0.0 },
-        };
+        update_player(&mut player, tile_map);
 
-        // Render
         render(&mut canvas, camera_position, &tileset, &tile_map, &spritesheet, &player);
 
-        // Sleep
         ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
     }
+}
+
+fn update_player(player: &mut Player, tile_map: [[Cell; 16]; 12]) {
+    let mut new_position = player.position
+        + match player.direction {
+            Direction::Up => Point::new(0.0, -player.speed),
+            Direction::Down => Point::new(0.0, player.speed),
+            Direction::Left => Point::new(-player.speed, 0.0),
+            Direction::Right => Point::new(player.speed, 0.0),
+        };
+
+    // 0.5 is half player width/height
+    let new_top = new_position.y - 0.5;
+    let new_bot = new_position.y + 0.5;
+    let new_left = new_position.x - 0.5;
+    let new_right = new_position.x + 0.5;
+
+    let cell_positions_to_check = match player.direction {
+        Direction::Up => [Point::new(new_left, new_top), Point::new(new_right, new_top)],
+        Direction::Down => {
+            [Point::new(new_left, new_bot), Point::new(new_right, new_bot)]
+        }
+        Direction::Left => [Point::new(new_left, new_top), Point::new(new_left, new_bot)],
+        Direction::Right => {
+            [Point::new(new_right, new_top), Point::new(new_right, new_bot)]
+        }
+    };
+
+    for cell_position in cell_positions_to_check {
+        match get_cell_from_point(&tile_map, cell_position.x, cell_position.y) {
+            Some(cell) if cell.passable == false => {
+                let cell_top = cell_position.y.floor();
+                let cell_bot = cell_position.y.ceil();
+                let cell_left = cell_position.x.floor();
+                let cell_right = cell_position.x.ceil();
+                if new_top < cell_bot
+                    && new_bot > cell_top
+                    && new_left < cell_right
+                    && new_right > cell_left
+                {
+                    // 0.5 is half player width/height
+                    match player.direction {
+                        Direction::Up => new_position.y = cell_bot + 0.5,
+                        Direction::Down => new_position.y = cell_top - 0.5,
+                        Direction::Left => new_position.x = cell_right + 0.5,
+                        Direction::Right => new_position.x = cell_left - 0.5,
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    player.position = new_position;
 }
 
 fn render(
@@ -198,15 +266,15 @@ fn render(
     canvas.set_draw_color(Color::RGB(255, 255, 255));
     canvas.clear();
 
-    let camera_top_left = camera_position
-        - Point { x: SCREEN_COLS as f64 / 2.0, y: SCREEN_ROWS as f64 / 2.0 };
+    let camera_top_left =
+        camera_position - Point::new(SCREEN_COLS as f64 / 2.0, SCREEN_ROWS as f64 / 2.0);
 
     // Draw tiles
     let tileset_cols = tileset.query().width / TILE_SIZE;
     for r in 0..SCREEN_ROWS {
         for c in 0..SCREEN_COLS {
             let cell_screen_pos =
-                (Point { x: c as f64, y: r as f64 } - camera_top_left) * TILE_SIZE as f64;
+                (Point::new(c as f64, r as f64) - camera_top_left) * TILE_SIZE as f64;
             let screen_rect = Rect::new(
                 cell_screen_pos.x as i32,
                 cell_screen_pos.y as i32,
@@ -235,10 +303,10 @@ fn render(
     }
 
     // Draw player standing and facing cell markers
-    let standing_cell_screen_pos = (Point {
-        x: player.get_standing_cell().0 as f64,
-        y: player.get_standing_cell().1 as f64,
-    } - camera_top_left)
+    let standing_cell_screen_pos = (Point::new(
+        player.get_standing_cell().x as f64,
+        player.get_standing_cell().y as f64,
+    ) - camera_top_left)
         * TILE_SIZE as f64;
     canvas.set_draw_color(Color::RGB(255, 0, 0));
     canvas
@@ -250,10 +318,10 @@ fn render(
         ))
         .unwrap();
 
-    let facing_cell_screen_pos = (Point {
-        x: player.get_facing_cell().0 as f64,
-        y: player.get_facing_cell().1 as f64,
-    } - camera_top_left)
+    let facing_cell_screen_pos = (Point::new(
+        player.get_facing_cell().x as f64,
+        player.get_facing_cell().y as f64,
+    ) - camera_top_left)
         * TILE_SIZE as f64;
     canvas.set_draw_color(Color::RGB(0, 0, 255));
     canvas
@@ -275,7 +343,7 @@ fn render(
     let sprite_rect = Rect::new(7 * 16, sprite_row * 16, 16, 16);
     // sub (0.5, 0.5) to convert sprite center position to top left position
     let player_screen_pos =
-        (player.position - camera_top_left - Point { x: 0.5, y: 0.5 }) * TILE_SIZE as f64;
+        (player.position - camera_top_left - Point::new(0.5, 0.5)) * TILE_SIZE as f64;
     let screen_rect =
         Rect::new(player_screen_pos.x as i32, player_screen_pos.y as i32, 16, 16);
     canvas.copy(spritesheet, sprite_rect, screen_rect).unwrap();
