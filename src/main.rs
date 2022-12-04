@@ -29,14 +29,28 @@ struct Point {
 
 impl std::ops::Add for Point {
     type Output = Self;
-    fn add(self, other: Self) -> Self {
-        Self { x: self.x + other.x, y: self.y + other.y }
+    fn add(self, rhs: Self) -> Self {
+        Self { x: self.x + rhs.x, y: self.y + rhs.y }
     }
 }
 
 impl std::ops::AddAssign for Point {
-    fn add_assign(&mut self, other: Self) {
-        *self = *self + other;
+    fn add_assign(&mut self, rhs: Self) {
+        *self = *self + rhs;
+    }
+}
+
+impl std::ops::Sub for Point {
+    type Output = Self;
+    fn sub(self, rhs: Self) -> Self {
+        Self { x: self.x - rhs.x, y: self.y - rhs.y }
+    }
+}
+
+impl std::ops::Mul<f64> for Point {
+    type Output = Self;
+    fn mul(self, rhs: f64) -> Self {
+        Self { x: self.x * rhs, y: self.y * rhs }
     }
 }
 
@@ -53,15 +67,6 @@ struct Player {
 }
 
 impl Player {
-    fn update(&mut self) {
-        self.position += match self.direction {
-            Direction::Up => Point { x: 0.0, y: -self.speed },
-            Direction::Down => Point { x: 0.0, y: self.speed },
-            Direction::Left => Point { x: -self.speed, y: 0.0 },
-            Direction::Right => Point { x: self.speed, y: 0.0 },
-        };
-    }
-
     fn get_standing_cell(&self) -> (i32, i32) {
         (self.position.x.floor() as i32, self.position.y.floor() as i32)
     }
@@ -106,10 +111,12 @@ fn main() {
 
     let spritesheet = texture_creator.load_texture("assets/characters.png").unwrap();
     let mut player = Player {
-        position: Point { x: 0.0, y: 0.0 },
+        position: Point { x: 0.5, y: 0.5 },
         direction: Direction::Down,
         speed: 0.0,
     };
+
+    let mut camera_position = Point { x: 7.0, y: 5.0 };
 
     // Main Loop
     let mut running = true;
@@ -148,15 +155,32 @@ fn main() {
                 {
                     player.speed = 0.0;
                 }
+                Event::KeyDown { keycode: Some(Keycode::W), .. } => {
+                    camera_position.y -= 1.0;
+                }
+                Event::KeyDown { keycode: Some(Keycode::A), .. } => {
+                    camera_position.x -= 1.0;
+                }
+                Event::KeyDown { keycode: Some(Keycode::S), .. } => {
+                    camera_position.y += 1.0;
+                }
+                Event::KeyDown { keycode: Some(Keycode::D), .. } => {
+                    camera_position.x += 1.0;
+                }
                 _ => {}
             }
         }
 
-        // Update
-        player.update();
+        // Update player
+        player.position += match player.direction {
+            Direction::Up => Point { x: 0.0, y: -player.speed },
+            Direction::Down => Point { x: 0.0, y: player.speed },
+            Direction::Left => Point { x: -player.speed, y: 0.0 },
+            Direction::Right => Point { x: player.speed, y: 0.0 },
+        };
 
         // Render
-        render(&mut canvas, &tileset, &tile_map, &spritesheet, &player);
+        render(&mut canvas, camera_position, &tileset, &tile_map, &spritesheet, &player);
 
         // Sleep
         ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
@@ -165,6 +189,7 @@ fn main() {
 
 fn render(
     canvas: &mut WindowCanvas,
+    camera_position: Point,
     tileset: &Texture,
     tile_map: &[[Cell; 16]; 12],
     spritesheet: &Texture,
@@ -173,13 +198,18 @@ fn render(
     canvas.set_draw_color(Color::RGB(255, 255, 255));
     canvas.clear();
 
+    let camera_top_left = camera_position
+        - Point { x: SCREEN_COLS as f64 / 2.0, y: SCREEN_ROWS as f64 / 2.0 };
+
     // Draw tiles
     let tileset_cols = tileset.query().width / TILE_SIZE;
     for r in 0..SCREEN_ROWS {
         for c in 0..SCREEN_COLS {
+            let cell_screen_pos =
+                (Point { x: c as f64, y: r as f64 } - camera_top_left) * TILE_SIZE as f64;
             let screen_rect = Rect::new(
-                (c * TILE_SIZE) as i32,
-                (r * TILE_SIZE) as i32,
+                cell_screen_pos.x as i32,
+                cell_screen_pos.y as i32,
                 TILE_SIZE,
                 TILE_SIZE,
             );
@@ -204,21 +234,32 @@ fn render(
         }
     }
 
-    // Draw player standing and facing cells
+    // Draw player standing and facing cell markers
+    let standing_cell_screen_pos = (Point {
+        x: player.get_standing_cell().0 as f64,
+        y: player.get_standing_cell().1 as f64,
+    } - camera_top_left)
+        * TILE_SIZE as f64;
     canvas.set_draw_color(Color::RGB(255, 0, 0));
     canvas
         .draw_rect(Rect::new(
-            player.get_standing_cell().0 * TILE_SIZE as i32,
-            player.get_standing_cell().1 * TILE_SIZE as i32,
+            standing_cell_screen_pos.x as i32,
+            standing_cell_screen_pos.y as i32,
             TILE_SIZE,
             TILE_SIZE,
         ))
         .unwrap();
+
+    let facing_cell_screen_pos = (Point {
+        x: player.get_facing_cell().0 as f64,
+        y: player.get_facing_cell().1 as f64,
+    } - camera_top_left)
+        * TILE_SIZE as f64;
     canvas.set_draw_color(Color::RGB(0, 0, 255));
     canvas
         .draw_rect(Rect::new(
-            player.get_facing_cell().0 * TILE_SIZE as i32,
-            player.get_facing_cell().1 * TILE_SIZE as i32,
+            facing_cell_screen_pos.x as i32,
+            facing_cell_screen_pos.y as i32,
             TILE_SIZE,
             TILE_SIZE,
         ))
@@ -232,13 +273,13 @@ fn render(
         Direction::Right => 2,
     };
     let sprite_rect = Rect::new(7 * 16, sprite_row * 16, 16, 16);
-    let screen_rect = Rect::new(
-        (player.position.x * TILE_SIZE as f64) as i32 - (TILE_SIZE / 2) as i32,
-        (player.position.y * TILE_SIZE as f64) as i32 - (TILE_SIZE / 2) as i32,
-        16,
-        16,
-    );
+    // sub (0.5, 0.5) to convert sprite center position to top left position
+    let player_screen_pos =
+        (player.position - camera_top_left - Point { x: 0.5, y: 0.5 }) * TILE_SIZE as f64;
+    let screen_rect =
+        Rect::new(player_screen_pos.x as i32, player_screen_pos.y as i32, 16, 16);
     canvas.copy(spritesheet, sprite_rect, screen_rect).unwrap();
 
+    // Present canvas
     canvas.present();
 }
