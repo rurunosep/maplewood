@@ -1,9 +1,12 @@
+use derive_more::{Add, AddAssign, Mul, Sub};
 use sdl2::event::Event;
 use sdl2::image::LoadTexture;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::Color;
 use sdl2::rect::Rect;
-use sdl2::render::{Texture, WindowCanvas};
+use sdl2::render::{Texture, TextureQuery, WindowCanvas};
+use sdl2::ttf::Font;
+use std::collections::HashMap;
 use std::time::Duration;
 
 const TILE_SIZE: u32 = 16;
@@ -13,7 +16,6 @@ const SCREEN_SCALE: u32 = 2;
 
 const PLAYER_MOVE_SPEED: f64 = 0.12;
 
-#[derive(Clone, Copy, PartialEq, Eq)]
 enum Direction {
     Up,
     Down,
@@ -21,46 +23,34 @@ enum Direction {
     Right,
 }
 
-type Point = Coords<f64>;
-type CellPos = Coords<i32>;
-
-#[derive(Clone, Copy)]
-struct Coords<T> {
-    x: T,
-    y: T,
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+struct CellPos {
+    x: i32,
+    y: i32,
 }
 
-impl<T> Coords<T> {
-    fn new(x: T, y: T) -> Coords<T> {
-        Coords { x, y }
+impl CellPos {
+    fn new(x: i32, y: i32) -> CellPos {
+        CellPos { x, y }
     }
 }
 
-impl<T: std::ops::Add<Output = T>> std::ops::Add for Coords<T> {
-    type Output = Self;
-    fn add(self, rhs: Self) -> Self {
-        Self { x: self.x + rhs.x, y: self.y + rhs.y }
+#[derive(Clone, Copy, Add, AddAssign, Sub, Mul)]
+struct Point {
+    x: f64,
+    y: f64,
+}
+
+impl Point {
+    fn new(x: f64, y: f64) -> Point {
+        Point { x, y }
     }
 }
 
-impl<T: std::ops::Add<Output = T> + Copy> std::ops::AddAssign for Coords<T> {
-    fn add_assign(&mut self, rhs: Self) {
-        *self = *self + rhs;
-    }
-}
-
-impl<T: std::ops::Sub<Output = T>> std::ops::Sub for Coords<T> {
-    type Output = Self;
-    fn sub(self, rhs: Self) -> Self {
-        Self { x: self.x - rhs.x, y: self.y - rhs.y }
-    }
-}
-
-impl<T: std::ops::Mul<Output = T> + Copy> std::ops::Mul<T> for Coords<T> {
-    type Output = Self;
-    fn mul(self, rhs: T) -> Self {
-        Self { x: self.x * rhs, y: self.y * rhs }
-    }
+// TODO: maybe eventually structs implementing trait, rather than enum variants?
+enum Command {
+    Message(String),
+    CloseGame,
 }
 
 #[derive(Clone, Copy)]
@@ -70,24 +60,23 @@ struct Cell {
     passable: bool,
 }
 
-fn get_cell(tile_map: &[[Cell; 16]; 12], col: i32, row: i32) -> Option<Cell> {
-    if col > 0 && col < 16 && row > 0 && row < 12 {
-        Some(tile_map[row as usize][col as usize])
-    } else {
-        None
-    }
-}
-
 fn get_cell_from_point(tile_map: &[[Cell; 16]; 12], x: f64, y: f64) -> Option<Cell> {
     let x = x.floor() as i32;
     let y = y.floor() as i32;
-    get_cell(&tile_map, x, y)
+    if x >= 0 && x < 16 && y >= 0 && y < 12 {
+        Some(tile_map[y as usize][x as usize])
+    } else {
+        None
+    }
 }
 
 struct Player {
     position: Point,
     direction: Direction,
     speed: f64,
+    // TODO: hitbox offset so it can be at just the feet
+    hitbox_width: f64,
+    hitbox_height: f64,
 }
 
 impl Player {
@@ -95,6 +84,8 @@ impl Player {
         CellPos::new(self.position.x.floor() as i32, self.position.y.floor() as i32)
     }
 
+    // TODO: maybe the facing cell could be based on the point at a distance
+    // from player. so it may be the same as standing cell, or just nothing?
     fn get_facing_cell(&self) -> CellPos {
         let standing_cell = self.get_standing_cell();
         match self.direction {
@@ -110,6 +101,7 @@ fn main() {
     // Init
     let sdl_context = sdl2::init().unwrap();
     let _image_context = sdl2::image::init(sdl2::image::InitFlag::PNG).unwrap();
+    let ttf_context = sdl2::ttf::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
     let window = video_subsystem
         .window(
@@ -126,19 +118,52 @@ fn main() {
     let mut event_pump = sdl_context.event_pump().unwrap();
 
     let tileset = texture_creator.load_texture("assets/basictiles.png").unwrap();
+    let spritesheet = texture_creator.load_texture("assets/characters.png").unwrap();
+    let font = ttf_context.load_font("assets/OpenSans-Regular.ttf", 12).unwrap();
 
+    // Grass base
     let mut tile_map: [[Cell; 16]; 12] =
         [[Cell { tile_1: Some(11), tile_2: None, passable: true }; 16]; 12];
-    tile_map[5][6].tile_1 = Some(12);
-    tile_map[5][7].tile_1 = Some(12);
-    tile_map[5][7].tile_2 = Some(38);
-    tile_map[5][7].passable = false;
+    // Grass var 1
+    [(0, 1), (4, 1), (4, 10), (14, 9)].map(|c| tile_map[c.1][c.0].tile_1 = Some(64));
+    // Grass var 2
+    [(13, 1), (9, 6), (0, 8)].map(|c| tile_map[c.1][c.0].tile_1 = Some(65));
+    // Flowers
+    [(15, 3), (15, 4), (15, 5), (14, 4), (14, 5)]
+        .map(|c| tile_map[c.1][c.0].tile_1 = Some(12));
+    // Trees
+    #[rustfmt::skip]
+    [(6, 1), (2, 3), (10, 3), (13, 3), (0, 6), (15, 7),
+    (0, 7), (2, 9), (5, 6), (8, 10), (12, 11), (14, 11)].map(|c| {
+        tile_map[c.1][c.0].tile_2 = Some(38);
+        tile_map[c.1][c.0].passable = false;
+    });
+    // Objects
+    tile_map[1][9] = Cell { tile_1: Some(11), tile_2: Some(57), passable: true };
+    tile_map[4][4] = Cell { tile_1: Some(11), tile_2: Some(27), passable: false };
+    tile_map[4][8] = Cell { tile_1: Some(11), tile_2: Some(36), passable: false };
+    tile_map[7][3] = Cell { tile_1: Some(11), tile_2: Some(67), passable: false };
+    tile_map[8][8] = Cell { tile_1: Some(11), tile_2: Some(31), passable: false };
+    tile_map[6][11] = Cell { tile_1: Some(11), tile_2: Some(47), passable: false };
 
-    let spritesheet = texture_creator.load_texture("assets/characters.png").unwrap();
-    let mut player =
-        Player { position: Point::new(1.5, 1.5), direction: Direction::Down, speed: 0.0 };
+    let mut interactables: HashMap<CellPos, Command> = HashMap::new();
+    interactables.insert(CellPos::new(11, 6), Command::Message("Statue".to_string()));
+    interactables.insert(CellPos::new(8, 4), Command::Message("Chest".to_string()));
+    interactables.insert(CellPos::new(4, 4), Command::Message("Pot".to_string()));
+    interactables.insert(CellPos::new(8, 8), Command::Message("Well".to_string()));
+    interactables.insert(CellPos::new(9, 1), Command::CloseGame);
 
-    let mut camera_position = Point::new(7.0, 5.0);
+    let mut player = Player {
+        position: Point::new(3.5, 5.5),
+        direction: Direction::Down,
+        speed: 0.0,
+        hitbox_width: 8.0 / 16.0,
+        hitbox_height: 12.0 / 16.0,
+    };
+
+    let mut camera_position = Point::new(8.0, 6.0);
+    let mut show_message_window = false;
+    let mut message = "";
 
     // Main Loop
     let mut running = true;
@@ -146,10 +171,13 @@ fn main() {
         // Handle input
         for event in event_pump.poll_iter() {
             match event {
+                // Close program
                 Event::Quit { .. }
                 | Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
                     running = false;
                 }
+
+                // Player movement
                 Event::KeyDown { keycode: Some(Keycode::Left), .. } => {
                     player.speed = PLAYER_MOVE_SPEED;
                     player.direction = Direction::Left;
@@ -177,6 +205,8 @@ fn main() {
                 {
                     player.speed = 0.0;
                 }
+
+                // Camera movement
                 Event::KeyDown { keycode: Some(Keycode::W), .. } => {
                     camera_position.y -= 1.0;
                 }
@@ -189,13 +219,56 @@ fn main() {
                 Event::KeyDown { keycode: Some(Keycode::D), .. } => {
                     camera_position.x += 1.0;
                 }
+
+                // Cell interaction
+                Event::KeyDown { keycode: Some(Keycode::Space), .. } => {
+                    match interactables.get(&player.get_facing_cell()) {
+                        Some(Command::Message(m)) => {
+                            show_message_window = true;
+                            message = m;
+                        }
+                        Some(Command::CloseGame) => {
+                            running = false;
+                        }
+                        // Interactables not using commands
+                        None => match player.get_facing_cell() {
+                            // Sign
+                            CellPos { x: 3, y: 7 } => {
+                                if player.get_standing_cell() == (CellPos { x: 3, y: 8 })
+                                {
+                                    show_message_window = true;
+                                    message = "Sign";
+                                } else {
+                                    show_message_window = true;
+                                    message = "Wrong side"
+                                }
+                            }
+                            _ => {}
+                        },
+                    }
+                }
+
+                // Close message window
+                Event::KeyDown { keycode: Some(Keycode::Backspace), .. } => {
+                    show_message_window = false;
+                }
                 _ => {}
             }
         }
 
         update_player(&mut player, tile_map);
 
-        render(&mut canvas, camera_position, &tileset, &tile_map, &spritesheet, &player);
+        render(
+            &mut canvas,
+            camera_position,
+            &tileset,
+            &tile_map,
+            &spritesheet,
+            &player,
+            show_message_window,
+            &font,
+            message,
+        );
 
         ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
     }
@@ -210,11 +283,10 @@ fn update_player(player: &mut Player, tile_map: [[Cell; 16]; 12]) {
             Direction::Right => Point::new(player.speed, 0.0),
         };
 
-    // 0.5 is half player width/height
-    let new_top = new_position.y - 0.5;
-    let new_bot = new_position.y + 0.5;
-    let new_left = new_position.x - 0.5;
-    let new_right = new_position.x + 0.5;
+    let new_top = new_position.y - player.hitbox_height / 2.0;
+    let new_bot = new_position.y + player.hitbox_height / 2.0;
+    let new_left = new_position.x - player.hitbox_width / 2.0;
+    let new_right = new_position.x + player.hitbox_width / 2.0;
 
     let cell_positions_to_check = match player.direction {
         Direction::Up => [Point::new(new_left, new_top), Point::new(new_right, new_top)],
@@ -239,12 +311,19 @@ fn update_player(player: &mut Player, tile_map: [[Cell; 16]; 12]) {
                     && new_left < cell_right
                     && new_right > cell_left
                 {
-                    // 0.5 is half player width/height
                     match player.direction {
-                        Direction::Up => new_position.y = cell_bot + 0.5,
-                        Direction::Down => new_position.y = cell_top - 0.5,
-                        Direction::Left => new_position.x = cell_right + 0.5,
-                        Direction::Right => new_position.x = cell_left - 0.5,
+                        Direction::Up => {
+                            new_position.y = cell_bot + player.hitbox_height / 2.0
+                        }
+                        Direction::Down => {
+                            new_position.y = cell_top - player.hitbox_height / 2.0
+                        }
+                        Direction::Left => {
+                            new_position.x = cell_right + player.hitbox_width / 2.0
+                        }
+                        Direction::Right => {
+                            new_position.x = cell_left - player.hitbox_width / 2.0
+                        }
                     }
                 }
             }
@@ -262,6 +341,9 @@ fn render(
     tile_map: &[[Cell; 16]; 12],
     spritesheet: &Texture,
     player: &Player,
+    show_message_window: bool,
+    font: &Font,
+    message: &str,
 ) {
     canvas.set_draw_color(Color::RGB(255, 255, 255));
     canvas.clear();
@@ -347,6 +429,17 @@ fn render(
     let screen_rect =
         Rect::new(player_screen_pos.x as i32, player_screen_pos.y as i32, 16, 16);
     canvas.copy(spritesheet, sprite_rect, screen_rect).unwrap();
+
+    // Draw message window
+    if show_message_window {
+        canvas.set_draw_color(Color::RGB(0, 0, 0));
+        canvas.fill_rect(Rect::new(10, 16 * 12 - 50, 16 * 16 - 20, 40)).unwrap();
+        let surface = font.render(message).solid(Color::RGB(255, 255, 255)).unwrap();
+        let texture_creator = canvas.texture_creator();
+        let texture = texture_creator.create_texture_from_surface(&surface).unwrap();
+        let TextureQuery { width, height, .. } = texture.query();
+        canvas.copy(&texture, None, Rect::new(15, 16 * 12 - 45, width, height)).unwrap();
+    }
 
     // Present canvas
     canvas.present();
