@@ -1,3 +1,4 @@
+use array2d::Array2D;
 use derive_more::{Add, AddAssign, Mul, Sub};
 use sdl2::event::Event;
 use sdl2::image::LoadTexture;
@@ -47,7 +48,7 @@ impl Point {
     }
 }
 
-// TODO: maybe eventually structs implementing trait, rather than enum variants?
+// Maybe eventually structs implementing trait, rather than enum variants?
 enum Command {
     Message(String),
     CloseGame,
@@ -60,14 +61,28 @@ struct Cell {
     passable: bool,
 }
 
-fn get_cell_from_point(tile_map: &[[Cell; 16]; 12], x: f64, y: f64) -> Option<Cell> {
+fn get_cell_from_point(tile_map: &Array2D<Cell>, x: f64, y: f64) -> Option<Cell> {
     let x = x.floor() as i32;
     let y = y.floor() as i32;
     if x >= 0 && x < 16 && y >= 0 && y < 12 {
-        Some(tile_map[y as usize][x as usize])
+        Some(tile_map[(x as usize, y as usize)])
     } else {
         None
     }
+}
+
+// Really, this represents an individual instance of execution of a script
+// The Vec<Command> is the real "script"
+struct Script<'a> {
+    // For branching, maybe commands can form a tree with conditional point to multiple commands?
+    // Rather than a current_command_num to index a vec, we have a current_command that we get
+    // from the previous command
+    // In this case, there won't be a "commands" at all, which makes it even more obvious that
+    // this is an instance of a execution rather than a script
+    commands: &'a Vec<Command>,
+    current_command_num: usize,
+    waiting: bool,
+    finished: bool,
 }
 
 struct Player {
@@ -84,7 +99,7 @@ impl Player {
         CellPos::new(self.position.x.floor() as i32, self.position.y.floor() as i32)
     }
 
-    // TODO: maybe the facing cell could be based on the point at a distance
+    // Maybe the facing cell could be based on the point at a distance
     // from player. so it may be the same as standing cell, or just nothing?
     fn get_facing_cell(&self) -> CellPos {
         let standing_cell = self.get_standing_cell();
@@ -121,37 +136,52 @@ fn main() {
     let spritesheet = texture_creator.load_texture("assets/characters.png").unwrap();
     let font = ttf_context.load_font("assets/OpenSans-Regular.ttf", 12).unwrap();
 
+    // Cell positions may be negative and I want it that way
+    // Eventually there will be a TileMap struct or something like that
+    // which uses signed coords, and it will deal with the implementation
+    // details like indexing into the array. There very well might be more
+    // than one array for multiple map chunks anyway
+    // For now... just don't index into tile array with neg coord
+
     // Grass base
-    let mut tile_map: [[Cell; 16]; 12] =
-        [[Cell { tile_1: Some(11), tile_2: None, passable: true }; 16]; 12];
+    let mut tile_map = Array2D::filled_with(
+        Cell { tile_1: Some(11), tile_2: None, passable: true },
+        16,
+        12,
+    );
     // Grass var 1
-    [(0, 1), (4, 1), (4, 10), (14, 9)].map(|c| tile_map[c.1][c.0].tile_1 = Some(64));
+    [(0, 1), (4, 1), (4, 10), (14, 9)].map(|c| tile_map[c].tile_1 = Some(64));
     // Grass var 2
-    [(13, 1), (9, 6), (0, 8)].map(|c| tile_map[c.1][c.0].tile_1 = Some(65));
+    [(13, 1), (9, 6), (0, 8)].map(|c| tile_map[c].tile_1 = Some(65));
     // Flowers
-    [(15, 3), (15, 4), (15, 5), (14, 4), (14, 5)]
-        .map(|c| tile_map[c.1][c.0].tile_1 = Some(12));
+    [(15, 3), (15, 4), (15, 5), (14, 4), (14, 5)].map(|c| tile_map[c].tile_1 = Some(12));
     // Trees
     #[rustfmt::skip]
     [(6, 1), (2, 3), (10, 3), (13, 3), (0, 6), (15, 7),
     (0, 7), (2, 9), (5, 6), (8, 10), (12, 11), (14, 11)].map(|c| {
-        tile_map[c.1][c.0].tile_2 = Some(38);
-        tile_map[c.1][c.0].passable = false;
+        tile_map[c].tile_2 = Some(38);
+        tile_map[c].passable = false;
     });
     // Objects
-    tile_map[1][9] = Cell { tile_1: Some(11), tile_2: Some(57), passable: true };
-    tile_map[4][4] = Cell { tile_1: Some(11), tile_2: Some(27), passable: false };
-    tile_map[4][8] = Cell { tile_1: Some(11), tile_2: Some(36), passable: false };
-    tile_map[7][3] = Cell { tile_1: Some(11), tile_2: Some(67), passable: false };
-    tile_map[8][8] = Cell { tile_1: Some(11), tile_2: Some(31), passable: false };
-    tile_map[6][11] = Cell { tile_1: Some(11), tile_2: Some(47), passable: false };
+    tile_map[(9, 1)] = Cell { tile_1: Some(11), tile_2: Some(57), passable: true };
+    tile_map[(4, 4)] = Cell { tile_1: Some(11), tile_2: Some(27), passable: false };
+    tile_map[(8, 4)] = Cell { tile_1: Some(11), tile_2: Some(36), passable: false };
+    tile_map[(3, 7)] = Cell { tile_1: Some(11), tile_2: Some(67), passable: false };
+    tile_map[(8, 8)] = Cell { tile_1: Some(11), tile_2: Some(31), passable: false };
+    tile_map[(11, 6)] = Cell { tile_1: Some(11), tile_2: Some(47), passable: false };
 
-    let mut interactables: HashMap<CellPos, Command> = HashMap::new();
-    interactables.insert(CellPos::new(11, 6), Command::Message("Statue".to_string()));
-    interactables.insert(CellPos::new(8, 4), Command::Message("Chest".to_string()));
-    interactables.insert(CellPos::new(4, 4), Command::Message("Pot".to_string()));
-    interactables.insert(CellPos::new(8, 8), Command::Message("Well".to_string()));
-    interactables.insert(CellPos::new(9, 1), Command::CloseGame);
+    let mut interactables: HashMap<CellPos, Vec<Command>> = HashMap::new();
+    interactables.insert(
+        CellPos::new(11, 6),
+        vec![
+            Command::Message("It's a...".to_string()),
+            Command::Message("Statue".to_string()),
+        ],
+    );
+    interactables.insert(CellPos::new(8, 4), vec![Command::Message("Chest".to_string())]);
+    interactables.insert(CellPos::new(4, 4), vec![Command::Message("Pot".to_string())]);
+    interactables.insert(CellPos::new(8, 8), vec![Command::Message("Well".to_string())]);
+    interactables.insert(CellPos::new(9, 1), vec![Command::CloseGame]);
 
     let mut player = Player {
         position: Point::new(3.5, 5.5),
@@ -163,7 +193,8 @@ fn main() {
 
     let mut camera_position = Point::new(8.0, 6.0);
     let mut show_message_window = false;
-    let mut message = "";
+    let mut message = String::new();
+    let mut current_script: Option<Script> = None;
 
     // Main Loop
     let mut running = true;
@@ -223,40 +254,57 @@ fn main() {
                 // Cell interaction
                 Event::KeyDown { keycode: Some(Keycode::Space), .. } => {
                     match interactables.get(&player.get_facing_cell()) {
-                        Some(Command::Message(m)) => {
-                            show_message_window = true;
-                            message = m;
+                        Some(commands) => {
+                            current_script = Some(Script {
+                                commands,
+                                current_command_num: 0,
+                                waiting: false,
+                                finished: false,
+                            });
                         }
-                        Some(Command::CloseGame) => {
-                            running = false;
-                        }
-                        // Interactables not using commands
-                        None => match player.get_facing_cell() {
-                            // Sign
-                            CellPos { x: 3, y: 7 } => {
-                                if player.get_standing_cell() == (CellPos { x: 3, y: 8 })
-                                {
-                                    show_message_window = true;
-                                    message = "Sign";
-                                } else {
-                                    show_message_window = true;
-                                    message = "Wrong side"
-                                }
-                            }
-                            _ => {}
-                        },
+                        None => {}
                     }
                 }
 
-                // Close message window
-                Event::KeyDown { keycode: Some(Keycode::Backspace), .. } => {
+                // Advance script
+                Event::KeyDown { keycode: Some(Keycode::Return), .. } => {
                     show_message_window = false;
+                    if let Some(ref mut script) = current_script {
+                        script.waiting = false;
+                    }
                 }
                 _ => {}
             }
         }
 
-        update_player(&mut player, tile_map);
+        // Update script
+        match current_script {
+            Some(ref mut script) => {
+                while !script.waiting && !script.finished {
+                    match script.commands.get(script.current_command_num) {
+                        Some(Command::Message(m)) => {
+                            show_message_window = true;
+                            message = m.to_string();
+
+                            script.waiting = true;
+                        }
+                        Some(Command::CloseGame) => {
+                            running = false;
+                        }
+                        None => {
+                            script.finished = true;
+                        }
+                    }
+                    script.current_command_num += 1;
+                }
+                if script.finished {
+                    current_script = None;
+                }
+            }
+            None => {}
+        }
+
+        update_player(&mut player, &tile_map);
 
         render(
             &mut canvas,
@@ -267,14 +315,14 @@ fn main() {
             &player,
             show_message_window,
             &font,
-            message,
+            &message,
         );
 
         ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
     }
 }
 
-fn update_player(player: &mut Player, tile_map: [[Cell; 16]; 12]) {
+fn update_player(player: &mut Player, tile_map: &Array2D<Cell>) {
     let mut new_position = player.position
         + match player.direction {
             Direction::Up => Point::new(0.0, -player.speed),
@@ -338,7 +386,7 @@ fn render(
     canvas: &mut WindowCanvas,
     camera_position: Point,
     tileset: &Texture,
-    tile_map: &[[Cell; 16]; 12],
+    tile_map: &Array2D<Cell>,
     spritesheet: &Texture,
     player: &Player,
     show_message_window: bool,
@@ -353,8 +401,8 @@ fn render(
 
     // Draw tiles
     let tileset_cols = tileset.query().width / TILE_SIZE;
-    for r in 0..SCREEN_ROWS {
-        for c in 0..SCREEN_COLS {
+    for r in 0..SCREEN_ROWS as usize {
+        for c in 0..SCREEN_COLS as usize {
             let cell_screen_pos =
                 (Point::new(c as f64, r as f64) - camera_top_left) * TILE_SIZE as f64;
             let screen_rect = Rect::new(
@@ -363,7 +411,7 @@ fn render(
                 TILE_SIZE,
                 TILE_SIZE,
             );
-            let cell = tile_map[r as usize][c as usize];
+            let cell = tile_map[(c, r)];
 
             for tile in [cell.tile_1, cell.tile_2] {
                 match tile {
