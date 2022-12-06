@@ -1,3 +1,5 @@
+#![allow(unused_parens)]
+
 use array2d::Array2D;
 use derive_more::{Add, AddAssign, Mul, Sub};
 use sdl2::event::Event;
@@ -14,7 +16,6 @@ const TILE_SIZE: u32 = 16;
 const SCREEN_COLS: u32 = 16;
 const SCREEN_ROWS: u32 = 12;
 const SCREEN_SCALE: u32 = 2;
-
 const PLAYER_MOVE_SPEED: f64 = 0.12;
 
 enum Direction {
@@ -48,12 +49,6 @@ impl Point {
     }
 }
 
-// Maybe eventually structs implementing trait, rather than enum variants?
-enum Command {
-    Message(String),
-    CloseGame,
-}
-
 #[derive(Clone, Copy)]
 struct Cell {
     tile_1: Option<u32>,
@@ -71,14 +66,14 @@ fn get_cell_from_point(tile_map: &Array2D<Cell>, x: f64, y: f64) -> Option<Cell>
     }
 }
 
-// Really, this represents an individual instance of execution of a script
-// The Vec<Command> is the real "script"
+enum Command {
+    Message(String, usize),
+    IfPlayerAtCellPos(CellPos, usize, usize),
+    CloseGame,
+}
+
+// Individual instance of script execution
 struct Script<'a> {
-    // For branching, maybe commands can form a tree with conditional point to multiple commands?
-    // Rather than a current_command_num to index a vec, we have a current_command that we get
-    // from the previous command
-    // In this case, there won't be a "commands" at all, which makes it even more obvious that
-    // this is an instance of a execution rather than a script
     commands: &'a Vec<Command>,
     current_command_num: usize,
     waiting: bool,
@@ -89,7 +84,6 @@ struct Player {
     position: Point,
     direction: Direction,
     speed: f64,
-    // TODO: hitbox offset so it can be at just the feet
     hitbox_width: f64,
     hitbox_height: f64,
 }
@@ -118,6 +112,8 @@ fn main() {
     let _image_context = sdl2::image::init(sdl2::image::InitFlag::PNG).unwrap();
     let ttf_context = sdl2::ttf::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
+    let mut event_pump = sdl_context.event_pump().unwrap();
+
     let window = video_subsystem
         .window(
             "Maplewood",
@@ -130,58 +126,13 @@ fn main() {
     let mut canvas = window.into_canvas().build().unwrap();
     canvas.set_scale(SCREEN_SCALE as f32, SCREEN_SCALE as f32).unwrap();
     let texture_creator = canvas.texture_creator();
-    let mut event_pump = sdl_context.event_pump().unwrap();
 
     let tileset = texture_creator.load_texture("assets/basictiles.png").unwrap();
     let spritesheet = texture_creator.load_texture("assets/characters.png").unwrap();
     let font = ttf_context.load_font("assets/OpenSans-Regular.ttf", 12).unwrap();
 
-    // Cell positions may be negative and I want it that way
-    // Eventually there will be a TileMap struct or something like that
-    // which uses signed coords, and it will deal with the implementation
-    // details like indexing into the array. There very well might be more
-    // than one array for multiple map chunks anyway
-    // For now... just don't index into tile array with neg coord
-
-    // Grass base
-    let mut tile_map = Array2D::filled_with(
-        Cell { tile_1: Some(11), tile_2: None, passable: true },
-        16,
-        12,
-    );
-    // Grass var 1
-    [(0, 1), (4, 1), (4, 10), (14, 9)].map(|c| tile_map[c].tile_1 = Some(64));
-    // Grass var 2
-    [(13, 1), (9, 6), (0, 8)].map(|c| tile_map[c].tile_1 = Some(65));
-    // Flowers
-    [(15, 3), (15, 4), (15, 5), (14, 4), (14, 5)].map(|c| tile_map[c].tile_1 = Some(12));
-    // Trees
-    #[rustfmt::skip]
-    [(6, 1), (2, 3), (10, 3), (13, 3), (0, 6), (15, 7),
-    (0, 7), (2, 9), (5, 6), (8, 10), (12, 11), (14, 11)].map(|c| {
-        tile_map[c].tile_2 = Some(38);
-        tile_map[c].passable = false;
-    });
-    // Objects
-    tile_map[(9, 1)] = Cell { tile_1: Some(11), tile_2: Some(57), passable: true };
-    tile_map[(4, 4)] = Cell { tile_1: Some(11), tile_2: Some(27), passable: false };
-    tile_map[(8, 4)] = Cell { tile_1: Some(11), tile_2: Some(36), passable: false };
-    tile_map[(3, 7)] = Cell { tile_1: Some(11), tile_2: Some(67), passable: false };
-    tile_map[(8, 8)] = Cell { tile_1: Some(11), tile_2: Some(31), passable: false };
-    tile_map[(11, 6)] = Cell { tile_1: Some(11), tile_2: Some(47), passable: false };
-
-    let mut interactables: HashMap<CellPos, Vec<Command>> = HashMap::new();
-    interactables.insert(
-        CellPos::new(11, 6),
-        vec![
-            Command::Message("It's a...".to_string()),
-            Command::Message("Statue".to_string()),
-        ],
-    );
-    interactables.insert(CellPos::new(8, 4), vec![Command::Message("Chest".to_string())]);
-    interactables.insert(CellPos::new(4, 4), vec![Command::Message("Pot".to_string())]);
-    interactables.insert(CellPos::new(8, 8), vec![Command::Message("Well".to_string())]);
-    interactables.insert(CellPos::new(9, 1), vec![Command::CloseGame]);
+    let tile_map = create_tile_map();
+    let interactables = create_interactables();
 
     let mut player = Player {
         position: Point::new(3.5, 5.5),
@@ -200,108 +151,28 @@ fn main() {
     let mut running = true;
     while running {
         // Handle input
-        for event in event_pump.poll_iter() {
-            match event {
-                // Close program
-                Event::Quit { .. }
-                | Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
-                    running = false;
-                }
-
-                // Player movement
-                Event::KeyDown { keycode: Some(Keycode::Left), .. } => {
-                    player.speed = PLAYER_MOVE_SPEED;
-                    player.direction = Direction::Left;
-                }
-                Event::KeyDown { keycode: Some(Keycode::Right), .. } => {
-                    player.speed = PLAYER_MOVE_SPEED;
-                    player.direction = Direction::Right;
-                }
-                Event::KeyDown { keycode: Some(Keycode::Up), .. } => {
-                    player.speed = PLAYER_MOVE_SPEED;
-                    player.direction = Direction::Up;
-                }
-                Event::KeyDown { keycode: Some(Keycode::Down), .. } => {
-                    player.speed = PLAYER_MOVE_SPEED;
-                    player.direction = Direction::Down;
-                }
-                Event::KeyUp { keycode: Some(keycode), .. }
-                    if keycode
-                        == match player.direction {
-                            Direction::Left => Keycode::Left,
-                            Direction::Right => Keycode::Right,
-                            Direction::Up => Keycode::Up,
-                            Direction::Down => Keycode::Down,
-                        } =>
-                {
-                    player.speed = 0.0;
-                }
-
-                // Camera movement
-                Event::KeyDown { keycode: Some(Keycode::W), .. } => {
-                    camera_position.y -= 1.0;
-                }
-                Event::KeyDown { keycode: Some(Keycode::A), .. } => {
-                    camera_position.x -= 1.0;
-                }
-                Event::KeyDown { keycode: Some(Keycode::S), .. } => {
-                    camera_position.y += 1.0;
-                }
-                Event::KeyDown { keycode: Some(Keycode::D), .. } => {
-                    camera_position.x += 1.0;
-                }
-
-                // Cell interaction
-                Event::KeyDown { keycode: Some(Keycode::Space), .. } => {
-                    match interactables.get(&player.get_facing_cell()) {
-                        Some(commands) => {
-                            current_script = Some(Script {
-                                commands,
-                                current_command_num: 0,
-                                waiting: false,
-                                finished: false,
-                            });
-                        }
-                        None => {}
-                    }
-                }
-
-                // Advance script
-                Event::KeyDown { keycode: Some(Keycode::Return), .. } => {
-                    show_message_window = false;
-                    if let Some(ref mut script) = current_script {
-                        script.waiting = false;
-                    }
-                }
-                _ => {}
-            }
-        }
+        handle_input(
+            &mut event_pump,
+            &mut running,
+            &mut player,
+            &mut camera_position,
+            &interactables,
+            &mut current_script,
+            &mut show_message_window,
+        );
 
         // Update script
-        match current_script {
-            Some(ref mut script) => {
-                while !script.waiting && !script.finished {
-                    match script.commands.get(script.current_command_num) {
-                        Some(Command::Message(m)) => {
-                            show_message_window = true;
-                            message = m.to_string();
-
-                            script.waiting = true;
-                        }
-                        Some(Command::CloseGame) => {
-                            running = false;
-                        }
-                        None => {
-                            script.finished = true;
-                        }
-                    }
-                    script.current_command_num += 1;
-                }
-                if script.finished {
-                    current_script = None;
-                }
+        if let Some(ref mut script) = current_script {
+            update_script(
+                script,
+                &player,
+                &mut show_message_window,
+                &mut message,
+                &mut running,
+            );
+            if script.finished {
+                current_script = None;
             }
-            None => {}
         }
 
         update_player(&mut player, &tile_map);
@@ -319,6 +190,127 @@ fn main() {
         );
 
         ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
+    }
+}
+
+fn handle_input<'a>(
+    event_pump: &mut sdl2::EventPump,
+    running: &mut bool,
+    player: &mut Player,
+    camera_position: &mut Point,
+    interactables: &'a HashMap<CellPos, Vec<Command>>,
+    current_script: &mut Option<Script<'a>>,
+    show_message_window: &mut bool,
+) {
+    for event in event_pump.poll_iter() {
+        match event {
+            // Close program
+            Event::Quit { .. }
+            | Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
+                *running = false;
+            }
+
+            // Player movement
+            Event::KeyDown { keycode: Some(Keycode::Left), .. } => {
+                player.speed = PLAYER_MOVE_SPEED;
+                player.direction = Direction::Left;
+            }
+            Event::KeyDown { keycode: Some(Keycode::Right), .. } => {
+                player.speed = PLAYER_MOVE_SPEED;
+                player.direction = Direction::Right;
+            }
+            Event::KeyDown { keycode: Some(Keycode::Up), .. } => {
+                player.speed = PLAYER_MOVE_SPEED;
+                player.direction = Direction::Up;
+            }
+            Event::KeyDown { keycode: Some(Keycode::Down), .. } => {
+                player.speed = PLAYER_MOVE_SPEED;
+                player.direction = Direction::Down;
+            }
+            Event::KeyUp { keycode: Some(keycode), .. }
+                if keycode
+                    == match player.direction {
+                        Direction::Left => Keycode::Left,
+                        Direction::Right => Keycode::Right,
+                        Direction::Up => Keycode::Up,
+                        Direction::Down => Keycode::Down,
+                    } =>
+            {
+                player.speed = 0.0;
+            }
+
+            // Camera movement
+            Event::KeyDown { keycode: Some(Keycode::W), .. } => {
+                camera_position.y -= 1.0;
+            }
+            Event::KeyDown { keycode: Some(Keycode::A), .. } => {
+                camera_position.x -= 1.0;
+            }
+            Event::KeyDown { keycode: Some(Keycode::S), .. } => {
+                camera_position.y += 1.0;
+            }
+            Event::KeyDown { keycode: Some(Keycode::D), .. } => {
+                camera_position.x += 1.0;
+            }
+
+            // Cell interaction
+            Event::KeyDown { keycode: Some(Keycode::Space), .. } => {
+                match interactables.get(&player.get_facing_cell()) {
+                    Some(commands) => {
+                        *current_script = Some(Script {
+                            commands,
+                            current_command_num: 0,
+                            waiting: false,
+                            finished: false,
+                        });
+                    }
+                    None => {}
+                }
+            }
+
+            // Advance script
+            Event::KeyDown { keycode: Some(Keycode::Return), .. } => {
+                *show_message_window = false;
+                if let Some(ref mut script) = *current_script {
+                    script.waiting = false;
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+fn update_script(
+    script: &mut Script,
+    /////
+    player: &Player,
+    show_message_window: &mut bool,
+    message: &mut String,
+    running: &mut bool,
+) {
+    while !script.waiting && !script.finished {
+        match script.commands.get(script.current_command_num) {
+            Some(Command::Message(m, n)) => {
+                *show_message_window = true;
+                *message = m.to_string();
+                script.waiting = true;
+                script.current_command_num = *n;
+            }
+            Some(Command::IfPlayerAtCellPos(p, t, f)) => {
+                if player.get_standing_cell() == *p {
+                    script.current_command_num = *t;
+                } else {
+                    script.current_command_num = *f;
+                }
+            }
+            Some(Command::CloseGame) => {
+                *running = false;
+                script.current_command_num = usize::MAX;
+            }
+            None => {
+                script.finished = true;
+            }
+        }
     }
 }
 
@@ -491,4 +483,65 @@ fn render(
 
     // Present canvas
     canvas.present();
+}
+
+fn create_tile_map() -> Array2D<Cell> {
+    // Grass base
+    let mut tile_map = Array2D::filled_with(
+        Cell { tile_1: Some(11), tile_2: None, passable: true },
+        16,
+        12,
+    );
+    // Grass var 1
+    [(0, 1), (4, 1), (4, 10), (14, 9)].map(|c| tile_map[c].tile_1 = Some(64));
+    // Grass var 2
+    [(13, 1), (9, 6), (0, 8)].map(|c| tile_map[c].tile_1 = Some(65));
+    // Flowers
+    [(15, 3), (15, 4), (15, 5), (14, 4), (14, 5)].map(|c| tile_map[c].tile_1 = Some(12));
+    // Trees
+    #[rustfmt::skip]
+    [(6, 1), (2, 3), (10, 3), (13, 3), (0, 6), (15, 7),
+    (0, 7), (2, 9), (5, 6), (8, 10), (12, 11), (14, 11)].map(|c| {
+        tile_map[c].tile_2 = Some(38);
+        tile_map[c].passable = false;
+    });
+    // Objects
+    tile_map[(9, 1)] = Cell { tile_1: Some(11), tile_2: Some(57), passable: true };
+    tile_map[(4, 4)] = Cell { tile_1: Some(11), tile_2: Some(27), passable: false };
+    tile_map[(8, 4)] = Cell { tile_1: Some(11), tile_2: Some(36), passable: false };
+    tile_map[(3, 7)] = Cell { tile_1: Some(11), tile_2: Some(67), passable: false };
+    tile_map[(8, 8)] = Cell { tile_1: Some(11), tile_2: Some(31), passable: false };
+    tile_map[(11, 6)] = Cell { tile_1: Some(11), tile_2: Some(47), passable: false };
+
+    (tile_map)
+}
+
+fn create_interactables() -> HashMap<CellPos, Vec<Command>> {
+    let mut interactables: HashMap<CellPos, Vec<Command>> = HashMap::new();
+
+    // TODO: builder
+    interactables.insert(
+        CellPos::new(3, 7),
+        vec![
+            Command::IfPlayerAtCellPos(CellPos::new(3, 8), 1, 2),
+            Command::Message("Sign".to_string(), 3),
+            Command::Message("Wrong side".to_string(), 3),
+        ],
+    );
+    interactables.insert(
+        CellPos::new(11, 6),
+        vec![
+            Command::Message("It's a...".to_string(), 1),
+            Command::Message("Statue".to_string(), 2),
+        ],
+    );
+    interactables
+        .insert(CellPos::new(8, 4), vec![Command::Message("Chest".to_string(), 1)]);
+    interactables
+        .insert(CellPos::new(4, 4), vec![Command::Message("Pot".to_string(), 1)]);
+    interactables
+        .insert(CellPos::new(8, 8), vec![Command::Message("Well".to_string(), 1)]);
+    interactables.insert(CellPos::new(9, 1), vec![Command::CloseGame]);
+
+    interactables
 }
