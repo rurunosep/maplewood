@@ -66,8 +66,13 @@ fn get_cell_from_point(tile_map: &Array2D<Cell>, x: f64, y: f64) -> Option<Cell>
     }
 }
 
+#[allow(dead_code)]
 enum Command {
     Message(String, usize),
+    SetGlobalVar(String, i32, usize),
+    AddGlobalVar(String, i32, usize),
+    IfGlobalVarEq(String, i32, usize, usize),
+    IfGlobalVarNotEq(String, i32, usize, usize),
     IfPlayerAtCellPos(CellPos, usize, usize),
     CloseGame,
 }
@@ -93,8 +98,6 @@ impl Player {
         CellPos::new(self.position.x.floor() as i32, self.position.y.floor() as i32)
     }
 
-    // Maybe the facing cell could be based on the point at a distance
-    // from player. so it may be the same as standing cell, or just nothing?
     fn get_facing_cell(&self) -> CellPos {
         let standing_cell = self.get_standing_cell();
         match self.direction {
@@ -147,10 +150,12 @@ fn main() {
     let mut message = String::new();
     let mut current_script: Option<Script> = None;
 
-    // Main Loop
+    // story_vars? world_vars? game_vars?
+    let mut global_script_vars: HashMap<String, i32> = HashMap::new();
+    global_script_vars.insert("test.pot.times_seen".to_string(), 0);
+
     let mut running = true;
     while running {
-        // Handle input
         handle_input(
             &mut event_pump,
             &mut running,
@@ -161,7 +166,6 @@ fn main() {
             &mut show_message_window,
         );
 
-        // Update script
         if let Some(ref mut script) = current_script {
             update_script(
                 script,
@@ -169,6 +173,7 @@ fn main() {
                 &mut show_message_window,
                 &mut message,
                 &mut running,
+                &mut global_script_vars,
             );
             if script.finished {
                 current_script = None;
@@ -190,6 +195,122 @@ fn main() {
         );
 
         ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
+    }
+}
+
+fn create_interactables() -> HashMap<CellPos, Vec<Command>> {
+    let mut interactables: HashMap<CellPos, Vec<Command>> = HashMap::new();
+
+    interactables.insert(
+        CellPos::new(3, 7),
+        vec![
+            Command::IfPlayerAtCellPos(CellPos::new(3, 8), 1, 2),
+            Command::Message("Sign".to_string(), 3),
+            Command::Message("Wrong side".to_string(), 3),
+        ],
+    );
+    interactables.insert(
+        CellPos::new(11, 6),
+        vec![
+            Command::Message("It's a...".to_string(), 1),
+            Command::Message("Statue".to_string(), 2),
+        ],
+    );
+    interactables.insert(
+        CellPos::new(4, 4),
+        vec![
+            Command::IfGlobalVarEq("test.pot.times_seen".to_string(), 0, 1, 2),
+            Command::Message(
+                "This is the first time you've seen the pot.".to_string(),
+                3,
+            ),
+            Command::Message(
+                "You've seen the pot {test.pot.times_seen} times.".to_string(),
+                3,
+            ),
+            Command::AddGlobalVar("test.pot.times_seen".to_string(), 1, 4),
+        ],
+    );
+    interactables
+        .insert(CellPos::new(8, 8), vec![Command::Message("Well".to_string(), 1)]);
+    interactables
+        .insert(CellPos::new(8, 4), vec![Command::Message("Chest".to_string(), 1)]);
+    interactables.insert(CellPos::new(9, 1), vec![Command::CloseGame]);
+
+    (interactables)
+}
+
+fn update_script(
+    script: &mut Script,
+    /////
+    player: &Player,
+    show_message_window: &mut bool,
+    message: &mut String,
+    running: &mut bool,
+    global_vars: &mut HashMap<String, i32>,
+) {
+    while !script.waiting && !script.finished {
+        match script.commands.get(script.current_command_num) {
+            Some(Command::Message(m, n)) => {
+                // Insert any referenced game vars
+                let mut temp_message = m.clone();
+                while let Some((before_var, rest)) = temp_message.split_once("{") {
+                    if let Some((var, after_var)) = rest.split_once("}") {
+                        if let Some(value) = global_vars.get(var) {
+                            temp_message = format!(
+                                "{}{}{}",
+                                before_var,
+                                value.to_string(),
+                                after_var
+                            );
+                        }
+                    }
+                }
+                // Create message window
+                *show_message_window = true;
+                *message = temp_message;
+                script.waiting = true;
+                script.current_command_num = *n;
+            }
+            Some(Command::SetGlobalVar(k, v, n)) => {
+                global_vars.insert(k.to_string(), *v);
+                script.current_command_num = *n;
+            }
+            Some(Command::AddGlobalVar(k, v, n)) => {
+                // TODO: bad names
+                let v2 = global_vars.get(k).unwrap_or(&0);
+                global_vars.insert(k.to_string(), *v2 + *v);
+                script.current_command_num = *n;
+            }
+            Some(Command::IfGlobalVarEq(k, v, t, f)) => {
+                if *v == *global_vars.get(k).unwrap_or(&0) {
+                    script.current_command_num = *t;
+                } else {
+                    script.current_command_num = *f;
+                }
+            }
+            Some(Command::IfGlobalVarNotEq(k, v, t, f)) => {
+                if *v != *global_vars.get(k).unwrap_or(&0) {
+                    script.current_command_num = *t;
+                } else {
+                    script.current_command_num = *f;
+                }
+            }
+            Some(Command::IfPlayerAtCellPos(p, t, f)) => {
+                if player.get_standing_cell() == *p {
+                    script.current_command_num = *t;
+                } else {
+                    script.current_command_num = *f;
+                }
+            }
+            Some(Command::CloseGame) => {
+                *running = false;
+                script.current_command_num = usize::MAX;
+            }
+            None => {
+                script.finished = true;
+            }
+        }
     }
 }
 
@@ -276,40 +397,6 @@ fn handle_input<'a>(
                 }
             }
             _ => {}
-        }
-    }
-}
-
-fn update_script(
-    script: &mut Script,
-    /////
-    player: &Player,
-    show_message_window: &mut bool,
-    message: &mut String,
-    running: &mut bool,
-) {
-    while !script.waiting && !script.finished {
-        match script.commands.get(script.current_command_num) {
-            Some(Command::Message(m, n)) => {
-                *show_message_window = true;
-                *message = m.to_string();
-                script.waiting = true;
-                script.current_command_num = *n;
-            }
-            Some(Command::IfPlayerAtCellPos(p, t, f)) => {
-                if player.get_standing_cell() == *p {
-                    script.current_command_num = *t;
-                } else {
-                    script.current_command_num = *f;
-                }
-            }
-            Some(Command::CloseGame) => {
-                *running = false;
-                script.current_command_num = usize::MAX;
-            }
-            None => {
-                script.finished = true;
-            }
         }
     }
 }
@@ -514,34 +601,4 @@ fn create_tile_map() -> Array2D<Cell> {
     tile_map[(11, 6)] = Cell { tile_1: Some(11), tile_2: Some(47), passable: false };
 
     (tile_map)
-}
-
-fn create_interactables() -> HashMap<CellPos, Vec<Command>> {
-    let mut interactables: HashMap<CellPos, Vec<Command>> = HashMap::new();
-
-    // TODO: builder
-    interactables.insert(
-        CellPos::new(3, 7),
-        vec![
-            Command::IfPlayerAtCellPos(CellPos::new(3, 8), 1, 2),
-            Command::Message("Sign".to_string(), 3),
-            Command::Message("Wrong side".to_string(), 3),
-        ],
-    );
-    interactables.insert(
-        CellPos::new(11, 6),
-        vec![
-            Command::Message("It's a...".to_string(), 1),
-            Command::Message("Statue".to_string(), 2),
-        ],
-    );
-    interactables
-        .insert(CellPos::new(8, 4), vec![Command::Message("Chest".to_string(), 1)]);
-    interactables
-        .insert(CellPos::new(4, 4), vec![Command::Message("Pot".to_string(), 1)]);
-    interactables
-        .insert(CellPos::new(8, 8), vec![Command::Message("Well".to_string(), 1)]);
-    interactables.insert(CellPos::new(9, 1), vec![Command::CloseGame]);
-
-    interactables
 }
