@@ -1,14 +1,14 @@
 #![allow(unused_parens)]
 
-use array2d::Array2D;
-use derive_more::{Add, AddAssign, Mul, Sub};
+mod entity;
+mod render;
+mod tilemap;
+
+use crate::entity::{Direction, PlayerEntity};
+use crate::tilemap::{CellPos, Point};
 use sdl2::event::Event;
 use sdl2::image::LoadTexture;
 use sdl2::keyboard::Keycode;
-use sdl2::pixels::Color;
-use sdl2::rect::Rect;
-use sdl2::render::{Texture, TextureQuery, WindowCanvas};
-use sdl2::ttf::Font;
 use std::collections::HashMap;
 use std::time::Duration;
 
@@ -17,97 +17,6 @@ const SCREEN_COLS: u32 = 16;
 const SCREEN_ROWS: u32 = 12;
 const SCREEN_SCALE: u32 = 2;
 const PLAYER_MOVE_SPEED: f64 = 0.12;
-
-enum Direction {
-    Up,
-    Down,
-    Left,
-    Right,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
-struct CellPos {
-    x: i32,
-    y: i32,
-}
-
-impl CellPos {
-    fn new(x: i32, y: i32) -> CellPos {
-        CellPos { x, y }
-    }
-}
-
-#[derive(Clone, Copy, Add, AddAssign, Sub, Mul)]
-struct Point {
-    x: f64,
-    y: f64,
-}
-
-impl Point {
-    fn new(x: f64, y: f64) -> Point {
-        Point { x, y }
-    }
-}
-
-#[derive(Clone, Copy)]
-struct Cell {
-    tile_1: Option<u32>,
-    tile_2: Option<u32>,
-    passable: bool,
-}
-
-fn get_cell_from_point(tile_map: &Array2D<Cell>, x: f64, y: f64) -> Option<Cell> {
-    let x = x.floor() as i32;
-    let y = y.floor() as i32;
-    if x >= 0 && x < 16 && y >= 0 && y < 12 {
-        Some(tile_map[(x as usize, y as usize)])
-    } else {
-        None
-    }
-}
-
-#[allow(dead_code)]
-enum Command {
-    Message(String, usize),
-    SetGlobalVar(String, i32, usize),
-    AddGlobalVar(String, i32, usize),
-    IfGlobalVarEq(String, i32, usize, usize),
-    IfGlobalVarNotEq(String, i32, usize, usize),
-    IfPlayerAtCellPos(CellPos, usize, usize),
-    CloseGame,
-}
-
-// Individual instance of script execution
-struct Script<'a> {
-    commands: &'a Vec<Command>,
-    current_command_num: usize,
-    waiting: bool,
-    finished: bool,
-}
-
-struct Player {
-    position: Point,
-    direction: Direction,
-    speed: f64,
-    hitbox_width: f64,
-    hitbox_height: f64,
-}
-
-impl Player {
-    fn get_standing_cell(&self) -> CellPos {
-        CellPos::new(self.position.x.floor() as i32, self.position.y.floor() as i32)
-    }
-
-    fn get_facing_cell(&self) -> CellPos {
-        let standing_cell = self.get_standing_cell();
-        match self.direction {
-            Direction::Up => CellPos::new(standing_cell.x, standing_cell.y - 1),
-            Direction::Down => CellPos::new(standing_cell.x, standing_cell.y + 1),
-            Direction::Left => CellPos::new(standing_cell.x - 1, standing_cell.y),
-            Direction::Right => CellPos::new(standing_cell.x + 1, standing_cell.y),
-        }
-    }
-}
 
 fn main() {
     // Init
@@ -127,17 +36,16 @@ fn main() {
         .build()
         .unwrap();
     let mut canvas = window.into_canvas().build().unwrap();
-    canvas.set_scale(SCREEN_SCALE as f32, SCREEN_SCALE as f32).unwrap();
     let texture_creator = canvas.texture_creator();
 
     let tileset = texture_creator.load_texture("assets/basictiles.png").unwrap();
     let spritesheet = texture_creator.load_texture("assets/characters.png").unwrap();
     let font = ttf_context.load_font("assets/OpenSans-Regular.ttf", 12).unwrap();
 
-    let tile_map = create_tile_map();
+    let tilemap = tilemap::create_tilemap();
     let interactables = create_interactables();
 
-    let mut player = Player {
+    let mut player = PlayerEntity {
         position: Point::new(3.5, 5.5),
         direction: Direction::Down,
         speed: 0.0,
@@ -151,47 +59,37 @@ fn main() {
     let mut current_script: Option<Script> = None;
 
     // story_vars? world_vars? game_vars?
-    let mut global_script_vars: HashMap<String, i32> = HashMap::new();
-    global_script_vars.insert("test.pot.times_seen".to_string(), 0);
+    let mut global_script_vars: HashMap<&str, i32> = HashMap::new();
+    // All global vars referenced in scripts must be initialized or script will panic
+    // This catches little mistakes like typos in runtime
+    // Eventually we can define consts to catch shit in compile?
+    global_script_vars.insert("test.pot.times_seen", 0);
 
     let mut running = true;
     while running {
-        handle_input(
-            &mut event_pump,
-            &mut running,
-            &mut player,
-            &mut camera_position,
-            &interactables,
-            &mut current_script,
-            &mut show_message_window,
+        #[rustfmt::skip]
+        process_input(
+            &mut event_pump, &mut running, &mut player, &mut camera_position,
+            &interactables, &mut current_script, &mut show_message_window,
         );
 
         if let Some(ref mut script) = current_script {
-            update_script(
-                script,
-                &player,
-                &mut show_message_window,
-                &mut message,
-                &mut running,
-                &mut global_script_vars,
+            #[rustfmt::skip]
+            update_script_execution(
+                script, &player, &mut show_message_window, &mut message,
+                &mut running, &mut global_script_vars,
             );
             if script.finished {
                 current_script = None;
             }
         }
 
-        update_player(&mut player, &tile_map);
+        entity::move_player_and_resolve_collisions(&mut player, &tilemap);
 
-        render(
-            &mut canvas,
-            camera_position,
-            &tileset,
-            &tile_map,
-            &spritesheet,
-            &player,
-            show_message_window,
-            &font,
-            &message,
+        #[rustfmt::skip]
+        render::render(
+            &mut canvas, camera_position, &tileset, &tilemap, &spritesheet,
+            &player, show_message_window, &font, &message,
         );
 
         ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
@@ -204,108 +102,152 @@ fn create_interactables() -> HashMap<CellPos, Vec<Command>> {
     interactables.insert(
         CellPos::new(3, 7),
         vec![
-            Command::IfPlayerAtCellPos(CellPos::new(3, 8), 1, 2),
-            Command::Message("Sign".to_string(), 3),
-            Command::Message("Wrong side".to_string(), 3),
+            Command::IsPlayerAtCellPos(CellPos::new(3, 8), "standing_in_front", 1),
+            Command::IfEqual("standing_in_front", 1, 2, 3),
+            Command::Message("Sign", 4),
+            Command::Message("Wrong side", 4),
         ],
     );
     interactables.insert(
         CellPos::new(11, 6),
-        vec![
-            Command::Message("It's a...".to_string(), 1),
-            Command::Message("Statue".to_string(), 2),
-        ],
+        vec![Command::Message("It's a...", 1), Command::Message("Statue", 2)],
     );
     interactables.insert(
         CellPos::new(4, 4),
         vec![
-            Command::IfGlobalVarEq("test.pot.times_seen".to_string(), 0, 1, 2),
-            Command::Message(
-                "This is the first time you've seen the pot.".to_string(),
-                3,
-            ),
-            Command::Message(
-                "You've seen the pot {test.pot.times_seen} times.".to_string(),
-                3,
-            ),
-            Command::AddGlobalVar("test.pot.times_seen".to_string(), 1, 4),
+            Command::GetGlobal("test.pot.times_seen", "times_seen", 1),
+            Command::IfEqual("times_seen", 0, 2, 3),
+            Command::Message("This is the first time you've seen the pot.", 4),
+            Command::Message("You've seen the pot {times_seen} times.", 4),
+            Command::Add("times_seen", 1, 5),
+            Command::SetGlobalFromLocal("test.pot.times_seen", "times_seen", 6),
         ],
     );
-    interactables
-        .insert(CellPos::new(8, 8), vec![Command::Message("Well".to_string(), 1)]);
-    interactables
-        .insert(CellPos::new(8, 4), vec![Command::Message("Chest".to_string(), 1)]);
+    interactables.insert(CellPos::new(8, 8), vec![Command::Message("Well", 1)]);
+    interactables.insert(CellPos::new(8, 4), vec![Command::Message("Chest", 1)]);
     interactables.insert(CellPos::new(9, 1), vec![Command::CloseGame]);
 
     (interactables)
 }
 
-fn update_script(
+// TODO: make a clear separation between interface vs script-internal stuff so the
+// scripting system is easier to replace later
+#[allow(dead_code)]
+enum Command {
+    // Interface
+    Message(&'static str, usize),
+    IsPlayerAtCellPos(CellPos, &'static str, usize),
+    CloseGame,
+    SetGlobal(&'static str, i32, usize),
+    SetGlobalFromLocal(&'static str, &'static str, usize),
+    GetGlobal(&'static str, &'static str, usize),
+
+    // Script-internal
+    Set(&'static str, i32, usize),
+    Add(&'static str, i32, usize),
+    IfEqual(&'static str, i32, usize, usize),
+    IfNotEqual(&'static str, i32, usize, usize),
+}
+
+// Individual instance of script execution
+struct Script<'a> {
+    commands: &'a Vec<Command>,
+    current_command_num: usize,
+    local_vars: HashMap<&'static str, i32>,
+    waiting: bool,
+    finished: bool,
+}
+
+impl<'a> Script<'a> {
+    fn new(commands: &'a Vec<Command>) -> Self {
+        Self {
+            commands,
+            current_command_num: 0,
+            local_vars: HashMap::new(),
+            waiting: false,
+            finished: false,
+        }
+    }
+}
+
+fn update_script_execution(
     script: &mut Script,
-    /////
-    player: &Player,
+    player: &PlayerEntity,
     show_message_window: &mut bool,
     message: &mut String,
     running: &mut bool,
-    global_vars: &mut HashMap<String, i32>,
+    global_vars: &mut HashMap<&str, i32>,
 ) {
     while !script.waiting && !script.finished {
         match script.commands.get(script.current_command_num) {
-            Some(Command::Message(m, n)) => {
-                // Insert any referenced game vars
-                let mut temp_message = m.clone();
+            // Interface
+            Some(Command::Message(m, next)) => {
+                // Insert any referenced local vars
+                let mut temp_message = m.to_string();
                 while let Some((before_var, rest)) = temp_message.split_once("{") {
                     if let Some((var, after_var)) = rest.split_once("}") {
-                        if let Some(value) = global_vars.get(var) {
-                            temp_message = format!(
-                                "{}{}{}",
-                                before_var,
-                                value.to_string(),
-                                after_var
-                            );
-                        }
+                        // Panics if var doesn't exist
+                        let value = script.local_vars.get(var).unwrap();
+                        temp_message = format!("{}{}{}", before_var, value, after_var);
                     }
                 }
                 // Create message window
                 *show_message_window = true;
                 *message = temp_message;
                 script.waiting = true;
-                script.current_command_num = *n;
+                script.current_command_num = *next;
             }
-            Some(Command::SetGlobalVar(k, v, n)) => {
-                global_vars.insert(k.to_string(), *v);
-                script.current_command_num = *n;
-            }
-            Some(Command::AddGlobalVar(k, v, n)) => {
-                // TODO: bad names
-                let v2 = global_vars.get(k).unwrap_or(&0);
-                global_vars.insert(k.to_string(), *v2 + *v);
-                script.current_command_num = *n;
-            }
-            Some(Command::IfGlobalVarEq(k, v, t, f)) => {
-                if *v == *global_vars.get(k).unwrap_or(&0) {
-                    script.current_command_num = *t;
+            Some(Command::IsPlayerAtCellPos(cellpos, key, next)) => {
+                if entity::standing_cell(player) == *cellpos {
+                    script.local_vars.insert(key, 1);
                 } else {
-                    script.current_command_num = *f;
+                    script.local_vars.insert(key, 0);
                 }
-            }
-            Some(Command::IfGlobalVarNotEq(k, v, t, f)) => {
-                if *v != *global_vars.get(k).unwrap_or(&0) {
-                    script.current_command_num = *t;
-                } else {
-                    script.current_command_num = *f;
-                }
-            }
-            Some(Command::IfPlayerAtCellPos(p, t, f)) => {
-                if player.get_standing_cell() == *p {
-                    script.current_command_num = *t;
-                } else {
-                    script.current_command_num = *f;
-                }
+                script.current_command_num = *next;
             }
             Some(Command::CloseGame) => {
                 *running = false;
                 script.current_command_num = usize::MAX;
+            }
+            Some(Command::SetGlobal(key, value, next)) => {
+                global_vars.insert(key, *value);
+                script.current_command_num = *next;
+            }
+            Some(Command::SetGlobalFromLocal(global_key, local_key, next)) => {
+                global_vars
+                    .insert(global_key, *script.local_vars.get(local_key).unwrap());
+                script.current_command_num = *next;
+            }
+            Some(Command::GetGlobal(global_key, local_key, next)) => {
+                script
+                    .local_vars
+                    .insert(local_key, *global_vars.get(global_key).unwrap());
+                script.current_command_num = *next;
+            }
+
+            // Script-internal
+            Some(Command::Set(key, value, next)) => {
+                script.local_vars.insert(key, *value);
+                script.current_command_num = *next;
+            }
+            Some(Command::Add(key, value, next)) => {
+                let v = script.local_vars.get(key).unwrap();
+                script.local_vars.insert(key, *v + *value);
+                script.current_command_num = *next;
+            }
+            Some(Command::IfEqual(key, value, true_branch, false_branch)) => {
+                if *value == *script.local_vars.get(key).unwrap() {
+                    script.current_command_num = *true_branch;
+                } else {
+                    script.current_command_num = *false_branch;
+                }
+            }
+            Some(Command::IfNotEqual(key, value, true_branch, false_branch)) => {
+                if *value != *script.local_vars.get(key).unwrap() {
+                    script.current_command_num = *true_branch;
+                } else {
+                    script.current_command_num = *false_branch;
+                }
             }
             None => {
                 script.finished = true;
@@ -314,10 +256,10 @@ fn update_script(
     }
 }
 
-fn handle_input<'a>(
+fn process_input<'a>(
     event_pump: &mut sdl2::EventPump,
     running: &mut bool,
-    player: &mut Player,
+    player: &mut PlayerEntity,
     camera_position: &mut Point,
     interactables: &'a HashMap<CellPos, Vec<Command>>,
     current_script: &mut Option<Script<'a>>,
@@ -376,14 +318,9 @@ fn handle_input<'a>(
 
             // Cell interaction
             Event::KeyDown { keycode: Some(Keycode::Space), .. } => {
-                match interactables.get(&player.get_facing_cell()) {
+                match interactables.get(&entity::facing_cell(player)) {
                     Some(commands) => {
-                        *current_script = Some(Script {
-                            commands,
-                            current_command_num: 0,
-                            waiting: false,
-                            finished: false,
-                        });
+                        *current_script = Some(Script::new(commands));
                     }
                     None => {}
                 }
@@ -399,206 +336,4 @@ fn handle_input<'a>(
             _ => {}
         }
     }
-}
-
-fn update_player(player: &mut Player, tile_map: &Array2D<Cell>) {
-    let mut new_position = player.position
-        + match player.direction {
-            Direction::Up => Point::new(0.0, -player.speed),
-            Direction::Down => Point::new(0.0, player.speed),
-            Direction::Left => Point::new(-player.speed, 0.0),
-            Direction::Right => Point::new(player.speed, 0.0),
-        };
-
-    let new_top = new_position.y - player.hitbox_height / 2.0;
-    let new_bot = new_position.y + player.hitbox_height / 2.0;
-    let new_left = new_position.x - player.hitbox_width / 2.0;
-    let new_right = new_position.x + player.hitbox_width / 2.0;
-
-    let cell_positions_to_check = match player.direction {
-        Direction::Up => [Point::new(new_left, new_top), Point::new(new_right, new_top)],
-        Direction::Down => {
-            [Point::new(new_left, new_bot), Point::new(new_right, new_bot)]
-        }
-        Direction::Left => [Point::new(new_left, new_top), Point::new(new_left, new_bot)],
-        Direction::Right => {
-            [Point::new(new_right, new_top), Point::new(new_right, new_bot)]
-        }
-    };
-
-    for cell_position in cell_positions_to_check {
-        match get_cell_from_point(&tile_map, cell_position.x, cell_position.y) {
-            Some(cell) if cell.passable == false => {
-                let cell_top = cell_position.y.floor();
-                let cell_bot = cell_position.y.ceil();
-                let cell_left = cell_position.x.floor();
-                let cell_right = cell_position.x.ceil();
-                if new_top < cell_bot
-                    && new_bot > cell_top
-                    && new_left < cell_right
-                    && new_right > cell_left
-                {
-                    match player.direction {
-                        Direction::Up => {
-                            new_position.y = cell_bot + player.hitbox_height / 2.0
-                        }
-                        Direction::Down => {
-                            new_position.y = cell_top - player.hitbox_height / 2.0
-                        }
-                        Direction::Left => {
-                            new_position.x = cell_right + player.hitbox_width / 2.0
-                        }
-                        Direction::Right => {
-                            new_position.x = cell_left - player.hitbox_width / 2.0
-                        }
-                    }
-                }
-            }
-            _ => {}
-        }
-    }
-
-    player.position = new_position;
-}
-
-fn render(
-    canvas: &mut WindowCanvas,
-    camera_position: Point,
-    tileset: &Texture,
-    tile_map: &Array2D<Cell>,
-    spritesheet: &Texture,
-    player: &Player,
-    show_message_window: bool,
-    font: &Font,
-    message: &str,
-) {
-    canvas.set_draw_color(Color::RGB(255, 255, 255));
-    canvas.clear();
-
-    let camera_top_left =
-        camera_position - Point::new(SCREEN_COLS as f64 / 2.0, SCREEN_ROWS as f64 / 2.0);
-
-    // Draw tiles
-    let tileset_cols = tileset.query().width / TILE_SIZE;
-    for r in 0..SCREEN_ROWS as usize {
-        for c in 0..SCREEN_COLS as usize {
-            let cell_screen_pos =
-                (Point::new(c as f64, r as f64) - camera_top_left) * TILE_SIZE as f64;
-            let screen_rect = Rect::new(
-                cell_screen_pos.x as i32,
-                cell_screen_pos.y as i32,
-                TILE_SIZE,
-                TILE_SIZE,
-            );
-            let cell = tile_map[(c, r)];
-
-            for tile in [cell.tile_1, cell.tile_2] {
-                match tile {
-                    Some(tile_id) => {
-                        let tile_row = tile_id / tileset_cols;
-                        let tile_col = tile_id % tileset_cols;
-                        let tile_rect = Rect::new(
-                            (tile_col * TILE_SIZE) as i32,
-                            (tile_row * TILE_SIZE) as i32,
-                            TILE_SIZE,
-                            TILE_SIZE,
-                        );
-                        canvas.copy(tileset, tile_rect, screen_rect).unwrap();
-                    }
-                    None => {}
-                }
-            }
-        }
-    }
-
-    // Draw player standing and facing cell markers
-    let standing_cell_screen_pos = (Point::new(
-        player.get_standing_cell().x as f64,
-        player.get_standing_cell().y as f64,
-    ) - camera_top_left)
-        * TILE_SIZE as f64;
-    canvas.set_draw_color(Color::RGB(255, 0, 0));
-    canvas
-        .draw_rect(Rect::new(
-            standing_cell_screen_pos.x as i32,
-            standing_cell_screen_pos.y as i32,
-            TILE_SIZE,
-            TILE_SIZE,
-        ))
-        .unwrap();
-
-    let facing_cell_screen_pos = (Point::new(
-        player.get_facing_cell().x as f64,
-        player.get_facing_cell().y as f64,
-    ) - camera_top_left)
-        * TILE_SIZE as f64;
-    canvas.set_draw_color(Color::RGB(0, 0, 255));
-    canvas
-        .draw_rect(Rect::new(
-            facing_cell_screen_pos.x as i32,
-            facing_cell_screen_pos.y as i32,
-            TILE_SIZE,
-            TILE_SIZE,
-        ))
-        .unwrap();
-
-    // Draw player
-    let sprite_row = match player.direction {
-        Direction::Up => 3,
-        Direction::Down => 0,
-        Direction::Left => 1,
-        Direction::Right => 2,
-    };
-    let sprite_rect = Rect::new(7 * 16, sprite_row * 16, 16, 16);
-    // sub (0.5, 0.5) to convert sprite center position to top left position
-    let player_screen_pos =
-        (player.position - camera_top_left - Point::new(0.5, 0.5)) * TILE_SIZE as f64;
-    let screen_rect =
-        Rect::new(player_screen_pos.x as i32, player_screen_pos.y as i32, 16, 16);
-    canvas.copy(spritesheet, sprite_rect, screen_rect).unwrap();
-
-    // Draw message window
-    if show_message_window {
-        canvas.set_draw_color(Color::RGB(0, 0, 0));
-        canvas.fill_rect(Rect::new(10, 16 * 12 - 50, 16 * 16 - 20, 40)).unwrap();
-        let surface = font.render(message).solid(Color::RGB(255, 255, 255)).unwrap();
-        let texture_creator = canvas.texture_creator();
-        let texture = texture_creator.create_texture_from_surface(&surface).unwrap();
-        let TextureQuery { width, height, .. } = texture.query();
-        canvas.copy(&texture, None, Rect::new(15, 16 * 12 - 45, width, height)).unwrap();
-    }
-
-    // Present canvas
-    canvas.present();
-}
-
-fn create_tile_map() -> Array2D<Cell> {
-    // Grass base
-    let mut tile_map = Array2D::filled_with(
-        Cell { tile_1: Some(11), tile_2: None, passable: true },
-        16,
-        12,
-    );
-    // Grass var 1
-    [(0, 1), (4, 1), (4, 10), (14, 9)].map(|c| tile_map[c].tile_1 = Some(64));
-    // Grass var 2
-    [(13, 1), (9, 6), (0, 8)].map(|c| tile_map[c].tile_1 = Some(65));
-    // Flowers
-    [(15, 3), (15, 4), (15, 5), (14, 4), (14, 5)].map(|c| tile_map[c].tile_1 = Some(12));
-    // Trees
-    #[rustfmt::skip]
-    [(6, 1), (2, 3), (10, 3), (13, 3), (0, 6), (15, 7),
-    (0, 7), (2, 9), (5, 6), (8, 10), (12, 11), (14, 11)].map(|c| {
-        tile_map[c].tile_2 = Some(38);
-        tile_map[c].passable = false;
-    });
-    // Objects
-    tile_map[(9, 1)] = Cell { tile_1: Some(11), tile_2: Some(57), passable: true };
-    tile_map[(4, 4)] = Cell { tile_1: Some(11), tile_2: Some(27), passable: false };
-    tile_map[(8, 4)] = Cell { tile_1: Some(11), tile_2: Some(36), passable: false };
-    tile_map[(3, 7)] = Cell { tile_1: Some(11), tile_2: Some(67), passable: false };
-    tile_map[(8, 8)] = Cell { tile_1: Some(11), tile_2: Some(31), passable: false };
-    tile_map[(11, 6)] = Cell { tile_1: Some(11), tile_2: Some(47), passable: false };
-
-    (tile_map)
 }
