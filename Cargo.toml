@@ -8,6 +8,8 @@ version = "0.1.0"
 array2d = "0.2.1"
 derive-new = "0.5.9"
 derive_more = "0.99.17"
+indoc = "1.0.7"
+rlua = "0.19.4"
 
 [dependencies.sdl2]
 default-features = false

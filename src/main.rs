@@ -1,4 +1,5 @@
 #![allow(unused_parens)]
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod entity;
 mod render;
@@ -6,9 +7,12 @@ mod tilemap;
 
 use crate::entity::{Direction, PlayerEntity};
 use crate::tilemap::{CellPos, Point};
+use indoc::indoc;
+use rlua::{Function, Lua, Result as LuaResult, Thread, ThreadStatus};
 use sdl2::event::Event;
 use sdl2::image::LoadTexture;
 use sdl2::keyboard::Keycode;
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::time::Duration;
 
@@ -19,7 +23,9 @@ const SCREEN_SCALE: u32 = 2;
 const PLAYER_MOVE_SPEED: f64 = 0.12;
 
 fn main() {
+    // ------------------------------------------
     // Init
+    // ------------------------------------------
     let sdl_context = sdl2::init().unwrap();
     let _image_context = sdl2::image::init(sdl2::image::InitFlag::PNG).unwrap();
     let ttf_context = sdl2::ttf::init().unwrap();
@@ -40,10 +46,9 @@ fn main() {
 
     let tileset = texture_creator.load_texture("assets/basictiles.png").unwrap();
     let spritesheet = texture_creator.load_texture("assets/characters.png").unwrap();
-    let font = ttf_context.load_font("assets/OpenSans-Regular.ttf", 12).unwrap();
+    let font = ttf_context.load_font("assets/Grand9K Pixel.ttf", 8).unwrap();
 
     let tilemap = tilemap::create_tilemap();
-    let interactables = create_interactables();
 
     let mut player = PlayerEntity {
         position: Point::new(3.5, 5.5),
@@ -54,286 +59,328 @@ fn main() {
     };
 
     let mut camera_position = Point::new(8.0, 6.0);
+
     let mut show_message_window = false;
     let mut message = String::new();
-    let mut current_script: Option<Script> = None;
+    let mut message_window_choice = 0;
 
-    // story_vars? world_vars? game_vars?
-    let mut global_script_vars: HashMap<&str, i32> = HashMap::new();
-    // All global vars referenced in scripts must be initialized or script will panic
-    // This catches little mistakes like typos in runtime
-    // Eventually we can define consts to catch shit in compile?
-    global_script_vars.insert("test.pot.times_seen", 0);
+    let mut story_vars: HashMap<String, i32> = HashMap::new();
+    story_vars.insert("test.pot.times_seen".to_string(), 0);
+    story_vars.insert("test.well.rocks_inside".to_string(), 0);
 
+    let mut script: Option<Lua> = None;
+    let mut script_waiting = false;
+    let mut script_finished = false;
+
+    let mut interactables: HashMap<CellPos, &str> = HashMap::new();
+
+    interactables.insert(
+        CellPos::new(3, 7),
+        indoc! {r#"
+        if is_player_at_cellpos(3, 8) then
+            message("It's a sign")
+        else
+            message("This is the wrong side")
+        end
+        "#},
+    );
+
+    interactables.insert(
+        CellPos::new(4, 4),
+        indoc! {r#"
+        local times_seen = get_story_var("test.pot.times_seen")
+        if times_seen == 0 then
+            message("This is the first time you've seen the pot")
+        else
+            message(string.format("You've seen the pot %s times", times_seen))
+        end
+        set_story_var("test.pot.times_seen", times_seen + 1)
+        "#},
+    );
+
+    interactables.insert(
+        CellPos::new(8, 8),
+        indoc! {r#"
+        local rocks_before = get_story_var("test.well.rocks_inside")
+        local rocks_thrown = 0
+        
+        message("It's a shallow well")
+        
+        if rocks_before > 0 then
+            message("There are some rocks inside")
+        end
+        
+        repeat
+            local s = selection("Throw a rock in?\n 1: Yes\n2: No")
+            if s == 1 then
+                rocks_thrown = rocks_thrown + 1
+                message("You throw a rock in")
+            else
+                local rocks_after = rocks_before + rocks_thrown
+                if rocks_thrown == 0 then
+                    message("You leave without throwing in any rocks")
+                else
+                    message(string.format("You leave after throwing in %d rocks", rocks_thrown))
+                    message(string.format("There are now %d rocks in the well", rocks_after))
+                end
+                set_story_var("test.well.rocks_inside", rocks_after)
+            end
+        until s == 2
+        "#},
+    );
+
+    interactables.insert(
+        CellPos::new(11, 6),
+        indoc! {r#"
+        message("It's a...")
+        message("Statue")
+        "#},
+    );
+
+    interactables.insert(CellPos::new(8, 4), "message('Chest')");
+    interactables.insert(CellPos::new(9, 1), "message('Stairs')");
+
+    // ------------------------------------------
+    // Main Loop
+    // ------------------------------------------
     let mut running = true;
     while running {
-        #[rustfmt::skip]
-        process_input(
-            &mut event_pump, &mut running, &mut player, &mut camera_position,
-            &interactables, &mut current_script, &mut show_message_window,
-        );
+        // ------------------------------------------
+        // Process Input
+        // ------------------------------------------
+        for event in event_pump.poll_iter() {
+            match event {
+                // Close program
+                Event::Quit { .. } | Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
+                    running = false;
+                }
 
-        if let Some(ref mut script) = current_script {
-            #[rustfmt::skip]
-            update_script_execution(
-                script, &player, &mut show_message_window, &mut message,
-                &mut running, &mut global_script_vars,
-            );
-            if script.finished {
-                current_script = None;
+                // Player movement
+                Event::KeyDown { keycode: Some(Keycode::Left), .. } => {
+                    player.speed = PLAYER_MOVE_SPEED;
+                    player.direction = Direction::Left;
+                }
+                Event::KeyDown { keycode: Some(Keycode::Right), .. } => {
+                    player.speed = PLAYER_MOVE_SPEED;
+                    player.direction = Direction::Right;
+                }
+                Event::KeyDown { keycode: Some(Keycode::Up), .. } => {
+                    player.speed = PLAYER_MOVE_SPEED;
+                    player.direction = Direction::Up;
+                }
+                Event::KeyDown { keycode: Some(Keycode::Down), .. } => {
+                    player.speed = PLAYER_MOVE_SPEED;
+                    player.direction = Direction::Down;
+                }
+                Event::KeyUp { keycode: Some(keycode), .. }
+                    if keycode
+                        == match player.direction {
+                            Direction::Left => Keycode::Left,
+                            Direction::Right => Keycode::Right,
+                            Direction::Up => Keycode::Up,
+                            Direction::Down => Keycode::Down,
+                        } =>
+                {
+                    player.speed = 0.0;
+                }
+
+                // Camera movement
+                Event::KeyDown { keycode: Some(Keycode::W), .. } => {
+                    camera_position.y -= 1.0;
+                }
+                Event::KeyDown { keycode: Some(Keycode::A), .. } => {
+                    camera_position.x -= 1.0;
+                }
+                Event::KeyDown { keycode: Some(Keycode::S), .. } => {
+                    camera_position.y += 1.0;
+                }
+                Event::KeyDown { keycode: Some(Keycode::D), .. } => {
+                    camera_position.x += 1.0;
+                }
+
+                // Choose message window option
+                Event::KeyDown { keycode: Some(Keycode::Num1), .. } => {
+                    message_window_choice = 1;
+                    show_message_window = false;
+                    script_waiting = false;
+                }
+                Event::KeyDown { keycode: Some(Keycode::Num2), .. } => {
+                    message_window_choice = 2;
+                    show_message_window = false;
+                    script_waiting = false;
+                }
+                Event::KeyDown { keycode: Some(Keycode::Num3), .. } => {
+                    message_window_choice = 3;
+                    show_message_window = false;
+                    script_waiting = false;
+                }
+                Event::KeyDown { keycode: Some(Keycode::Num4), .. } => {
+                    message_window_choice = 4;
+                    show_message_window = false;
+                    script_waiting = false;
+                }
+
+                // Cell interaction
+                Event::KeyDown { keycode: Some(Keycode::Space), .. } => {
+                    if let Some(script_source) = interactables.get(&entity::facing_cell(&player)) {
+                        // Create new script execution instance
+                        let lua = Lua::new();
+                        lua.context(|context| -> LuaResult<()> {
+                            // Wrap script in a thread/coroutine so that blocking functions may
+                            // yield
+                            let thread: Thread = context
+                                .load(&format!(
+                                    "coroutine.create(function() {} end)",
+                                    script_source,
+                                ))
+                                .eval()?;
+                            // Store the thread/coroutine in a global and retrieve it each time
+                            // we're executing some of the script
+                            context.globals().set("thread", thread)?;
+                            Ok(())
+                        })
+                        .unwrap();
+                        script = Some(lua);
+                        script_waiting = false;
+                        script_finished = false;
+                    }
+                }
+
+                // Advance script
+                Event::KeyDown { keycode: Some(Keycode::Return), .. } => {
+                    message_window_choice = 1; // default for now
+                    show_message_window = false;
+                    script_waiting = false;
+                }
+                _ => {}
             }
         }
 
+        // ------------------------------------------
+        // Update script execution
+        // ------------------------------------------
+        if let Some(ref lua) = script {
+            if !script_waiting {
+                // I need multiple mutable references to certain pieces of data to access them in
+                // the closures for functions to Lua. Each closure only needs a single reference
+                // before dropping it, so using a RefCell for that purpose is completely safe.
+                // For simplicity and safety in *other* parts of the code, rather than keeping the
+                // data in RefCells all the time, I move it into RefCells here, at the start of the
+                // script execution stage, and then return it to it's original owner at the end.
+                let story_vars_refcell = RefCell::new(story_vars);
+                let message_refcell = RefCell::new(message);
+                let show_message_window_refcell = RefCell::new(show_message_window);
+
+                lua.context(|context| -> LuaResult<()> {
+                    context.scope(|scope| {
+                        let globals = context.globals();
+
+                        // Utility Lua function that will wrap a function that should
+                        // block within a new one that will call the original and yield
+                        // (Because you can't "yield across a C-call boundary" apparently)
+                        let wrap_blocking: Function = context
+                            .load(
+                                r#"
+                                function(f)
+                                    return function(...)
+                                        f(...)
+                                        return coroutine.yield()
+                                    end
+                                end"#,
+                            )
+                            .eval()?;
+
+                        // Provide Rust functions to Lua
+                        // Every function that references Rust data must be recreated in
+                        // this scope each time we execute some of the script to ensure
+                        // that the reference lifetimes remain valid
+                        globals.set(
+                            "get_story_var",
+                            scope.create_function(|_, key: String| {
+                                Ok(*story_vars_refcell.borrow().get(&key).unwrap())
+                            })?,
+                        )?;
+
+                        globals.set(
+                            "set_story_var",
+                            scope.create_function_mut(|_, (key, val): (String, i32)| {
+                                story_vars_refcell.borrow_mut().insert(key, val);
+                                Ok(())
+                            })?,
+                        )?;
+
+                        globals.set(
+                            "is_player_at_cellpos",
+                            scope.create_function(|_, (x, y): (i32, i32)| {
+                                Ok(entity::standing_cell(&player) == CellPos::new(x, y))
+                            })?,
+                        )?;
+
+                        let message_unwrapped = scope.create_function_mut(|_, (m): (String)| {
+                            *show_message_window_refcell.borrow_mut() = true;
+                            *message_refcell.borrow_mut() = m;
+                            Ok(())
+                        })?;
+
+                        globals.set::<_, Function>(
+                            "message",
+                            wrap_blocking.call(message_unwrapped)?,
+                        )?;
+
+                        let selection_unwrapped = scope
+                            .create_function_mut(|_, (m): (String)| {
+                                *show_message_window_refcell.borrow_mut() = true;
+                                *message_refcell.borrow_mut() = m;
+                                Ok(())
+                            })
+                            .unwrap();
+
+                        globals
+                            .set::<_, Function>(
+                                "selection",
+                                wrap_blocking.call(selection_unwrapped).unwrap(),
+                            )
+                            .unwrap();
+
+                        // Get saved thread out of globals and execute until script yields or ends
+                        // !! For now I just pass message_window_choice to the yield. When I have
+                        // other blocking funcs that need input, I'll figure out a way to pass the
+                        // right stuff
+                        let thread = globals.get::<_, Thread>("thread")?;
+                        thread.resume::<_, _>(message_window_choice)?;
+                        match thread.status() {
+                            ThreadStatus::Resumable => script_waiting = true,
+                            _ => script_finished = true,
+                        }
+
+                        Ok(())
+                    })
+                })
+                .unwrap();
+
+                // Move all RefCell'd data back to the original owners
+                story_vars = story_vars_refcell.take();
+                message = message_refcell.take();
+                show_message_window = show_message_window_refcell.take();
+            }
+        }
+        if script_finished {
+            script = None;
+            script_waiting = false;
+            script_finished = false;
+        }
+
+        // Update player entity
         entity::move_player_and_resolve_collisions(&mut player, &tilemap);
 
+        // Render
         #[rustfmt::skip]
         render::render(
             &mut canvas, camera_position, &tileset, &tilemap, &spritesheet,
             &player, show_message_window, &font, &message,
         );
 
+        // Sleep
         ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
-    }
-}
-
-fn create_interactables() -> HashMap<CellPos, Vec<Command>> {
-    let mut interactables: HashMap<CellPos, Vec<Command>> = HashMap::new();
-
-    interactables.insert(
-        CellPos::new(3, 7),
-        vec![
-            Command::IsPlayerAtCellPos(CellPos::new(3, 8), "standing_in_front", 1),
-            Command::IfEqual("standing_in_front", 1, 2, 3),
-            Command::Message("Sign", 4),
-            Command::Message("Wrong side", 4),
-        ],
-    );
-    interactables.insert(
-        CellPos::new(11, 6),
-        vec![Command::Message("It's a...", 1), Command::Message("Statue", 2)],
-    );
-    interactables.insert(
-        CellPos::new(4, 4),
-        vec![
-            Command::GetGlobal("test.pot.times_seen", "times_seen", 1),
-            Command::IfEqual("times_seen", 0, 2, 3),
-            Command::Message("This is the first time you've seen the pot.", 4),
-            Command::Message("You've seen the pot {times_seen} times.", 4),
-            Command::Add("times_seen", 1, 5),
-            Command::SetGlobalFromLocal("test.pot.times_seen", "times_seen", 6),
-        ],
-    );
-    interactables.insert(CellPos::new(8, 8), vec![Command::Message("Well", 1)]);
-    interactables.insert(CellPos::new(8, 4), vec![Command::Message("Chest", 1)]);
-    interactables.insert(CellPos::new(9, 1), vec![Command::CloseGame]);
-
-    (interactables)
-}
-
-// TODO: make a clear separation between interface vs script-internal stuff so the
-// scripting system is easier to replace later
-#[allow(dead_code)]
-enum Command {
-    // Interface
-    Message(&'static str, usize),
-    IsPlayerAtCellPos(CellPos, &'static str, usize),
-    CloseGame,
-    SetGlobal(&'static str, i32, usize),
-    SetGlobalFromLocal(&'static str, &'static str, usize),
-    GetGlobal(&'static str, &'static str, usize),
-
-    // Script-internal
-    Set(&'static str, i32, usize),
-    Add(&'static str, i32, usize),
-    IfEqual(&'static str, i32, usize, usize),
-    IfNotEqual(&'static str, i32, usize, usize),
-}
-
-// Individual instance of script execution
-struct Script<'a> {
-    commands: &'a Vec<Command>,
-    current_command_num: usize,
-    local_vars: HashMap<&'static str, i32>,
-    waiting: bool,
-    finished: bool,
-}
-
-impl<'a> Script<'a> {
-    fn new(commands: &'a Vec<Command>) -> Self {
-        Self {
-            commands,
-            current_command_num: 0,
-            local_vars: HashMap::new(),
-            waiting: false,
-            finished: false,
-        }
-    }
-}
-
-fn update_script_execution(
-    script: &mut Script,
-    player: &PlayerEntity,
-    show_message_window: &mut bool,
-    message: &mut String,
-    running: &mut bool,
-    global_vars: &mut HashMap<&str, i32>,
-) {
-    while !script.waiting && !script.finished {
-        match script.commands.get(script.current_command_num) {
-            // Interface
-            Some(Command::Message(m, next)) => {
-                // Insert any referenced local vars
-                let mut temp_message = m.to_string();
-                while let Some((before_var, rest)) = temp_message.split_once("{") {
-                    if let Some((var, after_var)) = rest.split_once("}") {
-                        // Panics if var doesn't exist
-                        let value = script.local_vars.get(var).unwrap();
-                        temp_message = format!("{}{}{}", before_var, value, after_var);
-                    }
-                }
-                // Create message window
-                *show_message_window = true;
-                *message = temp_message;
-                script.waiting = true;
-                script.current_command_num = *next;
-            }
-            Some(Command::IsPlayerAtCellPos(cellpos, key, next)) => {
-                if entity::standing_cell(player) == *cellpos {
-                    script.local_vars.insert(key, 1);
-                } else {
-                    script.local_vars.insert(key, 0);
-                }
-                script.current_command_num = *next;
-            }
-            Some(Command::CloseGame) => {
-                *running = false;
-                script.current_command_num = usize::MAX;
-            }
-            Some(Command::SetGlobal(key, value, next)) => {
-                global_vars.insert(key, *value);
-                script.current_command_num = *next;
-            }
-            Some(Command::SetGlobalFromLocal(global_key, local_key, next)) => {
-                global_vars
-                    .insert(global_key, *script.local_vars.get(local_key).unwrap());
-                script.current_command_num = *next;
-            }
-            Some(Command::GetGlobal(global_key, local_key, next)) => {
-                script
-                    .local_vars
-                    .insert(local_key, *global_vars.get(global_key).unwrap());
-                script.current_command_num = *next;
-            }
-
-            // Script-internal
-            Some(Command::Set(key, value, next)) => {
-                script.local_vars.insert(key, *value);
-                script.current_command_num = *next;
-            }
-            Some(Command::Add(key, value, next)) => {
-                let v = script.local_vars.get(key).unwrap();
-                script.local_vars.insert(key, *v + *value);
-                script.current_command_num = *next;
-            }
-            Some(Command::IfEqual(key, value, true_branch, false_branch)) => {
-                if *value == *script.local_vars.get(key).unwrap() {
-                    script.current_command_num = *true_branch;
-                } else {
-                    script.current_command_num = *false_branch;
-                }
-            }
-            Some(Command::IfNotEqual(key, value, true_branch, false_branch)) => {
-                if *value != *script.local_vars.get(key).unwrap() {
-                    script.current_command_num = *true_branch;
-                } else {
-                    script.current_command_num = *false_branch;
-                }
-            }
-            None => {
-                script.finished = true;
-            }
-        }
-    }
-}
-
-fn process_input<'a>(
-    event_pump: &mut sdl2::EventPump,
-    running: &mut bool,
-    player: &mut PlayerEntity,
-    camera_position: &mut Point,
-    interactables: &'a HashMap<CellPos, Vec<Command>>,
-    current_script: &mut Option<Script<'a>>,
-    show_message_window: &mut bool,
-) {
-    for event in event_pump.poll_iter() {
-        match event {
-            // Close program
-            Event::Quit { .. }
-            | Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
-                *running = false;
-            }
-
-            // Player movement
-            Event::KeyDown { keycode: Some(Keycode::Left), .. } => {
-                player.speed = PLAYER_MOVE_SPEED;
-                player.direction = Direction::Left;
-            }
-            Event::KeyDown { keycode: Some(Keycode::Right), .. } => {
-                player.speed = PLAYER_MOVE_SPEED;
-                player.direction = Direction::Right;
-            }
-            Event::KeyDown { keycode: Some(Keycode::Up), .. } => {
-                player.speed = PLAYER_MOVE_SPEED;
-                player.direction = Direction::Up;
-            }
-            Event::KeyDown { keycode: Some(Keycode::Down), .. } => {
-                player.speed = PLAYER_MOVE_SPEED;
-                player.direction = Direction::Down;
-            }
-            Event::KeyUp { keycode: Some(keycode), .. }
-                if keycode
-                    == match player.direction {
-                        Direction::Left => Keycode::Left,
-                        Direction::Right => Keycode::Right,
-                        Direction::Up => Keycode::Up,
-                        Direction::Down => Keycode::Down,
-                    } =>
-            {
-                player.speed = 0.0;
-            }
-
-            // Camera movement
-            Event::KeyDown { keycode: Some(Keycode::W), .. } => {
-                camera_position.y -= 1.0;
-            }
-            Event::KeyDown { keycode: Some(Keycode::A), .. } => {
-                camera_position.x -= 1.0;
-            }
-            Event::KeyDown { keycode: Some(Keycode::S), .. } => {
-                camera_position.y += 1.0;
-            }
-            Event::KeyDown { keycode: Some(Keycode::D), .. } => {
-                camera_position.x += 1.0;
-            }
-
-            // Cell interaction
-            Event::KeyDown { keycode: Some(Keycode::Space), .. } => {
-                match interactables.get(&entity::facing_cell(player)) {
-                    Some(commands) => {
-                        *current_script = Some(Script::new(commands));
-                    }
-                    None => {}
-                }
-            }
-
-            // Advance script
-            Event::KeyDown { keycode: Some(Keycode::Return), .. } => {
-                *show_message_window = false;
-                if let Some(ref mut script) = *current_script {
-                    script.waiting = false;
-                }
-            }
-            _ => {}
-        }
     }
 }
