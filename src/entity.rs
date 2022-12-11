@@ -14,6 +14,7 @@ pub struct PlayerEntity {
     pub speed: f64,
     pub hitbox_width: f64,
     pub hitbox_height: f64,
+    // Rendering
     pub sprite_offset_x: i32,
     pub sprite_offset_y: i32,
 }
@@ -31,11 +32,6 @@ pub fn move_player_and_resolve_collisions(player: &mut PlayerEntity, tilemap: &A
     let new_bot = new_position.y + player.hitbox_height / 2.0;
     let new_left = new_position.x - player.hitbox_width / 2.0;
     let new_right = new_position.x + player.hitbox_width / 2.0;
-
-    // TODO: collision handling maybe should be done by the map?
-    // It really just needs access to the player's position, size, direction, etc
-    // The map knows more about the objects of the world than the player
-    // Eventually this might be component based? Might.
 
     let points_to_check_for_cell_collision = match player.direction {
         Direction::Up => [Point::new(new_left, new_top), Point::new(new_right, new_top)],

@@ -28,9 +28,8 @@ pub fn render(
 
     // Draw tiles
     let tileset_num_cols = tileset.query().width / TILE_SIZE;
-    // TODO: determine which cells to draw, probably based on camera position
-    for row in -100..100_i32 {
-        for col in -100..100_i32 {
+    for row in 0..tilemap.num_rows() {
+        for col in 0..tilemap.num_columns() {
             if let Some(cell) =
                 tilemap::get_cell_at_cellpos(&tilemap, CellPos::new(col as i32, row as i32))
             {
@@ -129,13 +128,11 @@ pub fn render(
     let position_in_world = player.position;
     let position_in_viewport = position_in_world - viewport_top_left;
     let position_on_screen = position_in_viewport * world_units_to_screen_units;
-    let screen_rect = Rect::new(
-        position_on_screen.x as i32 + player.sprite_offset_x * SCREEN_SCALE as i32,
-        position_on_screen.y as i32 + player.sprite_offset_y * SCREEN_SCALE as i32,
-        16 * SCREEN_SCALE,
-        16 * SCREEN_SCALE,
-    );
-
+    let top_left_x =
+        position_on_screen.x as i32 + player.sprite_offset_x * SCREEN_SCALE as i32;
+    let top_left_y =
+        position_on_screen.y as i32 + player.sprite_offset_y * SCREEN_SCALE as i32;
+    let screen_rect = Rect::new(top_left_x, top_left_y, 16 * SCREEN_SCALE, 16 * SCREEN_SCALE);
     canvas.copy(spritesheet, sprite_rect, screen_rect).unwrap();
 
     // Draw message window

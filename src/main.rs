@@ -276,7 +276,6 @@ fn main() {
                 let message_refcell = RefCell::new(message_window_message);
                 let message_window_active_refcell = RefCell::new(message_window_active);
                 let message_window_selecting_refcell = RefCell::new(message_window_selecting);
-                // TODO: play with not giving it back ^^^
 
                 lua.context(|context| -> LuaResult<()> {
                     context.scope(|scope| {
@@ -384,8 +383,23 @@ fn main() {
         // Update player entity
         entity::move_player_and_resolve_collisions(&mut player, &tilemap);
 
-        // TODO: clamp camera to map
-        let camera_position = player.position;
+        // Camera follows player but stays clamped to map
+        let mut camera_position = player.position;
+        let viewport_dimensions = Point::new(SCREEN_COLS as f64, SCREEN_ROWS as f64);
+        let map_dimensions =
+            Point::new(tilemap.num_rows() as f64, tilemap.num_columns() as f64);
+        if camera_position.x - viewport_dimensions.x / 2.0 < 0.0 {
+            camera_position.x = viewport_dimensions.x / 2.0;
+        }
+        if camera_position.x + viewport_dimensions.x / 2.0 > map_dimensions.x {
+            camera_position.x = map_dimensions.x - viewport_dimensions.x / 2.0;
+        }
+        if camera_position.y - viewport_dimensions.y / 2.0 < 0.0 {
+            camera_position.y = viewport_dimensions.y / 2.0;
+        }
+        if camera_position.y + viewport_dimensions.y / 2.0 > map_dimensions.y {
+            camera_position.y = map_dimensions.y - viewport_dimensions.y / 2.0;
+        }
 
         // Render
         #[rustfmt::skip]
