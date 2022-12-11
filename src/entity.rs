@@ -14,12 +14,11 @@ pub struct PlayerEntity {
     pub speed: f64,
     pub hitbox_width: f64,
     pub hitbox_height: f64,
+    pub sprite_offset_x: i32,
+    pub sprite_offset_y: i32,
 }
 
-pub fn move_player_and_resolve_collisions(
-    player: &mut PlayerEntity,
-    tilemap: &Array2D<Cell>,
-) {
+pub fn move_player_and_resolve_collisions(player: &mut PlayerEntity, tilemap: &Array2D<Cell>) {
     let mut new_position = player.position
         + match player.direction {
             Direction::Up => Point::new(0.0, -player.speed),
@@ -40,13 +39,9 @@ pub fn move_player_and_resolve_collisions(
 
     let points_to_check_for_cell_collision = match player.direction {
         Direction::Up => [Point::new(new_left, new_top), Point::new(new_right, new_top)],
-        Direction::Down => {
-            [Point::new(new_left, new_bot), Point::new(new_right, new_bot)]
-        }
+        Direction::Down => [Point::new(new_left, new_bot), Point::new(new_right, new_bot)],
         Direction::Left => [Point::new(new_left, new_top), Point::new(new_left, new_bot)],
-        Direction::Right => {
-            [Point::new(new_right, new_top), Point::new(new_right, new_bot)]
-        }
+        Direction::Right => [Point::new(new_right, new_top), Point::new(new_right, new_bot)],
     };
 
     for point in points_to_check_for_cell_collision {
@@ -89,11 +84,12 @@ pub fn standing_cell(player: &PlayerEntity) -> CellPos {
 }
 
 pub fn facing_cell(player: &PlayerEntity) -> CellPos {
-    let standing_cell = standing_cell(player);
-    match player.direction {
-        Direction::Up => CellPos::new(standing_cell.x, standing_cell.y - 1),
-        Direction::Down => CellPos::new(standing_cell.x, standing_cell.y + 1),
-        Direction::Left => CellPos::new(standing_cell.x - 1, standing_cell.y),
-        Direction::Right => CellPos::new(standing_cell.x + 1, standing_cell.y),
-    }
+    let maximum_distance = 0.6;
+    let facing_cell_position = match player.direction {
+        Direction::Up => player.position + Point::new(0.0, -maximum_distance),
+        Direction::Down => player.position + Point::new(0.0, maximum_distance),
+        Direction::Left => player.position + Point::new(-maximum_distance, 0.0),
+        Direction::Right => player.position + Point::new(maximum_distance, 0.0),
+    };
+    facing_cell_position.to_cellpos()
 }

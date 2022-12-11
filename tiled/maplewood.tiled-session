@@ -1,0 +1,92 @@
+{
+    "Map/SizeTest": {
+        "height": 4300,
+        "width": 2
+    },
+    "activeFile": "cottage.tmx",
+    "expandedProjectPaths": [
+        "."
+    ],
+    "fileStates": {
+        "D:/Programs/Tiled/examples/sticker-knight/map/objs.tsx": {
+            "scaleInDock": 1
+        },
+        "D:/Programs/Tiled/examples/sticker-knight/map/sandbox.tmx": {
+            "scale": 0.125,
+            "selectedLayer": 3,
+            "viewCenter": {
+                "x": 1032,
+                "y": 1544
+            }
+        },
+        "basictiles.tsx": {
+            "scaleInDock": 3,
+            "scaleInEditor": 4
+        },
+        "cottage.tmx": {
+            "scale": 2,
+            "selectedLayer": 1,
+            "viewCenter": {
+                "x": 167.75,
+                "y": 162
+            }
+        },
+        "test.js": {
+            "scale": 2.4432812499999996,
+            "selectedLayer": 0,
+            "viewCenter": {
+                "x": 160.03069642514552,
+                "y": 160.0306964251455
+            }
+        },
+        "test.tmx": {
+            "scale": 2.4432812499999996,
+            "selectedLayer": 0,
+            "viewCenter": {
+                "x": 87.5871330817932,
+                "y": 159.2121250879325
+            }
+        },
+        "test2.tmx": {
+            "scale": 2.4432812499999996,
+            "selectedLayer": 0,
+            "viewCenter": {
+                "x": 87.5871330817932,
+                "y": 159.621410756539
+            }
+        },
+        "tmw_desert_spacing.tsx": {
+            "scaleInDock": 1,
+            "scaleInEditor": 1
+        }
+    },
+    "last.exportedFilePath": "D:/Dev/maplewood/tiled",
+    "last.imagePath": "D:/Dev/maplewood/assets",
+    "map.height": 20,
+    "map.lastUsedExportFilter": "CSV files (*.csv)",
+    "map.lastUsedFormat": "tmx",
+    "map.tileHeight": 16,
+    "map.tileWidth": 16,
+    "map.width": 20,
+    "openFiles": [
+        "cottage.tmx",
+        "basictiles.tsx"
+    ],
+    "project": "maplewood.tiled-project",
+    "recentFiles": [
+        "basictiles.tsx",
+        "cottage.tmx",
+        "D:/Programs/Tiled/examples/sticker-knight/map/sandbox.tmx",
+        "test.tmx",
+        "tmw_desert_spacing.tsx",
+        "test2.tmx",
+        "test.js"
+    ],
+    "tileset.lastUsedFormat": "tsx",
+    "tileset.margin": 0,
+    "tileset.spacing": 0,
+    "tileset.tileSize": {
+        "height": 16,
+        "width": 16
+    }
+}
