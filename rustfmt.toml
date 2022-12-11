@@ -1,3 +1,4 @@
+comment_width = 95
 format_strings = true
 group_imports = "One"
 imports_granularity = "Module"

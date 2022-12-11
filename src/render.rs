@@ -1,15 +1,31 @@
 use crate::entity::{self, Direction, PlayerEntity};
-use crate::tilemap::{self, Cell, CellPos, Point};
+use crate::world::{self, Cell, CellPos, Point, WorldPos};
 use crate::{SCREEN_COLS, SCREEN_ROWS, SCREEN_SCALE, TILE_SIZE};
 use array2d::Array2D;
 use sdl2::pixels::Color;
 use sdl2::rect::Rect;
 use sdl2::render::{Texture, TextureQuery, WindowCanvas};
 use sdl2::ttf::Font;
+use std::time::{Duration, Instant};
+
+// world -> top_left relies on two things:
+// world_units_to_screen_units in here, and
+// viewport_top_left set at the start of render() based on camera_position arg
+// if render is an object, I can store those two and make (world -> top_left) a method
+
+type ScreenPos = Point<i32>;
+
+fn worldpos_to_screenpos(worldpos: WorldPos) -> ScreenPos {
+    let world_units_to_screen_units = (TILE_SIZE * SCREEN_SCALE) as f64;
+    ScreenPos {
+        x: (worldpos.x * world_units_to_screen_units) as i32,
+        y: (worldpos.y * world_units_to_screen_units) as i32,
+    }
+}
 
 pub fn render(
     canvas: &mut WindowCanvas,
-    camera_position: Point,
+    camera_position: WorldPos,
     tileset: &Texture,
     tilemap: &Array2D<Cell>,
     spritesheet: &Texture,
@@ -17,11 +33,11 @@ pub fn render(
     show_message_window: bool,
     font: &Font,
     message: &str,
+    fade_to_black_start: Option<Instant>,
+    fade_to_black_duration: Duration,
 ) {
     canvas.set_draw_color(Color::RGB(255, 255, 255));
     canvas.clear();
-
-    let world_units_to_screen_units = (TILE_SIZE * SCREEN_SCALE) as f64;
 
     let viewport_dimensions = Point::new(SCREEN_COLS as f64, SCREEN_ROWS as f64);
     let viewport_top_left = camera_position - viewport_dimensions / 2.0;
@@ -31,15 +47,17 @@ pub fn render(
     for row in 0..tilemap.num_rows() {
         for col in 0..tilemap.num_columns() {
             if let Some(cell) =
-                tilemap::get_cell_at_cellpos(&tilemap, CellPos::new(col as i32, row as i32))
+                world::get_cell_at_cellpos(&tilemap, CellPos::new(col as i32, row as i32))
             {
-                let position_in_world = Point::new(col as f64, row as f64);
+                // world -> top_left
+                let position_in_world = WorldPos::new(col as f64, row as f64);
                 let position_in_viewport = position_in_world - viewport_top_left;
-                let position_on_screen = position_in_viewport * world_units_to_screen_units;
+                let position_on_screen = worldpos_to_screenpos(position_in_viewport);
+                let top_left = position_on_screen;
 
                 let screen_rect = Rect::new(
-                    position_on_screen.x as i32,
-                    position_on_screen.y as i32,
+                    top_left.x,
+                    top_left.y,
                     // I'm not sure why, but sometimes some rows or columns end up 1 pixel
                     // off? which leaves gaps that stripe the screen. It must have something
                     // to do with going down from the f64s to i32s, I think?
@@ -68,50 +86,62 @@ pub fn render(
 
     if false {
         // Draw player standing cell marker
-        let standing_cell_world_pos = Point::new(
+        // world -> top_left
+        let position_in_world = WorldPos::new(
             entity::standing_cell(player).x as f64,
             entity::standing_cell(player).y as f64,
         );
-        let standing_cell_viewport_pos = standing_cell_world_pos - viewport_top_left;
-        let standing_cell_screen_pos =
-            standing_cell_viewport_pos * world_units_to_screen_units;
+        let position_in_viewport = position_in_world - viewport_top_left;
+        let position_on_screen = worldpos_to_screenpos(position_in_viewport);
+        let top_left = position_on_screen;
+
         canvas.set_draw_color(Color::RGB(255, 0, 0));
         canvas
             .draw_rect(Rect::new(
-                standing_cell_screen_pos.x as i32,
-                standing_cell_screen_pos.y as i32,
+                top_left.x,
+                top_left.y,
                 TILE_SIZE * SCREEN_SCALE,
                 TILE_SIZE * SCREEN_SCALE,
             ))
             .unwrap();
 
         // Draw player facing cell marker
-        let facing_cell_world_pos = Point::new(
+        // world -> top_left
+        let position_in_world = WorldPos::new(
             entity::facing_cell(player).x as f64,
             entity::facing_cell(player).y as f64,
         );
-        let facing_cell_viewport_pos = facing_cell_world_pos - viewport_top_left;
-        let facing_cell_screen_pos = facing_cell_viewport_pos * world_units_to_screen_units;
+        let position_in_viewport = position_in_world - viewport_top_left;
+        let position_on_screen = worldpos_to_screenpos(position_in_viewport);
+        let top_left = position_on_screen;
+
         canvas.set_draw_color(Color::RGB(0, 0, 255));
         canvas
             .draw_rect(Rect::new(
-                facing_cell_screen_pos.x as i32,
-                facing_cell_screen_pos.y as i32,
+                top_left.x,
+                top_left.y,
                 TILE_SIZE * SCREEN_SCALE,
                 TILE_SIZE * SCREEN_SCALE,
             ))
             .unwrap();
 
         // Draw player hitbox marker
+        let hitbox_screen_dimensions = worldpos_to_screenpos(player.hitbox_dimensions);
+        let screen_offset = hitbox_screen_dimensions / 2;
+
+        // world -> top_left
+        let position_in_world = player.position;
+        let position_in_viewport = position_in_world - viewport_top_left;
+        let position_on_screen = worldpos_to_screenpos(position_in_viewport);
+        let top_left = position_on_screen - screen_offset;
+
         canvas.set_draw_color(Color::RGB(255, 0, 255));
         canvas
             .draw_rect(Rect::new(
-                (((player.position - viewport_top_left).x - player.hitbox_width / 2.0)
-                    * world_units_to_screen_units) as i32,
-                (((player.position - viewport_top_left).y - player.hitbox_height / 2.0)
-                    * world_units_to_screen_units) as i32,
-                (player.hitbox_width * world_units_to_screen_units) as u32,
-                (player.hitbox_height * world_units_to_screen_units) as u32,
+                top_left.x,
+                top_left.y,
+                hitbox_screen_dimensions.x as u32,
+                hitbox_screen_dimensions.y as u32,
             ))
             .unwrap();
     }
@@ -125,18 +155,19 @@ pub fn render(
     };
     let sprite_rect = Rect::new(7 * 16, sprite_row * 16, 16, 16);
 
+    // world -> top_left
     let position_in_world = player.position;
     let position_in_viewport = position_in_world - viewport_top_left;
-    let position_on_screen = position_in_viewport * world_units_to_screen_units;
-    let top_left_x =
-        position_on_screen.x as i32 + player.sprite_offset_x * SCREEN_SCALE as i32;
-    let top_left_y =
-        position_on_screen.y as i32 + player.sprite_offset_y * SCREEN_SCALE as i32;
-    let screen_rect = Rect::new(top_left_x, top_left_y, 16 * SCREEN_SCALE, 16 * SCREEN_SCALE);
+    let position_on_screen = worldpos_to_screenpos(position_in_viewport);
+    let top_left = position_on_screen - (player.sprite_offset * SCREEN_SCALE as i32);
+
+    let screen_rect = Rect::new(top_left.x, top_left.y, 16 * SCREEN_SCALE, 16 * SCREEN_SCALE);
     canvas.copy(spritesheet, sprite_rect, screen_rect).unwrap();
 
     // Draw message window
+    // This goes directly on the screen and has no world pos to convert
     if show_message_window {
+        // Draw the window itself
         canvas.set_draw_color(Color::RGB(0, 0, 0));
         canvas
             .fill_rect(Rect::new(
@@ -146,6 +177,8 @@ pub fn render(
                 50 * SCREEN_SCALE,
             ))
             .unwrap();
+
+        // Draw the text
         let surface =
             font.render(message).blended_wrapped(Color::RGB(255, 255, 255), 0).unwrap();
         let texture_creator = canvas.texture_creator();
@@ -163,6 +196,16 @@ pub fn render(
                 ),
             )
             .unwrap();
+    }
+
+    // Fade to black
+    if let Some(start) = fade_to_black_start {
+        let interp = start.elapsed().div_duration_f64(fade_to_black_duration).min(1.0);
+        let alpha = (255 as f64 * interp) as u8;
+        canvas.set_draw_color(Color::RGBA(0, 0, 0, alpha));
+        canvas.set_blend_mode(sdl2::render::BlendMode::Blend);
+        let (w, h) = canvas.output_size().unwrap();
+        canvas.fill_rect(Rect::new(0, 0, w, h)).unwrap();
     }
 
     canvas.present();

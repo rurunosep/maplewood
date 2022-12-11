@@ -1,9 +1,0 @@
-{
-    "Lua.diagnostics.globals": [
-        "get_story_var",
-        "set_story_var",
-        "message",
-        "is_player_at_cellpos",
-        "selection"
-    ]
-}

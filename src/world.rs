@@ -2,25 +2,22 @@ use array2d::Array2D;
 use derive_more::{Add, AddAssign, Div, Mul, Sub};
 use derive_new::new;
 
-#[derive(new, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct CellPos {
-    pub x: i32,
-    pub y: i32,
+pub type CellPos = Point<i32>;
+pub type WorldPos = Point<f64>;
+
+#[derive(new, Clone, Copy, Add, AddAssign, Sub, Mul, Div, PartialEq, Eq, Hash, Default)]
+pub struct Point<T> {
+    pub x: T,
+    pub y: T,
 }
 
-#[derive(new, Clone, Copy, Add, AddAssign, Sub, Mul, Div)]
-pub struct Point {
-    pub x: f64,
-    pub y: f64,
-}
-
-impl Point {
-    pub fn to_cellpos(&self) -> CellPos {
+impl WorldPos {
+    pub fn to_cellpos(self) -> CellPos {
         CellPos { x: self.x.floor() as i32, y: self.y.floor() as i32 }
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default, Debug)]
 pub struct Cell {
     pub tile_1: Option<u32>,
     pub tile_2: Option<u32>,
