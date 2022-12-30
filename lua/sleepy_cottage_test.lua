@@ -132,7 +132,7 @@ end
 
 --# chest
 if get("got_chest_key") == 1 and get("got_plushy") == 0 then
-    play_sfx("chest_open)
+    play_sfx("chest_open")
     set_cell_tile(8, 5, 2, 35)
     message("You got the chest open!")
     message("There's a plushy inside! \n"

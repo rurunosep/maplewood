@@ -1,20 +1,19 @@
-use crate::entity::{self, Direction, PlayerEntity};
+use crate::entity::{self, Direction, Entity};
 use crate::world::{self, Cell, CellPos, Point, WorldPos};
-use crate::{SCREEN_COLS, SCREEN_ROWS, SCREEN_SCALE, TILE_SIZE};
+use crate::{MessageWindow, SCREEN_COLS, SCREEN_ROWS, SCREEN_SCALE, TILE_SIZE};
 use array2d::Array2D;
 use sdl2::pixels::Color;
 use sdl2::rect::Rect;
 use sdl2::render::{Texture, TextureQuery, WindowCanvas};
 use sdl2::ttf::Font;
+use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
 // world -> top_left relies on two things:
 // world_units_to_screen_units in here, and
 // viewport_top_left set at the start of render() based on camera_position arg
 // if render is an object, I can store those two and make (world -> top_left) a method
-// TODO:
-// or can it just be an inner helper function in the render function???
-// probably has to be closure, not inner function, to capture environment
+// Or can it just be a closure in the render function?
 
 type ScreenPos = Point<i32>;
 
@@ -31,11 +30,10 @@ pub fn render(
     camera_position: WorldPos,
     tileset: &Texture,
     tilemap: &Array2D<Cell>,
-    spritesheet: &Texture,
-    player: &PlayerEntity,
-    show_message_window: bool,
+    message_window: &Option<MessageWindow>,
     font: &Font,
-    message: &str,
+    spritesheet: &Texture,
+    entities: &HashMap<String, Entity>,
     fade_to_black_start: Option<Instant>,
     fade_to_black_duration: Duration,
 ) {
@@ -44,6 +42,8 @@ pub fn render(
 
     let viewport_dimensions = Point::new(SCREEN_COLS as f64, SCREEN_ROWS as f64);
     let viewport_top_left = camera_position - viewport_dimensions / 2.0;
+
+    let player = entities.get("player").unwrap();
 
     // Draw tiles
     let tileset_num_cols = tileset.query().width / TILE_SIZE;
@@ -149,27 +149,36 @@ pub fn render(
             .unwrap();
     }
 
-    // Draw player
-    let sprite_row = match player.direction {
-        Direction::Up => 3,
-        Direction::Down => 0,
-        Direction::Left => 1,
-        Direction::Right => 2,
-    };
-    let sprite_rect = Rect::new(7 * 16, sprite_row * 16, 16, 16);
+    // Draw player and other entities
+    entities.values().filter(|e| !e.no_render).for_each(|entity| {
+        let sprite_row = match entity.direction {
+            Direction::Up => 3,
+            Direction::Down => 0,
+            Direction::Left => 1,
+            Direction::Right => 2,
+        };
 
-    // world -> top_left
-    let position_in_world = player.position;
-    let position_in_viewport = position_in_world - viewport_top_left;
-    let position_on_screen = worldpos_to_screenpos(position_in_viewport);
-    let top_left = position_on_screen - (player.sprite_offset * SCREEN_SCALE as i32);
+        let sprite_rect = Rect::new(
+            entity.spriteset_rect.x,
+            entity.spriteset_rect.y + sprite_row * 16,
+            16,
+            16,
+        );
 
-    let screen_rect = Rect::new(top_left.x, top_left.y, 16 * SCREEN_SCALE, 16 * SCREEN_SCALE);
-    canvas.copy(spritesheet, sprite_rect, screen_rect).unwrap();
+        // world -> top_left
+        let position_in_world = entity.position;
+        let position_in_viewport = position_in_world - viewport_top_left;
+        let position_on_screen = worldpos_to_screenpos(position_in_viewport);
+        let top_left = position_on_screen - (entity.sprite_offset * SCREEN_SCALE as i32);
+
+        let screen_rect =
+            Rect::new(top_left.x, top_left.y, 16 * SCREEN_SCALE, 16 * SCREEN_SCALE);
+        canvas.copy(spritesheet, sprite_rect, screen_rect).unwrap();
+    });
 
     // Draw message window
     // This goes directly on the screen and has no world pos to convert
-    if show_message_window {
+    if let Some(message_window) = message_window {
         // Draw the window itself
         canvas.set_draw_color(Color::RGB(0, 0, 0));
         canvas
@@ -183,7 +192,7 @@ pub fn render(
 
         // Draw the text
         let texture_creator = canvas.texture_creator();
-        for (i, line) in message.split('\n').enumerate() {
+        for (i, line) in message_window.message.split('\n').enumerate() {
             let surface = font.render(line).solid(Color::RGB(255, 255, 255)).unwrap();
             let texture = texture_creator.create_texture_from_surface(&surface).unwrap();
             let TextureQuery { width, height, .. } = texture.query();

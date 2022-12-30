@@ -5,7 +5,9 @@ use derive_new::new;
 pub type CellPos = Point<i32>;
 pub type WorldPos = Point<f64>;
 
-#[derive(new, Clone, Copy, Add, AddAssign, Sub, Mul, Div, PartialEq, Eq, Hash, Default)]
+#[derive(
+    new, Clone, Copy, Add, AddAssign, Sub, Mul, Div, PartialEq, Eq, Hash, Default, Debug,
+)]
 pub struct Point<T> {
     pub x: T,
     pub y: T,

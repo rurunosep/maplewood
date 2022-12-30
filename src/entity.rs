@@ -1,7 +1,9 @@
 use crate::world::{self, Cell, CellPos, Point, WorldPos};
 use array2d::Array2D;
+use derivative::Derivative;
+use sdl2::rect::Rect;
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub enum Direction {
     Up,
     #[default]
@@ -10,16 +12,23 @@ pub enum Direction {
     Right,
 }
 
-#[derive(Default)]
-pub struct PlayerEntity {
+#[derive(Clone, Derivative)]
+#[derivative(Default)]
+pub struct Entity {
     pub position: WorldPos,
     pub direction: Direction,
     pub speed: f64,
     pub hitbox_dimensions: Point<f64>,
+    // The region of the full spritesheet with this entity's sprites
+    #[derivative(Default(value = "Rect::new(0, 0, 1, 1)"))]
+    pub spriteset_rect: Rect,
     pub sprite_offset: Point<i32>,
+    pub interaction_script: Option<String>,
+    // TODO: simple ECS and render based on presence of render component
+    pub no_render: bool,
 }
 
-pub fn move_player_and_resolve_collisions(player: &mut PlayerEntity, tilemap: &Array2D<Cell>) {
+pub fn move_player_and_resolve_collisions(player: &mut Entity, tilemap: &Array2D<Cell>) {
     let mut new_position = player.position
         + match player.direction {
             Direction::Up => WorldPos::new(0.0, -player.speed),
@@ -96,11 +105,11 @@ pub fn move_player_and_resolve_collisions(player: &mut PlayerEntity, tilemap: &A
     player.position = new_position;
 }
 
-pub fn standing_cell(player: &PlayerEntity) -> CellPos {
+pub fn standing_cell(player: &Entity) -> CellPos {
     player.position.to_cellpos()
 }
 
-pub fn facing_cell(player: &PlayerEntity) -> CellPos {
+pub fn facing_cell(player: &Entity) -> CellPos {
     let maximum_distance = 0.6;
     let facing_cell_position = match player.direction {
         Direction::Up => player.position + WorldPos::new(0.0, -maximum_distance),

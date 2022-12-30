@@ -1,4 +1,5 @@
 #![allow(unused_parens)]
+#![feature(let_chains)]
 #![feature(div_duration)]
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
@@ -6,19 +7,21 @@ mod entity;
 mod render;
 mod world;
 
-use crate::entity::{Direction, PlayerEntity};
+use crate::entity::{Direction, Entity};
 use crate::world::{CellPos, WorldPos};
 use array2d::Array2D;
-use indoc::indoc;
-use rlua::{Function, Lua, Result as LuaResult, Thread, ThreadStatus};
+use rlua::{Error as LuaError, Function, Lua, Result as LuaResult, Thread, ThreadStatus};
 use sdl2::event::Event;
 use sdl2::image::LoadTexture;
 use sdl2::keyboard::Keycode;
 use sdl2::mixer::{Chunk, Music, AUDIO_S16SYS, DEFAULT_CHANNELS};
+use sdl2::rect::Rect;
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::error::Error;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
-use std::{fs, iter};
+use std::{fmt, fs, iter};
 use world::{Cell, Point};
 
 const TILE_SIZE: u32 = 16;
@@ -26,6 +29,64 @@ const SCREEN_COLS: u32 = 16;
 const SCREEN_ROWS: u32 = 12;
 const SCREEN_SCALE: u32 = 4;
 const PLAYER_MOVE_SPEED: f64 = 0.12;
+
+struct ScriptInstance {
+    // TODO: ID that can be passed to whatever process script is waiting for
+    // The process can then use ID to un-waiting the correct script
+    lua_instance: Lua,
+    waiting: bool,
+    input: i32,
+    finished: bool,
+}
+
+impl ScriptInstance {
+    fn new(script_source: &str) -> Self {
+        let lua_instance = Lua::new();
+        lua_instance
+            .context(|context| -> LuaResult<()> {
+                // Wrap script in a thread/coroutine so that blocking functions
+                // may yield
+                let thread: Thread = context
+                    .load(&format!("coroutine.create(function() {script_source} end)"))
+                    .eval()?;
+                // Store the thread/coroutine in a global and retrieve it each
+                // time we're executing some of the script
+                context.globals().set("thread", thread)?;
+                Ok(())
+            })
+            .unwrap_or_else(|err| panic!("{err}\nsource: {:?}", err.source()));
+
+        Self { lua_instance, waiting: false, input: 0, finished: false }
+    }
+}
+
+fn get_sub_script(full_source: &str, label: &str) -> String {
+    let (_, after_label) = full_source.split_once(&format!("--# {label}")).unwrap();
+    let (between_label_and_end, _) = after_label.split_once("--#").unwrap();
+    between_label_and_end.to_string()
+}
+
+#[derive(Debug)]
+enum ScriptError {
+    InvalidStoryVar(String),
+    InvalidEntity(String),
+}
+
+impl Error for ScriptError {}
+
+impl fmt::Display for ScriptError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ScriptError::InvalidStoryVar(var) => write!(f, "no story var: {var}"),
+            ScriptError::InvalidEntity(name) => write!(f, "no entity: {name}"),
+        }
+    }
+}
+
+pub struct MessageWindow {
+    message: String,
+    is_selection: bool,
+}
 
 fn main() {
     // ------------------------------------------
@@ -107,26 +168,12 @@ fn main() {
         Array2D::from_row_major(&cells, layer_1_ids.len(), layer_1_ids.get(0).unwrap().len())
     };
 
-    let script_source = fs::read_to_string("lua/sleepy_cottage_test.lua").unwrap();
+    let cs = fs::read_to_string("lua/sleepy_cottage_test.lua").unwrap();
 
-    let mut interaction_scripts: HashMap<CellPos, String> = HashMap::new();
-    interaction_scripts.insert(CellPos::new(7, 10), get_sub_script(&script_source, "sign"));
-    interaction_scripts.insert(CellPos::new(9, 2), get_sub_script(&script_source, "grave"));
-    interaction_scripts.insert(CellPos::new(12, 9), get_sub_script(&script_source, "pot"));
-    interaction_scripts.insert(CellPos::new(12, 5), get_sub_script(&script_source, "bed"));
-    interaction_scripts.insert(CellPos::new(8, 8), get_sub_script(&script_source, "door"));
-    interaction_scripts.insert(CellPos::new(11, 5), get_sub_script(&script_source, "dresser"));
-    interaction_scripts.insert(CellPos::new(6, 7), get_sub_script(&script_source, "brazier"));
-    interaction_scripts.insert(CellPos::new(13, 7), get_sub_script(&script_source, "brazier"));
-    interaction_scripts.insert(CellPos::new(4, 11), get_sub_script(&script_source, "tree"));
-    interaction_scripts.insert(CellPos::new(8, 5), get_sub_script(&script_source, "chest"));
-    interaction_scripts.insert(CellPos::new(5, 11), get_sub_script(&script_source, "well"));
-
+    // TODO: collision script entity
     let mut collision_scripts: HashMap<CellPos, String> = HashMap::new();
-    collision_scripts
-        .insert(CellPos::new(8, 8), get_sub_script(&script_source, "door_collision"));
-    collision_scripts
-        .insert(CellPos::new(6, 5), get_sub_script(&script_source, "stairs_collision"));
+    collision_scripts.insert(CellPos::new(8, 8), get_sub_script(&cs, "door_collision"));
+    collision_scripts.insert(CellPos::new(6, 5), get_sub_script(&cs, "stairs_collision"));
 
     let mut story_vars: HashMap<String, i32> = HashMap::new();
     story_vars.insert("got_plushy".to_string(), 0);
@@ -141,33 +188,97 @@ fn main() {
     story_vars.insert("burned_dresser_note".to_string(), 0);
     story_vars.insert("tried_to_sleep".to_string(), 0);
 
-    let mut player = PlayerEntity {
-        position: WorldPos::new(7.5, 15.5),
-        direction: Direction::Down,
-        speed: 0.0,
-        hitbox_dimensions: Point::new(8.0 / 16.0, 6.0 / 16.0),
-        sprite_offset: Point::new(8, 13),
-    };
+    let es = fs::read_to_string("lua/entities_test.lua").unwrap();
+
+    // For now, entities will be referred to by a name string
+    let mut entities: HashMap<String, Entity> = HashMap::new();
+
+    // Character entities
+    entities.insert(
+        "player".to_string(),
+        Entity {
+            position: WorldPos::new(7.5, 15.5),
+            direction: Direction::Down,
+            speed: 0.0,
+            hitbox_dimensions: Point::new(8.0 / 16.0, 6.0 / 16.0),
+            spriteset_rect: Rect::new(7 * 16, 0, 16 * 4, 16 * 4),
+            sprite_offset: Point::new(8, 13),
+            interaction_script: None,
+            no_render: false,
+        },
+    );
+    entities.insert(
+        "skele_1".to_string(),
+        Entity {
+            position: WorldPos::new(8.5, 10.5),
+            spriteset_rect: Rect::new(10 * 16, 0, 16 * 4, 16 * 4),
+            interaction_script: Some(get_sub_script(&es, "1")),
+            ..entities.get("player").unwrap().clone()
+        },
+    );
+    entities.insert(
+        "skele_2".to_string(),
+        Entity {
+            position: WorldPos::new(10.5, 18.5),
+            interaction_script: Some(get_sub_script(&es, "2")),
+            ..entities.get("skele_1").unwrap().clone()
+        },
+    );
+    entities.insert(
+        "skele_3".to_string(),
+        Entity {
+            position: WorldPos::new(11.5, 17.5),
+            interaction_script: Some(get_sub_script(&es, "3")),
+            ..entities.get("skele_1").unwrap().clone()
+        },
+    );
+
+    // Interactable cell entities
+    [
+        ("sign", 7, 10),
+        ("grave", 9, 2),
+        ("pot", 12, 9),
+        ("bed", 12, 5),
+        ("door", 8, 8),
+        ("dresser", 11, 5),
+        ("brazier", 6, 7),
+        ("tree", 4, 11),
+        ("chest", 8, 5),
+        ("well", 5, 11),
+    ]
+    .iter()
+    .for_each(|(n, x, y)| {
+        entities.insert(
+            n.to_string(),
+            Entity {
+                position: WorldPos::new(*x as f64, *y as f64),
+                interaction_script: Some(get_sub_script(&cs, n)),
+                no_render: true,
+                ..Default::default()
+            },
+        );
+    });
+    entities.insert(
+        "brazier_2".to_string(),
+        Entity {
+            position: WorldPos::new(13., 7.),
+            interaction_script: Some(get_sub_script(&cs, "brazier")),
+            no_render: true,
+            ..Default::default()
+        },
+    );
 
     #[allow(unused_assignments)]
-    let mut script: Option<Lua> = None;
-    let mut script_waiting = false;
-    let mut script_finished = false;
-
-    let mut message_window_active = false;
-    let mut message_window_message = String::new();
-    let mut message_window_selecting = false;
-    let mut message_window_choice = 0;
-
+    let mut script: Option<ScriptInstance> = None;
+    let mut message_window: Option<MessageWindow> = None;
     let mut fade_to_black_start: Option<Instant> = None;
     let mut fade_to_black_duration = Duration::default();
     let mut script_wait_start: Option<Instant> = None;
     let mut script_wait_duration = Duration::default();
-
     let mut player_movement_locked = false;
     let mut force_move_destination: Option<CellPos> = None;
 
-    script = Some(prepare_script(&get_sub_script(&script_source, "start")));
+    script = Some(ScriptInstance::new(&get_sub_script(&cs, "start")));
 
     // ------------------------------------------
     // Main Loop
@@ -188,72 +299,90 @@ fn main() {
                 // Some conditions (such as a message window being open) lock player movement
                 // Scripts can also lock/unlock it as necessary
                 Event::KeyDown { keycode: Some(Keycode::Left), .. } => {
-                    if !message_window_active && !player_movement_locked {
+                    if message_window.is_none() && !player_movement_locked {
+                        let mut player = entities.get_mut("player").unwrap();
                         player.speed = PLAYER_MOVE_SPEED;
                         player.direction = Direction::Left;
                     }
                 }
                 Event::KeyDown { keycode: Some(Keycode::Right), .. } => {
-                    if !message_window_active && !player_movement_locked {
+                    if message_window.is_none() && !player_movement_locked {
+                        let mut player = entities.get_mut("player").unwrap();
                         player.speed = PLAYER_MOVE_SPEED;
                         player.direction = Direction::Right;
                     }
                 }
                 Event::KeyDown { keycode: Some(Keycode::Up), .. } => {
-                    if !message_window_active && !player_movement_locked {
+                    if message_window.is_none() && !player_movement_locked {
+                        let mut player = entities.get_mut("player").unwrap();
                         player.speed = PLAYER_MOVE_SPEED;
                         player.direction = Direction::Up;
                     }
                 }
                 Event::KeyDown { keycode: Some(Keycode::Down), .. } => {
-                    if !message_window_active && !player_movement_locked {
+                    if message_window.is_none() && !player_movement_locked {
+                        let mut player = entities.get_mut("player").unwrap();
                         player.speed = PLAYER_MOVE_SPEED;
                         player.direction = Direction::Down;
                     }
                 }
                 Event::KeyUp { keycode: Some(keycode), .. }
                     if keycode
-                        == match player.direction {
+                        == match entities.get("player").unwrap().direction {
                             Direction::Left => Keycode::Left,
                             Direction::Right => Keycode::Right,
                             Direction::Up => Keycode::Up,
                             Direction::Down => Keycode::Down,
                         } =>
                 {
+                    let mut player = entities.get_mut("player").unwrap();
                     player.speed = 0.0;
                 }
 
                 // Choose message window option
                 Event::KeyDown { keycode: Some(Keycode::Num1), .. } => {
-                    if message_window_selecting {
-                        message_window_choice = 1;
-                        message_window_active = false;
-                        message_window_selecting = false;
-                        script_waiting = false;
+                    // If let chains would be nice here
+                    if let Some(mw) = &mut message_window {
+                        if mw.is_selection {
+                            if let Some(script) = &mut script {
+                                script.input = 1;
+                                script.waiting = false;
+                                message_window = None;
+                            }
+                        }
                     }
                 }
                 Event::KeyDown { keycode: Some(Keycode::Num2), .. } => {
-                    if message_window_selecting {
-                        message_window_choice = 2;
-                        message_window_active = false;
-                        message_window_selecting = false;
-                        script_waiting = false;
+                    if let Some(mw) = &mut message_window {
+                        if mw.is_selection {
+                            if let Some(script) = &mut script {
+                                script.input = 2;
+                                script.waiting = false;
+                                message_window = None;
+                            }
+                        }
                     }
                 }
                 Event::KeyDown { keycode: Some(Keycode::Num3), .. } => {
-                    if message_window_selecting {
-                        message_window_choice = 3;
-                        message_window_active = false;
-                        message_window_selecting = false;
-                        script_waiting = false;
+                    if let Some(mw) = &mut message_window {
+                        if mw.is_selection {
+                            if let Some(script) = &mut script {
+                                script.input = 3;
+                                script.waiting = false;
+                                message_window = None;
+                            }
+                        }
                     }
                 }
                 Event::KeyDown { keycode: Some(Keycode::Num4), .. } => {
-                    if message_window_selecting {
-                        message_window_choice = 4;
-                        message_window_active = false;
-                        message_window_selecting = false;
-                        script_waiting = false;
+                    if let Some(mw) = &mut message_window {
+                        if mw.is_selection {
+                            if let Some(script) = &mut script {
+                                script.input = 4;
+                                script.waiting = false;
+                                message_window = None;
+                            }
+                        }
                     }
                 }
 
@@ -262,17 +391,29 @@ fn main() {
                 Event::KeyDown { keycode: Some(Keycode::Return), .. }
                 | Event::KeyDown { keycode: Some(Keycode::Space), .. } => {
                     // Advance message (if a non-selection message window is open)
-                    if message_window_active && !message_window_selecting {
-                        message_window_active = false;
-                        script_waiting = false;
+                    if let Some(mw) = &message_window {
+                        if !mw.is_selection {
+                            message_window = None;
+                            if let Some(script) = &mut script {
+                                script.waiting = false;
+                            }
+                        }
+
                     // Start script (if no window is open and no script is running)
                     } else if script.is_none() {
-                        if let Some(script_source) =
-                            interaction_scripts.get(&entity::facing_cell(&player))
+                        // Check if there is an entity standing in the cell the player is
+                        // facing, and get that entity's interaction script if it has one
+                        //
+                        // let chains would be nice here
+                        if let Some(Some(script_source)) = entities
+                            .values()
+                            .find(|e| {
+                                entity::standing_cell(e)
+                                    == entity::facing_cell(entities.get("player").unwrap())
+                            })
+                            .map(|e| &e.interaction_script)
                         {
-                            script = Some(prepare_script(script_source));
-                            script_waiting = false;
-                            script_finished = false;
+                            script = Some(ScriptInstance::new(script_source));
                         }
                     }
                 }
@@ -284,284 +425,311 @@ fn main() {
         // ------------------------------------------
         // Update script execution
         // ------------------------------------------
-        if let Some(ref lua) = script {
-            if !script_waiting {
+        if let Some(script) = &mut script {
+            if !script.waiting {
                 // For any Rust data that scripts need (multiple) mutable access to: store it
                 // in a RefCell before script processing, and return it to its owner after
                 let story_vars_refcell = RefCell::new(story_vars);
-                let message_refcell = RefCell::new(message_window_message);
-                let message_window_active_refcell = RefCell::new(message_window_active);
-                let message_window_selecting_refcell = RefCell::new(message_window_selecting);
+                let message_window_refcell = RefCell::new(message_window);
                 let player_movement_locked_refcell = RefCell::new(player_movement_locked);
-                let player_refcell = RefCell::new(player);
-                // Eventually, we probably won't be modifying the map directly, maybe
+                let entities_refcell = RefCell::new(entities);
                 let tilemap_refcell = RefCell::new(tilemap);
 
-                lua.context(|context| -> LuaResult<()> {
-                    context.scope(|scope| {
-                        let globals = context.globals();
+                script
+                    .lua_instance
+                    .context(|context| -> LuaResult<()> {
+                        context.scope(|scope| {
+                            let globals = context.globals();
 
-                        // Utility Lua function that will wrap a function that should
-                        // block within a new one that will call the original and yield
-                        // (Because you can't "yield across a C-call boundary" apparently)
-                        let wrap_blocking: Function = context
-                            .load(
-                                r#"
-                                function(f)
-                                    return function(...)
-                                        f(...)
-                                        return coroutine.yield()
-                                    end
-                                end"#,
-                            )
-                            .eval()?;
+                            // Utility Lua function that will wrap a function that should
+                            // block within a new one that will call the original and yield
+                            // (Because you can't yield from within a rust callback)
+                            let wrap_blocking: Function = context
+                                .load(
+                                    r#"
+                                    function(f)
+                                        return function(...)
+                                            f(...)
+                                            return coroutine.yield()
+                                        end
+                                    end"#,
+                                )
+                                .eval()?;
 
-                        // Provide Rust functions to Lua
-                        // Every function that references Rust data must be recreated in
-                        // this scope each time we execute some of the script, to ensure
-                        // that the reference lifetimes remain valid
-                        globals.set(
-                            "get",
-                            scope.create_function(|_, key: String| {
-                                Ok(*story_vars_refcell.borrow().get(&key).unwrap())
-                            })?,
-                        )?;
+                            // Provide Rust functions to Lua
+                            // Every function that references Rust data must be recreated in
+                            // this scope each time we execute some of the script, to ensure
+                            // that the reference lifetimes remain valid
+                            globals.set(
+                                "get",
+                                scope.create_function(|_, key: String| {
+                                    story_vars_refcell
+                                        .borrow()
+                                        .get(&key)
+                                        .map(|v| v.clone())
+                                        .ok_or(LuaError::ExternalError(Arc::new(
+                                            ScriptError::InvalidStoryVar(key),
+                                        )))
+                                })?,
+                            )?;
 
-                        globals.set(
-                            "set",
-                            scope.create_function_mut(|_, (key, val): (String, i32)| {
-                                story_vars_refcell.borrow_mut().insert(key, val);
-                                Ok(())
-                            })?,
-                        )?;
+                            globals.set(
+                                "set",
+                                scope.create_function_mut(
+                                    |_, (key, val): (String, i32)| {
+                                        story_vars_refcell.borrow_mut().insert(key, val);
+                                        Ok(())
+                                    },
+                                )?,
+                            )?;
 
-                        globals.set(
-                            "is_player_at_cellpos",
-                            scope.create_function(|_, (x, y): (i32, i32)| {
-                                Ok(entity::standing_cell(&player_refcell.borrow())
-                                    == CellPos::new(x, y))
-                            })?,
-                        )?;
+                            globals.set(
+                                "is_player_at_cellpos",
+                                scope.create_function(|_, (x, y): (i32, i32)| {
+                                    let entities = entities_refcell.borrow();
+                                    Ok(entity::standing_cell(entities.get("player").unwrap())
+                                        == CellPos::new(x, y))
+                                })?,
+                            )?;
 
-                        globals.set(
-                            "set_cell_tile",
-                            scope.create_function_mut(
-                                |_, (x, y, layer, id): (i32, i32, i32, i32)| {
-                                    let new_tile =
-                                        if id == -1 { None } else { Some(id as u32) };
-                                    if let Some(Cell { tile_1, tile_2, .. }) = tilemap_refcell
-                                        .borrow_mut()
-                                        .get_mut(y as usize, x as usize)
-                                    {
-                                        if layer == 1 {
-                                            *tile_1 = new_tile;
-                                        } else if layer == 2 {
-                                            *tile_2 = new_tile;
+                            globals.set(
+                                "set_cell_tile",
+                                scope.create_function_mut(
+                                    |_, (x, y, layer, id): (i32, i32, i32, i32)| {
+                                        let new_tile =
+                                            if id == -1 { None } else { Some(id as u32) };
+                                        if let Some(Cell { tile_1, tile_2, .. }) =
+                                            tilemap_refcell
+                                                .borrow_mut()
+                                                .get_mut(y as usize, x as usize)
+                                        {
+                                            if layer == 1 {
+                                                *tile_1 = new_tile;
+                                            } else if layer == 2 {
+                                                *tile_2 = new_tile;
+                                            }
                                         }
-                                    }
-                                    Ok(())
-                                },
-                            )?,
-                        )?;
+                                        Ok(())
+                                    },
+                                )?,
+                            )?;
 
-                        globals.set(
-                            "set_cell_passable",
-                            scope.create_function(|_, (x, y, pass): (i32, i32, bool)| {
-                                if let Some(Cell { passable, .. }) = tilemap_refcell
-                                    .borrow_mut()
-                                    .get_mut(y as usize, x as usize)
-                                {
-                                    *passable = pass;
-                                }
-                                Ok(())
-                            })?,
-                        )?;
+                            globals.set(
+                                "set_cell_passable",
+                                scope.create_function(
+                                    |_, (x, y, pass): (i32, i32, bool)| {
+                                        if let Some(Cell { passable, .. }) = tilemap_refcell
+                                            .borrow_mut()
+                                            .get_mut(y as usize, x as usize)
+                                        {
+                                            *passable = pass;
+                                        }
+                                        Ok(())
+                                    },
+                                )?,
+                            )?;
 
-                        globals.set(
-                            "lock_movement",
-                            scope.create_function_mut(|_, ()| {
-                                *player_movement_locked_refcell.borrow_mut() = true;
-                                Ok(())
-                            })?,
-                        )?;
-
-                        globals.set(
-                            "unlock_movement",
-                            scope.create_function_mut(|_, ()| {
-                                *player_movement_locked_refcell.borrow_mut() = false;
-                                Ok(())
-                            })?,
-                        )?;
-
-                        // Currently only moves in single direction until destination reached
-                        // Also, this version does not block script.
-                        globals.set(
-                            "force_move_player_to_cell",
-                            scope.create_function_mut(
-                                |_, (direction, x, y): (String, i32, i32)| {
-                                    let mut player = player_refcell.borrow_mut();
-                                    player.direction = match direction.as_str() {
-                                        "up" => Direction::Up,
-                                        "down" => Direction::Down,
-                                        "left" => Direction::Left,
-                                        "right" => Direction::Right,
-                                        s => panic!("{s} is not a valid direction"),
-                                    };
-                                    player.speed = PLAYER_MOVE_SPEED;
-                                    force_move_destination = Some(CellPos::new(x, y));
+                            globals.set(
+                                "lock_movement",
+                                scope.create_function_mut(|_, ()| {
                                     *player_movement_locked_refcell.borrow_mut() = true;
                                     Ok(())
-                                },
-                            )?,
-                        )?;
+                                })?,
+                            )?;
 
-                        globals.set(
-                            "fade_to_black",
-                            scope.create_function_mut(|_, duration: f64| {
-                                fade_to_black_start = Some(Instant::now());
-                                fade_to_black_duration = Duration::from_secs_f64(duration);
-                                Ok(())
-                            })?,
-                        )?;
-
-                        globals.set(
-                            "close_game",
-                            scope.create_function_mut(|_, ()| {
-                                running = false;
-                                Ok(())
-                            })?,
-                        )?;
-
-                        globals.set(
-                            "play_sfx",
-                            scope.create_function(|_, name: String| {
-                                let sfx = sound_effects.get(&name).unwrap();
-                                sdl2::mixer::Channel::all().play(sfx, 0).unwrap();
-                                Ok(())
-                            })?,
-                        )?;
-
-                        globals.set(
-                            "play_music",
-                            scope.create_function_mut(
-                                |_, (name, should_loop): (String, bool)| {
-                                    musics
-                                        .get(&name)
-                                        .unwrap()
-                                        .play(if should_loop { -1 } else { 0 })
-                                        .unwrap();
+                            globals.set(
+                                "unlock_movement",
+                                scope.create_function_mut(|_, ()| {
+                                    *player_movement_locked_refcell.borrow_mut() = false;
                                     Ok(())
-                                },
-                            )?,
-                        )?;
+                                })?,
+                            )?;
 
-                        let message_unwrapped =
-                            scope.create_function_mut(|_, (message): (String)| {
-                                *message_window_active_refcell.borrow_mut() = true;
-                                *message_refcell.borrow_mut() = message;
-                                Ok(())
-                            })?;
-                        globals.set::<_, Function>(
-                            "message",
-                            wrap_blocking.call(message_unwrapped)?,
-                        )?;
+                            // Currently only moves in single direction until destination
+                            // reached Also, this version does not
+                            // block script.
+                            globals.set(
+                                "force_move_player_to_cell",
+                                scope.create_function_mut(
+                                    |_, (direction, x, y): (String, i32, i32)| {
+                                        let mut entities = entities_refcell.borrow_mut();
+                                        let mut player = entities.get_mut("player").unwrap();
 
-                        let selection_unwrapped =
-                            scope.create_function_mut(|_, (message): (String)| {
-                                *message_window_active_refcell.borrow_mut() = true;
-                                *message_window_selecting_refcell.borrow_mut() = true;
-                                *message_refcell.borrow_mut() = message;
-                                Ok(())
-                            })?;
-                        globals.set::<_, Function>(
-                            "selection",
-                            wrap_blocking.call(selection_unwrapped)?,
-                        )?;
+                                        player.direction = match direction.as_str() {
+                                            "up" => Direction::Up,
+                                            "down" => Direction::Down,
+                                            "left" => Direction::Left,
+                                            "right" => Direction::Right,
+                                            s => panic!("{s} is not a valid direction"),
+                                        };
+                                        player.speed = PLAYER_MOVE_SPEED;
+                                        force_move_destination = Some(CellPos::new(x, y));
+                                        *player_movement_locked_refcell.borrow_mut() = true;
+                                        Ok(())
+                                    },
+                                )?,
+                            )?;
 
-                        let wait_unwrapped =
-                            scope.create_function_mut(|_, duration: f64| {
-                                script_wait_start = Some(Instant::now());
-                                script_wait_duration = Duration::from_secs_f64(duration);
-                                Ok(())
-                            })?;
-                        globals
-                            .set::<_, Function>("wait", wrap_blocking.call(wait_unwrapped)?)?;
+                            globals.set(
+                                "teleport_entity",
+                                scope.create_function_mut(
+                                    |_, (name, x, y): (String, f64, f64)| {
+                                        let mut entities = entities_refcell.borrow_mut();
+                                        let mut entity = entities.get_mut(&name).ok_or(
+                                            LuaError::ExternalError(Arc::new(
+                                                ScriptError::InvalidEntity(name),
+                                            )),
+                                        )?;
+                                        entity.position = WorldPos::new(x, y);
+                                        Ok(())
+                                    },
+                                )?,
+                            )?;
 
-                        // Get saved thread out of globals and execute until script yields or
-                        // ends
-                        // !! For now I just pass message_window_choice to the yield.
-                        // When I have other blocking funcs that need input, I'll figure out a
-                        // way to pass the right stuff
-                        let thread = globals.get::<_, Thread>("thread")?;
-                        thread.resume::<_, _>(message_window_choice)?;
-                        match thread.status() {
-                            ThreadStatus::Resumable => script_waiting = true,
-                            _ => script_finished = true,
-                        }
+                            globals.set(
+                                "fade_to_black",
+                                scope.create_function_mut(|_, duration: f64| {
+                                    fade_to_black_start = Some(Instant::now());
+                                    fade_to_black_duration = Duration::from_secs_f64(duration);
+                                    Ok(())
+                                })?,
+                            )?;
 
-                        Ok(())
+                            globals.set(
+                                "close_game",
+                                scope.create_function_mut(|_, ()| {
+                                    running = false;
+                                    Ok(())
+                                })?,
+                            )?;
+
+                            globals.set(
+                                "play_sfx",
+                                scope.create_function(|_, name: String| {
+                                    let sfx = sound_effects.get(&name).unwrap();
+                                    sdl2::mixer::Channel::all().play(sfx, 0).unwrap();
+                                    Ok(())
+                                })?,
+                            )?;
+
+                            globals.set(
+                                "play_music",
+                                scope.create_function_mut(
+                                    |_, (name, should_loop): (String, bool)| {
+                                        musics
+                                            .get(&name)
+                                            .unwrap()
+                                            .play(if should_loop { -1 } else { 0 })
+                                            .unwrap();
+                                        Ok(())
+                                    },
+                                )?,
+                            )?;
+
+                            let message_unwrapped =
+                                scope.create_function_mut(|_, (message): (String)| {
+                                    *message_window_refcell.borrow_mut() =
+                                        Some(MessageWindow { message, is_selection: false });
+                                    Ok(())
+                                })?;
+                            globals.set::<_, Function>(
+                                "message",
+                                wrap_blocking.call(message_unwrapped)?,
+                            )?;
+
+                            let selection_unwrapped =
+                                scope.create_function_mut(|_, (message): (String)| {
+                                    *message_window_refcell.borrow_mut() =
+                                        Some(MessageWindow { message, is_selection: true });
+                                    Ok(())
+                                })?;
+                            globals.set::<_, Function>(
+                                "selection",
+                                wrap_blocking.call(selection_unwrapped)?,
+                            )?;
+
+                            let wait_unwrapped =
+                                scope.create_function_mut(|_, duration: f64| {
+                                    script_wait_start = Some(Instant::now());
+                                    script_wait_duration = Duration::from_secs_f64(duration);
+                                    Ok(())
+                                })?;
+                            globals.set::<_, Function>(
+                                "wait",
+                                wrap_blocking.call(wait_unwrapped)?,
+                            )?;
+
+                            // Get saved thread out of globals and execute until script yields
+                            // or ends
+                            let thread = globals.get::<_, Thread>("thread")?;
+                            thread.resume::<_, _>(script.input)?;
+                            match thread.status() {
+                                ThreadStatus::Resumable => script.waiting = true,
+                                _ => script.finished = true,
+                            }
+
+                            Ok(())
+                        })
                     })
-                })
-                // TODO: robust script error handling
-                // Maybe match on the rlua Error type, get the information I need out of it,
-                // and handle it appropriately
-                // For example, a missing arg in the lua script for a rust func that needs one
-                // will return a CallbackError containing a lua stacktrace and the cause, which
-                // is another FromLuaConversionError describing that lua passed a nil when rust
-                // needed an i32
-                // I need all this of this printed nicely for debugging, or for handling in
-                // whatever other way I want
-                // In case it's useful: map_err maps a possible error into another one
-                .unwrap_or_else(|err| panic!("{err:?}"));
+                    // TODO: A reference to the source filename and subscript label
+                    .unwrap_or_else(|err| {
+                        panic!(
+                            "{err}\nsource: {}",
+                            err.source().map_or("".to_string(), |e| e.to_string())
+                        );
+                    });
 
                 // Move all RefCell'd data back to the original owners
                 story_vars = story_vars_refcell.take();
-                message_window_message = message_refcell.take();
-                message_window_active = message_window_active_refcell.take();
-                message_window_selecting = message_window_selecting_refcell.take();
+                message_window = message_window_refcell.take();
                 player_movement_locked = player_movement_locked_refcell.take();
-                player = player_refcell.take();
+                entities = entities_refcell.take();
                 // RefCell::take() needs the inside to be Default. Since Array2D doesn't have
                 // Default, I have to make my own "default" and replace() it
                 tilemap = tilemap_refcell.replace(Array2D::filled_with(Cell::default(), 0, 0));
             }
         }
-        if script_finished {
-            script = None;
-            script_waiting = false;
-            script_finished = false;
+        if let Some(s) = &script {
+            if s.finished {
+                script = None;
+            }
         }
 
         // Update player entity
-        entity::move_player_and_resolve_collisions(&mut player, &tilemap);
+        entity::move_player_and_resolve_collisions(
+            entities.get_mut("player").unwrap(),
+            &tilemap,
+        );
 
         // If player has reached forced movement destination, end the forced movement
         if let Some(destination) = force_move_destination {
-            if entity::standing_cell(&player) == destination {
+            if entity::standing_cell(entities.get("player").unwrap()) == destination {
                 force_move_destination = None;
                 player_movement_locked = false;
-                player.speed = 0.0;
+                entities.get_mut("player").unwrap().speed = 0.0;
             }
         }
 
         // Start player collision script
-        if let Some(script_source) = collision_scripts.get(&entity::standing_cell(&player)) {
-            script = Some(prepare_script(script_source));
-            script_waiting = false;
-            script_finished = false;
+        if let Some(script_source) =
+            collision_scripts.get(&entity::standing_cell(entities.get("player").unwrap()))
+        {
+            script = Some(ScriptInstance::new(script_source));
         }
 
         // Update script wait timer
         if let Some(start) = script_wait_start {
             if start.elapsed() > script_wait_duration {
-                script_waiting = false;
+                if let Some(script) = &mut script {
+                    script.waiting = false;
+                }
                 script_wait_start = None;
                 script_wait_duration = Duration::default();
             }
         }
 
         // Camera follows player but stays clamped to map
-        let mut camera_position = player.position;
+        let mut camera_position = entities.get("player").unwrap().position;
         let viewport_dimensions = WorldPos::new(SCREEN_COLS as f64, SCREEN_ROWS as f64);
         let map_dimensions =
             WorldPos::new(tilemap.num_rows() as f64, tilemap.num_columns() as f64);
@@ -581,42 +749,12 @@ fn main() {
         // Render
         #[rustfmt::skip]
         render::render(
-            &mut canvas, camera_position, &tileset, &tilemap, &spritesheet,
-            &player, message_window_active, &font, &message_window_message,
+            &mut canvas, camera_position, &tileset, &tilemap,
+            &message_window, &font, &spritesheet, &entities,
             fade_to_black_start, fade_to_black_duration
         );
 
         // Sleep
         ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
     }
-}
-
-fn prepare_script(script_source: &str) -> Lua {
-    // Eventually, I should give each script an ID that is stored in the context.
-    // Then blocking functions can give it to whatever they're waiting for.
-    // When the thing being waited for is finished, it will know which script
-    // should resume.
-    // Could just be a simple index into a Vec (make sure it remains valid!)
-    let lua = Lua::new();
-    lua.context(|context| -> LuaResult<()> {
-        // Wrap script in a thread/coroutine so that blocking functions
-        // may yield
-        let thread: Thread = context
-            .load(&format!("coroutine.create(function() {script_source} end)"))
-            .eval()?;
-        // Store the thread/coroutine in a global and retrieve it each
-        // time we're executing some of the script
-        context.globals().set("thread", thread)?;
-        Ok(())
-    })
-    // TODO: robust script error handling
-    .unwrap_or_else(|err| panic!("{}", err.to_string()));
-
-    lua
-}
-
-fn get_sub_script(full_source: &String, label: &str) -> String {
-    let (_, after_label) = full_source.split_once(&format!("--# {label}")).unwrap();
-    let (between_label_and_end, _) = after_label.split_once("--#").unwrap();
-    between_label_and_end.to_string()
 }
