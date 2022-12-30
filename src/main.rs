@@ -31,10 +31,13 @@ fn main() {
     // ------------------------------------------
     // Init
     // ------------------------------------------
+
+    // Prevent high DPI scaling on Windows
+    #[cfg(target_os = "windows")]
     unsafe {
-        // Prevent high DPI scaling on Windows
         winapi::um::winuser::SetProcessDPIAware();
     }
+
     let sdl_context = sdl2::init().unwrap();
     let _image_context = sdl2::image::init(sdl2::image::InitFlag::PNG).unwrap();
     let _audio_subsystem = sdl_context.audio().unwrap();
@@ -49,7 +52,6 @@ fn main() {
             TILE_SIZE * SCREEN_ROWS * SCREEN_SCALE,
         )
         .position_centered()
-        .allow_highdpi()
         .build()
         .unwrap();
     let mut canvas = window.into_canvas().build().unwrap();
@@ -57,7 +59,7 @@ fn main() {
 
     let tileset = texture_creator.load_texture("assets/basictiles.png").unwrap();
     let spritesheet = texture_creator.load_texture("assets/characters.png").unwrap();
-    let font = ttf_context.load_font("assets/Grand9K Pixel.ttf", 8).unwrap();
+    let font = ttf_context.load_font("assets/Grand9KPixel.ttf", 8).unwrap();
 
     sdl2::mixer::open_audio(41_100, AUDIO_S16SYS, DEFAULT_CHANNELS, 512).unwrap();
     sdl2::mixer::allocate_channels(4);
@@ -75,7 +77,6 @@ fn main() {
         Chunk::from_file("assets/drop_in_water.wav").unwrap(),
     );
     sound_effects.insert("flame".to_string(), Chunk::from_file("assets/flame.wav").unwrap());
-    sound_effects.insert("sleep".to_string(), Chunk::from_file("assets/sleep.wav").unwrap());
 
     let mut musics: HashMap<String, Music> = HashMap::new();
     musics.insert("sleep".to_string(), Music::from_file("assets/sleep.wav").unwrap());
@@ -86,12 +87,12 @@ fn main() {
         let layer_1_ids: Vec<Vec<i32>> = fs::read_to_string("assets/cottage_1.csv")
             .unwrap()
             .lines()
-            .map(|line| line.split(",").map(|x| x.trim().parse().unwrap()).collect())
+            .map(|line| line.split(',').map(|x| x.trim().parse().unwrap()).collect())
             .collect();
         let layer_2_ids: Vec<Vec<i32>> = fs::read_to_string("assets/cottage_2.csv")
             .unwrap()
             .lines()
-            .map(|line| line.split(",").map(|x| x.trim().parse().unwrap()).collect())
+            .map(|line| line.split(',').map(|x| x.trim().parse().unwrap()).collect())
             .collect();
         let cells: Vec<Cell> = iter::zip(layer_1_ids.concat(), layer_2_ids.concat())
             .map(|(tile_1, tile_2)| {
@@ -106,28 +107,26 @@ fn main() {
         Array2D::from_row_major(&cells, layer_1_ids.len(), layer_1_ids.get(0).unwrap().len())
     };
 
-    let interaction_scripts = create_interaction_scripts();
-    let mut collision_scripts: HashMap<CellPos, &str> = HashMap::new();
-    // Door
-    collision_scripts.insert(
-        CellPos::new(8, 8),
-        indoc! {r#"
-        if get("read_dresser_note") == 1 and get("burned_dresser_note") == 0 then
-            play_sfx("door_close")
-            set_cell_tile(8, 8, 2, 48)
-            set_cell_passable(8, 8, false)
-            message("Burn after reading!")
-        end
-        "#},
-    );
-    // Stairs
-    collision_scripts.insert(
-        CellPos::new(6, 5),
-        indoc! {r#"
-        force_move_player_to_cell("down", 6, 6)
-        message("That's trespassing.")
-        "#},
-    );
+    let script_source = fs::read_to_string("lua/sleepy_cottage_test.lua").unwrap();
+
+    let mut interaction_scripts: HashMap<CellPos, String> = HashMap::new();
+    interaction_scripts.insert(CellPos::new(7, 10), get_sub_script(&script_source, "sign"));
+    interaction_scripts.insert(CellPos::new(9, 2), get_sub_script(&script_source, "grave"));
+    interaction_scripts.insert(CellPos::new(12, 9), get_sub_script(&script_source, "pot"));
+    interaction_scripts.insert(CellPos::new(12, 5), get_sub_script(&script_source, "bed"));
+    interaction_scripts.insert(CellPos::new(8, 8), get_sub_script(&script_source, "door"));
+    interaction_scripts.insert(CellPos::new(11, 5), get_sub_script(&script_source, "dresser"));
+    interaction_scripts.insert(CellPos::new(6, 7), get_sub_script(&script_source, "brazier"));
+    interaction_scripts.insert(CellPos::new(13, 7), get_sub_script(&script_source, "brazier"));
+    interaction_scripts.insert(CellPos::new(4, 11), get_sub_script(&script_source, "tree"));
+    interaction_scripts.insert(CellPos::new(8, 5), get_sub_script(&script_source, "chest"));
+    interaction_scripts.insert(CellPos::new(5, 11), get_sub_script(&script_source, "well"));
+
+    let mut collision_scripts: HashMap<CellPos, String> = HashMap::new();
+    collision_scripts
+        .insert(CellPos::new(8, 8), get_sub_script(&script_source, "door_collision"));
+    collision_scripts
+        .insert(CellPos::new(6, 5), get_sub_script(&script_source, "stairs_collision"));
 
     let mut story_vars: HashMap<String, i32> = HashMap::new();
     story_vars.insert("got_plushy".to_string(), 0);
@@ -168,13 +167,7 @@ fn main() {
     let mut player_movement_locked = false;
     let mut force_move_destination: Option<CellPos> = None;
 
-    // Set starting script
-    let starting_script_source = indoc! {r#"
-    message("You were taking a walk in the woods, \n"
-    .. "but now you're sooooo sleepy.")
-    message("You need someplace to take a nap.")
-    "#};
-    script = Some(prepare_script(starting_script_source));
+    script = Some(prepare_script(&get_sub_script(&script_source, "start")));
 
     // ------------------------------------------
     // Main Loop
@@ -187,15 +180,13 @@ fn main() {
         for event in event_pump.poll_iter() {
             match event {
                 // Close program
-                Event::Quit { .. } 
-                // | Event::KeyDown { keycode: Some(Keycode::Escape), .. }
-                => {
+                Event::Quit { .. } | Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
                     running = false;
                 }
 
                 // Player movement
                 // Some conditions (such as a message window being open) lock player movement
-                // Scripts should also be able to lock/unlock it as necessary
+                // Scripts can also lock/unlock it as necessary
                 Event::KeyDown { keycode: Some(Keycode::Left), .. } => {
                     if !message_window_active && !player_movement_locked {
                         player.speed = PLAYER_MOVE_SPEED;
@@ -275,7 +266,7 @@ fn main() {
                         message_window_active = false;
                         script_waiting = false;
                     // Start script (if no window is open and no script is running)
-                    } else if let None = script {
+                    } else if script.is_none() {
                         if let Some(script_source) =
                             interaction_scripts.get(&entity::facing_cell(&player))
                         {
@@ -378,7 +369,7 @@ fn main() {
                             scope.create_function(|_, (x, y, pass): (i32, i32, bool)| {
                                 if let Some(Cell { passable, .. }) = tilemap_refcell
                                     .borrow_mut()
-                                    .get_mut(x as usize, y as usize)
+                                    .get_mut(y as usize, x as usize)
                                 {
                                     *passable = pass;
                                 }
@@ -403,7 +394,7 @@ fn main() {
                         )?;
 
                         // Currently only moves in single direction until destination reached
-                        // Also, this version does not block script. Could make another.
+                        // Also, this version does not block script.
                         globals.set(
                             "force_move_player_to_cell",
                             scope.create_function_mut(
@@ -414,7 +405,7 @@ fn main() {
                                         "down" => Direction::Down,
                                         "left" => Direction::Left,
                                         "right" => Direction::Right,
-                                        s => panic!("{} is not a valid direction", s),
+                                        s => panic!("{s} is not a valid direction"),
                                     };
                                     player.speed = PLAYER_MOVE_SPEED;
                                     force_move_destination = Some(CellPos::new(x, y));
@@ -511,7 +502,17 @@ fn main() {
                         Ok(())
                     })
                 })
-                .unwrap();
+                // TODO: robust script error handling
+                // Maybe match on the rlua Error type, get the information I need out of it,
+                // and handle it appropriately
+                // For example, a missing arg in the lua script for a rust func that needs one
+                // will return a CallbackError containing a lua stacktrace and the cause, which
+                // is another FromLuaConversionError describing that lua passed a nil when rust
+                // needed an i32
+                // I need all this of this printed nicely for debugging, or for handling in
+                // whatever other way I want
+                // In case it's useful: map_err maps a possible error into another one
+                .unwrap_or_else(|err| panic!("{err:?}"));
 
                 // Move all RefCell'd data back to the original owners
                 story_vars = story_vars_refcell.take();
@@ -591,222 +592,31 @@ fn main() {
 }
 
 fn prepare_script(script_source: &str) -> Lua {
+    // Eventually, I should give each script an ID that is stored in the context.
+    // Then blocking functions can give it to whatever they're waiting for.
+    // When the thing being waited for is finished, it will know which script
+    // should resume.
+    // Could just be a simple index into a Vec (make sure it remains valid!)
     let lua = Lua::new();
     lua.context(|context| -> LuaResult<()> {
         // Wrap script in a thread/coroutine so that blocking functions
         // may yield
         let thread: Thread = context
-            .load(&format!("coroutine.create(function() {} end)", script_source,))
+            .load(&format!("coroutine.create(function() {script_source} end)"))
             .eval()?;
         // Store the thread/coroutine in a global and retrieve it each
         // time we're executing some of the script
         context.globals().set("thread", thread)?;
         Ok(())
     })
-    .unwrap();
+    // TODO: robust script error handling
+    .unwrap_or_else(|err| panic!("{}", err.to_string()));
 
     lua
 }
 
-fn create_interaction_scripts() -> HashMap<Point<i32>, &'static str> {
-    let mut scripts: HashMap<CellPos, &str> = HashMap::new();
-
-    //Sign
-    scripts.insert(
-        CellPos::new(7, 10),
-        indoc! {r#"
-        if is_player_at_cellpos(7, 11) then
-            message("\"Welcome!\"")
-        else
-            message("That's the wrong side.")
-        end
-        "#}
-    );
-
-    // Grave
-    scripts.insert(
-        CellPos::new(9, 2),
-        indoc! {r#"
-        if get("got_plushy") == 1 then
-            if get("tried_to_leave_plushy") == 1 then
-                message("Just get to bed.")
-            else
-                local s = selection("Leave Bobo at the grave?\n1: Yes\n2: No")
-                if s == 1 then
-                    message("That's nice.")
-                    message("But you need him more.")
-                    set("tried_to_leave_plushy", 1)
-                end
-            end
-        end
-        if get("read_grave_note") == 0 then
-            message("There's an old note by the grave:")
-            message("\"To my dearly departed:\"")
-            message("\"If you ever rise from your slumber and want to \n"
-                .. "come inside, the key to the front door is in the pot \n"
-                .. "in our garden.\"")
-            set("read_grave_note", 1);
-        end
-        "#},
-    );
-
-    // Pot
-    scripts.insert(
-        CellPos::new(12, 9),
-        indoc! {r#"
-        if get("read_grave_note") == 1 and get("got_door_key") == 0 then
-            message("The key should be in this pot.")
-            local s = selection("Carefully pull out the key?\n1: Yes\n2: No")
-            if s == 1 then
-                play_sfx("smash_pot")
-                set_cell_tile(12, 9, 2, 28)
-                message("You got the key!")
-                set("got_door_key", 1);
-            end
-        end
-        "#},
-    );
-
-    // Door
-    scripts.insert(
-        CellPos::new(8, 8),
-        indoc! {r#"
-        if get("got_door_key") == 1 then
-            if get("opened_door") == 0 then
-                play_sfx("door_open")
-                set_cell_tile(8, 8, 2, -1)
-                set_cell_passable(8, 8, true)
-                message("You're in!")
-                set("opened_door", 1)
-            end
-        else
-            message("It's locked shut.")
-        end
-        "#},
-    );
-
-    // Bed
-    scripts.insert(
-        CellPos::new(12, 5),
-        indoc! {r#"
-        if get("got_plushy") == 1 then
-            local s = selection("Go to sleep?\n1: Yes\n2: No")
-            if s == 1 then
-                message("Finally!")
-                message("Sleep tight (:")
-                play_music("sleep", false)
-                lock_movement()
-                fade_to_black(5)
-                wait(12)
-                close_game()
-            end
-        elseif get("tried_to_sleep") == 1 then
-            message("You need a plushy!")
-        else
-            message("You can't go to sleep without a plushy.")
-            set("tried_to_sleep", 1)
-        end
-        "#},
-    );
-
-    // Dresser
-    scripts.insert(
-        CellPos::new(11, 5),
-        indoc! {r#"
-        if get("tried_to_sleep") == 1 and get("read_dresser_note") == 0 then
-            message("There's a note in one of the drawers:")
-            message("\"I keep my special bedtime friend safe in the chest \n"
-                .. "during the day.\"")
-            message("\"The key is hidden in the tree next to the well \n"
-                .. "outside.\"")
-            message("\"Burn after reading!\"")
-            message("That's a weird note to leave in your dresser.")
-            set("read_dresser_note", 1)
-        end
-        "#},
-    );
-
-    // Brazier
-    scripts.insert(
-        CellPos::new(6, 7),
-        indoc! {r#"
-        if get("read_dresser_note") == 1 and get("burned_dresser_note") == 0 then
-            local s = selection("Burn the note?\n1: Yes\n2: No")
-            if s == 1 then
-                play_sfx("flame")
-                set_cell_tile(8, 8, 2, -1)
-                set_cell_passable(8, 8, true)
-                message("The secret dies with you.")
-                set("burned_dresser_note", 1)
-            end
-        end
-        if get("got_plushy") == 1 then
-            if get("tried_to_burn_plushy") == 1 then
-                message("No!")
-            else
-                local s = selection("Burn Bobo?\n1: Yes\n2: No")
-                if s == 1 then
-                    message("You could never! D:")
-                    set("tried_to_burn_plushy", 1)
-                end
-            end
-        end
-        "#},
-    );
-
-    // Brazier 2
-    scripts.insert(CellPos::new(13, 7), scripts.get(&CellPos::new(6, 7)).unwrap());
-
-    // Tree
-    scripts.insert(
-        CellPos::new(4, 11),
-        indoc! {r#"
-        if get("read_dresser_note") == 1 and get("got_chest_key") == 0 then
-            message("You find a key hidden amongst the leaves!")
-            play_sfx("drop_in_water")
-            message("It fell in the well!")
-            message("...")
-            message("Just kidding  (:")
-            message("You have the key safe in your hand.")
-            set("got_chest_key", 1)
-        end
-        "#},
-    );
-
-    // Chest
-    scripts.insert(
-        CellPos::new(8, 5),
-        indoc! {r#"
-        if get("got_chest_key") == 1 and get("got_plushy") == 0 then
-            play_sfx("chest_open")
-            set_cell_tile(8, 5, 2, 35)
-            message("You got the chest open!")
-            message("There's a plushy inside! \n"
-                .. "The stitching reads \"BOBO\".")
-            message("He's so soft (:")
-            message("It would be a shame if anything happened to him.")
-            set("got_plushy", 1)
-        end
-        "#},
-    );
-
-    // Well
-    scripts.insert(
-        CellPos::new(5, 11),
-        indoc! {r#"
-        if get("got_plushy") == 1 then
-            if get("tried_to_drown_plushy") == 1 then
-                message("No!")
-            else
-                local s = selection("Drown Bobo?\n1: Yes\n2: No")
-                if s == 1 then
-                    message("You could never! D:")
-                    set("tried_to_drown_plushy", 1)
-                end
-            end
-        end
-        "#},
-    );
-
-    scripts
+fn get_sub_script(full_source: &String, label: &str) -> String {
+    let (_, after_label) = full_source.split_once(&format!("--# {label}")).unwrap();
+    let (between_label_and_end, _) = after_label.split_once("--#").unwrap();
+    between_label_and_end.to_string()
 }

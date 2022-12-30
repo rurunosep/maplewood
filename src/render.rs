@@ -12,6 +12,9 @@ use std::time::{Duration, Instant};
 // world_units_to_screen_units in here, and
 // viewport_top_left set at the start of render() based on camera_position arg
 // if render is an object, I can store those two and make (world -> top_left) a method
+// TODO:
+// or can it just be an inner helper function in the render function???
+// probably has to be closure, not inner function, to capture environment
 
 type ScreenPos = Point<i32>;
 
@@ -179,29 +182,31 @@ pub fn render(
             .unwrap();
 
         // Draw the text
-        let surface =
-            font.render(message).blended_wrapped(Color::RGB(255, 255, 255), 0).unwrap();
         let texture_creator = canvas.texture_creator();
-        let texture = texture_creator.create_texture_from_surface(&surface).unwrap();
-        let TextureQuery { width, height, .. } = texture.query();
-        canvas
-            .copy(
-                &texture,
-                None,
-                Rect::new(
-                    20 * SCREEN_SCALE as i32,
-                    (16 * 12 - 55) * SCREEN_SCALE as i32,
-                    width * SCREEN_SCALE,
-                    height * SCREEN_SCALE,
-                ),
-            )
-            .unwrap();
+        for (i, line) in message.split('\n').enumerate() {
+            let surface = font.render(line).solid(Color::RGB(255, 255, 255)).unwrap();
+            let texture = texture_creator.create_texture_from_surface(&surface).unwrap();
+            let TextureQuery { width, height, .. } = texture.query();
+            canvas
+                .copy(
+                    &texture,
+                    None,
+                    Rect::new(
+                        20 * SCREEN_SCALE as i32,
+                        // 16 * 12 is screen height, -56 for top of text, 10 per line
+                        ((16 * 12 - 56) + (i as i32 * 10)) * SCREEN_SCALE as i32,
+                        width * SCREEN_SCALE,
+                        height * SCREEN_SCALE,
+                    ),
+                )
+                .unwrap();
+        }
     }
 
     // Fade to black
     if let Some(start) = fade_to_black_start {
         let interp = start.elapsed().div_duration_f64(fade_to_black_duration).min(1.0);
-        let alpha = (255 as f64 * interp) as u8;
+        let alpha = (255. * interp) as u8;
         canvas.set_draw_color(Color::RGBA(0, 0, 0, alpha));
         canvas.set_blend_mode(sdl2::render::BlendMode::Blend);
         let (w, h) = canvas.output_size().unwrap();

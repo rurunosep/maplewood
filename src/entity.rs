@@ -48,7 +48,7 @@ pub fn move_player_and_resolve_collisions(player: &mut PlayerEntity, tilemap: &A
 
     for point in points_to_check_for_cell_collision {
         match world::get_cell_at_cellpos(&tilemap, point.to_cellpos()) {
-            Some(cell) if cell.passable == false => {
+            Some(cell) if !cell.passable => {
                 let cell_top = point.y.floor();
                 let cell_bot = point.y.ceil();
                 let cell_left = point.x.floor();

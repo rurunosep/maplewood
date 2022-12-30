@@ -3,7 +3,7 @@
         "height": 4300,
         "width": 2
     },
-    "activeFile": "cottage.tmx",
+    "activeFile": "weeb_room.tmx",
     "expandedProjectPaths": [
         "."
     ],
@@ -28,8 +28,17 @@
             "selectedLayer": 1,
             "viewCenter": {
                 "x": 167.75,
-                "y": 221
+                "y": 150
             }
+        },
+        "limezu_interiors.tsx": {
+            "scaleInDock": 2,
+            "scaleInEditor": 1
+        },
+        "limezu_room_builder.tsx": {
+            "dynamicWrapping": false,
+            "scaleInDock": 2,
+            "scaleInEditor": 1
         },
         "test.js": {
             "scale": 2.4432812499999996,
@@ -58,22 +67,34 @@
         "tmw_desert_spacing.tsx": {
             "scaleInDock": 1,
             "scaleInEditor": 1
+        },
+        "weeb_room.tmx": {
+            "scale": 3,
+            "selectedLayer": 0,
+            "viewCenter": {
+                "x": 252.5,
+                "y": 259
+            }
         }
     },
     "last.exportedFilePath": "D:/Dev/maplewood/tiled",
-    "last.imagePath": "D:/Dev/maplewood/assets",
-    "map.height": 20,
+    "last.imagePath": "D:/Dev/resources/limezu/modern_interiors/1_Interiors",
+    "map.height": 40,
     "map.lastUsedExportFilter": "CSV files (*.csv)",
     "map.lastUsedFormat": "tmx",
     "map.tileHeight": 16,
     "map.tileWidth": 16,
-    "map.width": 20,
+    "map.width": 40,
     "openFiles": [
-        "cottage.tmx",
-        "basictiles.tsx"
+        "weeb_room.tmx",
+        "limezu_room_builder.tsx",
+        "limezu_interiors.tsx"
     ],
     "project": "maplewood.tiled-project",
     "recentFiles": [
+        "limezu_interiors.tsx",
+        "limezu_room_builder.tsx",
+        "weeb_room.tmx",
         "basictiles.tsx",
         "cottage.tmx",
         "D:/Programs/Tiled/examples/sticker-knight/map/sandbox.tmx",
