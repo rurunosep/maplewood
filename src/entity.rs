@@ -105,17 +105,17 @@ pub fn move_player_and_resolve_collisions(player: &mut Entity, tilemap: &Array2D
     player.position = new_position;
 }
 
-pub fn standing_cell(player: &Entity) -> CellPos {
-    player.position.to_cellpos()
+pub fn standing_cell(entity: &Entity) -> CellPos {
+    entity.position.to_cellpos()
 }
 
-pub fn facing_cell(player: &Entity) -> CellPos {
+pub fn facing_cell(entity: &Entity) -> CellPos {
     let maximum_distance = 0.6;
-    let facing_cell_position = match player.direction {
-        Direction::Up => player.position + WorldPos::new(0.0, -maximum_distance),
-        Direction::Down => player.position + WorldPos::new(0.0, maximum_distance),
-        Direction::Left => player.position + WorldPos::new(-maximum_distance, 0.0),
-        Direction::Right => player.position + WorldPos::new(maximum_distance, 0.0),
+    let facing_cell_position = match entity.direction {
+        Direction::Up => entity.position + WorldPos::new(0.0, -maximum_distance),
+        Direction::Down => entity.position + WorldPos::new(0.0, maximum_distance),
+        Direction::Left => entity.position + WorldPos::new(-maximum_distance, 0.0),
+        Direction::Right => entity.position + WorldPos::new(maximum_distance, 0.0),
     };
     facing_cell_position.to_cellpos()
 }
