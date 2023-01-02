@@ -55,6 +55,7 @@ impl ScriptInstance {
         Self { lua_instance, waiting: false, input: 0, finished: false }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn execute(
         &mut self,
         story_vars: &mut HashMap<String, i32>,
@@ -107,11 +108,9 @@ impl ScriptInstance {
                     globals.set(
                         "get",
                         scope.create_function(|_, key: String| unsafe {
-                            (*story_vars).get(&key).map(|v| v.clone()).ok_or(
-                                LuaError::ExternalError(Arc::new(
-                                    ScriptError::InvalidStoryVar(key),
-                                )),
-                            )
+                            (*story_vars).get(&key).copied().ok_or(LuaError::ExternalError(
+                                Arc::new(ScriptError::InvalidStoryVar(key)),
+                            ))
                         })?,
                     )?;
 
@@ -184,16 +183,18 @@ impl ScriptInstance {
                         "force_move_player_to_cell",
                         scope.create_function_mut(
                             |_, (direction, x, y): (String, i32, i32)| unsafe {
-                                let mut player = (*entities).get_mut("player").unwrap();
+                                let player = (*entities).get_mut("player").unwrap();
 
-                                player.direction = match direction.as_str() {
-                                    "up" => Direction::Up,
-                                    "down" => Direction::Down,
-                                    "left" => Direction::Left,
-                                    "right" => Direction::Right,
-                                    s => panic!("{s} is not a valid direction"),
-                                };
-                                player.speed = PLAYER_MOVE_SPEED;
+                                player.character_component.as_mut().unwrap().direction =
+                                    match direction.as_str() {
+                                        "up" => Direction::Up,
+                                        "down" => Direction::Down,
+                                        "left" => Direction::Left,
+                                        "right" => Direction::Right,
+                                        s => panic!("{s} is not a valid direction"),
+                                    };
+                                player.player_component.as_mut().unwrap().speed =
+                                    PLAYER_MOVE_SPEED;
                                 *force_move_destination = Some(CellPos::new(x, y));
                                 *player_movement_locked = true;
                                 Ok(())

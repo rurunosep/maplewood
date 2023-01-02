@@ -25,6 +25,7 @@ fn worldpos_to_screenpos(worldpos: WorldPos) -> ScreenPos {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn render(
     canvas: &mut WindowCanvas,
     camera_position: WorldPos,
@@ -50,7 +51,7 @@ pub fn render(
     for row in 0..tilemap.num_rows() {
         for col in 0..tilemap.num_columns() {
             if let Some(cell) =
-                world::get_cell_at_cellpos(&tilemap, CellPos::new(col as i32, row as i32))
+                world::get_cell_at_cellpos(tilemap, CellPos::new(col as i32, row as i32))
             {
                 // world -> top_left
                 let position_in_world = WorldPos::new(col as f64, row as f64);
@@ -70,18 +71,16 @@ pub fn render(
                     TILE_SIZE * SCREEN_SCALE + 1,
                 );
 
-                for tile_id in [cell.tile_1, cell.tile_2] {
-                    if let Some(tile_id) = tile_id {
-                        let tileset_row = tile_id / tileset_num_cols;
-                        let tileset_col = tile_id % tileset_num_cols;
-                        let tileset_rect = Rect::new(
-                            (tileset_col * TILE_SIZE) as i32,
-                            (tileset_row * TILE_SIZE) as i32,
-                            TILE_SIZE,
-                            TILE_SIZE,
-                        );
-                        canvas.copy(tileset, tileset_rect, screen_rect).unwrap();
-                    }
+                for tile_id in [cell.tile_1, cell.tile_2].iter().flatten() {
+                    let tileset_row = tile_id / tileset_num_cols;
+                    let tileset_col = tile_id % tileset_num_cols;
+                    let tileset_rect = Rect::new(
+                        (tileset_col * TILE_SIZE) as i32,
+                        (tileset_row * TILE_SIZE) as i32,
+                        TILE_SIZE,
+                        TILE_SIZE,
+                    );
+                    canvas.copy(tileset, tileset_rect, screen_rect).unwrap();
                 }
             }
         }
@@ -129,7 +128,8 @@ pub fn render(
             .unwrap();
 
         // Draw player hitbox marker
-        let hitbox_screen_dimensions = worldpos_to_screenpos(player.hitbox_dimensions);
+        let hitbox_screen_dimensions =
+            worldpos_to_screenpos(player.player_component.as_ref().unwrap().hitbox_dimensions);
         let screen_offset = hitbox_screen_dimensions / 2;
 
         // world -> top_left
@@ -149,9 +149,11 @@ pub fn render(
             .unwrap();
     }
 
-    // Draw player and other entities
-    entities.values().filter(|e| !e.no_render).for_each(|entity| {
-        let sprite_row = match entity.direction {
+    // Draw entities with character components
+    entities.values().filter(|e| e.character_component.is_some()).for_each(|entity| {
+        let character_component = entity.character_component.as_ref().unwrap();
+
+        let sprite_row = match character_component.direction {
             Direction::Up => 3,
             Direction::Down => 0,
             Direction::Left => 1,
@@ -159,8 +161,8 @@ pub fn render(
         };
 
         let sprite_rect = Rect::new(
-            entity.spriteset_rect.x,
-            entity.spriteset_rect.y + sprite_row * 16,
+            character_component.spriteset_rect.x,
+            character_component.spriteset_rect.y + sprite_row * 16,
             16,
             16,
         );
@@ -169,7 +171,8 @@ pub fn render(
         let position_in_world = entity.position;
         let position_in_viewport = position_in_world - viewport_top_left;
         let position_on_screen = worldpos_to_screenpos(position_in_viewport);
-        let top_left = position_on_screen - (entity.sprite_offset * SCREEN_SCALE as i32);
+        let top_left =
+            position_on_screen - (character_component.sprite_offset * SCREEN_SCALE as i32);
 
         let screen_rect =
             Rect::new(top_left.x, top_left.y, 16 * SCREEN_SCALE, 16 * SCREEN_SCALE);

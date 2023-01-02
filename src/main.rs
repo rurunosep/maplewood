@@ -11,6 +11,7 @@ mod world;
 use crate::entity::{Direction, Entity};
 use crate::world::{CellPos, WorldPos};
 use array2d::Array2D;
+use entity::{CharacterComponent, CollisionComponent, InteractionComponent, PlayerComponent};
 use script::ScriptInstance;
 use sdl2::event::Event;
 use sdl2::image::LoadTexture;
@@ -116,7 +117,6 @@ fn main() {
     let cottage_scripts = fs::read_to_string("lua/sleepy_cottage_test.lua").unwrap();
     let entities_script = fs::read_to_string("lua/entities_test.lua").unwrap();
 
-    // For now, entities will be referred to by a name string
     let mut entities: HashMap<String, Entity> = HashMap::new();
 
     // Character entities
@@ -124,29 +124,40 @@ fn main() {
         "player".to_string(),
         Entity {
             position: WorldPos::new(7.5, 15.5),
-            direction: Direction::Down,
-            speed: 0.0,
-            hitbox_dimensions: Point::new(8.0 / 16.0, 6.0 / 16.0),
-            spriteset_rect: Rect::new(7 * 16, 0, 16 * 4, 16 * 4),
-            sprite_offset: Point::new(8, 13),
-            interaction_script: None,
-            no_render: false,
+            player_component: Some(PlayerComponent {
+                hitbox_dimensions: Point::new(8.0 / 16.0, 6.0 / 16.0),
+                speed: 0.,
+            }),
+            character_component: Some(CharacterComponent {
+                spriteset_rect: Rect::new(7 * 16, 0, 16 * 4, 16 * 4),
+                sprite_offset: Point::new(8, 13),
+                direction: Direction::Down,
+            }),
+            ..Default::default()
         },
     );
     entities.insert(
         "skele_1".to_string(),
         Entity {
             position: WorldPos::new(8.5, 10.5),
-            spriteset_rect: Rect::new(10 * 16, 0, 16 * 4, 16 * 4),
-            interaction_script: Some(script::get_sub_script(&entities_script, "1")),
-            ..entities.get("player").unwrap().clone()
+            character_component: Some(CharacterComponent {
+                spriteset_rect: Rect::new(10 * 16, 0, 16 * 4, 16 * 4),
+                sprite_offset: Point::new(8, 13),
+                direction: Direction::Down,
+            }),
+            interaction_component: Some(InteractionComponent {
+                script_source: script::get_sub_script(&entities_script, "1"),
+            }),
+            ..Default::default()
         },
     );
     entities.insert(
         "skele_2".to_string(),
         Entity {
             position: WorldPos::new(10.5, 18.5),
-            interaction_script: Some(script::get_sub_script(&entities_script, "2")),
+            interaction_component: Some(InteractionComponent {
+                script_source: script::get_sub_script(&entities_script, "2"),
+            }),
             ..entities.get("skele_1").unwrap().clone()
         },
     );
@@ -154,7 +165,9 @@ fn main() {
         "skele_3".to_string(),
         Entity {
             position: WorldPos::new(11.5, 17.5),
-            interaction_script: Some(script::get_sub_script(&entities_script, "3")),
+            interaction_component: Some(InteractionComponent {
+                script_source: script::get_sub_script(&entities_script, "3"),
+            }),
             ..entities.get("skele_1").unwrap().clone()
         },
     );
@@ -178,8 +191,9 @@ fn main() {
             n.to_string(),
             Entity {
                 position: WorldPos::new(*x as f64, *y as f64),
-                interaction_script: Some(script::get_sub_script(&cottage_scripts, n)),
-                no_render: true,
+                interaction_component: Some(InteractionComponent {
+                    script_source: script::get_sub_script(&cottage_scripts, n),
+                }),
                 ..Default::default()
             },
         );
@@ -188,21 +202,33 @@ fn main() {
         "brazier_2".to_string(),
         Entity {
             position: WorldPos::new(13., 7.),
-            interaction_script: Some(script::get_sub_script(&cottage_scripts, "brazier")),
-            no_render: true,
+            interaction_component: Some(InteractionComponent {
+                script_source: script::get_sub_script(&cottage_scripts, "brazier"),
+            }),
             ..Default::default()
         },
     );
 
-    // TODO: collision script entity
-    let mut collision_scripts: HashMap<CellPos, String> = HashMap::new();
-    collision_scripts.insert(
-        CellPos::new(8, 8),
-        script::get_sub_script(&cottage_scripts, "door_collision"),
+    // Collision cell entities
+    entities.insert(
+        "door_collision".to_string(),
+        Entity {
+            position: WorldPos::new(8., 8.),
+            collision_component: Some(CollisionComponent {
+                script_source: script::get_sub_script(&cottage_scripts, "door_collision"),
+            }),
+            ..Default::default()
+        },
     );
-    collision_scripts.insert(
-        CellPos::new(6, 5),
-        script::get_sub_script(&cottage_scripts, "stairs_collision"),
+    entities.insert(
+        "stairs_collision".to_string(),
+        Entity {
+            position: WorldPos::new(6., 5.),
+            collision_component: Some(CollisionComponent {
+                script_source: script::get_sub_script(&cottage_scripts, "stairs_collision"),
+            }),
+            ..Default::default()
+        },
     );
 
     let mut story_vars: HashMap<String, i32> = HashMap::new();
@@ -253,43 +279,57 @@ fn main() {
                 // Scripts can also lock/unlock it as necessary
                 Event::KeyDown { keycode: Some(Keycode::Left), .. } => {
                     if message_window.is_none() && !player_movement_locked {
-                        let mut player = entities.get_mut("player").unwrap();
-                        player.speed = PLAYER_MOVE_SPEED;
-                        player.direction = Direction::Left;
+                        // TODO: Can I get this stuff more concisely?
+                        // There should always be a player entity with player and character
+                        // components, so the unwraps are good, but the whole thing is super
+                        // verbose
+                        let player = entities.get_mut("player").unwrap();
+                        player.player_component.as_mut().unwrap().speed = PLAYER_MOVE_SPEED;
+                        player.character_component.as_mut().unwrap().direction =
+                            Direction::Left;
                     }
                 }
                 Event::KeyDown { keycode: Some(Keycode::Right), .. } => {
                     if message_window.is_none() && !player_movement_locked {
-                        let mut player = entities.get_mut("player").unwrap();
-                        player.speed = PLAYER_MOVE_SPEED;
-                        player.direction = Direction::Right;
+                        let player = entities.get_mut("player").unwrap();
+                        player.player_component.as_mut().unwrap().speed = PLAYER_MOVE_SPEED;
+                        player.character_component.as_mut().unwrap().direction =
+                            Direction::Right;
                     }
                 }
                 Event::KeyDown { keycode: Some(Keycode::Up), .. } => {
                     if message_window.is_none() && !player_movement_locked {
-                        let mut player = entities.get_mut("player").unwrap();
-                        player.speed = PLAYER_MOVE_SPEED;
-                        player.direction = Direction::Up;
+                        let player = entities.get_mut("player").unwrap();
+                        player.player_component.as_mut().unwrap().speed = PLAYER_MOVE_SPEED;
+                        player.character_component.as_mut().unwrap().direction = Direction::Up;
                     }
                 }
                 Event::KeyDown { keycode: Some(Keycode::Down), .. } => {
                     if message_window.is_none() && !player_movement_locked {
-                        let mut player = entities.get_mut("player").unwrap();
-                        player.speed = PLAYER_MOVE_SPEED;
-                        player.direction = Direction::Down;
+                        let player = entities.get_mut("player").unwrap();
+                        player.player_component.as_mut().unwrap().speed = PLAYER_MOVE_SPEED;
+                        player.character_component.as_mut().unwrap().direction =
+                            Direction::Down;
                     }
                 }
                 Event::KeyUp { keycode: Some(keycode), .. }
                     if keycode
-                        == match entities.get("player").unwrap().direction {
+                        == match entities
+                            .get("player")
+                            .unwrap()
+                            .character_component
+                            .as_ref()
+                            .unwrap()
+                            .direction
+                        {
                             Direction::Left => Keycode::Left,
                             Direction::Right => Keycode::Right,
                             Direction::Up => Keycode::Up,
                             Direction::Down => Keycode::Down,
                         } =>
                 {
-                    let mut player = entities.get_mut("player").unwrap();
-                    player.speed = 0.0;
+                    let player = entities.get_mut("player").unwrap();
+                    player.player_component.as_mut().unwrap().speed = 0.0;
                 }
 
                 // Choose message window option
@@ -356,19 +396,20 @@ fn main() {
 
                     // Start script (if no window is open and no script is running)
                     } else if script.is_none() {
-                        // Check if there is an entity standing in the cell the player is
-                        // facing, and get that entity's interaction script if it has one
-                        //
-                        // let chains would be nice here
-                        if let Some(Some(script_source)) = entities
+                        // Find the first entity that is 1) standing in the cell the player is
+                        // facing, and 2) has an interaction component, and get the interaction
+                        // script source
+                        if let Some(script_source) = entities
                             .values()
-                            .find(|e| {
+                            .filter(|e| {
                                 entity::standing_cell(e)
                                     == entity::facing_cell(entities.get("player").unwrap())
                             })
-                            .map(|e| &e.interaction_script)
+                            .filter_map(|e| e.interaction_component.as_ref())
+                            .map(|c| &c.script_source)
+                            .next()
                         {
-                            script = Some(ScriptInstance::new(script_source));
+                            script = Some(ScriptInstance::new(&script_source));
                         }
                     }
                 }
@@ -386,21 +427,14 @@ fn main() {
                 // They should probably be grouped into big, singleton-ish systems that get
                 // passed in. Hopefully I don't get caught in a terrible web. But the nature of
                 // the scripts is just that they touch so much.
+                #[rustfmt::skip]
                 s.execute(
-                    &mut story_vars,
-                    &mut entities,
-                    &mut message_window,
-                    &mut player_movement_locked,
-                    &mut tilemap,
-                    &mut force_move_destination,
-                    &mut fade_to_black_start,
-                    &mut fade_to_black_duration,
-                    &mut script_wait_start,
-                    &mut script_wait_duration,
-                    &mut running,
-                    &musics,
-                    &sound_effects,
-                )
+                    &mut story_vars, &mut entities, &mut message_window,
+                    &mut player_movement_locked, &mut tilemap, &mut force_move_destination,
+                    &mut fade_to_black_start, &mut fade_to_black_duration,
+                    &mut script_wait_start, &mut script_wait_duration,
+                    &mut running, &musics, &sound_effects,
+                );
             }
             if s.finished {
                 script = None;
@@ -418,15 +452,26 @@ fn main() {
             if entity::standing_cell(entities.get("player").unwrap()) == destination {
                 force_move_destination = None;
                 player_movement_locked = false;
-                entities.get_mut("player").unwrap().speed = 0.0;
+                // Yikes
+                entities.get_mut("player").unwrap().player_component.as_mut().unwrap().speed =
+                    0.0;
             }
         }
 
         // Start player collision script
-        if let Some(script_source) =
-            collision_scripts.get(&entity::standing_cell(entities.get("player").unwrap()))
+        // Find the first entity that is 1) standing in the same cell as the player, and 2)
+        // has a collision component, and then get the collision script source
+        if let Some(script_source) = entities
+            .values()
+            .filter(|e| {
+                entity::standing_cell(e)
+                    == entity::standing_cell(entities.get("player").unwrap())
+            })
+            .filter_map(|e| e.collision_component.as_ref())
+            .map(|c| &c.script_source)
+            .next()
         {
-            script = Some(ScriptInstance::new(script_source));
+            script = Some(ScriptInstance::new(&script_source));
         }
 
         // Update script wait timer
