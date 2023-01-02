@@ -4,7 +4,6 @@ use crate::{MessageWindow, PLAYER_MOVE_SPEED};
 use array2d::Array2D;
 use rlua::{Error as LuaError, Function, Lua, Result as LuaResult, Thread, ThreadStatus};
 use sdl2::mixer::{Chunk, Music};
-use std::cell::RefCell;
 use std::collections::HashMap;
 use std::error::Error;
 use std::fmt;
@@ -58,11 +57,11 @@ impl ScriptInstance {
 
     pub fn execute(
         &mut self,
-        story_vars: HashMap<String, i32>,
-        entities: HashMap<String, Entity>,
-        message_window: Option<MessageWindow>,
-        player_movement_locked: bool,
-        tilemap: Array2D<Cell>,
+        story_vars: &mut HashMap<String, i32>,
+        entities: &mut HashMap<String, Entity>,
+        message_window: &mut Option<MessageWindow>,
+        player_movement_locked: &mut bool,
+        tilemap: &mut Array2D<Cell>,
         force_move_destination: &mut Option<CellPos>,
         fade_to_black_start: &mut Option<Instant>,
         fade_to_black_duration: &mut Duration,
@@ -71,19 +70,15 @@ impl ScriptInstance {
         running: &mut bool,
         musics: &HashMap<String, Music>,
         sound_effects: &HashMap<String, Chunk>,
-    ) -> (
-        HashMap<String, i32>,
-        HashMap<String, Entity>,
-        Option<MessageWindow>,
-        bool,
-        Array2D<Cell>,
     ) {
-        // Any data mutably referenced by multiple callbacks must be moved into a refcell
-        let story_vars_refcell = RefCell::new(story_vars);
-        let entities_refcell = RefCell::new(entities);
-        let message_window_refcell = RefCell::new(message_window);
-        let player_movement_locked_refcell = RefCell::new(player_movement_locked);
-        let tilemap_refcell = RefCell::new(tilemap);
+        // I need multiple mutable references to certain pieces of data to pass into
+        // the script function callbacks. For each such value, cast the reference into a raw
+        // pointer, copy the pointer into the callbacks, and dereference in unsafe blocks
+        let story_vars = story_vars as *mut HashMap<String, i32>;
+        let entities = entities as *mut HashMap<String, Entity>;
+        let message_window = message_window as *mut Option<MessageWindow>;
+        let player_movement_locked = player_movement_locked as *mut bool;
+        let tilemap = tilemap as *mut Array2D<Cell>;
 
         self.lua_instance
             .context(|context| -> LuaResult<()> {
@@ -111,8 +106,8 @@ impl ScriptInstance {
                     // lifetimes remain valid
                     globals.set(
                         "get",
-                        scope.create_function(|_, key: String| {
-                            story_vars_refcell.borrow().get(&key).map(|v| v.clone()).ok_or(
+                        scope.create_function(|_, key: String| unsafe {
+                            (*story_vars).get(&key).map(|v| v.clone()).ok_or(
                                 LuaError::ExternalError(Arc::new(
                                     ScriptError::InvalidStoryVar(key),
                                 )),
@@ -122,17 +117,16 @@ impl ScriptInstance {
 
                     globals.set(
                         "set",
-                        scope.create_function_mut(|_, (key, val): (String, i32)| {
-                            story_vars_refcell.borrow_mut().insert(key, val);
+                        scope.create_function_mut(|_, (key, val): (String, i32)| unsafe {
+                            (*story_vars).insert(key, val);
                             Ok(())
                         })?,
                     )?;
 
                     globals.set(
                         "is_player_at_cellpos",
-                        scope.create_function(|_, (x, y): (i32, i32)| {
-                            let entities = entities_refcell.borrow();
-                            Ok(entity::standing_cell(entities.get("player").unwrap())
+                        scope.create_function(|_, (x, y): (i32, i32)| unsafe {
+                            Ok(entity::standing_cell((*entities).get("player").unwrap())
                                 == CellPos::new(x, y))
                         })?,
                     )?;
@@ -140,11 +134,10 @@ impl ScriptInstance {
                     globals.set(
                         "set_cell_tile",
                         scope.create_function_mut(
-                            |_, (x, y, layer, id): (i32, i32, i32, i32)| {
+                            |_, (x, y, layer, id): (i32, i32, i32, i32)| unsafe {
                                 let new_tile = if id == -1 { None } else { Some(id as u32) };
-                                if let Some(Cell { tile_1, tile_2, .. }) = tilemap_refcell
-                                    .borrow_mut()
-                                    .get_mut(y as usize, x as usize)
+                                if let Some(Cell { tile_1, tile_2, .. }) =
+                                    (*tilemap).get_mut(y as usize, x as usize)
                                 {
                                     if layer == 1 {
                                         *tile_1 = new_tile;
@@ -159,9 +152,9 @@ impl ScriptInstance {
 
                     globals.set(
                         "set_cell_passable",
-                        scope.create_function(|_, (x, y, pass): (i32, i32, bool)| {
+                        scope.create_function(|_, (x, y, pass): (i32, i32, bool)| unsafe {
                             if let Some(Cell { passable, .. }) =
-                                tilemap_refcell.borrow_mut().get_mut(y as usize, x as usize)
+                                (*tilemap).get_mut(y as usize, x as usize)
                             {
                                 *passable = pass;
                             }
@@ -171,16 +164,16 @@ impl ScriptInstance {
 
                     globals.set(
                         "lock_movement",
-                        scope.create_function_mut(|_, ()| {
-                            *player_movement_locked_refcell.borrow_mut() = true;
+                        scope.create_function_mut(|_, ()| unsafe {
+                            *player_movement_locked = true;
                             Ok(())
                         })?,
                     )?;
 
                     globals.set(
                         "unlock_movement",
-                        scope.create_function_mut(|_, ()| {
-                            *player_movement_locked_refcell.borrow_mut() = false;
+                        scope.create_function_mut(|_, ()| unsafe {
+                            *player_movement_locked = false;
                             Ok(())
                         })?,
                     )?;
@@ -190,9 +183,8 @@ impl ScriptInstance {
                     globals.set(
                         "force_move_player_to_cell",
                         scope.create_function_mut(
-                            |_, (direction, x, y): (String, i32, i32)| {
-                                let mut entities = entities_refcell.borrow_mut();
-                                let mut player = entities.get_mut("player").unwrap();
+                            |_, (direction, x, y): (String, i32, i32)| unsafe {
+                                let mut player = (*entities).get_mut("player").unwrap();
 
                                 player.direction = match direction.as_str() {
                                     "up" => Direction::Up,
@@ -203,7 +195,7 @@ impl ScriptInstance {
                                 };
                                 player.speed = PLAYER_MOVE_SPEED;
                                 *force_move_destination = Some(CellPos::new(x, y));
-                                *player_movement_locked_refcell.borrow_mut() = true;
+                                *player_movement_locked = true;
                                 Ok(())
                             },
                         )?,
@@ -211,15 +203,17 @@ impl ScriptInstance {
 
                     globals.set(
                         "teleport_entity",
-                        scope.create_function_mut(|_, (name, x, y): (String, f64, f64)| {
-                            let mut entities = entities_refcell.borrow_mut();
-                            let mut entity =
-                                entities.get_mut(&name).ok_or(LuaError::ExternalError(
-                                    Arc::new(ScriptError::InvalidEntity(name)),
-                                ))?;
-                            entity.position = WorldPos::new(x, y);
-                            Ok(())
-                        })?,
+                        scope.create_function_mut(
+                            |_, (name, x, y): (String, f64, f64)| unsafe {
+                                let mut entity = (*entities).get_mut(&name).ok_or(
+                                    LuaError::ExternalError(Arc::new(
+                                        ScriptError::InvalidEntity(name),
+                                    )),
+                                )?;
+                                entity.position = WorldPos::new(x, y);
+                                Ok(())
+                            },
+                        )?,
                     )?;
 
                     globals.set(
@@ -263,8 +257,8 @@ impl ScriptInstance {
                     )?;
 
                     let message_unwrapped =
-                        scope.create_function_mut(|_, (message): (String)| {
-                            *message_window_refcell.borrow_mut() =
+                        scope.create_function_mut(|_, (message): (String)| unsafe {
+                            *message_window =
                                 Some(MessageWindow { message, is_selection: false });
                             Ok(())
                         })?;
@@ -274,8 +268,8 @@ impl ScriptInstance {
                     )?;
 
                     let selection_unwrapped =
-                        scope.create_function_mut(|_, (message): (String)| {
-                            *message_window_refcell.borrow_mut() =
+                        scope.create_function_mut(|_, (message): (String)| unsafe {
+                            *message_window =
                                 Some(MessageWindow { message, is_selection: true });
                             Ok(())
                         })?;
@@ -309,16 +303,6 @@ impl ScriptInstance {
                     err.source().map_or("".to_string(), |e| e.to_string())
                 );
             });
-
-        // Return all refcell'd data back to the function caller
-        let story_vars = story_vars_refcell.take();
-        let entities = entities_refcell.take();
-        let message_window = message_window_refcell.take();
-        let player_movement_locked = player_movement_locked_refcell.take();
-        // RefCell::take() needs the inside to be Default. Since Array2D doesn't have
-        // Default, I have to make my own "default" and replace() it
-        let tilemap = tilemap_refcell.replace(Array2D::filled_with(Cell::default(), 0, 0));
-        (story_vars, entities, message_window, player_movement_locked, tilemap)
     }
 }
 

@@ -382,30 +382,25 @@ fn main() {
         // ------------------------------------------
         if let Some(s) = &mut script {
             if !s.waiting {
-                // Every value that is mutated by multiple callbacks needs to be placed in a
-                // refcell In order to do that, this function must take and
-                // return ownership This can be made simpler by keeping those
-                // values in refcells all the time Also the list of values that
-                // scripts need is going to get longer and longer They should
-                // probably be grouped into big, singleton-ish systems that get passed in
-                // Hopefully I don't get caught in a terrible web. But the nature of the
-                // scripts is just that they touch so much
-                (story_vars, entities, message_window, player_movement_locked, tilemap) = s
-                    .execute(
-                        story_vars,
-                        entities,
-                        message_window,
-                        player_movement_locked,
-                        tilemap,
-                        &mut force_move_destination,
-                        &mut fade_to_black_start,
-                        &mut fade_to_black_duration,
-                        &mut script_wait_start,
-                        &mut script_wait_duration,
-                        &mut running,
-                        &musics,
-                        &sound_effects,
-                    )
+                // The list of values that scripts need is going to get longer and longer.
+                // They should probably be grouped into big, singleton-ish systems that get
+                // passed in. Hopefully I don't get caught in a terrible web. But the nature of
+                // the scripts is just that they touch so much.
+                s.execute(
+                    &mut story_vars,
+                    &mut entities,
+                    &mut message_window,
+                    &mut player_movement_locked,
+                    &mut tilemap,
+                    &mut force_move_destination,
+                    &mut fade_to_black_start,
+                    &mut fade_to_black_duration,
+                    &mut script_wait_start,
+                    &mut script_wait_duration,
+                    &mut running,
+                    &musics,
+                    &sound_effects,
+                )
             }
             if s.finished {
                 script = None;
