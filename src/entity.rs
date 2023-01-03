@@ -1,8 +1,33 @@
 use crate::world::{self, Cell, CellPos, Point, WorldPos};
 use array2d::Array2D;
 use sdl2::rect::Rect;
+use std::cell::RefCell;
+use std::collections::HashMap;
 
-#[derive(Default, Clone, Copy)]
+#[macro_export]
+macro_rules! ecs_query {
+    ($entities:ident[$name:expr], $($a:ident $($b:ident)?),*) => {
+        $entities.get($name).map(|e| Some((
+            $( ecs_query!(impl e $a $($b)?), )*
+        ))).flatten()
+    };
+
+    ($entities:ident, $($a:ident $($b:ident)?),*) => {
+        $entities.values().filter_map(|e| Some((
+            $( ecs_query!(impl e $a $($b)?), )*
+        )))
+    };
+
+    (impl $e:ident mut $component:ident) => {
+        crate::ref_mut_op_to_op_ref_mut($e.$component.borrow_mut())?
+    };
+
+    (impl $e:ident $component:ident) => {
+        crate::ref_op_to_op_ref($e.$component.borrow())?
+    };
+}
+
+#[derive(Default, Clone, Copy, Debug)]
 pub enum Direction {
     Up,
     #[default]
@@ -11,22 +36,24 @@ pub enum Direction {
     Right,
 }
 
-// TODO: Maybe a consise way to query for entities with certain components
+// TODO: Entity builder?
+// Entity::new().add_component({}).add_component({})
 
 #[derive(Clone, Default)]
 pub struct Entity {
     // Entities might want to keep track of an ID or name or something
     // But for now, storing and indexing them with a hardcoded name works just fine
-    pub position: WorldPos,
-    pub character_component: Option<CharacterComponent>,
-    pub player_component: Option<PlayerComponent>,
+    pub position: RefCell<Option<WorldPos>>,
+    pub character_component: RefCell<Option<CharacterComponent>>,
+    pub player_component: RefCell<Option<PlayerComponent>>,
     // TODO: Maybe want to combine these into a single ScriptComponent which contains
     // scripts with various triggers
-    pub interaction_component: Option<InteractionComponent>,
-    pub collision_component: Option<CollisionComponent>,
+    pub interaction_component: RefCell<Option<InteractionComponent>>,
+    pub collision_component: RefCell<Option<CollisionComponent>>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
+// TODO: split this
 pub struct CharacterComponent {
     // The region of the full spritesheet with this entity's sprites
     pub spriteset_rect: Rect,
@@ -35,43 +62,46 @@ pub struct CharacterComponent {
     pub direction: Direction,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct PlayerComponent {
     pub speed: f64,
     pub hitbox_dimensions: Point<f64>,
 }
 
 // Start a script when player interacts while facing entity's cell
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct InteractionComponent {
     pub script_source: String,
 }
 
 // Start a script when player stands on entity's cell
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct CollisionComponent {
     pub script_source: String,
 }
 
-pub fn move_player_and_resolve_collisions(player: &mut Entity, tilemap: &Array2D<Cell>) {
-    let direction = player.character_component.as_ref().unwrap().direction;
-    let PlayerComponent { speed, hitbox_dimensions } =
-        *player.player_component.as_ref().unwrap();
+pub fn move_player_and_resolve_collisions(
+    entities: &HashMap<String, Entity>,
+    tilemap: &Array2D<Cell>,
+) {
+    let (mut position, character_component, player_component) =
+        ecs_query!(entities["player"], mut position, character_component, player_component)
+            .unwrap();
 
-    let mut new_position = player.position
-        + match direction {
-            Direction::Up => WorldPos::new(0.0, -speed),
-            Direction::Down => WorldPos::new(0.0, speed),
-            Direction::Left => WorldPos::new(-speed, 0.0),
-            Direction::Right => WorldPos::new(speed, 0.0),
+    let mut new_position = *position
+        + match character_component.direction {
+            Direction::Up => WorldPos::new(0.0, -player_component.speed),
+            Direction::Down => WorldPos::new(0.0, player_component.speed),
+            Direction::Left => WorldPos::new(-player_component.speed, 0.0),
+            Direction::Right => WorldPos::new(player_component.speed, 0.0),
         };
 
-    let new_top = new_position.y - hitbox_dimensions.y / 2.0;
-    let new_bot = new_position.y + hitbox_dimensions.y / 2.0;
-    let new_left = new_position.x - hitbox_dimensions.x / 2.0;
-    let new_right = new_position.x + hitbox_dimensions.x / 2.0;
+    let new_top = new_position.y - player_component.hitbox_dimensions.y / 2.0;
+    let new_bot = new_position.y + player_component.hitbox_dimensions.y / 2.0;
+    let new_left = new_position.x - player_component.hitbox_dimensions.x / 2.0;
+    let new_right = new_position.x + player_component.hitbox_dimensions.x / 2.0;
 
-    let points_to_check_for_cell_collision = match direction {
+    let points_to_check_for_cell_collision = match character_component.direction {
         Direction::Up => [WorldPos::new(new_left, new_top), WorldPos::new(new_right, new_top)],
         Direction::Down => {
             [WorldPos::new(new_left, new_bot), WorldPos::new(new_right, new_bot)]
@@ -96,16 +126,22 @@ pub fn move_player_and_resolve_collisions(player: &mut Entity, tilemap: &Array2D
                     && new_left < cell_right
                     && new_right > cell_left
                 {
-                    match direction {
-                        Direction::Up => new_position.y = cell_bot + hitbox_dimensions.y / 2.0,
+                    match character_component.direction {
+                        Direction::Up => {
+                            new_position.y =
+                                cell_bot + player_component.hitbox_dimensions.y / 2.0
+                        }
                         Direction::Down => {
-                            new_position.y = cell_top - hitbox_dimensions.y / 2.0
+                            new_position.y =
+                                cell_top - player_component.hitbox_dimensions.y / 2.0
                         }
                         Direction::Left => {
-                            new_position.x = cell_right + hitbox_dimensions.x / 2.0
+                            new_position.x =
+                                cell_right + player_component.hitbox_dimensions.x / 2.0
                         }
                         Direction::Right => {
-                            new_position.x = cell_left - hitbox_dimensions.x / 2.0
+                            new_position.x =
+                                cell_left - player_component.hitbox_dimensions.x / 2.0
                         }
                     }
                 }
@@ -117,33 +153,32 @@ pub fn move_player_and_resolve_collisions(player: &mut Entity, tilemap: &Array2D
     let map_width = tilemap.num_columns() as f64;
     let map_height = tilemap.num_rows() as f64;
     if new_top < 0.0 {
-        new_position.y = 0.0 + hitbox_dimensions.y / 2.0;
+        new_position.y = 0.0 + player_component.hitbox_dimensions.y / 2.0;
     }
     if new_bot > map_height {
-        new_position.y = map_height - hitbox_dimensions.y / 2.0;
+        new_position.y = map_height - player_component.hitbox_dimensions.y / 2.0;
     }
     if new_left < 0.0 {
-        new_position.x = 0.0 + hitbox_dimensions.x / 2.0;
+        new_position.x = 0.0 + player_component.hitbox_dimensions.x / 2.0;
     }
     if new_right > map_width {
-        new_position.x = map_width - hitbox_dimensions.x / 2.0;
+        new_position.x = map_width - player_component.hitbox_dimensions.x / 2.0;
     }
 
-    player.position = new_position;
+    *position = new_position;
 }
 
-pub fn standing_cell(entity: &Entity) -> CellPos {
-    entity.position.to_cellpos()
+pub fn standing_cell(position: &WorldPos) -> CellPos {
+    position.to_cellpos()
 }
 
-pub fn facing_cell(entity: &Entity) -> CellPos {
-    // TODO: confirm that entity has character component and return option or result?
+pub fn facing_cell(position: &WorldPos, character_component: &CharacterComponent) -> CellPos {
     let maximum_distance = 0.6;
-    let facing_cell_position = match entity.character_component.as_ref().unwrap().direction {
-        Direction::Up => entity.position + WorldPos::new(0.0, -maximum_distance),
-        Direction::Down => entity.position + WorldPos::new(0.0, maximum_distance),
-        Direction::Left => entity.position + WorldPos::new(-maximum_distance, 0.0),
-        Direction::Right => entity.position + WorldPos::new(maximum_distance, 0.0),
+    let facing_cell_position = match character_component.direction {
+        Direction::Up => *position + WorldPos::new(0.0, -maximum_distance),
+        Direction::Down => *position + WorldPos::new(0.0, maximum_distance),
+        Direction::Left => *position + WorldPos::new(-maximum_distance, 0.0),
+        Direction::Right => *position + WorldPos::new(maximum_distance, 0.0),
     };
     facing_cell_position.to_cellpos()
 }

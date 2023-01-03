@@ -19,6 +19,12 @@ impl WorldPos {
     }
 }
 
+impl CellPos {
+    pub fn to_worldpos(self) -> WorldPos {
+        WorldPos { x: self.x as f64, y: self.y as f64 }
+    }
+}
+
 #[derive(Clone, Copy, Default, Debug)]
 pub struct Cell {
     pub tile_1: Option<u32>,

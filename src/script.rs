@@ -1,6 +1,6 @@
 use crate::entity::{self, Direction, Entity};
 use crate::world::{Cell, CellPos, WorldPos};
-use crate::{MessageWindow, PLAYER_MOVE_SPEED};
+use crate::{ecs_query, MessageWindow, PLAYER_MOVE_SPEED};
 use array2d::Array2D;
 use rlua::{Error as LuaError, Function, Lua, Result as LuaResult, Thread, ThreadStatus};
 use sdl2::mixer::{Chunk, Music};
@@ -28,7 +28,7 @@ impl fmt::Display for ScriptError {
 }
 
 pub struct ScriptInstance {
-    // TODO: ID that can be passed to whatever process script is waiting for
+    // TODO: ID that can be passed to whatever process the script is waiting for.
     // The process can then use ID to un-waiting the correct script
     lua_instance: Lua,
     pub waiting: bool,
@@ -41,12 +41,11 @@ impl ScriptInstance {
         let lua_instance = Lua::new();
         lua_instance
             .context(|context| -> LuaResult<()> {
-                // Wrap script in a thread/coroutine so that blocking functions may yield
+                // Wrap script in a thread so that blocking functions may yield
                 let thread: Thread = context
                     .load(&format!("coroutine.create(function() {script_source} end)"))
                     .eval()?;
-                // Store the thread/coroutine in a global and retrieve it each time we're
-                // executing some of the script
+                // Store thread in global and retrieve it each time we execute some of script
                 context.globals().set("thread", thread)?;
                 Ok(())
             })
@@ -125,8 +124,10 @@ impl ScriptInstance {
                     globals.set(
                         "is_player_at_cellpos",
                         scope.create_function(|_, (x, y): (i32, i32)| unsafe {
-                            Ok(entity::standing_cell((*entities).get("player").unwrap())
-                                == CellPos::new(x, y))
+                            let ref entities = *entities;
+                            Ok(entity::standing_cell(
+                                &ecs_query!(entities["player"], position).unwrap().0,
+                            ) == CellPos::new(x, y))
                         })?,
                     )?;
 
@@ -183,18 +184,23 @@ impl ScriptInstance {
                         "force_move_player_to_cell",
                         scope.create_function_mut(
                             |_, (direction, x, y): (String, i32, i32)| unsafe {
-                                let player = (*entities).get_mut("player").unwrap();
+                                let ref entities = *entities;
+                                let (mut character_component, mut player_component) =
+                                    ecs_query!(
+                                        entities["player"],
+                                        mut character_component,
+                                        mut player_component
+                                    )
+                                    .unwrap();
 
-                                player.character_component.as_mut().unwrap().direction =
-                                    match direction.as_str() {
-                                        "up" => Direction::Up,
-                                        "down" => Direction::Down,
-                                        "left" => Direction::Left,
-                                        "right" => Direction::Right,
-                                        s => panic!("{s} is not a valid direction"),
-                                    };
-                                player.player_component.as_mut().unwrap().speed =
-                                    PLAYER_MOVE_SPEED;
+                                character_component.direction = match direction.as_str() {
+                                    "up" => Direction::Up,
+                                    "down" => Direction::Down,
+                                    "left" => Direction::Left,
+                                    "right" => Direction::Right,
+                                    s => panic!("{s} is not a valid direction"),
+                                };
+                                player_component.speed = PLAYER_MOVE_SPEED;
                                 *force_move_destination = Some(CellPos::new(x, y));
                                 *player_movement_locked = true;
                                 Ok(())
@@ -206,12 +212,15 @@ impl ScriptInstance {
                         "teleport_entity",
                         scope.create_function_mut(
                             |_, (name, x, y): (String, f64, f64)| unsafe {
-                                let mut entity = (*entities).get_mut(&name).ok_or(
-                                    LuaError::ExternalError(Arc::new(
+                                let ref entities = *entities;
+                                let mut position = ecs_query!(entities[&name], mut position)
+                                    .map(|r| r.0)
+                                    .ok_or(LuaError::ExternalError(Arc::new(
+                                        // This error is not really accurate
+                                        // It's no entity with name AND components needed
                                         ScriptError::InvalidEntity(name),
-                                    )),
-                                )?;
-                                entity.position = WorldPos::new(x, y);
+                                    )))?;
+                                *position = WorldPos::new(x, y);
                                 Ok(())
                             },
                         )?,

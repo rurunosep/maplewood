@@ -1,6 +1,6 @@
 use crate::entity::{self, Direction, Entity};
 use crate::world::{self, Cell, CellPos, Point, WorldPos};
-use crate::{MessageWindow, SCREEN_COLS, SCREEN_ROWS, SCREEN_SCALE, TILE_SIZE};
+use crate::{ecs_query, MessageWindow, SCREEN_COLS, SCREEN_ROWS, SCREEN_SCALE, TILE_SIZE};
 use array2d::Array2D;
 use sdl2::pixels::Color;
 use sdl2::rect::Rect;
@@ -43,8 +43,6 @@ pub fn render(
 
     let viewport_dimensions = Point::new(SCREEN_COLS as f64, SCREEN_ROWS as f64);
     let viewport_top_left = camera_position - viewport_dimensions / 2.0;
-
-    let player = entities.get("player").unwrap();
 
     // Draw tiles
     let tileset_num_cols = tileset.query().width / TILE_SIZE;
@@ -89,10 +87,9 @@ pub fn render(
     if false {
         // Draw player standing cell marker
         // world -> top_left
-        let position_in_world = WorldPos::new(
-            entity::standing_cell(player).x as f64,
-            entity::standing_cell(player).y as f64,
-        );
+        let position_in_world =
+            entity::standing_cell(&ecs_query!(entities["player"], position).unwrap().0)
+                .to_worldpos();
         let position_in_viewport = position_in_world - viewport_top_left;
         let position_on_screen = worldpos_to_screenpos(position_in_viewport);
         let top_left = position_on_screen;
@@ -109,10 +106,8 @@ pub fn render(
 
         // Draw player facing cell marker
         // world -> top_left
-        let position_in_world = WorldPos::new(
-            entity::facing_cell(player).x as f64,
-            entity::facing_cell(player).y as f64,
-        );
+        let (p, c) = ecs_query!(entities["player"], position, character_component).unwrap();
+        let position_in_world = entity::facing_cell(&p, &c).to_worldpos();
         let position_in_viewport = position_in_world - viewport_top_left;
         let position_on_screen = worldpos_to_screenpos(position_in_viewport);
         let top_left = position_on_screen;
@@ -128,12 +123,13 @@ pub fn render(
             .unwrap();
 
         // Draw player hitbox marker
-        let hitbox_screen_dimensions =
-            worldpos_to_screenpos(player.player_component.as_ref().unwrap().hitbox_dimensions);
+        let hitbox_screen_dimensions = worldpos_to_screenpos(
+            ecs_query!(entities["player"], player_component).unwrap().0.hitbox_dimensions,
+        );
         let screen_offset = hitbox_screen_dimensions / 2;
 
         // world -> top_left
-        let position_in_world = player.position;
+        let position_in_world = *ecs_query!(entities["player"], position).unwrap().0;
         let position_in_viewport = position_in_world - viewport_top_left;
         let position_on_screen = worldpos_to_screenpos(position_in_viewport);
         let top_left = position_on_screen - screen_offset;
@@ -150,9 +146,8 @@ pub fn render(
     }
 
     // Draw entities with character components
-    entities.values().filter(|e| e.character_component.is_some()).for_each(|entity| {
-        let character_component = entity.character_component.as_ref().unwrap();
-
+    for (position, character_component) in ecs_query!(entities, position, character_component)
+    {
         let sprite_row = match character_component.direction {
             Direction::Up => 3,
             Direction::Down => 0,
@@ -168,7 +163,7 @@ pub fn render(
         );
 
         // world -> top_left
-        let position_in_world = entity.position;
+        let position_in_world = *position;
         let position_in_viewport = position_in_world - viewport_top_left;
         let position_on_screen = worldpos_to_screenpos(position_in_viewport);
         let top_left =
@@ -177,7 +172,7 @@ pub fn render(
         let screen_rect =
             Rect::new(top_left.x, top_left.y, 16 * SCREEN_SCALE, 16 * SCREEN_SCALE);
         canvas.copy(spritesheet, sprite_rect, screen_rect).unwrap();
-    });
+    }
 
     // Draw message window
     // This goes directly on the screen and has no world pos to convert
