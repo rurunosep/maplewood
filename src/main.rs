@@ -6,6 +6,7 @@
 mod entity;
 mod render;
 mod script;
+mod utils;
 mod world;
 
 use crate::entity::{Direction, Entity};
@@ -18,7 +19,7 @@ use sdl2::image::LoadTexture;
 use sdl2::keyboard::Keycode;
 use sdl2::mixer::{Chunk, Music, AUDIO_S16SYS, DEFAULT_CHANNELS};
 use sdl2::rect::Rect;
-use std::cell::{Ref, RefCell, RefMut};
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 use std::{fs, iter};
@@ -33,20 +34,12 @@ const PLAYER_MOVE_SPEED: f64 = 0.12;
 pub struct MessageWindow {
     message: String,
     is_selection: bool,
+    waiting_script_id: i32,
 }
 
-fn ref_op_to_op_ref<T>(r: Ref<Option<T>>) -> Option<Ref<T>> {
-    match *r {
-        Some(_) => Some(Ref::map(r, |o| o.as_ref().unwrap())),
-        None => None,
-    }
-}
-
-fn ref_mut_op_to_op_ref_mut<T>(r: RefMut<Option<T>>) -> Option<RefMut<T>> {
-    match *r {
-        Some(_) => Some(RefMut::map(r, |o| o.as_mut().unwrap())),
-        None => None,
-    }
+pub struct FadeToBlack {
+    start: Instant,
+    duration: Duration,
 }
 
 fn main() {
@@ -260,18 +253,22 @@ fn main() {
     story_vars.insert("tried_to_sleep".to_string(), 0);
 
     #[allow(unused_assignments)]
-    // TODO: multiple scripts
-    let mut script: Option<ScriptInstance> = None;
     let mut message_window: Option<MessageWindow> = None;
-    // TODO: fade_to_black and script_wait structs?
-    let mut fade_to_black_start: Option<Instant> = None;
-    let mut fade_to_black_duration = Duration::default();
-    let mut script_wait_start: Option<Instant> = None;
-    let mut script_wait_duration = Duration::default();
+    let mut fade_to_black: Option<FadeToBlack> = None;
     let mut player_movement_locked = false;
     let mut force_move_destination: Option<CellPos> = None;
 
-    script = Some(ScriptInstance::new(&script::get_sub_script(&cottage_scripts, "start")));
+    // TODO: script manager to hold scripts and keep track of next_script_id?
+    let mut next_script_id = 0;
+    let mut scripts: HashMap<i32, ScriptInstance> = HashMap::new();
+    scripts.insert(
+        next_script_id,
+        ScriptInstance::new(
+            next_script_id,
+            &script::get_sub_script(&cottage_scripts, "start"),
+        ),
+    );
+    next_script_id += 1;
 
     // ------------------------------------------
     // Main Loop
@@ -343,7 +340,9 @@ fn main() {
                     let message_window_option = &mut message_window;
                     if let Some(message_window) = message_window_option {
                         if message_window.is_selection {
-                            if let Some(script) = &mut script {
+                            if let Some(script) =
+                                scripts.get_mut(&message_window.waiting_script_id)
+                            {
                                 script.input = match keycode {
                                     Keycode::Num1 => 1,
                                     Keycode::Num2 => 2,
@@ -367,28 +366,29 @@ fn main() {
                     let message_window_option = &mut message_window;
                     if let Some(message_window) = message_window_option {
                         if !message_window.is_selection {
-                            *message_window_option = None;
-                            if let Some(script) = &mut script {
+                            if let Some(script) =
+                                scripts.get_mut(&message_window.waiting_script_id)
+                            {
                                 script.waiting = false;
+                                *message_window_option = None;
                             }
                         }
 
                     // Start script (if no window is open and no script is running)
-                    } else if script.is_none() {
-                        if let Some((_, i)) = ecs_query!(
-                            entities,
-                            position,
-                            interaction_component
-                        )
-                        .find(|(p, _)| {
+                    } else if let Some((_, i)) =
+                        ecs_query!(entities, position, interaction_component).find(|(p, _)| {
                             let (player_p, player_c) =
                                 ecs_query!(entities["player"], position, character_component)
                                     .unwrap();
                             entity::standing_cell(p)
                                 == entity::facing_cell(&player_p, &player_c)
-                        }) {
-                            script = Some(ScriptInstance::new(&i.script_source));
-                        }
+                        })
+                    {
+                        scripts.insert(
+                            next_script_id,
+                            ScriptInstance::new(next_script_id, &i.script_source),
+                        );
+                        next_script_id += 1;
                     }
                 }
 
@@ -399,26 +399,17 @@ fn main() {
         // ------------------------------------------
         // Update script execution
         // ------------------------------------------
-        let script_option = &mut script;
-        if let Some(script) = script_option {
-            if !script.waiting {
-                // The list of values that scripts need is going to get longer and longer.
-                // They should probably be grouped into big, singleton-ish systems that get
-                // passed in. Hopefully I don't get caught in a terrible web. But the nature of
-                // the scripts is just that they touch so much.
+        for script in scripts.values_mut() {
+            if !script.waiting && script.wait_until < Instant::now() {
                 #[rustfmt::skip]
                 script.execute(
                     &mut story_vars, &mut entities, &mut message_window,
                     &mut player_movement_locked, &mut tilemap, &mut force_move_destination,
-                    &mut fade_to_black_start, &mut fade_to_black_duration,
-                    &mut script_wait_start, &mut script_wait_duration,
-                    &mut running, &musics, &sound_effects,
+                    &mut fade_to_black, &mut running, &musics, &sound_effects,
                 );
             }
-            if script.finished {
-                *script_option = None;
-            }
         }
+        scripts.retain(|_, script| !script.finished);
 
         // Update player entity
         entity::move_player_and_resolve_collisions(&entities, &tilemap);
@@ -443,17 +434,16 @@ fn main() {
                     )
             })
         {
-            script = Some(ScriptInstance::new(&c.script_source));
+            scripts
+                .insert(next_script_id, ScriptInstance::new(next_script_id, &c.script_source));
+            next_script_id += 1;
         }
 
-        // Update script wait timer
-        if let Some(start) = script_wait_start {
-            if start.elapsed() > script_wait_duration {
-                if let Some(script) = &mut script {
-                    script.waiting = false;
-                }
-                script_wait_start = None;
-                script_wait_duration = Duration::default();
+        // Update fade to black
+        let fade_to_black_option = &mut fade_to_black;
+        if let Some(fade_to_black) = fade_to_black_option {
+            if fade_to_black.start.elapsed() > fade_to_black.duration {
+                *fade_to_black_option = None;
             }
         }
 
@@ -480,7 +470,7 @@ fn main() {
         render::render(
             &mut canvas, camera_position, &tileset, &tilemap,
             &message_window, &font, &spritesheet, &entities,
-            fade_to_black_start, fade_to_black_duration
+            &fade_to_black
         );
 
         // Sleep

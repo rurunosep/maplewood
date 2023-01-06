@@ -1,13 +1,14 @@
 use crate::entity::{self, Direction, Entity};
 use crate::world::{self, Cell, CellPos, Point, WorldPos};
-use crate::{ecs_query, MessageWindow, SCREEN_COLS, SCREEN_ROWS, SCREEN_SCALE, TILE_SIZE};
+use crate::{
+    ecs_query, FadeToBlack, MessageWindow, SCREEN_COLS, SCREEN_ROWS, SCREEN_SCALE, TILE_SIZE,
+};
 use array2d::Array2D;
 use sdl2::pixels::Color;
 use sdl2::rect::Rect;
 use sdl2::render::{Texture, TextureQuery, WindowCanvas};
 use sdl2::ttf::Font;
 use std::collections::HashMap;
-use std::time::{Duration, Instant};
 
 // world -> top_left relies on two things:
 // world_units_to_screen_units in here, and
@@ -35,8 +36,7 @@ pub fn render(
     font: &Font,
     spritesheet: &Texture,
     entities: &HashMap<String, Entity>,
-    fade_to_black_start: Option<Instant>,
-    fade_to_black_duration: Duration,
+    fade_to_black: &Option<FadeToBlack>,
 ) {
     canvas.set_draw_color(Color::RGB(255, 255, 255));
     canvas.clear();
@@ -211,8 +211,8 @@ pub fn render(
     }
 
     // Fade to black
-    if let Some(start) = fade_to_black_start {
-        let interp = start.elapsed().div_duration_f64(fade_to_black_duration).min(1.0);
+    if let Some(ftb) = fade_to_black {
+        let interp = ftb.start.elapsed().div_duration_f64(ftb.duration).min(1.0);
         let alpha = (255. * interp) as u8;
         canvas.set_draw_color(Color::RGBA(0, 0, 0, alpha));
         canvas.set_blend_mode(sdl2::render::BlendMode::Blend);

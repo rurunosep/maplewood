@@ -1,6 +1,6 @@
 use crate::entity::{self, Direction, Entity};
 use crate::world::{Cell, CellPos, WorldPos};
-use crate::{ecs_query, MessageWindow, PLAYER_MOVE_SPEED};
+use crate::{ecs_query, FadeToBlack, MessageWindow, PLAYER_MOVE_SPEED};
 use array2d::Array2D;
 use rlua::{Error as LuaError, Function, Lua, Result as LuaResult, Thread, ThreadStatus};
 use sdl2::mixer::{Chunk, Music};
@@ -30,14 +30,18 @@ impl fmt::Display for ScriptError {
 pub struct ScriptInstance {
     // TODO: ID that can be passed to whatever process the script is waiting for.
     // The process can then use ID to un-waiting the correct script
-    lua_instance: Lua,
+    pub lua_instance: Lua,
+    pub id: i32,
+    // Waiting for external event (like message advanced)
     pub waiting: bool,
     pub input: i32,
     pub finished: bool,
+    // Waiting on internal timer from wait(n) command
+    pub wait_until: Instant,
 }
 
 impl ScriptInstance {
-    pub fn new(script_source: &str) -> Self {
+    pub fn new(id: i32, script_source: &str) -> Self {
         let lua_instance = Lua::new();
         lua_instance
             .context(|context| -> LuaResult<()> {
@@ -51,7 +55,14 @@ impl ScriptInstance {
             })
             .unwrap_or_else(|err| panic!("{err}\nsource: {:?}", err.source()));
 
-        Self { lua_instance, waiting: false, input: 0, finished: false }
+        Self {
+            lua_instance,
+            id,
+            waiting: false,
+            input: 0,
+            finished: false,
+            wait_until: Instant::now(),
+        }
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -63,10 +74,7 @@ impl ScriptInstance {
         player_movement_locked: &mut bool,
         tilemap: &mut Array2D<Cell>,
         force_move_destination: &mut Option<CellPos>,
-        fade_to_black_start: &mut Option<Instant>,
-        fade_to_black_duration: &mut Duration,
-        script_wait_start: &mut Option<Instant>,
-        script_wait_duration: &mut Duration,
+        fade_to_black: &mut Option<FadeToBlack>,
         running: &mut bool,
         musics: &HashMap<String, Music>,
         sound_effects: &HashMap<String, Chunk>,
@@ -79,6 +87,7 @@ impl ScriptInstance {
         let message_window = message_window as *mut Option<MessageWindow>;
         let player_movement_locked = player_movement_locked as *mut bool;
         let tilemap = tilemap as *mut Array2D<Cell>;
+        let waiting = &mut self.waiting as *mut bool;
 
         self.lua_instance
             .context(|context| -> LuaResult<()> {
@@ -86,9 +95,9 @@ impl ScriptInstance {
                     let globals = context.globals();
 
                     // Utility Lua function that will wrap a function that should
-                    // block within a new one that will call the original and yield
+                    // yield within a new one that will call the original and yield
                     // (Because you can't yield from within a rust callback)
-                    let wrap_blocking: Function = context
+                    let wrap_yielding: Function = context
                         .load(
                             r#"
                             function(f)
@@ -229,8 +238,10 @@ impl ScriptInstance {
                     globals.set(
                         "fade_to_black",
                         scope.create_function_mut(|_, duration: f64| {
-                            *fade_to_black_start = Some(Instant::now());
-                            *fade_to_black_duration = Duration::from_secs_f64(duration);
+                            *fade_to_black = Some(FadeToBlack {
+                                start: Instant::now(),
+                                duration: Duration::from_secs_f64(duration),
+                            });
                             Ok(())
                         })?,
                     )?;
@@ -268,39 +279,48 @@ impl ScriptInstance {
 
                     let message_unwrapped =
                         scope.create_function_mut(|_, (message): (String)| unsafe {
-                            *message_window =
-                                Some(MessageWindow { message, is_selection: false });
+                            *message_window = Some(MessageWindow {
+                                message,
+                                is_selection: false,
+                                waiting_script_id: self.id,
+                            });
+                            *waiting = true;
                             Ok(())
                         })?;
                     globals.set::<_, Function>(
                         "message",
-                        wrap_blocking.call(message_unwrapped)?,
+                        wrap_yielding.call(message_unwrapped)?,
                     )?;
 
                     let selection_unwrapped =
                         scope.create_function_mut(|_, (message): (String)| unsafe {
-                            *message_window =
-                                Some(MessageWindow { message, is_selection: true });
+                            *message_window = Some(MessageWindow {
+                                message,
+                                is_selection: true,
+                                waiting_script_id: self.id,
+                            });
+                            *waiting = true;
                             Ok(())
                         })?;
                     globals.set::<_, Function>(
                         "selection",
-                        wrap_blocking.call(selection_unwrapped)?,
+                        wrap_yielding.call(selection_unwrapped)?,
                     )?;
 
                     let wait_unwrapped = scope.create_function_mut(|_, duration: f64| {
-                        *script_wait_start = Some(Instant::now());
-                        *script_wait_duration = Duration::from_secs_f64(duration);
+                        self.wait_until = Instant::now() + Duration::from_secs_f64(duration);
                         Ok(())
                     })?;
-                    globals.set::<_, Function>("wait", wrap_blocking.call(wait_unwrapped)?)?;
+                    globals.set::<_, Function>("wait", wrap_yielding.call(wait_unwrapped)?)?;
 
                     // Get saved thread out of globals and execute until script yields or ends
                     let thread = globals.get::<_, Thread>("thread")?;
                     thread.resume::<_, _>(self.input)?;
                     match thread.status() {
-                        ThreadStatus::Resumable => self.waiting = true,
-                        _ => self.finished = true,
+                        ThreadStatus::Unresumable | ThreadStatus::Error => {
+                            self.finished = true
+                        }
+                        _ => {}
                     }
 
                     Ok(())

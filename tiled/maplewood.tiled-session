@@ -3,11 +3,73 @@
         "height": 4300,
         "width": 2
     },
-    "activeFile": "weeb_room.tmx",
+    "activeFile": "cottage.tmx",
     "expandedProjectPaths": [
         "."
     ],
     "fileStates": {
+        "D:/Dev/_resources/dawnlike/Examples/Underworld.tmx": {
+            "scale": 3.2577083333333334,
+            "selectedLayer": 0,
+            "viewCenter": {
+                "x": 160.08185713372131,
+                "y": 120.0230223188591
+            }
+        },
+        "D:/Dev/_resources/dawnlike/Examples/Underworld.tmx#Amulet": {
+            "scaleInDock": 1
+        },
+        "D:/Dev/_resources/dawnlike/Examples/Underworld.tmx#Book": {
+            "scaleInDock": 1
+        },
+        "D:/Dev/_resources/dawnlike/Examples/Underworld.tmx#Chest0": {
+            "scaleInDock": 1
+        },
+        "D:/Dev/_resources/dawnlike/Examples/Underworld.tmx#Decor0": {
+            "scaleInDock": 1
+        },
+        "D:/Dev/_resources/dawnlike/Examples/Underworld.tmx#Demon0": {
+            "scaleInDock": 1
+        },
+        "D:/Dev/_resources/dawnlike/Examples/Underworld.tmx#Dog0": {
+            "scaleInDock": 1
+        },
+        "D:/Dev/_resources/dawnlike/Examples/Underworld.tmx#Door0": {
+            "scaleInDock": 1
+        },
+        "D:/Dev/_resources/dawnlike/Examples/Underworld.tmx#Elemental0": {
+            "scaleInDock": 1
+        },
+        "D:/Dev/_resources/dawnlike/Examples/Underworld.tmx#Fence": {
+            "scaleInDock": 1
+        },
+        "D:/Dev/_resources/dawnlike/Examples/Underworld.tmx#Floor": {
+            "scaleInDock": 1
+        },
+        "D:/Dev/_resources/dawnlike/Examples/Underworld.tmx#Ground0": {
+            "scaleInDock": 1
+        },
+        "D:/Dev/_resources/dawnlike/Examples/Underworld.tmx#Money": {
+            "scaleInDock": 1
+        },
+        "D:/Dev/_resources/dawnlike/Examples/Underworld.tmx#Pest0": {
+            "scaleInDock": 1
+        },
+        "D:/Dev/_resources/dawnlike/Examples/Underworld.tmx#Pit0": {
+            "scaleInDock": 1
+        },
+        "D:/Dev/_resources/dawnlike/Examples/Underworld.tmx#Player0": {
+            "scaleInDock": 1
+        },
+        "D:/Dev/_resources/dawnlike/Examples/Underworld.tmx#Tile": {
+            "scaleInDock": 1
+        },
+        "D:/Dev/_resources/dawnlike/Examples/Underworld.tmx#Tree0": {
+            "scaleInDock": 1
+        },
+        "D:/Dev/_resources/dawnlike/Examples/Underworld.tmx#Wall": {
+            "scaleInDock": 1
+        },
         "D:/Programs/Tiled/examples/sticker-knight/map/objs.tsx": {
             "scaleInDock": 1
         },
@@ -27,8 +89,8 @@
             "scale": 2,
             "selectedLayer": 1,
             "viewCenter": {
-                "x": 167.75,
-                "y": 150
+                "x": 137.75,
+                "y": 141.5
             }
         },
         "limezu_interiors.tsx": {
@@ -72,13 +134,13 @@
             "scale": 3,
             "selectedLayer": 0,
             "viewCenter": {
-                "x": 252.5,
-                "y": 259
+                "x": 320,
+                "y": 319.66666666666663
             }
         }
     },
     "last.exportedFilePath": "D:/Dev/maplewood/tiled",
-    "last.imagePath": "D:/Dev/resources/limezu/modern_interiors/1_Interiors",
+    "last.imagePath": "D:/Dev/_resources/limezu/modern_interiors/1_Interiors",
     "map.height": 40,
     "map.lastUsedExportFilter": "CSV files (*.csv)",
     "map.lastUsedFormat": "tmx",
@@ -87,16 +149,16 @@
     "map.width": 40,
     "openFiles": [
         "weeb_room.tmx",
-        "limezu_room_builder.tsx",
-        "limezu_interiors.tsx"
+        "cottage.tmx"
     ],
     "project": "maplewood.tiled-project",
     "recentFiles": [
+        "weeb_room.tmx",
+        "cottage.tmx",
+        "D:/Dev/_resources/dawnlike/Examples/Underworld.tmx",
         "limezu_interiors.tsx",
         "limezu_room_builder.tsx",
-        "weeb_room.tmx",
         "basictiles.tsx",
-        "cottage.tmx",
         "D:/Programs/Tiled/examples/sticker-knight/map/sandbox.tmx",
         "test.tmx",
         "tmw_desert_spacing.tsx",

@@ -19,11 +19,11 @@ macro_rules! ecs_query {
     };
 
     (impl $e:ident mut $component:ident) => {
-        crate::ref_mut_op_to_op_ref_mut($e.$component.borrow_mut())?
+        crate::utils::refmut_opt_to_opt_refmut($e.$component.borrow_mut())?
     };
 
     (impl $e:ident $component:ident) => {
-        crate::ref_op_to_op_ref($e.$component.borrow())?
+        crate::utils::ref_opt_to_opt_ref($e.$component.borrow())?
     };
 }
 
