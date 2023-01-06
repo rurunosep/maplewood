@@ -1,3 +1,4 @@
+use crate::script::Script;
 use crate::world::{self, Cell, CellPos, Point, WorldPos};
 use array2d::Array2D;
 use sdl2::rect::Rect;
@@ -46,10 +47,7 @@ pub struct Entity {
     pub position: RefCell<Option<WorldPos>>,
     pub character_component: RefCell<Option<CharacterComponent>>,
     pub player_component: RefCell<Option<PlayerComponent>>,
-    // TODO: Maybe want to combine these into a single ScriptComponent which contains
-    // scripts with various triggers
-    pub interaction_component: RefCell<Option<InteractionComponent>>,
-    pub collision_component: RefCell<Option<CollisionComponent>>,
+    pub script_component: RefCell<Option<ScriptComponent>>,
 }
 
 #[derive(Clone, Debug)]
@@ -68,16 +66,9 @@ pub struct PlayerComponent {
     pub hitbox_dimensions: Point<f64>,
 }
 
-// Start a script when player interacts while facing entity's cell
 #[derive(Clone, Debug)]
-pub struct InteractionComponent {
-    pub script_source: String,
-}
-
-// Start a script when player stands on entity's cell
-#[derive(Clone, Debug)]
-pub struct CollisionComponent {
-    pub script_source: String,
+pub struct ScriptComponent {
+    pub scripts: Vec<Script>,
 }
 
 pub fn move_player_and_resolve_collisions(

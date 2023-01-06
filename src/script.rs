@@ -27,9 +27,24 @@ impl fmt::Display for ScriptError {
     }
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub enum ScriptTrigger {
+    Interaction,
+    Collision,
+    // Auto,
+    // StoryVar(String, i32),
+}
+
+// Different from script execution instance
+// This is the script "class" that a new execution instance is based off
+// TODO: what do I call this?
+#[derive(Clone, Debug)]
+pub struct Script {
+    pub source: String,
+    pub trigger: ScriptTrigger,
+}
+
 pub struct ScriptInstance {
-    // TODO: ID that can be passed to whatever process the script is waiting for.
-    // The process can then use ID to un-waiting the correct script
     pub lua_instance: Lua,
     pub id: i32,
     // Waiting for external event (like message advanced)
@@ -113,6 +128,7 @@ impl ScriptInstance {
                     // Every function that references Rust data must be recreated in this scope
                     // each time we execute some of the script, to ensure that the reference
                     // lifetimes remain valid
+
                     globals.set(
                         "get",
                         scope.create_function(|_, key: String| unsafe {
@@ -187,8 +203,6 @@ impl ScriptInstance {
                         })?,
                     )?;
 
-                    // Currently only moves in single direction until destination reached
-                    // Also, this version does not block script.
                     globals.set(
                         "force_move_player_to_cell",
                         scope.create_function_mut(

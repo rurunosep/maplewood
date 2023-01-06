@@ -12,8 +12,8 @@ mod world;
 use crate::entity::{Direction, Entity};
 use crate::world::{CellPos, WorldPos};
 use array2d::Array2D;
-use entity::{CharacterComponent, CollisionComponent, InteractionComponent, PlayerComponent};
-use script::ScriptInstance;
+use entity::{CharacterComponent, PlayerComponent, ScriptComponent};
+use script::{Script, ScriptInstance, ScriptTrigger};
 use sdl2::event::Event;
 use sdl2::image::LoadTexture;
 use sdl2::keyboard::Keycode;
@@ -153,8 +153,11 @@ fn main() {
                 sprite_offset: Point::new(8, 13),
                 direction: Direction::Down,
             })),
-            interaction_component: RefCell::new(Some(InteractionComponent {
-                script_source: script::get_sub_script(&entities_script, "1"),
+            script_component: RefCell::new(Some(ScriptComponent {
+                scripts: vec![Script {
+                    source: script::get_sub_script(&entities_script, "1"),
+                    trigger: ScriptTrigger::Interaction,
+                }],
             })),
             ..Default::default()
         },
@@ -163,8 +166,11 @@ fn main() {
         "skele_2".to_string(),
         Entity {
             position: RefCell::new(Some(WorldPos::new(10.5, 18.5))),
-            interaction_component: RefCell::new(Some(InteractionComponent {
-                script_source: script::get_sub_script(&entities_script, "2"),
+            script_component: RefCell::new(Some(ScriptComponent {
+                scripts: vec![Script {
+                    source: script::get_sub_script(&entities_script, "2"),
+                    trigger: ScriptTrigger::Interaction,
+                }],
             })),
             ..entities.get("skele_1").unwrap().clone()
         },
@@ -173,8 +179,11 @@ fn main() {
         "skele_3".to_string(),
         Entity {
             position: RefCell::new(Some(WorldPos::new(11.5, 17.5))),
-            interaction_component: RefCell::new(Some(InteractionComponent {
-                script_source: script::get_sub_script(&entities_script, "3"),
+            script_component: RefCell::new(Some(ScriptComponent {
+                scripts: vec![Script {
+                    source: script::get_sub_script(&entities_script, "3"),
+                    trigger: ScriptTrigger::Interaction,
+                }],
             })),
             ..entities.get("skele_1").unwrap().clone()
         },
@@ -199,8 +208,11 @@ fn main() {
             n.to_string(),
             Entity {
                 position: RefCell::new(Some(WorldPos::new(*x as f64, *y as f64))),
-                interaction_component: RefCell::new(Some(InteractionComponent {
-                    script_source: script::get_sub_script(&cottage_scripts, n),
+                script_component: RefCell::new(Some(ScriptComponent {
+                    scripts: vec![Script {
+                        source: script::get_sub_script(&cottage_scripts, &n),
+                        trigger: ScriptTrigger::Interaction,
+                    }],
                 })),
                 ..Default::default()
             },
@@ -210,8 +222,11 @@ fn main() {
         "brazier_2".to_string(),
         Entity {
             position: RefCell::new(Some(WorldPos::new(13., 7.))),
-            interaction_component: RefCell::new(Some(InteractionComponent {
-                script_source: script::get_sub_script(&cottage_scripts, "brazier"),
+            script_component: RefCell::new(Some(ScriptComponent {
+                scripts: vec![Script {
+                    source: script::get_sub_script(&cottage_scripts, "brazier"),
+                    trigger: ScriptTrigger::Interaction,
+                }],
             })),
             ..Default::default()
         },
@@ -222,8 +237,11 @@ fn main() {
         "door_collision".to_string(),
         Entity {
             position: RefCell::new(Some(WorldPos::new(8., 8.))),
-            collision_component: RefCell::new(Some(CollisionComponent {
-                script_source: script::get_sub_script(&cottage_scripts, "door_collision"),
+            script_component: RefCell::new(Some(ScriptComponent {
+                scripts: vec![Script {
+                    source: script::get_sub_script(&cottage_scripts, "door_collision"),
+                    trigger: ScriptTrigger::Collision,
+                }],
             })),
             ..Default::default()
         },
@@ -232,8 +250,11 @@ fn main() {
         "stairs_collision".to_string(),
         Entity {
             position: RefCell::new(Some(WorldPos::new(6., 5.))),
-            collision_component: RefCell::new(Some(CollisionComponent {
-                script_source: script::get_sub_script(&cottage_scripts, "stairs_collision"),
+            script_component: RefCell::new(Some(ScriptComponent {
+                scripts: vec![Script {
+                    source: script::get_sub_script(&cottage_scripts, "stairs_collision"),
+                    trigger: ScriptTrigger::Collision,
+                }],
             })),
             ..Default::default()
         },
@@ -245,7 +266,7 @@ fn main() {
     story_vars.insert("tried_to_drown_plushy".to_string(), 0);
     story_vars.insert("tried_to_burn_plushy".to_string(), 0);
     story_vars.insert("read_grave_note".to_string(), 0);
-    story_vars.insert("got_door_key".to_string(), 0);
+    story_vars.insert("got_door_key".to_string(), 1);
     story_vars.insert("got_chest_key".to_string(), 0);
     story_vars.insert("opened_door".to_string(), 0);
     story_vars.insert("read_dresser_note".to_string(), 0);
@@ -375,20 +396,35 @@ fn main() {
                         }
 
                     // Start script (if no window is open and no script is running)
-                    } else if let Some((_, i)) =
-                        ecs_query!(entities, position, interaction_component).find(|(p, _)| {
-                            let (player_p, player_c) =
-                                ecs_query!(entities["player"], position, character_component)
-                                    .unwrap();
-                            entity::standing_cell(p)
-                                == entity::facing_cell(&player_p, &player_c)
-                        })
-                    {
-                        scripts.insert(
-                            next_script_id,
-                            ScriptInstance::new(next_script_id, &i.script_source),
-                        );
-                        next_script_id += 1;
+                    } else {
+                        for script_source in ecs_query!(entities, position, script_component)
+                            .filter(|(pos_comp, _)| {
+                                let (player_pos_comp, player_char_comp) = ecs_query!(
+                                    entities["player"],
+                                    position,
+                                    character_component
+                                )
+                                .unwrap();
+                                entity::standing_cell(pos_comp)
+                                    == entity::facing_cell(&player_pos_comp, &player_char_comp)
+                            })
+                            .flat_map(|(_, script_comp)| {
+                                script_comp
+                                    .scripts
+                                    .iter()
+                                    .filter(|script| {
+                                        script.trigger == ScriptTrigger::Interaction
+                                    })
+                                    .map(|script| script.source.clone())
+                                    .collect::<Vec<_>>()
+                            })
+                        {
+                            scripts.insert(
+                                next_script_id,
+                                ScriptInstance::new(next_script_id, &script_source),
+                            );
+                            next_script_id += 1;
+                        }
                     }
                 }
 
@@ -426,16 +462,24 @@ fn main() {
         }
 
         // Start player collision script
-        if let Some((_, c)) =
-            ecs_query!(entities, position, collision_component).find(|(p, _)| {
-                entity::standing_cell(p)
+        for script_source in ecs_query!(entities, position, script_component)
+            .filter(|(pos_comp, _)| {
+                entity::standing_cell(pos_comp)
                     == entity::standing_cell(
                         &ecs_query!(entities["player"], position).unwrap().0,
                     )
             })
+            .flat_map(|(_, script_comp)| {
+                script_comp
+                    .scripts
+                    .iter()
+                    .filter(|script| script.trigger == ScriptTrigger::Collision)
+                    .map(|script| script.source.clone())
+                    .collect::<Vec<_>>()
+            })
         {
             scripts
-                .insert(next_script_id, ScriptInstance::new(next_script_id, &c.script_source));
+                .insert(next_script_id, ScriptInstance::new(next_script_id, &script_source));
             next_script_id += 1;
         }
 
