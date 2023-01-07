@@ -1,19 +1,19 @@
-#![allow(unused_parens)]
 #![feature(let_chains)]
 #![feature(div_duration)]
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod entity;
+mod macros;
 mod render;
 mod script;
 mod utils;
 mod world;
 
 use crate::entity::{Direction, Entity};
-use crate::world::{CellPos, WorldPos};
+use crate::world::WorldPos;
 use array2d::Array2D;
-use entity::{CharacterComponent, PlayerComponent, ScriptComponent};
-use script::{Script, ScriptCondition, ScriptInstance, ScriptTrigger};
+use entity::{CollisionComponent, SpriteComponent, WalkingComponent};
+use script::{Script, ScriptInstance, ScriptTrigger};
 use sdl2::event::Event;
 use sdl2::image::LoadTexture;
 use sdl2::keyboard::Keycode;
@@ -132,15 +132,19 @@ fn main() {
         "player".to_string(),
         Entity {
             position: RefCell::new(Some(WorldPos::new(7.5, 15.5))),
-            player_component: RefCell::new(Some(PlayerComponent {
-                hitbox_dimensions: Point::new(8.0 / 16.0, 6.0 / 16.0),
+            walking_component: RefCell::new(Some(WalkingComponent {
                 speed: 0.,
+                direction: Direction::Down,
+                destination: None,
             })),
-            character_component: RefCell::new(Some(CharacterComponent {
+            collision_component: RefCell::new(Some(CollisionComponent {
+                hitbox_dimensions: Point::new(8.0 / 16.0, 6.0 / 16.0),
+            })),
+            sprite_component: RefCell::new(Some(SpriteComponent {
                 spriteset_rect: Rect::new(7 * 16, 0, 16 * 4, 16 * 4),
                 sprite_offset: Point::new(8, 13),
-                direction: Direction::Down,
             })),
+            facing: RefCell::new(Some(Direction::Down)),
             ..Default::default()
         },
     );
@@ -148,34 +152,46 @@ fn main() {
         "skele_1".to_string(),
         Entity {
             position: RefCell::new(Some(WorldPos::new(8.5, 10.5))),
-            character_component: RefCell::new(Some(CharacterComponent {
+            sprite_component: RefCell::new(Some(SpriteComponent {
                 spriteset_rect: Rect::new(10 * 16, 0, 16 * 4, 16 * 4),
                 sprite_offset: Point::new(8, 13),
-                direction: Direction::Down,
             })),
-            script_component: RefCell::new(Some(ScriptComponent {
-                scripts: vec![Script {
-                    source: script::get_sub_script(&entities_script, "1"),
-                    trigger: ScriptTrigger::Interaction,
-                    start_condition: None,
-                    abort_condition: None,
-                }],
-            })),
+            facing: RefCell::new(Some(Direction::Down)),
+            scripts: RefCell::new(Some(vec![Script {
+                source: script::get_sub_script(&entities_script, "1"),
+                trigger: ScriptTrigger::Interaction,
+                start_condition: None,
+                abort_condition: None,
+            }])),
             ..Default::default()
         },
     );
     entities.insert(
         "skele_2".to_string(),
         Entity {
-            position: RefCell::new(Some(WorldPos::new(10.5, 18.5))),
-            script_component: RefCell::new(Some(ScriptComponent {
-                scripts: vec![Script {
+            position: RefCell::new(Some(WorldPos::new(11.5, 18.5))),
+            walking_component: RefCell::new(Some(WalkingComponent {
+                speed: 0.,
+                direction: Direction::Down,
+                destination: None,
+            })),
+            collision_component: RefCell::new(Some(CollisionComponent {
+                hitbox_dimensions: Point::new(8.0 / 16.0, 6.0 / 16.0),
+            })),
+            scripts: RefCell::new(Some(vec![
+                Script {
                     source: script::get_sub_script(&entities_script, "2"),
                     trigger: ScriptTrigger::Interaction,
                     start_condition: None,
                     abort_condition: None,
-                }],
-            })),
+                },
+                Script {
+                    source: script::get_sub_script(&entities_script, "2b"),
+                    trigger: ScriptTrigger::Auto,
+                    start_condition: None,
+                    abort_condition: None,
+                },
+            ])),
             ..entities.get("skele_1").unwrap().clone()
         },
     );
@@ -183,14 +199,12 @@ fn main() {
         "skele_3".to_string(),
         Entity {
             position: RefCell::new(Some(WorldPos::new(11.5, 17.5))),
-            script_component: RefCell::new(Some(ScriptComponent {
-                scripts: vec![Script {
-                    source: script::get_sub_script(&entities_script, "3"),
-                    trigger: ScriptTrigger::Interaction,
-                    start_condition: None,
-                    abort_condition: None,
-                }],
-            })),
+            scripts: RefCell::new(Some(vec![Script {
+                source: script::get_sub_script(&entities_script, "3"),
+                trigger: ScriptTrigger::Interaction,
+                start_condition: None,
+                abort_condition: None,
+            }])),
             ..entities.get("skele_1").unwrap().clone()
         },
     );
@@ -214,14 +228,12 @@ fn main() {
             n.to_string(),
             Entity {
                 position: RefCell::new(Some(WorldPos::new(*x as f64, *y as f64))),
-                script_component: RefCell::new(Some(ScriptComponent {
-                    scripts: vec![Script {
-                        source: script::get_sub_script(&cottage_scripts, &n),
-                        trigger: ScriptTrigger::Interaction,
-                        start_condition: None,
-                        abort_condition: None,
-                    }],
-                })),
+                scripts: RefCell::new(Some(vec![Script {
+                    source: script::get_sub_script(&cottage_scripts, n),
+                    trigger: ScriptTrigger::Interaction,
+                    start_condition: None,
+                    abort_condition: None,
+                }])),
                 ..Default::default()
             },
         );
@@ -230,14 +242,12 @@ fn main() {
         "brazier_2".to_string(),
         Entity {
             position: RefCell::new(Some(WorldPos::new(13., 7.))),
-            script_component: RefCell::new(Some(ScriptComponent {
-                scripts: vec![Script {
-                    source: script::get_sub_script(&cottage_scripts, "brazier"),
-                    trigger: ScriptTrigger::Interaction,
-                    start_condition: None,
-                    abort_condition: None,
-                }],
-            })),
+            scripts: RefCell::new(Some(vec![Script {
+                source: script::get_sub_script(&cottage_scripts, "brazier"),
+                trigger: ScriptTrigger::Interaction,
+                start_condition: None,
+                abort_condition: None,
+            }])),
             ..Default::default()
         },
     );
@@ -247,14 +257,12 @@ fn main() {
         "door_collision".to_string(),
         Entity {
             position: RefCell::new(Some(WorldPos::new(8., 8.))),
-            script_component: RefCell::new(Some(ScriptComponent {
-                scripts: vec![Script {
-                    source: script::get_sub_script(&cottage_scripts, "door_collision"),
-                    trigger: ScriptTrigger::Collision,
-                    start_condition: None,
-                    abort_condition: None,
-                }],
-            })),
+            scripts: RefCell::new(Some(vec![Script {
+                source: script::get_sub_script(&cottage_scripts, "door_collision"),
+                trigger: ScriptTrigger::Collision,
+                start_condition: None,
+                abort_condition: None,
+            }])),
             ..Default::default()
         },
     );
@@ -262,14 +270,12 @@ fn main() {
         "stairs_collision".to_string(),
         Entity {
             position: RefCell::new(Some(WorldPos::new(6., 5.))),
-            script_component: RefCell::new(Some(ScriptComponent {
-                scripts: vec![Script {
-                    source: script::get_sub_script(&cottage_scripts, "stairs_collision"),
-                    trigger: ScriptTrigger::Collision,
-                    start_condition: None,
-                    abort_condition: None,
-                }],
-            })),
+            scripts: RefCell::new(Some(vec![Script {
+                source: script::get_sub_script(&cottage_scripts, "stairs_collision"),
+                trigger: ScriptTrigger::Collision,
+                start_condition: None,
+                abort_condition: None,
+            }])),
             ..Default::default()
         },
     );
@@ -278,28 +284,12 @@ fn main() {
     entities.insert(
         "auto_run_scripts".to_string(),
         Entity {
-            script_component: RefCell::new(Some(ScriptComponent {
-                scripts: vec![
-                    Script {
-                        source: script::get_sub_script(&cottage_scripts, "start"),
-                        trigger: ScriptTrigger::Auto,
-                        start_condition: None,
-                        abort_condition: None,
-                    },
-                    Script {
-                        source: script::get_sub_script(&cottage_scripts, "ftb"),
-                        trigger: ScriptTrigger::Auto,
-                        start_condition: Some(ScriptCondition {
-                            story_var: "read_dresser_note".to_string(),
-                            value: 1,
-                        }),
-                        abort_condition: Some(ScriptCondition {
-                            story_var: "burned_dresser_note".to_string(),
-                            value: 1,
-                        }),
-                    },
-                ],
-            })),
+            scripts: RefCell::new(Some(vec![Script {
+                source: script::get_sub_script(&cottage_scripts, "start"),
+                trigger: ScriptTrigger::Auto,
+                start_condition: None,
+                abort_condition: None,
+            }])),
             ..Default::default()
         },
     );
@@ -317,11 +307,9 @@ fn main() {
     story_vars.insert("burned_dresser_note".to_string(), 0);
     story_vars.insert("tried_to_sleep".to_string(), 0);
 
-    #[allow(unused_assignments)]
     let mut message_window: Option<MessageWindow> = None;
     let mut fade_to_black: Option<FadeToBlack> = None;
     let mut player_movement_locked = false;
-    let mut force_move_destination: Option<CellPos> = None;
 
     // TODO: script manager to hold scripts and keep track of next_script_id?
     let mut next_script_id = 0;
@@ -350,29 +338,31 @@ fn main() {
                         || keycode == Keycode::Left
                         || keycode == Keycode::Right =>
                 {
-                    // Some conditions (such as a message window open) lock player movement
+                    // Some conditions (such as a message window open, or movement being
+                    // forced) lock player movement
                     // Scripts can also lock/unlock it as necessary
-                    if message_window.is_none() && !player_movement_locked {
-                        let (mut character_component, mut player_component) = ecs_query!(
-                            entities["player"],
-                            mut character_component,
-                            mut player_component
-                        )
-                        .unwrap();
-                        player_component.speed = PLAYER_MOVE_SPEED;
-                        character_component.direction = match keycode {
+                    let (mut facing, mut walking_component) =
+                        ecs_query!(entities["player"], mut facing, mut walking_component)
+                            .unwrap();
+                    if message_window.is_none()
+                        && walking_component.destination.is_none()
+                        && !player_movement_locked
+                    {
+                        walking_component.speed = PLAYER_MOVE_SPEED;
+                        walking_component.direction = match keycode {
                             Keycode::Up => Direction::Up,
                             Keycode::Down => Direction::Down,
                             Keycode::Left => Direction::Left,
                             Keycode::Right => Direction::Right,
                             _ => unreachable!(),
-                        }
+                        };
+                        *facing = walking_component.direction;
                     }
                 }
                 // End player movement if directional key matching player direction is released
                 Event::KeyUp { keycode: Some(keycode), .. }
                     if keycode
-                        == match ecs_query!(entities["player"], character_component)
+                        == match ecs_query!(entities["player"], walking_component)
                             .unwrap()
                             .0
                             .direction
@@ -383,7 +373,8 @@ fn main() {
                             Direction::Right => Keycode::Right,
                         } =>
                 {
-                    ecs_query!(entities["player"], mut player_component).unwrap().0.speed = 0.;
+                    ecs_query!(entities["player"], mut walking_component).unwrap().0.speed =
+                        0.;
                 }
 
                 // Choose message window option
@@ -434,21 +425,18 @@ fn main() {
                     // Start script (if no window is open and no script is running)
                     } else {
                         // For entity standing in cell player that is facing...
-                        for (_, mut script_comp) in ecs_query!(
-                            entities,
-                            position,
-                            mut script_component
-                        )
-                        .filter(|(pos_comp, _)| {
-                            let (player_pos_comp, player_char_comp) =
-                                ecs_query!(entities["player"], position, character_component)
-                                    .unwrap();
-                            entity::standing_cell(pos_comp)
-                                == entity::facing_cell(&player_pos_comp, &player_char_comp)
-                        }) {
+                        for (_, mut scripts) in ecs_query!(entities, position, mut scripts)
+                            .filter(|(pos_comp, _)| {
+                                let (player_pos_comp, player_facing) =
+                                    ecs_query!(entities["player"], position, facing).unwrap();
+                                entity::standing_cell(pos_comp)
+                                    == entity::facing_cell(&player_pos_comp, *player_facing)
+                            })
+                        {
                             // ...start all scripts with interaction trigger and fulfilled
                             // start condition
-                            for script in script_comp.filter_scripts_by_trigger_and_condition(
+                            for script in script::filter_scripts_by_trigger_and_condition(
+                                &mut scripts,
                                 ScriptTrigger::Interaction,
                                 &story_vars,
                             ) {
@@ -471,10 +459,12 @@ fn main() {
         }
 
         // Start any auto run scripts
-        for (mut script_comp,) in ecs_query!(entities, mut script_component) {
-            for script in script_comp
-                .filter_scripts_by_trigger_and_condition(ScriptTrigger::Auto, &story_vars)
-            {
+        for (mut scripts,) in ecs_query!(entities, mut scripts) {
+            for script in script::filter_scripts_by_trigger_and_condition(
+                &mut scripts,
+                ScriptTrigger::Auto,
+                &story_vars,
+            ) {
                 script_instances.insert(
                     next_script_id,
                     ScriptInstance::new(
@@ -495,7 +485,7 @@ fn main() {
                 #[rustfmt::skip]
                 script.execute(
                     &mut story_vars, &mut entities, &mut message_window,
-                    &mut player_movement_locked, &mut tilemap, &mut force_move_destination,
+                    &mut player_movement_locked, &mut tilemap,
                     &mut fade_to_black, &mut running, &musics, &sound_effects,
                 );
             }
@@ -508,24 +498,43 @@ fn main() {
         // Remove finished or aborted scripts
         script_instances.retain(|_, script| !script.finished);
 
-        // Update player entity
-        entity::move_player_and_resolve_collisions(&entities, &tilemap);
+        // Update walking entities
+        // TODO: Fix: currently can't walk without a collision component
+        for (mut position, walking_component, collision_component) in
+            ecs_query!(entities, mut position, walking_component, collision_component)
+        {
+            entity::walk_and_resolve_tile_collisions(
+                &mut position,
+                &walking_component,
+                &collision_component,
+                &tilemap,
+            );
+        }
 
-        // If player has reached forced movement destination, end the forced movement
-        if let Some(destination) = force_move_destination {
-            if entity::standing_cell(&ecs_query!(entities["player"], position).unwrap().0)
-                == destination
-            {
-                force_move_destination = None;
-                player_movement_locked = false;
-                ecs_query!(entities["player"], mut player_component).unwrap().0.speed = 0.0;
+        // End walking for entities that have reached destination
+        // (Could probably be combined with preceding update)
+        for (mut position, mut walking_component) in
+            ecs_query!(entities, mut position, mut walking_component)
+        {
+            if let Some(destination) = walking_component.destination {
+                let passed_destination = match walking_component.direction {
+                    Direction::Up => position.y < destination.y,
+                    Direction::Down => position.y > destination.y,
+                    Direction::Left => position.x < destination.x,
+                    Direction::Right => position.x > destination.x,
+                };
+                if passed_destination {
+                    *position = destination;
+                    walking_component.speed = 0.;
+                    walking_component.destination = None;
+                }
             }
         }
 
         // Start player collision script
         // For each entity standing in cell player is standing in...
-        for (_, mut script_comp) in ecs_query!(entities, position, mut script_component)
-            .filter(|(pos_comp, _)| {
+        for (_, mut scripts) in
+            ecs_query!(entities, position, mut scripts).filter(|(pos_comp, _)| {
                 entity::standing_cell(pos_comp)
                     == entity::standing_cell(
                         &ecs_query!(entities["player"], position).unwrap().0,
@@ -533,9 +542,11 @@ fn main() {
             })
         {
             // ...start all scripts that have a collision trigger and fulfill start condition
-            for script in script_comp
-                .filter_scripts_by_trigger_and_condition(ScriptTrigger::Collision, &story_vars)
-            {
+            for script in script::filter_scripts_by_trigger_and_condition(
+                &mut scripts,
+                ScriptTrigger::Collision,
+                &story_vars,
+            ) {
                 script_instances.insert(
                     next_script_id,
                     ScriptInstance::new(

@@ -106,8 +106,8 @@ pub fn render(
 
         // Draw player facing cell marker
         // world -> top_left
-        let (p, c) = ecs_query!(entities["player"], position, character_component).unwrap();
-        let position_in_world = entity::facing_cell(&p, &c).to_worldpos();
+        let (p, f) = ecs_query!(entities["player"], position, facing).unwrap();
+        let position_in_world = entity::facing_cell(&p, *f).to_worldpos();
         let position_in_viewport = position_in_world - viewport_top_left;
         let position_on_screen = worldpos_to_screenpos(position_in_viewport);
         let top_left = position_on_screen;
@@ -124,7 +124,7 @@ pub fn render(
 
         // Draw player hitbox marker
         let hitbox_screen_dimensions = worldpos_to_screenpos(
-            ecs_query!(entities["player"], player_component).unwrap().0.hitbox_dimensions,
+            ecs_query!(entities["player"], collision_component).unwrap().0.hitbox_dimensions,
         );
         let screen_offset = hitbox_screen_dimensions / 2;
 
@@ -146,9 +146,10 @@ pub fn render(
     }
 
     // Draw entities with character components
-    for (position, character_component) in ecs_query!(entities, position, character_component)
+    for (position, sprite_component, facing) in
+        ecs_query!(entities, position, sprite_component, facing)
     {
-        let sprite_row = match character_component.direction {
+        let sprite_row = match *facing {
             Direction::Up => 3,
             Direction::Down => 0,
             Direction::Left => 1,
@@ -156,8 +157,8 @@ pub fn render(
         };
 
         let sprite_rect = Rect::new(
-            character_component.spriteset_rect.x,
-            character_component.spriteset_rect.y + sprite_row * 16,
+            sprite_component.spriteset_rect.x,
+            sprite_component.spriteset_rect.y + sprite_row * 16,
             16,
             16,
         );
@@ -167,7 +168,7 @@ pub fn render(
         let position_in_viewport = position_in_world - viewport_top_left;
         let position_on_screen = worldpos_to_screenpos(position_in_viewport);
         let top_left =
-            position_on_screen - (character_component.sprite_offset * SCREEN_SCALE as i32);
+            position_on_screen - (sprite_component.sprite_offset * SCREEN_SCALE as i32);
 
         let screen_rect =
             Rect::new(top_left.x, top_left.y, 16 * SCREEN_SCALE, 16 * SCREEN_SCALE);

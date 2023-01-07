@@ -1,5 +1,5 @@
-use crate::entity::{self, Direction, Entity};
-use crate::world::{Cell, CellPos, WorldPos};
+use crate::entity::{Direction, Entity};
+use crate::world::{Cell, WorldPos};
 use crate::{ecs_query, FadeToBlack, MessageWindow, PLAYER_MOVE_SPEED};
 use array2d::Array2D;
 use rlua::{Error as LuaError, Function, Lua, Result as LuaResult, Thread, ThreadStatus};
@@ -22,7 +22,9 @@ impl fmt::Display for ScriptError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ScriptError::InvalidStoryVar(var) => write!(f, "no story var: {var}"),
-            ScriptError::InvalidEntity(name) => write!(f, "no entity: {name}"),
+            ScriptError::InvalidEntity(name) => {
+                write!(f, "no entity: {name} with necessary components")
+            }
         }
     }
 }
@@ -48,7 +50,6 @@ pub struct ScriptCondition {
 pub struct Script {
     pub source: String,
     pub trigger: ScriptTrigger,
-    // TODO:
     pub start_condition: Option<ScriptCondition>,
     pub abort_condition: Option<ScriptCondition>,
 }
@@ -85,6 +86,8 @@ impl ScriptInstance {
             })
             .unwrap_or_else(|err| panic!("{err}\nsource: {:?}", err.source()));
 
+        // TODO: hook to abort after too many lines
+
         Self {
             lua_instance,
             id,
@@ -104,7 +107,6 @@ impl ScriptInstance {
         message_window: &mut Option<MessageWindow>,
         player_movement_locked: &mut bool,
         tilemap: &mut Array2D<Cell>,
-        force_move_destination: &mut Option<CellPos>,
         fade_to_black: &mut Option<FadeToBlack>,
         running: &mut bool,
         musics: &HashMap<String, Music>,
@@ -163,12 +165,15 @@ impl ScriptInstance {
                     )?;
 
                     globals.set(
-                        "is_player_at_cellpos",
-                        scope.create_function(|_, (x, y): (i32, i32)| unsafe {
-                            let ref entities = *entities;
-                            Ok(entity::standing_cell(
-                                &ecs_query!(entities["player"], position).unwrap().0,
-                            ) == CellPos::new(x, y))
+                        "get_entity_position",
+                        scope.create_function(|_, entity: String| unsafe {
+                            let entities = &*entities;
+                            let (position,) = ecs_query!(entities[&entity], position).ok_or(
+                                LuaError::ExternalError(Arc::new(ScriptError::InvalidEntity(
+                                    entity,
+                                ))),
+                            )?;
+                            Ok((position.x, position.y))
                         })?,
                     )?;
 
@@ -219,29 +224,46 @@ impl ScriptInstance {
                         })?,
                     )?;
 
+                    // TODO: distance version + destination version? rename?
                     globals.set(
-                        "force_move_player_to_cell",
+                        "walk",
                         scope.create_function_mut(
-                            |_, (direction, x, y): (String, i32, i32)| unsafe {
-                                let ref entities = *entities;
-                                let (mut character_component, mut player_component) =
+                            |_, (entity, direction, distance): (String, String, f64)| unsafe {
+                                let entities = &*entities;
+                                let (position, mut facing, mut walking_component) =
                                     ecs_query!(
-                                        entities["player"],
-                                        mut character_component,
-                                        mut player_component
+                                        entities[&entity],
+                                        position,
+                                        mut facing,
+                                        mut walking_component
                                     )
-                                    .unwrap();
+                                    .ok_or(
+                                        LuaError::ExternalError(Arc::new(
+                                            ScriptError::InvalidEntity(entity),
+                                        )),
+                                    )?;
 
-                                character_component.direction = match direction.as_str() {
+                                walking_component.direction = match direction.as_str() {
                                     "up" => Direction::Up,
                                     "down" => Direction::Down,
                                     "left" => Direction::Left,
                                     "right" => Direction::Right,
                                     s => panic!("{s} is not a valid direction"),
                                 };
-                                player_component.speed = PLAYER_MOVE_SPEED;
-                                *force_move_destination = Some(CellPos::new(x, y));
-                                *player_movement_locked = true;
+                                // TODO: different speed
+                                walking_component.speed = PLAYER_MOVE_SPEED;
+                                walking_component.destination = Some(
+                                    *position
+                                        + match walking_component.direction {
+                                            Direction::Up => WorldPos::new(0., -distance),
+                                            Direction::Down => WorldPos::new(0., distance),
+                                            Direction::Left => WorldPos::new(-distance, 0.),
+                                            Direction::Right => WorldPos::new(distance, 0.),
+                                        },
+                                );
+
+                                *facing = walking_component.direction;
+
                                 Ok(())
                             },
                         )?,
@@ -251,12 +273,10 @@ impl ScriptInstance {
                         "teleport_entity",
                         scope.create_function_mut(
                             |_, (name, x, y): (String, f64, f64)| unsafe {
-                                let ref entities = *entities;
+                                let entities = &*entities;
                                 let mut position = ecs_query!(entities[&name], mut position)
                                     .map(|r| r.0)
                                     .ok_or(LuaError::ExternalError(Arc::new(
-                                        // This error is not really accurate
-                                        // It's no entity with name AND components needed
                                         ScriptError::InvalidEntity(name),
                                     )))?;
                                 *position = WorldPos::new(x, y);
@@ -265,6 +285,7 @@ impl ScriptInstance {
                         )?,
                     )?;
 
+                    // TODO: arbitrary overlay color + fade to any new color
                     globals.set(
                         "fade_to_black",
                         scope.create_function_mut(|_, duration: f64| {
@@ -308,7 +329,7 @@ impl ScriptInstance {
                     )?;
 
                     let message_unwrapped =
-                        scope.create_function_mut(|_, (message): (String)| unsafe {
+                        scope.create_function_mut(|_, message: String| unsafe {
                             *message_window = Some(MessageWindow {
                                 message,
                                 is_selection: false,
@@ -323,7 +344,7 @@ impl ScriptInstance {
                     )?;
 
                     let selection_unwrapped =
-                        scope.create_function_mut(|_, (message): (String)| unsafe {
+                        scope.create_function_mut(|_, message: String| unsafe {
                             *message_window = Some(MessageWindow {
                                 message,
                                 is_selection: true,
@@ -370,4 +391,22 @@ pub fn get_sub_script(full_source: &str, label: &str) -> String {
     let (_, after_label) = full_source.split_once(&format!("--# {label}")).unwrap();
     let (between_label_and_end, _) = after_label.split_once("--#").unwrap();
     between_label_and_end.to_string()
+}
+
+pub fn filter_scripts_by_trigger_and_condition<'a>(
+    scripts: &'a mut [Script],
+    filter_trigger: ScriptTrigger,
+    story_vars: &HashMap<String, i32>,
+) -> Vec<&'a mut Script> {
+    scripts
+        .iter_mut()
+        .filter(|script| script.trigger == filter_trigger)
+        .filter(|script| {
+            script.start_condition.is_none() || {
+                let ScriptCondition { story_var, value } =
+                    script.start_condition.as_ref().unwrap();
+                *story_vars.get(story_var).unwrap() == *value
+            }
+        })
+        .collect()
 }
