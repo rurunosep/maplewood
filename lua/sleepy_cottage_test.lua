@@ -3,20 +3,12 @@ message("You were taking a walk in the woods, \n"
     .. "but you're sooooo sleepy.")
 message("You need someplace to take a nap.")
 
---# conc1
+--# ftb
 while (true)
 do
     fade_to_black(3)
     wait(3)
 end
-
---# conc2
-while (true)
-do
-    message("hi")
-    wait(5)
-end
-
 
 --# sign
 if is_player_at_cellpos(7, 11) then

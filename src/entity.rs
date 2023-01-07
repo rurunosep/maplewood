@@ -1,4 +1,4 @@
-use crate::script::Script;
+use crate::script::{Script, ScriptCondition, ScriptTrigger};
 use crate::world::{self, Cell, CellPos, Point, WorldPos};
 use array2d::Array2D;
 use sdl2::rect::Rect;
@@ -37,9 +37,6 @@ pub enum Direction {
     Right,
 }
 
-// TODO: Entity builder?
-// Entity::new().add_component({}).add_component({})
-
 #[derive(Clone, Default)]
 pub struct Entity {
     // Entities might want to keep track of an ID or name or something
@@ -68,7 +65,28 @@ pub struct PlayerComponent {
 
 #[derive(Clone, Debug)]
 pub struct ScriptComponent {
+    // Maybe eventually this is references to scripts stored somewhere else
     pub scripts: Vec<Script>,
+}
+
+impl ScriptComponent {
+    pub fn filter_scripts_by_trigger_and_condition(
+        &mut self,
+        filter_trigger: ScriptTrigger,
+        story_vars: &HashMap<String, i32>,
+    ) -> Vec<&mut Script> {
+        self.scripts
+            .iter_mut()
+            .filter(|script| script.trigger == filter_trigger)
+            .filter(|script| {
+                script.start_condition.is_none() || {
+                    let ScriptCondition { story_var, value } =
+                        script.start_condition.as_ref().unwrap();
+                    *story_vars.get(story_var).unwrap() == *value
+                }
+            })
+            .collect()
+    }
 }
 
 pub fn move_player_and_resolve_collisions(

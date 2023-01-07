@@ -13,7 +13,7 @@ use crate::entity::{Direction, Entity};
 use crate::world::{CellPos, WorldPos};
 use array2d::Array2D;
 use entity::{CharacterComponent, PlayerComponent, ScriptComponent};
-use script::{Script, ScriptInstance, ScriptTrigger};
+use script::{Script, ScriptCondition, ScriptInstance, ScriptTrigger};
 use sdl2::event::Event;
 use sdl2::image::LoadTexture;
 use sdl2::keyboard::Keycode;
@@ -157,6 +157,8 @@ fn main() {
                 scripts: vec![Script {
                     source: script::get_sub_script(&entities_script, "1"),
                     trigger: ScriptTrigger::Interaction,
+                    start_condition: None,
+                    abort_condition: None,
                 }],
             })),
             ..Default::default()
@@ -170,6 +172,8 @@ fn main() {
                 scripts: vec![Script {
                     source: script::get_sub_script(&entities_script, "2"),
                     trigger: ScriptTrigger::Interaction,
+                    start_condition: None,
+                    abort_condition: None,
                 }],
             })),
             ..entities.get("skele_1").unwrap().clone()
@@ -183,6 +187,8 @@ fn main() {
                 scripts: vec![Script {
                     source: script::get_sub_script(&entities_script, "3"),
                     trigger: ScriptTrigger::Interaction,
+                    start_condition: None,
+                    abort_condition: None,
                 }],
             })),
             ..entities.get("skele_1").unwrap().clone()
@@ -212,6 +218,8 @@ fn main() {
                     scripts: vec![Script {
                         source: script::get_sub_script(&cottage_scripts, &n),
                         trigger: ScriptTrigger::Interaction,
+                        start_condition: None,
+                        abort_condition: None,
                     }],
                 })),
                 ..Default::default()
@@ -226,6 +234,8 @@ fn main() {
                 scripts: vec![Script {
                     source: script::get_sub_script(&cottage_scripts, "brazier"),
                     trigger: ScriptTrigger::Interaction,
+                    start_condition: None,
+                    abort_condition: None,
                 }],
             })),
             ..Default::default()
@@ -241,6 +251,8 @@ fn main() {
                 scripts: vec![Script {
                     source: script::get_sub_script(&cottage_scripts, "door_collision"),
                     trigger: ScriptTrigger::Collision,
+                    start_condition: None,
+                    abort_condition: None,
                 }],
             })),
             ..Default::default()
@@ -254,7 +266,39 @@ fn main() {
                 scripts: vec![Script {
                     source: script::get_sub_script(&cottage_scripts, "stairs_collision"),
                     trigger: ScriptTrigger::Collision,
+                    start_condition: None,
+                    abort_condition: None,
                 }],
+            })),
+            ..Default::default()
+        },
+    );
+
+    // Auto run scripts entity
+    entities.insert(
+        "auto_run_scripts".to_string(),
+        Entity {
+            script_component: RefCell::new(Some(ScriptComponent {
+                scripts: vec![
+                    Script {
+                        source: script::get_sub_script(&cottage_scripts, "start"),
+                        trigger: ScriptTrigger::Auto,
+                        start_condition: None,
+                        abort_condition: None,
+                    },
+                    Script {
+                        source: script::get_sub_script(&cottage_scripts, "ftb"),
+                        trigger: ScriptTrigger::Auto,
+                        start_condition: Some(ScriptCondition {
+                            story_var: "read_dresser_note".to_string(),
+                            value: 1,
+                        }),
+                        abort_condition: Some(ScriptCondition {
+                            story_var: "burned_dresser_note".to_string(),
+                            value: 1,
+                        }),
+                    },
+                ],
             })),
             ..Default::default()
         },
@@ -281,15 +325,7 @@ fn main() {
 
     // TODO: script manager to hold scripts and keep track of next_script_id?
     let mut next_script_id = 0;
-    let mut scripts: HashMap<i32, ScriptInstance> = HashMap::new();
-    scripts.insert(
-        next_script_id,
-        ScriptInstance::new(
-            next_script_id,
-            &script::get_sub_script(&cottage_scripts, "start"),
-        ),
-    );
-    next_script_id += 1;
+    let mut script_instances: HashMap<i32, ScriptInstance> = HashMap::new();
 
     // ------------------------------------------
     // Main Loop
@@ -307,8 +343,7 @@ fn main() {
                 }
 
                 // Player movement
-                // TODO: is there some way I can decouple this with some sort of
-                // InputComponent?
+                // TODO: Can I decouple this with some sort of InputComponent?
                 Event::KeyDown { keycode: Some(keycode), .. }
                     if keycode == Keycode::Up
                         || keycode == Keycode::Down
@@ -334,6 +369,7 @@ fn main() {
                         }
                     }
                 }
+                // End player movement if directional key matching player direction is released
                 Event::KeyUp { keycode: Some(keycode), .. }
                     if keycode
                         == match ecs_query!(entities["player"], character_component)
@@ -362,7 +398,7 @@ fn main() {
                     if let Some(message_window) = message_window_option {
                         if message_window.is_selection {
                             if let Some(script) =
-                                scripts.get_mut(&message_window.waiting_script_id)
+                                script_instances.get_mut(&message_window.waiting_script_id)
                             {
                                 script.input = match keycode {
                                     Keycode::Num1 => 1,
@@ -388,7 +424,7 @@ fn main() {
                     if let Some(message_window) = message_window_option {
                         if !message_window.is_selection {
                             if let Some(script) =
-                                scripts.get_mut(&message_window.waiting_script_id)
+                                script_instances.get_mut(&message_window.waiting_script_id)
                             {
                                 script.waiting = false;
                                 *message_window_option = None;
@@ -397,33 +433,35 @@ fn main() {
 
                     // Start script (if no window is open and no script is running)
                     } else {
-                        for script_source in ecs_query!(entities, position, script_component)
-                            .filter(|(pos_comp, _)| {
-                                let (player_pos_comp, player_char_comp) = ecs_query!(
-                                    entities["player"],
-                                    position,
-                                    character_component
-                                )
-                                .unwrap();
-                                entity::standing_cell(pos_comp)
-                                    == entity::facing_cell(&player_pos_comp, &player_char_comp)
-                            })
-                            .flat_map(|(_, script_comp)| {
-                                script_comp
-                                    .scripts
-                                    .iter()
-                                    .filter(|script| {
-                                        script.trigger == ScriptTrigger::Interaction
-                                    })
-                                    .map(|script| script.source.clone())
-                                    .collect::<Vec<_>>()
-                            })
-                        {
-                            scripts.insert(
-                                next_script_id,
-                                ScriptInstance::new(next_script_id, &script_source),
-                            );
-                            next_script_id += 1;
+                        // For entity standing in cell player that is facing...
+                        for (_, mut script_comp) in ecs_query!(
+                            entities,
+                            position,
+                            mut script_component
+                        )
+                        .filter(|(pos_comp, _)| {
+                            let (player_pos_comp, player_char_comp) =
+                                ecs_query!(entities["player"], position, character_component)
+                                    .unwrap();
+                            entity::standing_cell(pos_comp)
+                                == entity::facing_cell(&player_pos_comp, &player_char_comp)
+                        }) {
+                            // ...start all scripts with interaction trigger and fulfilled
+                            // start condition
+                            for script in script_comp.filter_scripts_by_trigger_and_condition(
+                                ScriptTrigger::Interaction,
+                                &story_vars,
+                            ) {
+                                script_instances.insert(
+                                    next_script_id,
+                                    ScriptInstance::new(
+                                        next_script_id,
+                                        &script.source,
+                                        script.abort_condition.clone(),
+                                    ),
+                                );
+                                next_script_id += 1;
+                            }
                         }
                     }
                 }
@@ -432,10 +470,27 @@ fn main() {
             }
         }
 
-        // ------------------------------------------
+        // Start any auto run scripts
+        for (mut script_comp,) in ecs_query!(entities, mut script_component) {
+            for script in script_comp
+                .filter_scripts_by_trigger_and_condition(ScriptTrigger::Auto, &story_vars)
+            {
+                script_instances.insert(
+                    next_script_id,
+                    ScriptInstance::new(
+                        next_script_id,
+                        &script.source,
+                        script.abort_condition.clone(),
+                    ),
+                );
+                next_script_id += 1;
+                // Only auto run script once
+                script.trigger = ScriptTrigger::None;
+            }
+        }
+
         // Update script execution
-        // ------------------------------------------
-        for script in scripts.values_mut() {
+        for script in script_instances.values_mut() {
             if !script.waiting && script.wait_until < Instant::now() {
                 #[rustfmt::skip]
                 script.execute(
@@ -444,8 +499,14 @@ fn main() {
                     &mut fade_to_black, &mut running, &musics, &sound_effects,
                 );
             }
+            if let Some(condition) = &script.abort_condition {
+                if *story_vars.get(&condition.story_var).unwrap() == condition.value {
+                    script.finished = true;
+                }
+            }
         }
-        scripts.retain(|_, script| !script.finished);
+        // Remove finished or aborted scripts
+        script_instances.retain(|_, script| !script.finished);
 
         // Update player entity
         entity::move_player_and_resolve_collisions(&entities, &tilemap);
@@ -462,25 +523,29 @@ fn main() {
         }
 
         // Start player collision script
-        for script_source in ecs_query!(entities, position, script_component)
+        // For each entity standing in cell player is standing in...
+        for (_, mut script_comp) in ecs_query!(entities, position, mut script_component)
             .filter(|(pos_comp, _)| {
                 entity::standing_cell(pos_comp)
                     == entity::standing_cell(
                         &ecs_query!(entities["player"], position).unwrap().0,
                     )
             })
-            .flat_map(|(_, script_comp)| {
-                script_comp
-                    .scripts
-                    .iter()
-                    .filter(|script| script.trigger == ScriptTrigger::Collision)
-                    .map(|script| script.source.clone())
-                    .collect::<Vec<_>>()
-            })
         {
-            scripts
-                .insert(next_script_id, ScriptInstance::new(next_script_id, &script_source));
-            next_script_id += 1;
+            // ...start all scripts that have a collision trigger and fulfill start condition
+            for script in script_comp
+                .filter_scripts_by_trigger_and_condition(ScriptTrigger::Collision, &story_vars)
+            {
+                script_instances.insert(
+                    next_script_id,
+                    ScriptInstance::new(
+                        next_script_id,
+                        &script.source,
+                        script.abort_condition.clone(),
+                    ),
+                );
+                next_script_id += 1;
+            }
         }
 
         // Update fade to black

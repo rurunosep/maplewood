@@ -31,8 +31,14 @@ impl fmt::Display for ScriptError {
 pub enum ScriptTrigger {
     Interaction,
     Collision,
-    // Auto,
-    // StoryVar(String, i32),
+    Auto,
+    None,
+}
+
+#[derive(Clone, Debug)]
+pub struct ScriptCondition {
+    pub story_var: String,
+    pub value: i32,
 }
 
 // Different from script execution instance
@@ -42,6 +48,9 @@ pub enum ScriptTrigger {
 pub struct Script {
     pub source: String,
     pub trigger: ScriptTrigger,
+    // TODO:
+    pub start_condition: Option<ScriptCondition>,
+    pub abort_condition: Option<ScriptCondition>,
 }
 
 pub struct ScriptInstance {
@@ -53,10 +62,16 @@ pub struct ScriptInstance {
     pub finished: bool,
     // Waiting on internal timer from wait(n) command
     pub wait_until: Instant,
+    pub abort_condition: Option<ScriptCondition>,
 }
 
 impl ScriptInstance {
-    pub fn new(id: i32, script_source: &str) -> Self {
+    // TODO: take a script "class"
+    pub fn new(
+        id: i32,
+        script_source: &str,
+        abort_condition: Option<ScriptCondition>,
+    ) -> Self {
         let lua_instance = Lua::new();
         lua_instance
             .context(|context| -> LuaResult<()> {
@@ -77,6 +92,7 @@ impl ScriptInstance {
             input: 0,
             finished: false,
             wait_until: Instant::now(),
+            abort_condition,
         }
     }
 
