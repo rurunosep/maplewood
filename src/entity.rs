@@ -34,7 +34,7 @@ pub struct SpriteComponent {
     pub sprite_offset: Point<i32>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct WalkingComponent {
     pub speed: f64,
     pub direction: Direction,
@@ -44,6 +44,7 @@ pub struct WalkingComponent {
 #[derive(Clone, Debug)]
 pub struct CollisionComponent {
     pub hitbox_dimensions: Point<f64>,
+    pub enabled: bool,
 }
 
 pub fn walk_and_resolve_tile_collisions(
@@ -65,52 +66,56 @@ pub fn walk_and_resolve_tile_collisions(
     let new_left = new_position.x - collision_component.hitbox_dimensions.x / 2.0;
     let new_right = new_position.x + collision_component.hitbox_dimensions.x / 2.0;
 
-    let points_to_check_for_cell_collision = match walking_component.direction {
-        Direction::Up => [WorldPos::new(new_left, new_top), WorldPos::new(new_right, new_top)],
-        Direction::Down => {
-            [WorldPos::new(new_left, new_bot), WorldPos::new(new_right, new_bot)]
-        }
-        Direction::Left => {
-            [WorldPos::new(new_left, new_top), WorldPos::new(new_left, new_bot)]
-        }
-        Direction::Right => {
-            [WorldPos::new(new_right, new_top), WorldPos::new(new_right, new_bot)]
-        }
-    };
+    if collision_component.enabled {
+        let points_to_check_for_cell_collision = match walking_component.direction {
+            Direction::Up => {
+                [WorldPos::new(new_left, new_top), WorldPos::new(new_right, new_top)]
+            }
+            Direction::Down => {
+                [WorldPos::new(new_left, new_bot), WorldPos::new(new_right, new_bot)]
+            }
+            Direction::Left => {
+                [WorldPos::new(new_left, new_top), WorldPos::new(new_left, new_bot)]
+            }
+            Direction::Right => {
+                [WorldPos::new(new_right, new_top), WorldPos::new(new_right, new_bot)]
+            }
+        };
 
-    for point in points_to_check_for_cell_collision {
-        match world::get_cell_at_cellpos(tilemap, point.to_cellpos()) {
-            Some(cell) if !cell.passable => {
-                let cell_top = point.y.floor();
-                let cell_bot = point.y.ceil();
-                let cell_left = point.x.floor();
-                let cell_right = point.x.ceil();
-                if new_top < cell_bot
-                    && new_bot > cell_top
-                    && new_left < cell_right
-                    && new_right > cell_left
-                {
-                    match walking_component.direction {
-                        Direction::Up => {
-                            new_position.y =
-                                cell_bot + collision_component.hitbox_dimensions.y / 2.0
-                        }
-                        Direction::Down => {
-                            new_position.y =
-                                cell_top - collision_component.hitbox_dimensions.y / 2.0
-                        }
-                        Direction::Left => {
-                            new_position.x =
-                                cell_right + collision_component.hitbox_dimensions.x / 2.0
-                        }
-                        Direction::Right => {
-                            new_position.x =
-                                cell_left - collision_component.hitbox_dimensions.x / 2.0
+        for point in points_to_check_for_cell_collision {
+            match world::get_cell_at_cellpos(tilemap, point.to_cellpos()) {
+                Some(cell) if !cell.passable => {
+                    let cell_top = point.y.floor();
+                    let cell_bot = point.y.ceil();
+                    let cell_left = point.x.floor();
+                    let cell_right = point.x.ceil();
+                    if new_top < cell_bot
+                        && new_bot > cell_top
+                        && new_left < cell_right
+                        && new_right > cell_left
+                    {
+                        match walking_component.direction {
+                            Direction::Up => {
+                                new_position.y =
+                                    cell_bot + collision_component.hitbox_dimensions.y / 2.0
+                            }
+                            Direction::Down => {
+                                new_position.y =
+                                    cell_top - collision_component.hitbox_dimensions.y / 2.0
+                            }
+                            Direction::Left => {
+                                new_position.x =
+                                    cell_right + collision_component.hitbox_dimensions.x / 2.0
+                            }
+                            Direction::Right => {
+                                new_position.x =
+                                    cell_left - collision_component.hitbox_dimensions.x / 2.0
+                            }
                         }
                     }
                 }
+                _ => {}
             }
-            _ => {}
         }
     }
 

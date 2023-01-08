@@ -82,32 +82,41 @@ fn main() {
     sdl2::mixer::open_audio(41_100, AUDIO_S16SYS, DEFAULT_CHANNELS, 512).unwrap();
     sdl2::mixer::allocate_channels(4);
     let mut sound_effects: HashMap<String, Chunk> = HashMap::new();
-    sound_effects
-        .insert("door_open".to_string(), Chunk::from_file("assets/door_open.wav").unwrap());
-    sound_effects
-        .insert("door_close".to_string(), Chunk::from_file("assets/door_close.wav").unwrap());
-    sound_effects
-        .insert("chest_open".to_string(), Chunk::from_file("assets/chest_open.wav").unwrap());
-    sound_effects
-        .insert("smash_pot".to_string(), Chunk::from_file("assets/smash_pot.wav").unwrap());
+    sound_effects.insert(
+        "door_open".to_string(),
+        Chunk::from_file("assets/audio/door_open.wav").unwrap(),
+    );
+    sound_effects.insert(
+        "door_close".to_string(),
+        Chunk::from_file("assets/audio/door_close.wav").unwrap(),
+    );
+    sound_effects.insert(
+        "chest_open".to_string(),
+        Chunk::from_file("assets/audio/chest_open.wav").unwrap(),
+    );
+    sound_effects.insert(
+        "smash_pot".to_string(),
+        Chunk::from_file("assets/audio/smash_pot.wav").unwrap(),
+    );
     sound_effects.insert(
         "drop_in_water".to_string(),
-        Chunk::from_file("assets/drop_in_water.wav").unwrap(),
+        Chunk::from_file("assets/audio/drop_in_water.wav").unwrap(),
     );
-    sound_effects.insert("flame".to_string(), Chunk::from_file("assets/flame.wav").unwrap());
+    sound_effects
+        .insert("flame".to_string(), Chunk::from_file("assets/audio/flame.wav").unwrap());
 
     let mut musics: HashMap<String, Music> = HashMap::new();
-    musics.insert("sleep".to_string(), Music::from_file("assets/sleep.wav").unwrap());
+    musics.insert("sleep".to_string(), Music::from_file("assets/audio/sleep.wav").unwrap());
 
     let mut tilemap = {
         const IMPASSABLE_TILES: [i32; 19] =
             [0, 1, 2, 3, 20, 27, 31, 36, 38, 45, 47, 48, 51, 53, 54, 55, 59, 60, 67];
-        let layer_1_ids: Vec<Vec<i32>> = fs::read_to_string("assets/cottage_1.csv")
+        let layer_1_ids: Vec<Vec<i32>> = fs::read_to_string("tiled/cottage_1.csv")
             .unwrap()
             .lines()
             .map(|line| line.split(',').map(|x| x.trim().parse().unwrap()).collect())
             .collect();
-        let layer_2_ids: Vec<Vec<i32>> = fs::read_to_string("assets/cottage_2.csv")
+        let layer_2_ids: Vec<Vec<i32>> = fs::read_to_string("tiled/cottage_2.csv")
             .unwrap()
             .lines()
             .map(|line| line.split(',').map(|x| x.trim().parse().unwrap()).collect())
@@ -125,16 +134,14 @@ fn main() {
         Array2D::from_row_major(&cells, layer_1_ids.len(), layer_1_ids.get(0).unwrap().len())
     };
 
-    let cottage_scripts = fs::read_to_string("lua/sleepy_cottage_test.lua").unwrap();
-    let entities_script = fs::read_to_string("lua/entities_test.lua").unwrap();
+    let scripts_source = fs::read_to_string("lua/slime_glue.lua").unwrap();
 
     let mut entities: HashMap<String, Entity> = HashMap::new();
 
-    // Character entities
     entities.insert(
         "player".to_string(),
         Entity {
-            position: RefCell::new(Some(WorldPos::new(7.5, 15.5))),
+            position: RefCell::new(Some(WorldPos::new(12.5, 5.5))),
             walking_component: RefCell::new(Some(WalkingComponent {
                 speed: 0.,
                 direction: Direction::Down,
@@ -142,6 +149,7 @@ fn main() {
             })),
             collision_component: RefCell::new(Some(CollisionComponent {
                 hitbox_dimensions: Point::new(8.0 / 16.0, 6.0 / 16.0),
+                enabled: true,
             })),
             sprite_component: RefCell::new(Some(SpriteComponent {
                 spriteset_rect: Rect::new(7 * 16, 0, 16 * 4, 16 * 4),
@@ -152,143 +160,28 @@ fn main() {
         },
     );
     entities.insert(
-        "skele_1".to_string(),
+        "man".to_string(),
         Entity {
-            position: RefCell::new(Some(WorldPos::new(8.5, 10.5))),
-            sprite_component: RefCell::new(Some(SpriteComponent {
-                spriteset_rect: Rect::new(10 * 16, 0, 16 * 4, 16 * 4),
-                sprite_offset: Point::new(8, 13),
-            })),
-            facing: RefCell::new(Some(Direction::Down)),
-            scripts: RefCell::new(Some(vec![Script {
-                source: script::get_sub_script(&entities_script, "1"),
-                trigger: ScriptTrigger::Interaction,
-                start_condition: None,
-                abort_condition: None,
-            }])),
-            ..Default::default()
-        },
-    );
-    entities.insert(
-        "skele_2".to_string(),
-        Entity {
-            position: RefCell::new(Some(WorldPos::new(11.5, 18.5))),
-            walking_component: RefCell::new(Some(WalkingComponent {
-                speed: 0.,
-                direction: Direction::Down,
-                destination: None,
-            })),
+            position: RefCell::new(Some(WorldPos::new(12.5, 7.8))),
+            walking_component: RefCell::new(Some(WalkingComponent::default())),
             collision_component: RefCell::new(Some(CollisionComponent {
                 hitbox_dimensions: Point::new(8.0 / 16.0, 6.0 / 16.0),
+                enabled: true,
             })),
-            scripts: RefCell::new(Some(vec![
-                Script {
-                    source: script::get_sub_script(&entities_script, "2"),
-                    trigger: ScriptTrigger::Interaction,
-                    start_condition: None,
-                    abort_condition: None,
-                },
-                Script {
-                    source: script::get_sub_script(&entities_script, "2b"),
-                    trigger: ScriptTrigger::Auto,
-                    start_condition: None,
-                    abort_condition: None,
-                },
-            ])),
-            ..entities.get("skele_1").unwrap().clone()
-        },
-    );
-    entities.insert(
-        "skele_3".to_string(),
-        Entity {
-            position: RefCell::new(Some(WorldPos::new(11.5, 17.5))),
-            scripts: RefCell::new(Some(vec![Script {
-                source: script::get_sub_script(&entities_script, "3"),
-                trigger: ScriptTrigger::Interaction,
-                start_condition: None,
-                abort_condition: None,
-            }])),
-            ..entities.get("skele_1").unwrap().clone()
-        },
-    );
-
-    // Interactable cell entities
-    [
-        ("sign", 7, 10),
-        ("grave", 9, 2),
-        ("pot", 12, 9),
-        ("bed", 12, 5),
-        ("door", 8, 8),
-        ("dresser", 11, 5),
-        ("brazier", 6, 7),
-        ("tree", 4, 11),
-        ("chest", 8, 5),
-        ("well", 5, 11),
-    ]
-    .iter()
-    .for_each(|(n, x, y)| {
-        entities.insert(
-            n.to_string(),
-            Entity {
-                position: RefCell::new(Some(WorldPos::new(*x as f64, *y as f64))),
-                scripts: RefCell::new(Some(vec![Script {
-                    source: script::get_sub_script(&cottage_scripts, n),
-                    trigger: ScriptTrigger::Interaction,
-                    start_condition: None,
-                    abort_condition: None,
-                }])),
-                ..Default::default()
-            },
-        );
-    });
-    entities.insert(
-        "brazier_2".to_string(),
-        Entity {
-            position: RefCell::new(Some(WorldPos::new(13., 7.))),
-            scripts: RefCell::new(Some(vec![Script {
-                source: script::get_sub_script(&cottage_scripts, "brazier"),
-                trigger: ScriptTrigger::Interaction,
-                start_condition: None,
-                abort_condition: None,
-            }])),
+            sprite_component: RefCell::new(Some(SpriteComponent {
+                spriteset_rect: Rect::new(4 * 16, 0, 16 * 4, 16 * 4),
+                sprite_offset: Point::new(8, 13),
+            })),
+            facing: RefCell::new(Some(Direction::Up)),
             ..Default::default()
         },
     );
 
-    // Collision cell entities
-    entities.insert(
-        "door_collision".to_string(),
-        Entity {
-            position: RefCell::new(Some(WorldPos::new(8., 8.))),
-            scripts: RefCell::new(Some(vec![Script {
-                source: script::get_sub_script(&cottage_scripts, "door_collision"),
-                trigger: ScriptTrigger::Collision,
-                start_condition: None,
-                abort_condition: None,
-            }])),
-            ..Default::default()
-        },
-    );
-    entities.insert(
-        "stairs_collision".to_string(),
-        Entity {
-            position: RefCell::new(Some(WorldPos::new(6., 5.))),
-            scripts: RefCell::new(Some(vec![Script {
-                source: script::get_sub_script(&cottage_scripts, "stairs_collision"),
-                trigger: ScriptTrigger::Collision,
-                start_condition: None,
-                abort_condition: None,
-            }])),
-            ..Default::default()
-        },
-    );
-
-    // Auto run scripts entity
     entities.insert(
         "auto_run_scripts".to_string(),
         Entity {
             scripts: RefCell::new(Some(vec![Script {
-                source: script::get_sub_script(&cottage_scripts, "start"),
+                source: script::get_sub_script(&scripts_source, "start"),
                 trigger: ScriptTrigger::Auto,
                 start_condition: None,
                 abort_condition: None,
@@ -298,24 +191,12 @@ fn main() {
     );
 
     let mut story_vars: HashMap<String, i32> = HashMap::new();
-    story_vars.insert("got_plushy".to_string(), 0);
-    story_vars.insert("tried_to_leave_plushy".to_string(), 0);
-    story_vars.insert("tried_to_drown_plushy".to_string(), 0);
-    story_vars.insert("tried_to_burn_plushy".to_string(), 0);
-    story_vars.insert("read_grave_note".to_string(), 0);
-    story_vars.insert("got_door_key".to_string(), 1);
-    story_vars.insert("got_chest_key".to_string(), 0);
-    story_vars.insert("opened_door".to_string(), 0);
-    story_vars.insert("read_dresser_note".to_string(), 0);
-    story_vars.insert("burned_dresser_note".to_string(), 0);
-    story_vars.insert("tried_to_sleep".to_string(), 0);
+    story_vars.insert("event_stage".to_string(), 1);
 
     let mut message_window: Option<MessageWindow> = None;
     let mut player_movement_locked = false;
-
     let mut map_overlay_color = Color::RGBA(0, 0, 0, 0);
     let mut map_overlay_color_transition: Option<MapOverlayColorTransition> = None;
-
     // TODO: script manager to hold scripts and keep track of next_script_id?
     let mut next_script_id = 0;
     let mut script_instances: HashMap<i32, ScriptInstance> = HashMap::new();

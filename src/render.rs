@@ -2,6 +2,7 @@ use crate::entity::{self, Direction, Entity};
 use crate::world::{self, Cell, CellPos, Point, WorldPos};
 use crate::{ecs_query, MessageWindow, SCREEN_COLS, SCREEN_ROWS, SCREEN_SCALE, TILE_SIZE};
 use array2d::Array2D;
+use itertools::Itertools;
 use sdl2::pixels::Color;
 use sdl2::rect::Rect;
 use sdl2::render::{Texture, TextureQuery, WindowCanvas};
@@ -146,6 +147,7 @@ pub fn render(
     // Draw entities with character components
     for (position, sprite_component, facing) in
         ecs_query!(entities, position, sprite_component, facing)
+            .sorted_by(|(p1, _, _), (p2, _, _)| p1.y.partial_cmp(&p2.y).unwrap())
     {
         let sprite_row = match *facing {
             Direction::Up => 3,

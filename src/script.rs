@@ -5,6 +5,7 @@ use array2d::Array2D;
 use rlua::{Error as LuaError, Function, Lua, Result as LuaResult, Thread, ThreadStatus};
 use sdl2::mixer::{Chunk, Music};
 use sdl2::pixels::Color;
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::error::Error;
 use std::fmt;
@@ -114,15 +115,13 @@ impl ScriptInstance {
         musics: &HashMap<String, Music>,
         sound_effects: &HashMap<String, Chunk>,
     ) {
-        // I need multiple mutable references to certain pieces of data to pass into
-        // the script function callbacks. For each such value, cast the reference into a raw
-        // pointer, copy the pointer into the callbacks, and dereference in unsafe blocks
-        let story_vars = story_vars as *mut HashMap<String, i32>;
-        let entities = entities as *mut HashMap<String, Entity>;
-        let message_window = message_window as *mut Option<MessageWindow>;
-        let player_movement_locked = player_movement_locked as *mut bool;
-        let tilemap = tilemap as *mut Array2D<Cell>;
-        let waiting = &mut self.waiting as *mut bool;
+        // Wrap mut refs that are used by multiple callbacks in RefCells
+        let story_vars = RefCell::new(story_vars);
+        let entities = RefCell::new(entities);
+        let message_window = RefCell::new(message_window);
+        let player_movement_locked = RefCell::new(player_movement_locked);
+        let tilemap = RefCell::new(tilemap);
+        let waiting = RefCell::new(&mut self.waiting);
 
         self.lua_instance
             .context(|context| -> LuaResult<()> {
@@ -151,25 +150,27 @@ impl ScriptInstance {
 
                     globals.set(
                         "get",
-                        scope.create_function(|_, key: String| unsafe {
-                            (*story_vars).get(&key).copied().ok_or(LuaError::ExternalError(
-                                Arc::new(ScriptError::InvalidStoryVar(key)),
-                            ))
+                        scope.create_function(|_, key: String| {
+                            story_vars.borrow().get(&key).copied().ok_or(
+                                LuaError::ExternalError(Arc::new(
+                                    ScriptError::InvalidStoryVar(key),
+                                )),
+                            )
                         })?,
                     )?;
 
                     globals.set(
                         "set",
-                        scope.create_function_mut(|_, (key, val): (String, i32)| unsafe {
-                            (*story_vars).insert(key, val);
+                        scope.create_function_mut(|_, (key, val): (String, i32)| {
+                            story_vars.borrow_mut().insert(key, val);
                             Ok(())
                         })?,
                     )?;
 
                     globals.set(
                         "get_entity_position",
-                        scope.create_function(|_, entity: String| unsafe {
-                            let entities = &*entities;
+                        scope.create_function(|_, entity: String| {
+                            let entities = entities.borrow();
                             let (position,) = ecs_query!(entities[&entity], position).ok_or(
                                 LuaError::ExternalError(Arc::new(ScriptError::InvalidEntity(
                                     entity,
@@ -182,10 +183,10 @@ impl ScriptInstance {
                     globals.set(
                         "set_cell_tile",
                         scope.create_function_mut(
-                            |_, (x, y, layer, id): (i32, i32, i32, i32)| unsafe {
+                            |_, (x, y, layer, id): (i32, i32, i32, i32)| {
                                 let new_tile = if id == -1 { None } else { Some(id as u32) };
                                 if let Some(Cell { tile_1, tile_2, .. }) =
-                                    (*tilemap).get_mut(y as usize, x as usize)
+                                    tilemap.borrow_mut().get_mut(y as usize, x as usize)
                                 {
                                     if layer == 1 {
                                         *tile_1 = new_tile;
@@ -200,9 +201,9 @@ impl ScriptInstance {
 
                     globals.set(
                         "set_cell_passable",
-                        scope.create_function(|_, (x, y, pass): (i32, i32, bool)| unsafe {
+                        scope.create_function(|_, (x, y, pass): (i32, i32, bool)| {
                             if let Some(Cell { passable, .. }) =
-                                (*tilemap).get_mut(y as usize, x as usize)
+                                tilemap.borrow_mut().get_mut(y as usize, x as usize)
                             {
                                 *passable = pass;
                             }
@@ -212,26 +213,42 @@ impl ScriptInstance {
 
                     globals.set(
                         "lock_movement",
-                        scope.create_function_mut(|_, ()| unsafe {
-                            *player_movement_locked = true;
+                        scope.create_function_mut(|_, ()| {
+                            **player_movement_locked.borrow_mut() = true;
                             Ok(())
                         })?,
                     )?;
 
                     globals.set(
                         "unlock_movement",
-                        scope.create_function_mut(|_, ()| unsafe {
-                            *player_movement_locked = false;
+                        scope.create_function_mut(|_, ()| {
+                            **player_movement_locked.borrow_mut() = false;
                             Ok(())
                         })?,
+                    )?;
+
+                    globals.set(
+                        "set_collision",
+                        scope.create_function_mut(
+                            |_, (entity, enabled): (String, bool)| {
+                                let entities = entities.borrow_mut();
+                                let (mut collision_component,) =
+                                    ecs_query!(entities[&entity], mut collision_component)
+                                        .ok_or(LuaError::ExternalError(Arc::new(
+                                            ScriptError::InvalidEntity(entity),
+                                        )))?;
+                                collision_component.enabled = enabled;
+                                Ok(())
+                            },
+                        )?,
                     )?;
 
                     // TODO: distance version + destination version? rename?
                     globals.set(
                         "walk",
                         scope.create_function_mut(
-                            |_, (entity, direction, distance): (String, String, f64)| unsafe {
-                                let entities = &*entities;
+                            |_, (entity, direction, distance): (String, String, f64)| {
+                                let entities = entities.borrow_mut();
                                 let (position, mut facing, mut walking_component) =
                                     ecs_query!(
                                         entities[&entity],
@@ -273,18 +290,16 @@ impl ScriptInstance {
 
                     globals.set(
                         "teleport_entity",
-                        scope.create_function_mut(
-                            |_, (name, x, y): (String, f64, f64)| unsafe {
-                                let entities = &*entities;
-                                let mut position = ecs_query!(entities[&name], mut position)
-                                    .map(|r| r.0)
-                                    .ok_or(LuaError::ExternalError(Arc::new(
-                                        ScriptError::InvalidEntity(name),
-                                    )))?;
-                                *position = WorldPos::new(x, y);
-                                Ok(())
-                            },
-                        )?,
+                        scope.create_function_mut(|_, (name, x, y): (String, f64, f64)| {
+                            let entities = entities.borrow_mut();
+                            let mut position = ecs_query!(entities[&name], mut position)
+                                .map(|r| r.0)
+                                .ok_or(LuaError::ExternalError(Arc::new(
+                                    ScriptError::InvalidEntity(name),
+                                )))?;
+                            *position = WorldPos::new(x, y);
+                            Ok(())
+                        })?,
                     )?;
 
                     globals.set(
@@ -335,13 +350,13 @@ impl ScriptInstance {
                     )?;
 
                     let message_unwrapped =
-                        scope.create_function_mut(|_, message: String| unsafe {
-                            *message_window = Some(MessageWindow {
+                        scope.create_function_mut(|_, message: String| {
+                            **message_window.borrow_mut() = Some(MessageWindow {
                                 message,
                                 is_selection: false,
                                 waiting_script_id: self.id,
                             });
-                            *waiting = true;
+                            **waiting.borrow_mut() = true;
                             Ok(())
                         })?;
                     globals.set::<_, Function>(
@@ -350,13 +365,13 @@ impl ScriptInstance {
                     )?;
 
                     let selection_unwrapped =
-                        scope.create_function_mut(|_, message: String| unsafe {
-                            *message_window = Some(MessageWindow {
+                        scope.create_function_mut(|_, message: String| {
+                            **message_window.borrow_mut() = Some(MessageWindow {
                                 message,
                                 is_selection: true,
                                 waiting_script_id: self.id,
                             });
-                            *waiting = true;
+                            **waiting.borrow_mut() = true;
                             Ok(())
                         })?;
                     globals.set::<_, Function>(
