@@ -1,9 +1,10 @@
 use crate::entity::{Direction, Entity};
 use crate::world::{Cell, WorldPos};
-use crate::{ecs_query, FadeToBlack, MessageWindow, PLAYER_MOVE_SPEED};
+use crate::{ecs_query, MapOverlayColorTransition, MessageWindow, PLAYER_MOVE_SPEED};
 use array2d::Array2D;
 use rlua::{Error as LuaError, Function, Lua, Result as LuaResult, Thread, ThreadStatus};
 use sdl2::mixer::{Chunk, Music};
+use sdl2::pixels::Color;
 use std::collections::HashMap;
 use std::error::Error;
 use std::fmt;
@@ -107,7 +108,8 @@ impl ScriptInstance {
         message_window: &mut Option<MessageWindow>,
         player_movement_locked: &mut bool,
         tilemap: &mut Array2D<Cell>,
-        fade_to_black: &mut Option<FadeToBlack>,
+        map_overlay_color_transition: &mut Option<MapOverlayColorTransition>,
+        map_overlay_color: Color,
         running: &mut bool,
         musics: &HashMap<String, Music>,
         sound_effects: &HashMap<String, Chunk>,
@@ -144,8 +146,8 @@ impl ScriptInstance {
 
                     // Provide Rust functions to Lua
                     // Every function that references Rust data must be recreated in this scope
-                    // each time we execute some of the script, to ensure that the reference
-                    // lifetimes remain valid
+                    // each time we execute some of the script, to ensure that the references
+                    // remain valid
 
                     globals.set(
                         "get",
@@ -285,16 +287,20 @@ impl ScriptInstance {
                         )?,
                     )?;
 
-                    // TODO: arbitrary overlay color + fade to any new color
                     globals.set(
-                        "fade_to_black",
-                        scope.create_function_mut(|_, duration: f64| {
-                            *fade_to_black = Some(FadeToBlack {
-                                start: Instant::now(),
-                                duration: Duration::from_secs_f64(duration),
-                            });
-                            Ok(())
-                        })?,
+                        "map_overlay_color",
+                        scope.create_function_mut(
+                            |_, (r, g, b, a, duration): (u8, u8, u8, u8, f64)| {
+                                *map_overlay_color_transition =
+                                    Some(MapOverlayColorTransition {
+                                        start_time: Instant::now(),
+                                        duration: Duration::from_secs_f64(duration),
+                                        start_color: map_overlay_color,
+                                        end_color: Color::RGBA(r, g, b, a),
+                                    });
+                                Ok(())
+                            },
+                        )?,
                     )?;
 
                     globals.set(

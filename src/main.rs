@@ -18,6 +18,7 @@ use sdl2::event::Event;
 use sdl2::image::LoadTexture;
 use sdl2::keyboard::Keycode;
 use sdl2::mixer::{Chunk, Music, AUDIO_S16SYS, DEFAULT_CHANNELS};
+use sdl2::pixels::Color;
 use sdl2::rect::Rect;
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -37,9 +38,11 @@ pub struct MessageWindow {
     waiting_script_id: i32,
 }
 
-pub struct FadeToBlack {
-    start: Instant,
+pub struct MapOverlayColorTransition {
+    start_time: Instant,
     duration: Duration,
+    start_color: Color,
+    end_color: Color,
 }
 
 fn main() {
@@ -308,8 +311,10 @@ fn main() {
     story_vars.insert("tried_to_sleep".to_string(), 0);
 
     let mut message_window: Option<MessageWindow> = None;
-    let mut fade_to_black: Option<FadeToBlack> = None;
     let mut player_movement_locked = false;
+
+    let mut map_overlay_color = Color::RGBA(0, 0, 0, 0);
+    let mut map_overlay_color_transition: Option<MapOverlayColorTransition> = None;
 
     // TODO: script manager to hold scripts and keep track of next_script_id?
     let mut next_script_id = 0;
@@ -486,7 +491,8 @@ fn main() {
                 script.execute(
                     &mut story_vars, &mut entities, &mut message_window,
                     &mut player_movement_locked, &mut tilemap,
-                    &mut fade_to_black, &mut running, &musics, &sound_effects,
+                    &mut map_overlay_color_transition, map_overlay_color,
+                    &mut running, &musics, &sound_effects,
                 );
             }
             if let Some(condition) = &script.abort_condition {
@@ -559,11 +565,27 @@ fn main() {
             }
         }
 
-        // Update fade to black
-        let fade_to_black_option = &mut fade_to_black;
-        if let Some(fade_to_black) = fade_to_black_option {
-            if fade_to_black.start.elapsed() > fade_to_black.duration {
-                *fade_to_black_option = None;
+        // Update map overlay color
+        if let Some(MapOverlayColorTransition {
+            start_time,
+            duration,
+            start_color,
+            end_color,
+        }) = &map_overlay_color_transition
+        {
+            let interp = start_time.elapsed().div_duration_f64(*duration).min(1.0);
+            let r = ((end_color.r as f64 - start_color.r as f64) * interp
+                + start_color.r as f64) as u8;
+            let g = ((end_color.g as f64 - start_color.g as f64) * interp
+                + start_color.g as f64) as u8;
+            let b = ((end_color.b as f64 - start_color.b as f64) * interp
+                + start_color.b as f64) as u8;
+            let a = ((end_color.a as f64 - start_color.a as f64) * interp
+                + start_color.a as f64) as u8;
+            map_overlay_color = Color::RGBA(r, g, b, a);
+
+            if start_time.elapsed() > *duration {
+                map_overlay_color_transition = None;
             }
         }
 
@@ -590,7 +612,7 @@ fn main() {
         render::render(
             &mut canvas, camera_position, &tileset, &tilemap,
             &message_window, &font, &spritesheet, &entities,
-            &fade_to_black
+            map_overlay_color
         );
 
         // Sleep

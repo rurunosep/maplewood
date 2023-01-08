@@ -1,8 +1,6 @@
 use crate::entity::{self, Direction, Entity};
 use crate::world::{self, Cell, CellPos, Point, WorldPos};
-use crate::{
-    ecs_query, FadeToBlack, MessageWindow, SCREEN_COLS, SCREEN_ROWS, SCREEN_SCALE, TILE_SIZE,
-};
+use crate::{ecs_query, MessageWindow, SCREEN_COLS, SCREEN_ROWS, SCREEN_SCALE, TILE_SIZE};
 use array2d::Array2D;
 use sdl2::pixels::Color;
 use sdl2::rect::Rect;
@@ -36,7 +34,7 @@ pub fn render(
     font: &Font,
     spritesheet: &Texture,
     entities: &HashMap<String, Entity>,
-    fade_to_black: &Option<FadeToBlack>,
+    map_overlay_color: Color,
 ) {
     canvas.set_draw_color(Color::RGB(255, 255, 255));
     canvas.clear();
@@ -175,6 +173,12 @@ pub fn render(
         canvas.copy(spritesheet, sprite_rect, screen_rect).unwrap();
     }
 
+    // Draw map overlay after map/entities/etc and before UI
+    canvas.set_draw_color(map_overlay_color);
+    canvas.set_blend_mode(sdl2::render::BlendMode::Blend);
+    let (w, h) = canvas.output_size().unwrap();
+    canvas.fill_rect(Rect::new(0, 0, w, h)).unwrap();
+
     // Draw message window
     // This goes directly on the screen and has no world pos to convert
     if let Some(message_window) = message_window {
@@ -209,16 +213,6 @@ pub fn render(
                 )
                 .unwrap();
         }
-    }
-
-    // Fade to black
-    if let Some(ftb) = fade_to_black {
-        let interp = ftb.start.elapsed().div_duration_f64(ftb.duration).min(1.0);
-        let alpha = (255. * interp) as u8;
-        canvas.set_draw_color(Color::RGBA(0, 0, 0, alpha));
-        canvas.set_blend_mode(sdl2::render::BlendMode::Blend);
-        let (w, h) = canvas.output_size().unwrap();
-        canvas.fill_rect(Rect::new(0, 0, w, h)).unwrap();
     }
 
     canvas.present();
