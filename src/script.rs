@@ -1,6 +1,6 @@
 use crate::entity::{Direction, Entity};
 use crate::world::{Cell, WorldPos};
-use crate::{ecs_query, MapOverlayColorTransition, MessageWindow, PLAYER_MOVE_SPEED};
+use crate::{ecs_query, MapOverlayColorTransition, MessageWindow};
 use array2d::Array2D;
 use rlua::{Error as LuaError, Function, Lua, Result as LuaResult, Thread, ThreadStatus};
 use sdl2::mixer::{Chunk, Music};
@@ -69,7 +69,7 @@ pub struct ScriptInstance {
 }
 
 impl ScriptInstance {
-    // TODO: take a script "class"
+    // TODO: take a script "class"?
     pub fn new(
         id: i32,
         script_source: &str,
@@ -143,10 +143,12 @@ impl ScriptInstance {
                         )
                         .eval()?;
 
+                    // TODO: rework API, how waiting/yielding works, etc
+
                     // Provide Rust functions to Lua
                     // Every function that references Rust data must be recreated in this scope
                     // each time we execute some of the script, to ensure that the references
-                    // remain valid
+                    // in the callback remain valid
 
                     globals.set(
                         "get",
@@ -243,11 +245,16 @@ impl ScriptInstance {
                         )?,
                     )?;
 
-                    // TODO: distance version + destination version? rename?
                     globals.set(
                         "walk",
                         scope.create_function_mut(
-                            |_, (entity, direction, distance): (String, String, f64)| {
+                            |_,
+                             (entity, direction, distance, speed): (
+                                String,
+                                String,
+                                f64,
+                                f64,
+                            )| {
                                 let entities = entities.borrow_mut();
                                 let (position, mut facing, mut walking_component) =
                                     ecs_query!(
@@ -269,8 +276,7 @@ impl ScriptInstance {
                                     "right" => Direction::Right,
                                     s => panic!("{s} is not a valid direction"),
                                 };
-                                // TODO: different speed
-                                walking_component.speed = PLAYER_MOVE_SPEED;
+                                walking_component.speed = speed;
                                 walking_component.destination = Some(
                                     *position
                                         + match walking_component.direction {
@@ -289,17 +295,68 @@ impl ScriptInstance {
                     )?;
 
                     globals.set(
+                        "walk_to",
+                        scope.create_function_mut(
+                            |_,
+                             (entity, direction, destination, speed): (
+                                String,
+                                String,
+                                f64,
+                                f64,
+                            )| {
+                                let entities = entities.borrow_mut();
+                                let (position, mut facing, mut walking_component) =
+                                    ecs_query!(
+                                        entities[&entity],
+                                        position,
+                                        mut facing,
+                                        mut walking_component
+                                    )
+                                    .ok_or(
+                                        LuaError::ExternalError(Arc::new(
+                                            ScriptError::InvalidEntity(entity),
+                                        )),
+                                    )?;
+
+                                walking_component.direction = match direction.as_str() {
+                                    "up" => Direction::Up,
+                                    "down" => Direction::Down,
+                                    "left" => Direction::Left,
+                                    "right" => Direction::Right,
+                                    s => panic!("{s} is not a valid direction"),
+                                };
+                                walking_component.speed = speed;
+                                walking_component.destination =
+                                    Some(match walking_component.direction {
+                                        Direction::Up | Direction::Down => {
+                                            WorldPos::new(position.x, destination)
+                                        }
+                                        Direction::Left | Direction::Right => {
+                                            WorldPos::new(destination, position.y)
+                                        }
+                                    });
+
+                                *facing = walking_component.direction;
+
+                                Ok(())
+                            },
+                        )?,
+                    )?;
+
+                    globals.set(
                         "teleport_entity",
-                        scope.create_function_mut(|_, (name, x, y): (String, f64, f64)| {
-                            let entities = entities.borrow_mut();
-                            let mut position = ecs_query!(entities[&name], mut position)
-                                .map(|r| r.0)
-                                .ok_or(LuaError::ExternalError(Arc::new(
-                                    ScriptError::InvalidEntity(name),
-                                )))?;
-                            *position = WorldPos::new(x, y);
-                            Ok(())
-                        })?,
+                        scope.create_function_mut(
+                            |_, (entity, x, y): (String, f64, f64)| {
+                                let entities = entities.borrow_mut();
+                                let mut position = ecs_query!(entities[&entity], mut position)
+                                    .map(|r| r.0)
+                                    .ok_or(LuaError::ExternalError(Arc::new(
+                                        ScriptError::InvalidEntity(entity),
+                                    )))?;
+                                *position = WorldPos::new(x, y);
+                                Ok(())
+                            },
+                        )?,
                     )?;
 
                     globals.set(
@@ -347,6 +404,35 @@ impl ScriptInstance {
                                 Ok(())
                             },
                         )?,
+                    )?;
+
+                    globals.set(
+                        "is_not_walking",
+                        scope.create_function(|_, entity: String| {
+                            let entities = entities.borrow();
+                            let walking_component =
+                                ecs_query!(entities[&entity], walking_component)
+                                    .map(|r| r.0)
+                                    .ok_or(LuaError::ExternalError(Arc::new(
+                                        ScriptError::InvalidEntity(entity),
+                                    )))?;
+                            Ok(walking_component.destination.is_none())
+                        })?,
+                    )?;
+
+                    globals.set::<_, Function>(
+                        "wait_until_not_walking",
+                        context
+                            .load(
+                                r#"
+                                function(entity)
+                                    while(not is_not_walking(entity)) do
+                                        coroutine.yield()
+                                    end
+                                end
+                                "#,
+                            )
+                            .eval()?,
                     )?;
 
                     let message_unwrapped =
