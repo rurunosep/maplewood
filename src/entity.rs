@@ -22,7 +22,6 @@ pub struct Entity {
     // Both the sprite facing direction and the walking direction
     pub facing: RefCell<Option<Direction>>,
     pub walking_component: RefCell<Option<WalkingComponent>>,
-    // TODO: handle collision script triggering with this
     pub collision_component: RefCell<Option<CollisionComponent>>,
     pub scripts: RefCell<Option<Vec<Script>>>,
 }
@@ -32,6 +31,9 @@ pub struct SpriteComponent {
     // The region of the full spritesheet with this entity's sprites
     pub spriteset_rect: Rect,
     pub sprite_offset: Point<i32>,
+
+    // TODO: ad hoc
+    pub dead_sprite: Option<Rect>,
 }
 
 #[derive(Clone, Debug, Default)]

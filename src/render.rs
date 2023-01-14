@@ -36,6 +36,7 @@ pub fn render(
     spritesheet: &Texture,
     entities: &HashMap<String, Entity>,
     map_overlay_color: Color,
+    dead_sprites: &Texture,
 ) {
     canvas.set_draw_color(Color::RGB(255, 255, 255));
     canvas.clear();
@@ -83,67 +84,6 @@ pub fn render(
         }
     }
 
-    if false {
-        // Draw player standing cell marker
-        // world -> top_left
-        let position_in_world =
-            entity::standing_cell(&ecs_query!(entities["player"], position).unwrap().0)
-                .to_worldpos();
-        let position_in_viewport = position_in_world - viewport_top_left;
-        let position_on_screen = worldpos_to_screenpos(position_in_viewport);
-        let top_left = position_on_screen;
-
-        canvas.set_draw_color(Color::RGB(255, 0, 0));
-        canvas
-            .draw_rect(Rect::new(
-                top_left.x,
-                top_left.y,
-                TILE_SIZE * SCREEN_SCALE,
-                TILE_SIZE * SCREEN_SCALE,
-            ))
-            .unwrap();
-
-        // Draw player facing cell marker
-        // world -> top_left
-        let (p, f) = ecs_query!(entities["player"], position, facing).unwrap();
-        let position_in_world = entity::facing_cell(&p, *f).to_worldpos();
-        let position_in_viewport = position_in_world - viewport_top_left;
-        let position_on_screen = worldpos_to_screenpos(position_in_viewport);
-        let top_left = position_on_screen;
-
-        canvas.set_draw_color(Color::RGB(0, 0, 255));
-        canvas
-            .draw_rect(Rect::new(
-                top_left.x,
-                top_left.y,
-                TILE_SIZE * SCREEN_SCALE,
-                TILE_SIZE * SCREEN_SCALE,
-            ))
-            .unwrap();
-
-        // Draw player hitbox marker
-        let hitbox_screen_dimensions = worldpos_to_screenpos(
-            ecs_query!(entities["player"], collision_component).unwrap().0.hitbox_dimensions,
-        );
-        let screen_offset = hitbox_screen_dimensions / 2;
-
-        // world -> top_left
-        let position_in_world = *ecs_query!(entities["player"], position).unwrap().0;
-        let position_in_viewport = position_in_world - viewport_top_left;
-        let position_on_screen = worldpos_to_screenpos(position_in_viewport);
-        let top_left = position_on_screen - screen_offset;
-
-        canvas.set_draw_color(Color::RGB(255, 0, 255));
-        canvas
-            .draw_rect(Rect::new(
-                top_left.x,
-                top_left.y,
-                hitbox_screen_dimensions.x as u32,
-                hitbox_screen_dimensions.y as u32,
-            ))
-            .unwrap();
-    }
-
     // Draw entities with character components
     for (position, sprite_component, facing) in
         ecs_query!(entities, position, sprite_component, facing)
@@ -172,7 +112,77 @@ pub fn render(
 
         let screen_rect =
             Rect::new(top_left.x, top_left.y, 16 * SCREEN_SCALE, 16 * SCREEN_SCALE);
-        canvas.copy(spritesheet, sprite_rect, screen_rect).unwrap();
+
+        if let Some(dead_sprite_rect) = sprite_component.dead_sprite {
+            canvas.copy(dead_sprites, dead_sprite_rect, screen_rect).unwrap();
+        } else {
+            canvas.copy(spritesheet, sprite_rect, screen_rect).unwrap();
+        }
+    }
+
+    // Draw player standing cell marker
+    if false {
+        // world -> top_left
+        let position_in_world =
+            entity::standing_cell(&ecs_query!(entities["player"], position).unwrap().0)
+                .to_worldpos();
+        let position_in_viewport = position_in_world - viewport_top_left;
+        let position_on_screen = worldpos_to_screenpos(position_in_viewport);
+        let top_left = position_on_screen;
+
+        canvas.set_draw_color(Color::RGB(255, 0, 0));
+        canvas
+            .draw_rect(Rect::new(
+                top_left.x,
+                top_left.y,
+                TILE_SIZE * SCREEN_SCALE,
+                TILE_SIZE * SCREEN_SCALE,
+            ))
+            .unwrap();
+    }
+
+    // Draw player facing cell marker
+    if false {
+        // world -> top_left
+        let (p, f) = ecs_query!(entities["player"], position, facing).unwrap();
+        let position_in_world = entity::facing_cell(&p, *f).to_worldpos();
+        let position_in_viewport = position_in_world - viewport_top_left;
+        let position_on_screen = worldpos_to_screenpos(position_in_viewport);
+        let top_left = position_on_screen;
+
+        canvas.set_draw_color(Color::RGB(0, 0, 255));
+        canvas
+            .draw_rect(Rect::new(
+                top_left.x,
+                top_left.y,
+                TILE_SIZE * SCREEN_SCALE,
+                TILE_SIZE * SCREEN_SCALE,
+            ))
+            .unwrap();
+    }
+
+    // Draw player hitbox marker
+    if false {
+        let hitbox_screen_dimensions = worldpos_to_screenpos(
+            ecs_query!(entities["player"], collision_component).unwrap().0.hitbox_dimensions,
+        );
+        let screen_offset = hitbox_screen_dimensions / 2;
+
+        // world -> top_left
+        let position_in_world = *ecs_query!(entities["player"], position).unwrap().0;
+        let position_in_viewport = position_in_world - viewport_top_left;
+        let position_on_screen = worldpos_to_screenpos(position_in_viewport);
+        let top_left = position_on_screen - screen_offset;
+
+        canvas.set_draw_color(Color::RGB(255, 0, 255));
+        canvas
+            .draw_rect(Rect::new(
+                top_left.x,
+                top_left.y,
+                hitbox_screen_dimensions.x as u32,
+                hitbox_screen_dimensions.y as u32,
+            ))
+            .unwrap();
     }
 
     // Draw map overlay after map/entities/etc and before UI

@@ -13,6 +13,10 @@ wait(4)
 
 message("\"... ... ...\"")
 message("\"Wake up!\"")
+
+add_position("slime", 6.5, 6.5)
+set("slime_loop", 1)
+
 walk("player", "down", 1, 0.2)
 wait(0.5)
 message("(broke shit, etc)")
@@ -28,6 +32,27 @@ message("(put away plush)")
 unlock_movement()
 set_collision("player", true)
 
-message("a")
+--# slime_loop
+
+while(true) do
+  walk("slime", "right", 3, 0.2)
+  wait_until_not_walking("slime")
+  walk("slime", "left", 3, 0.2)
+  wait_until_not_walking("slime")
+end
+
+--# slime_collision
+
+set("slime_collided", 1)
+
+set("slime_loop", 0)
+walk("slime", "left", 0, 1)
+set_dead_sprite("slime", 16, 32)
+
+set_dead_sprite("player", 32, 0)
+lock_movement()
+wait(1)
+remove_dead_sprite("player")
+unlock_movement()
 
 --#

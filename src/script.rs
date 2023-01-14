@@ -5,6 +5,7 @@ use array2d::Array2D;
 use rlua::{Error as LuaError, Function, Lua, Result as LuaResult, Thread, ThreadStatus};
 use sdl2::mixer::{Chunk, Music};
 use sdl2::pixels::Color;
+use sdl2::rect::Rect;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::error::Error;
@@ -404,6 +405,72 @@ impl ScriptInstance {
                                 Ok(())
                             },
                         )?,
+                    )?;
+
+                    globals.set(
+                        "add_position",
+                        scope.create_function_mut(
+                            |_, (entity, x, y): (String, f64, f64)| {
+                                entities
+                                    .borrow_mut()
+                                    .get_mut(&entity)
+                                    .map(|e| {
+                                        *e.position.borrow_mut() = Some(WorldPos::new(x, y))
+                                    })
+                                    .ok_or(LuaError::ExternalError(Arc::new(
+                                        ScriptError::InvalidEntity(entity),
+                                    )))?;
+                                Ok(())
+                            },
+                        )?,
+                    )?;
+
+                    globals.set(
+                        "remove_position",
+                        scope.create_function_mut(|_, entity: String| {
+                            entities
+                                .borrow_mut()
+                                .get_mut(&entity)
+                                .map(|e| *e.position.borrow_mut() = None)
+                                .ok_or(LuaError::ExternalError(Arc::new(
+                                    ScriptError::InvalidEntity(entity),
+                                )))?;
+                            Ok(())
+                        })?,
+                    )?;
+
+                    // TODO: ad hoc
+                    globals.set(
+                        "set_dead_sprite",
+                        scope.create_function_mut(
+                            |_, (entity, x, y): (String, i32, i32)| {
+                                let entities = entities.borrow_mut();
+                                let mut sprite_component =
+                                    ecs_query!(entities[&entity], mut sprite_component)
+                                        .map(|r| r.0)
+                                        .ok_or(LuaError::ExternalError(Arc::new(
+                                            ScriptError::InvalidEntity(entity),
+                                        )))?;
+                                sprite_component.dead_sprite = Some(Rect::new(x, y, 16, 16));
+                                Ok(())
+                            },
+                        )?,
+                    )?;
+
+                    // TODO: ad hoc
+                    globals.set(
+                        "remove_dead_sprite",
+                        scope.create_function_mut(|_, entity: String| {
+                            let entities = entities.borrow_mut();
+                            let mut sprite_component =
+                                ecs_query!(entities[&entity], mut sprite_component)
+                                    .map(|r| r.0)
+                                    .ok_or(LuaError::ExternalError(Arc::new(
+                                        ScriptError::InvalidEntity(entity),
+                                    )))?;
+                            sprite_component.dead_sprite = None;
+                            Ok(())
+                        })?,
                     )?;
 
                     globals.set(
