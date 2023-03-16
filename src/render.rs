@@ -37,6 +37,7 @@ pub fn render(
     entities: &HashMap<String, Entity>,
     map_overlay_color: Color,
     dead_sprites: &Texture,
+    cutscene_border: bool,
 ) {
     canvas.set_draw_color(Color::RGB(255, 255, 255));
     canvas.clear();
@@ -190,6 +191,35 @@ pub fn render(
     canvas.set_blend_mode(sdl2::render::BlendMode::Blend);
     let (w, h) = canvas.output_size().unwrap();
     canvas.fill_rect(Rect::new(0, 0, w, h)).unwrap();
+
+    // Draw cutscene border
+    if cutscene_border {
+        const BORDER_THICKNESS: u32 = 5;
+        canvas.set_draw_color(Color::RGB(0, 0, 0));
+        let (w, h) = canvas.output_size().unwrap();
+        // Top
+        canvas.fill_rect(Rect::new(0, 0, w, BORDER_THICKNESS * SCREEN_SCALE)).unwrap();
+        // Bottom
+        canvas
+            .fill_rect(Rect::new(
+                0,
+                (h - BORDER_THICKNESS * SCREEN_SCALE) as i32,
+                w,
+                BORDER_THICKNESS * SCREEN_SCALE,
+            ))
+            .unwrap();
+        // Left
+        canvas.fill_rect(Rect::new(0, 0, BORDER_THICKNESS * SCREEN_SCALE, h)).unwrap();
+        // Right
+        canvas
+            .fill_rect(Rect::new(
+                (w - BORDER_THICKNESS * SCREEN_SCALE) as i32,
+                0,
+                BORDER_THICKNESS * SCREEN_SCALE,
+                h,
+            ))
+            .unwrap();
+    }
 
     // Draw message window
     // This goes directly on the screen and has no world pos to convert

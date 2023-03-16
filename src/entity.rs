@@ -19,7 +19,6 @@ pub struct Entity {
     // But for now, storing and indexing them with a hardcoded name works just fine
     pub position: RefCell<Option<WorldPos>>,
     pub sprite_component: RefCell<Option<SpriteComponent>>,
-    // Both the sprite facing direction and the walking direction
     pub facing: RefCell<Option<Direction>>,
     pub walking_component: RefCell<Option<WalkingComponent>>,
     pub collision_component: RefCell<Option<CollisionComponent>>,

@@ -83,7 +83,6 @@ impl ScriptInstance {
                 let thread: Thread = context
                     .load(&format!("coroutine.create(function() {script_source} end)"))
                     .eval()?;
-                // Store thread in global and retrieve it each time we execute some of script
                 context.globals().set("thread", thread)?;
                 Ok(())
             })
@@ -112,6 +111,7 @@ impl ScriptInstance {
         tilemap: &mut Array2D<Cell>,
         map_overlay_color_transition: &mut Option<MapOverlayColorTransition>,
         map_overlay_color: Color,
+        cutscene_border: &mut bool,
         running: &mut bool,
         musics: &HashMap<String, Music>,
         sound_effects: &HashMap<String, Chunk>,
@@ -123,6 +123,7 @@ impl ScriptInstance {
         let player_movement_locked = RefCell::new(player_movement_locked);
         let tilemap = RefCell::new(tilemap);
         let waiting = RefCell::new(&mut self.waiting);
+        let cutscene_border = RefCell::new(cutscene_border);
 
         self.lua_instance
             .context(|context| -> LuaResult<()> {
@@ -146,7 +147,6 @@ impl ScriptInstance {
 
                     // TODO: rework API, how waiting/yielding works, etc
 
-                    // Provide Rust functions to Lua
                     // Every function that references Rust data must be recreated in this scope
                     // each time we execute some of the script, to ensure that the references
                     // in the callback remain valid
@@ -218,6 +218,16 @@ impl ScriptInstance {
                         "lock_movement",
                         scope.create_function_mut(|_, ()| {
                             **player_movement_locked.borrow_mut() = true;
+                            // End current player movement
+                            // There's no way to tell if it's from input or other
+                            // It might be better to set speed to 0 at end of each update
+                            // (if movement is not being forced) and then set it again in
+                            // input processing as long as key is still held
+                            let entities = entities.borrow_mut();
+                            ecs_query!(entities["player"], mut walking_component)
+                                .unwrap()
+                                .0
+                                .speed = 0.;
                             Ok(())
                         })?,
                     )?;
@@ -484,6 +494,22 @@ impl ScriptInstance {
                                         ScriptError::InvalidEntity(entity),
                                     )))?;
                             Ok(walking_component.destination.is_none())
+                        })?,
+                    )?;
+
+                    globals.set(
+                        "set_cutscene_border",
+                        scope.create_function_mut(|_, ()| {
+                            **cutscene_border.borrow_mut() = true;
+                            Ok(())
+                        })?,
+                    )?;
+
+                    globals.set(
+                        "remove_cutscene_border",
+                        scope.create_function_mut(|_, ()| {
+                            **cutscene_border.borrow_mut() = false;
+                            Ok(())
                         })?,
                     )?;
 

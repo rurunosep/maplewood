@@ -46,10 +46,6 @@ pub struct MapOverlayColorTransition {
 }
 
 fn main() {
-    // ------------------------------------------
-    // Init
-    // ------------------------------------------
-
     // Prevent high DPI scaling on Windows
     #[cfg(target_os = "windows")]
     unsafe {
@@ -110,8 +106,8 @@ fn main() {
     musics.insert("sleep".to_string(), Music::from_file("assets/audio/sleep.wav").unwrap());
 
     let mut tilemap = {
-        const IMPASSABLE_TILES: [i32; 19] =
-            [0, 1, 2, 3, 20, 27, 31, 36, 38, 45, 47, 48, 51, 53, 54, 55, 59, 60, 67];
+        const IMPASSABLE_TILES: [i32; 21] =
+            [0, 1, 2, 3, 20, 27, 28, 31, 35, 36, 38, 45, 47, 48, 51, 53, 54, 55, 59, 60, 67];
         let layer_1_ids: Vec<Vec<i32>> = fs::read_to_string("tiled/cottage_1.csv")
             .unwrap()
             .lines()
@@ -186,7 +182,7 @@ fn main() {
             walking_component: RefCell::new(Some(WalkingComponent::default())),
             collision_component: RefCell::new(Some(CollisionComponent {
                 hitbox_dimensions: Point::new(10.0 / 16.0, 8.0 / 16.0),
-                enabled: true,
+                enabled: false,
             })),
             sprite_component: RefCell::new(Some(SpriteComponent {
                 spriteset_rect: Rect::new(0, 4 * 16, 16 * 4, 16 * 4),
@@ -195,6 +191,15 @@ fn main() {
             })),
             facing: RefCell::new(Some(Direction::Down)),
             scripts: RefCell::new(Some(vec![
+                Script {
+                    source: script::get_sub_script(&scripts_source, "slime_collision"),
+                    trigger: ScriptTrigger::Collision,
+                    start_condition: Some(ScriptCondition {
+                        story_var: "can_touch_slime".to_string(),
+                        value: 1,
+                    }),
+                    abort_condition: None,
+                },
                 Script {
                     source: script::get_sub_script(&scripts_source, "slime_loop"),
                     trigger: ScriptTrigger::Auto,
@@ -207,16 +212,53 @@ fn main() {
                         value: 0,
                     }),
                 },
-                Script {
-                    source: script::get_sub_script(&scripts_source, "slime_collision"),
-                    trigger: ScriptTrigger::Collision,
-                    start_condition: Some(ScriptCondition {
-                        story_var: "slime_collided".to_string(),
-                        value: 0,
-                    }),
-                    abort_condition: None,
-                },
             ])),
+            ..Default::default()
+        },
+    );
+    entities.insert(
+        "chest".to_string(),
+        Entity {
+            position: RefCell::new(Some(WorldPos::new(8.5, 5.5))),
+            scripts: RefCell::new(Some(vec![Script {
+                source: script::get_sub_script(&scripts_source, "chest"),
+                trigger: ScriptTrigger::Interaction,
+                start_condition: None,
+                abort_condition: None,
+            }])),
+            ..Default::default()
+        },
+    );
+    entities.insert(
+        "pot".to_string(),
+        Entity {
+            position: RefCell::new(Some(WorldPos::new(12.5, 9.5))),
+            scripts: RefCell::new(Some(vec![Script {
+                source: script::get_sub_script(&scripts_source, "pot"),
+                trigger: ScriptTrigger::Interaction,
+                start_condition: None,
+                abort_condition: None,
+            }])),
+            ..Default::default()
+        },
+    );
+    entities.insert(
+        "inside_door".to_string(),
+        Entity {
+            position: RefCell::new(Some(WorldPos::new(8.5, 7.5))),
+            collision_component: RefCell::new(Some(CollisionComponent {
+                hitbox_dimensions: Point::new(1., 1.),
+                enabled: false,
+            })),
+            scripts: RefCell::new(Some(vec![Script {
+                source: script::get_sub_script(&scripts_source, "inside_door"),
+                trigger: ScriptTrigger::Collision,
+                start_condition: Some(ScriptCondition {
+                    story_var: "door_may_close".to_string(),
+                    value: 1,
+                }),
+                abort_condition: None,
+            }])),
             ..Default::default()
         },
     );
@@ -235,20 +277,22 @@ fn main() {
     );
 
     let mut story_vars: HashMap<String, i32> = HashMap::new();
+    story_vars.insert("put_away_plushy".to_string(), 0);
     story_vars.insert("slime_loop".to_string(), 0);
-    story_vars.insert("slime_collided".to_string(), 0);
+    story_vars.insert("times_touched_slime".to_string(), 0);
+    story_vars.insert("can_touch_slime".to_string(), 0);
+    story_vars.insert("fixed_pot".to_string(), 0);
+    story_vars.insert("door_may_close".to_string(), 0);
 
     let mut message_window: Option<MessageWindow> = None;
     let mut player_movement_locked = false;
     let mut map_overlay_color = Color::RGBA(0, 0, 0, 0);
     let mut map_overlay_color_transition: Option<MapOverlayColorTransition> = None;
+    let mut cutscene_border = false;
     // TODO: script manager to hold scripts and keep track of next_script_id?
     let mut next_script_id = 0;
     let mut script_instances: HashMap<i32, ScriptInstance> = HashMap::new();
 
-    // ------------------------------------------
-    // Main Loop
-    // ------------------------------------------
     let mut running = true;
     while running {
         // ------------------------------------------
@@ -304,8 +348,12 @@ fn main() {
                             Direction::Right => Keycode::Right,
                         } =>
                 {
-                    ecs_query!(entities["player"], mut walking_component).unwrap().0.speed =
-                        0.;
+                    let mut walking_component =
+                        ecs_query!(entities["player"], mut walking_component).unwrap().0;
+                    // Don't end movement if it's being forced
+                    if walking_component.destination.is_none() {
+                        walking_component.speed = 0.;
+                    }
                 }
 
                 // Choose message window option
@@ -389,7 +437,7 @@ fn main() {
             }
         }
 
-        // Start any auto run scripts
+        // Start any auto-run scripts
         for (mut scripts,) in ecs_query!(entities, mut scripts) {
             for script in script::filter_scripts_by_trigger_and_condition(
                 &mut scripts,
@@ -405,7 +453,7 @@ fn main() {
                     ),
                 );
                 next_script_id += 1;
-                // Only auto run script once
+                // Only run auto-run script once
                 script.trigger = ScriptTrigger::None;
             }
         }
@@ -418,7 +466,7 @@ fn main() {
                     &mut story_vars, &mut entities, &mut message_window,
                     &mut player_movement_locked, &mut tilemap,
                     &mut map_overlay_color_transition, map_overlay_color,
-                    &mut running, &musics, &sound_effects,
+                    &mut cutscene_border, &mut running, &musics, &sound_effects,
                 );
             }
             if let Some(condition) = &script.abort_condition {
@@ -430,8 +478,11 @@ fn main() {
         // Remove finished or aborted scripts
         script_instances.retain(|_, script| !script.finished);
 
+        // TODO: Entity updates should probably happen in this order:
+        // Walk (without collision), then end walk if reached destination, then trigger
+        // collision scripts, then resolve collision
+
         // Update walking entities
-        // TODO: Fix: currently can't walk without a collision component
         for (mut position, walking_component, collision_component) in
             ecs_query!(entities, mut position, walking_component, collision_component)
         {
@@ -547,15 +598,13 @@ fn main() {
             camera_position.y = map_dimensions.y - viewport_dimensions.y / 2.0;
         }
 
-        // Render
         #[rustfmt::skip]
         render::render(
             &mut canvas, camera_position, &tileset, &tilemap,
             &message_window, &font, &spritesheet, &entities,
-            map_overlay_color, &dead_sprites
+            map_overlay_color, &dead_sprites, cutscene_border
         );
 
-        // Sleep
-        ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
+        std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
     }
 }
