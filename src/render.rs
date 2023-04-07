@@ -1,4 +1,4 @@
-use crate::entity::{self, Direction, Entity};
+use crate::entity::{self, Direction, Entity, SineOffsetAnimation};
 use crate::world::{self, Cell, CellPos, Point, WorldPos};
 use crate::{ecs_query, MessageWindow, SCREEN_COLS, SCREEN_ROWS, SCREEN_SCALE, TILE_SIZE};
 use array2d::Array2D;
@@ -8,6 +8,7 @@ use sdl2::rect::Rect;
 use sdl2::render::{Texture, TextureQuery, WindowCanvas};
 use sdl2::ttf::Font;
 use std::collections::HashMap;
+use std::f64::consts::PI;
 
 // world -> top_left relies on two things:
 // world_units_to_screen_units in here, and
@@ -38,6 +39,7 @@ pub fn render(
     map_overlay_color: Color,
     dead_sprites: &Texture,
     cutscene_border: bool,
+    show_card: bool,
 ) {
     canvas.set_draw_color(Color::RGB(255, 255, 255));
     canvas.clear();
@@ -104,8 +106,20 @@ pub fn render(
             16,
         );
 
+        // If entity has a SineOffsetAnimation, offset sprite position accordingly
+        let mut position = *position;
+        if let Some(SineOffsetAnimation {
+            start_time, frequency, amplitude, direction, ..
+        }) = sprite_component.sine_offset_animation
+        {
+            let offset = direction
+                * (start_time.elapsed().as_secs_f64() * frequency * (PI * 2.)).sin()
+                * amplitude;
+            position += offset;
+        }
+
         // world -> top_left
-        let position_in_world = *position;
+        let position_in_world = position;
         let position_in_viewport = position_in_world - viewport_top_left;
         let position_on_screen = worldpos_to_screenpos(position_in_viewport);
         let top_left =
@@ -194,7 +208,7 @@ pub fn render(
 
     // Draw cutscene border
     if cutscene_border {
-        const BORDER_THICKNESS: u32 = 5;
+        const BORDER_THICKNESS: u32 = 6;
         canvas.set_draw_color(Color::RGB(0, 0, 0));
         let (w, h) = canvas.output_size().unwrap();
         // Top
@@ -218,6 +232,22 @@ pub fn render(
                 BORDER_THICKNESS * SCREEN_SCALE,
                 h,
             ))
+            .unwrap();
+    }
+
+    // Draw card
+    if show_card {
+        canvas
+            .copy(
+                dead_sprites,
+                None,
+                Rect::new(
+                    50 * SCREEN_SCALE as i32,
+                    50 * SCREEN_SCALE as i32,
+                    156 * SCREEN_SCALE,
+                    92 * SCREEN_SCALE,
+                ),
+            )
             .unwrap();
     }
 

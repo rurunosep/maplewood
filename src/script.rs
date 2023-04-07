@@ -1,5 +1,5 @@
-use crate::entity::{Direction, Entity};
-use crate::world::{Cell, WorldPos};
+use crate::entity::{Direction, Entity, SineOffsetAnimation};
+use crate::world::{Cell, Point, WorldPos};
 use crate::{ecs_query, MapOverlayColorTransition, MessageWindow};
 use array2d::Array2D;
 use rlua::{Error as LuaError, Function, Lua, Result as LuaResult, Thread, ThreadStatus};
@@ -112,6 +112,7 @@ impl ScriptInstance {
         map_overlay_color_transition: &mut Option<MapOverlayColorTransition>,
         map_overlay_color: Color,
         cutscene_border: &mut bool,
+        show_card: &mut bool,
         running: &mut bool,
         musics: &HashMap<String, Music>,
         sound_effects: &HashMap<String, Chunk>,
@@ -124,6 +125,7 @@ impl ScriptInstance {
         let tilemap = RefCell::new(tilemap);
         let waiting = RefCell::new(&mut self.waiting);
         let cutscene_border = RefCell::new(cutscene_border);
+        let show_card = RefCell::new(show_card);
 
         self.lua_instance
             .context(|context| -> LuaResult<()> {
@@ -387,6 +389,52 @@ impl ScriptInstance {
                     )?;
 
                     globals.set(
+                        "quiver",
+                        scope.create_function_mut(
+                            |_, (entity, duration): (String, f64)| {
+                                let entities = entities.borrow_mut();
+                                let mut sprite_component =
+                                    ecs_query!(entities[&entity], mut sprite_component)
+                                        .map(|r| r.0)
+                                        .ok_or(LuaError::ExternalError(Arc::new(
+                                            ScriptError::InvalidEntity(entity),
+                                        )))?;
+                                sprite_component.sine_offset_animation =
+                                    Some(SineOffsetAnimation {
+                                        start_time: Instant::now(),
+                                        duration: Duration::from_secs_f64(duration),
+                                        amplitude: 0.03,
+                                        frequency: 10.,
+                                        direction: Point::new(1., 0.),
+                                    });
+                                Ok(())
+                            },
+                        )?,
+                    )?;
+
+                    globals.set(
+                        "jump",
+                        scope.create_function_mut(|_, entity: String| {
+                            let entities = entities.borrow_mut();
+                            let mut sprite_component =
+                                ecs_query!(entities[&entity], mut sprite_component)
+                                    .map(|r| r.0)
+                                    .ok_or(LuaError::ExternalError(Arc::new(
+                                        ScriptError::InvalidEntity(entity),
+                                    )))?;
+                            sprite_component.sine_offset_animation =
+                                Some(SineOffsetAnimation {
+                                    start_time: Instant::now(),
+                                    duration: Duration::from_secs_f64(0.3),
+                                    amplitude: 0.5,
+                                    frequency: 1. / 2. / 0.3,
+                                    direction: Point::new(0., -1.),
+                                });
+                            Ok(())
+                        })?,
+                    )?;
+
+                    globals.set(
                         "close_game",
                         scope.create_function_mut(|_, ()| {
                             *running = false;
@@ -509,6 +557,22 @@ impl ScriptInstance {
                         "remove_cutscene_border",
                         scope.create_function_mut(|_, ()| {
                             **cutscene_border.borrow_mut() = false;
+                            Ok(())
+                        })?,
+                    )?;
+
+                    globals.set(
+                        "show_card",
+                        scope.create_function_mut(|_, ()| {
+                            **show_card.borrow_mut() = true;
+                            Ok(())
+                        })?,
+                    )?;
+
+                    globals.set(
+                        "remove_card",
+                        scope.create_function_mut(|_, ()| {
+                            **show_card.borrow_mut() = false;
                             Ok(())
                         })?,
                     )?;

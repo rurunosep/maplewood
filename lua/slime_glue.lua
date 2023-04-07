@@ -17,20 +17,22 @@ message("\"... ... ...\"")
 message("\"Wake up!\"")
 
 remove_dead_sprite("player")
--- player jump
+jump("player")
 walk("player", "down", 1, 0.15)
-wait(0.5)
+wait(1)
 
 message("(broke shit, etc)")
 message("(gotta take resposibility)")
 
--- player shake
--- wait
+quiver("player", 0.8)
+wait(1)
 
 message("(it's ok, I got spaghetti)")
 
--- player jump
--- wait
+jump("player")
+wait(0.3)
+jump("player")
+wait(0.3)
 
 walk("man", "left", 4, 0.06)
 wait(0.7)
@@ -89,28 +91,28 @@ wait(0.5)
 message("(need some way to fix this)")
 
 add_position("slime", 5.5, 11.5)
--- jump slime
-walk("slime", "right", 1, 0.15)
-wait(0.5)
+jump("slime")
+walk("slime", "up", 1, 0.15)
+wait(0.8)
 
--- jump man
--- short wait
+jump("man")
+wait(0.8)
 
 walk("player", "left", 0, 1)
--- jump player
--- short wait
+jump("player")
+wait(1)
 
+message("(it's a slime!)")
 walk("slime", "right", 0, 1)
-wait(0.5)
-
-message("(a slime!)")
+wait(1)
 message("(dead slimes make great glue!)")
--- jump slime
-wait(0.5)
+jump("slime")
+wait(1)
 message("(catch it and kill it to fix the pot!)")
--- jump slime
-wait(0.5)
+jump("slime")
+wait(1)
 
+-- play music
 set("slime_loop", 1)
 set_collision("slime", true)
 remove_cutscene_border()
@@ -123,6 +125,7 @@ end
 
 lock_movement()
 set_dead_sprite("player", 32, 0)
+-- play sfx
 wait(1)
 remove_dead_sprite("player")
 unlock_movement()
@@ -132,15 +135,19 @@ while(get("times_touched_slime") < 2) do
   coroutine.yield()
 end
 
+-- stop music
 set("slime_loop", 0)
 walk("slime", "down", 0, 1)
 set_dead_sprite("slime", 16, 32)
 set_cutscene_border()
 lock_movement()
 message("(you got it!)")
--- jump girl
+jump("player")
+wait(0.3)
+jump("player")
+wait(0.3)
 wait(0.5)
-message("(now bring here to pot)")
+message("(now bring it here to pot)")
 walk("man", "right", 1, 0.06)
 wait_until_not_walking("man")
 walk("man", "left", 0, 1)
@@ -163,7 +170,7 @@ message("(great)")
 walk("player", "right", 0, 1)
 message("(now come inside and wait for me to get \n"
   .. "the spaghetti)")
--- jump girl
+jump("player")
 
 walk("man", "down", 1, 0.06)
 wait_until_not_walking("man")
@@ -194,27 +201,21 @@ walk("man", "down", 0, 1)
 set_cutscene_border()
 lock_movement()
 message("(I got the spaghetti!)")
--- jump girl
+jump("player")
+wait(0.3)
+jump("player")
+wait(0.3)
+jump("player")
+wait(0.3)
+wait(0.5)
 map_overlay_color(0, 0, 0, 255, 3)
 -- play music
 wait(3)
--- show card
+show_card()
 wait(8)
--- remove card
+remove_card()
 wait(2)
 close_game()
-
-
---# slime_loop
-
-while(true) do
-  walk("slime", "right", 5, 0.15)
-  wait(2)
-  wait_until_not_walking("slime")
-  walk("slime", "left", 5, 0.15)
-  wait(2)
-  wait_until_not_walking("slime")
-end
 
 --# slime_collision
 
@@ -236,5 +237,72 @@ set_cell_tile(8, 8, 2, 48)
 set_cell_passable(8, 8, false)
 play_sfx("door_close")
 set("door_may_close", 0)
+
+--# slime_loop
+
+while(true) do
+  walk("slime", "left", 2, 0.2)
+  wait_until_not_walking("slime")
+  walk("slime", "down", 2, 0.2)
+  wait_until_not_walking("slime")
+  walk("slime", "right", 1, 0.2)
+  wait_until_not_walking("slime")
+  walk("slime", "down", 3, 0.2)
+  wait_until_not_walking("slime")
+  walk("slime", "right", 3, 0.2)
+  wait_until_not_walking("slime")
+  walk("slime", "down", 2, 0.2)
+  wait_until_not_walking("slime")
+  walk("slime", "left", 1, 0.2)
+  wait_until_not_walking("slime")
+  walk("slime", "down", 2, 0.2)
+  wait_until_not_walking("slime")
+  walk("slime", "right", 3, 0.2)
+  wait_until_not_walking("slime")
+  walk("slime", "up", 1, 0.2)
+  wait_until_not_walking("slime")
+  walk("slime", "right", 2, 0.2)
+  wait_until_not_walking("slime")
+  walk("slime", "up", 3, 0.2)
+  wait_until_not_walking("slime")
+  walk("slime", "left", 1, 0.2)
+  wait_until_not_walking("slime")
+  walk("slime", "up", 2, 0.2)
+  wait_until_not_walking("slime")
+  walk("slime", "left", 4, 0.2)
+  wait_until_not_walking("slime")
+  walk("slime", "down", 3, 0.2)
+  wait_until_not_walking("slime")
+  walk("slime", "right", 3, 0.2)
+  wait_until_not_walking("slime")
+  walk("slime", "up", 2, 0.2)
+  wait_until_not_walking("slime")
+  walk("slime", "right", 1, 0.2)
+  wait_until_not_walking("slime")
+  walk("slime", "up", 1, 0.2)
+  wait_until_not_walking("slime")
+  walk("slime", "right", 2, 0.2)
+  wait_until_not_walking("slime")
+  walk("slime", "down", 3, 0.2)
+  wait_until_not_walking("slime")
+  walk("slime", "left", 5, 0.2)
+  wait_until_not_walking("slime")
+  walk("slime", "up", 2, 0.2)
+  wait_until_not_walking("slime")
+  walk("slime", "left", 1, 0.2)
+  wait_until_not_walking("slime")
+  walk("slime", "up", 3, 0.2)
+  wait_until_not_walking("slime")
+  walk("slime", "right", 2, 0.2)
+  wait_until_not_walking("slime")
+  walk("slime", "up", 2, 0.2)
+  wait_until_not_walking("slime")
+  walk("slime", "left", 2, 0.2)
+  wait_until_not_walking("slime")
+  walk("slime", "down", 1, 0.2)
+  wait_until_not_walking("slime")
+  walk("slime", "left", 1, 0.2)
+  wait_until_not_walking("slime")
+end
 
 --#

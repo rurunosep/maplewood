@@ -5,6 +5,9 @@ use derive_new::new;
 pub type CellPos = Point<i32>;
 pub type WorldPos = Point<f64>;
 
+// TODO: Mul doesn't work if Point is the right-hand side
+// Writing "num * point" is like writing "num.mul(point)"
+// So multiplying with Point must be implemented on the "num"
 #[derive(
     new, Clone, Copy, Add, AddAssign, Sub, Mul, Div, PartialEq, Eq, Hash, Default, Debug,
 )]

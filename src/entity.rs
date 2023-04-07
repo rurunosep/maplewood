@@ -3,6 +3,7 @@ use crate::world::{self, Cell, CellPos, Point, WorldPos};
 use array2d::Array2D;
 use sdl2::rect::Rect;
 use std::cell::RefCell;
+use std::time::{Duration, Instant};
 
 #[derive(Clone, Copy, Debug, Default)]
 pub enum Direction {
@@ -27,12 +28,22 @@ pub struct Entity {
 
 #[derive(Clone, Debug)]
 pub struct SpriteComponent {
-    // The region of the full spritesheet with this entity's sprites
-    pub spriteset_rect: Rect,
+    pub spriteset_rect: Rect, // The region of the full spritesheet with this entity's sprites
     pub sprite_offset: Point<i32>,
+    pub sine_offset_animation: Option<SineOffsetAnimation>,
+    // TODO: drawing depth (0 default, -1 for always under, 1 for always on top? or enum?)
 
     // TODO: ad hoc
     pub dead_sprite: Option<Rect>,
+}
+
+#[derive(Clone, Debug)]
+pub struct SineOffsetAnimation {
+    pub start_time: Instant,
+    pub duration: Duration,
+    pub amplitude: f64,
+    pub frequency: f64,
+    pub direction: Point<f64>,
 }
 
 #[derive(Clone, Debug, Default)]
