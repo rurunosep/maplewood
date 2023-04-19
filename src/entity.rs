@@ -1,8 +1,10 @@
 use crate::script::Script;
-use crate::world::{self, Cell, CellPos, Point, WorldPos};
+use crate::utils;
+use crate::world::{self, Cell, CellPos, Point, WorldPos, AABB};
 use array2d::Array2D;
 use sdl2::rect::Rect;
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -16,8 +18,7 @@ pub enum Direction {
 
 #[derive(Clone, Debug, Default)]
 pub struct Entity {
-    // Entities might want to keep track of an ID or name or something
-    // But for now, storing and indexing them with a hardcoded name works just fine
+    pub id: String,
     pub position: RefCell<Option<WorldPos>>,
     pub sprite_component: RefCell<Option<SpriteComponent>>,
     pub facing: RefCell<Option<Direction>>,
@@ -31,7 +32,6 @@ pub struct SpriteComponent {
     pub spriteset_rect: Rect, // The region of the full spritesheet with this entity's sprites
     pub sprite_offset: Point<i32>,
     pub sine_offset_animation: Option<SineOffsetAnimation>,
-    // TODO: drawing depth (0 default, -1 for always under, 1 for always on top? or enum?)
 
     // TODO: ad hoc
     pub dead_sprite: Option<Rect>,
@@ -56,16 +56,18 @@ pub struct WalkingComponent {
 #[derive(Clone, Debug)]
 pub struct CollisionComponent {
     pub hitbox_dimensions: Point<f64>,
-    pub enabled: bool,
+    pub solid: bool,
 }
 
-pub fn walk_and_resolve_tile_collisions(
+pub fn walk_and_resolve_collisions(
+    id: &String,
     position: &mut WorldPos,
     walking_component: &WalkingComponent,
     collision_component: &CollisionComponent,
     tilemap: &Array2D<Cell>,
+    entities: &HashMap<String, Entity>,
 ) {
-    let mut new_position = *position
+    let new_position = *position
         + match walking_component.direction {
             Direction::Up => WorldPos::new(0.0, -walking_component.speed),
             Direction::Down => WorldPos::new(0.0, walking_component.speed),
@@ -73,80 +75,61 @@ pub fn walk_and_resolve_tile_collisions(
             Direction::Right => WorldPos::new(walking_component.speed, 0.0),
         };
 
-    let new_top = new_position.y - collision_component.hitbox_dimensions.y / 2.0;
-    let new_bot = new_position.y + collision_component.hitbox_dimensions.y / 2.0;
-    let new_left = new_position.x - collision_component.hitbox_dimensions.x / 2.0;
-    let new_right = new_position.x + collision_component.hitbox_dimensions.x / 2.0;
+    let old_aabb = AABB::from_pos_and_hitbox(*position, collision_component.hitbox_dimensions);
 
-    if collision_component.enabled {
-        let points_to_check_for_cell_collision = match walking_component.direction {
-            Direction::Up => {
-                [WorldPos::new(new_left, new_top), WorldPos::new(new_right, new_top)]
-            }
-            Direction::Down => {
-                [WorldPos::new(new_left, new_bot), WorldPos::new(new_right, new_bot)]
-            }
-            Direction::Left => {
-                [WorldPos::new(new_left, new_top), WorldPos::new(new_left, new_bot)]
-            }
-            Direction::Right => {
-                [WorldPos::new(new_right, new_top), WorldPos::new(new_right, new_bot)]
-            }
-        };
+    let mut new_aabb =
+        AABB::from_pos_and_hitbox(new_position, collision_component.hitbox_dimensions);
 
-        for point in points_to_check_for_cell_collision {
-            match world::get_cell_at_cellpos(tilemap, point.to_cellpos()) {
-                Some(cell) if !cell.passable => {
-                    let cell_top = point.y.floor();
-                    let cell_bot = point.y.ceil();
-                    let cell_left = point.x.floor();
-                    let cell_right = point.x.ceil();
-                    if new_top < cell_bot
-                        && new_bot > cell_top
-                        && new_left < cell_right
-                        && new_right > cell_left
-                    {
-                        match walking_component.direction {
-                            Direction::Up => {
-                                new_position.y =
-                                    cell_bot + collision_component.hitbox_dimensions.y / 2.0
-                            }
-                            Direction::Down => {
-                                new_position.y =
-                                    cell_top - collision_component.hitbox_dimensions.y / 2.0
-                            }
-                            Direction::Left => {
-                                new_position.x =
-                                    cell_right + collision_component.hitbox_dimensions.x / 2.0
-                            }
-                            Direction::Right => {
-                                new_position.x =
-                                    cell_left - collision_component.hitbox_dimensions.x / 2.0
-                            }
-                        }
-                    }
-                }
-                _ => {}
+    // Check for and resolve collision with the 9 cells centered around new position
+    let new_cellpos = new_position.to_cellpos();
+    let cellposes_to_check = [
+        CellPos::new(new_cellpos.x - 1, new_cellpos.y - 1),
+        CellPos::new(new_cellpos.x, new_cellpos.y - 1),
+        CellPos::new(new_cellpos.x + 1, new_cellpos.y - 1),
+        CellPos::new(new_cellpos.x - 1, new_cellpos.y),
+        CellPos::new(new_cellpos.x, new_cellpos.y),
+        CellPos::new(new_cellpos.x + 1, new_cellpos.y),
+        CellPos::new(new_cellpos.x - 1, new_cellpos.y + 1),
+        CellPos::new(new_cellpos.x, new_cellpos.y + 1),
+        CellPos::new(new_cellpos.x + 1, new_cellpos.y + 1),
+    ];
+    for cellpos in cellposes_to_check {
+        if let Some(cell) = world::get_cell_at_cellpos(tilemap, cellpos) {
+            if !cell.passable {
+                let cell_aabb =
+                    AABB::from_pos_and_hitbox(cellpos.to_worldpos(), Point::new(1., 1.));
+                new_aabb.resolve_collision(&old_aabb, &cell_aabb);
             }
         }
     }
 
-    let map_width = tilemap.num_columns() as f64;
-    let map_height = tilemap.num_rows() as f64;
-    if new_top < 0.0 {
-        new_position.y = 0.0 + collision_component.hitbox_dimensions.y / 2.0;
-    }
-    if new_bot > map_height {
-        new_position.y = map_height - collision_component.hitbox_dimensions.y / 2.0;
-    }
-    if new_left < 0.0 {
-        new_position.x = 0.0 + collision_component.hitbox_dimensions.x / 2.0;
-    }
-    if new_right > map_width {
-        new_position.x = map_width - collision_component.hitbox_dimensions.x / 2.0;
+    // Check for and resolve collision with all solid entities except this one
+    // TODO: update ECS query to filter to not borrow twice instead of doing it manually here
+    for e in entities.values() {
+        if e.id != *id {
+            if let Some(other_position) = utils::ref_opt_to_opt_ref(e.position.borrow()) {
+                if let Some(other_collision_component) =
+                    utils::ref_opt_to_opt_ref(e.collision_component.borrow())
+                {
+                    if other_collision_component.solid {
+                        let other_aabb = AABB::from_pos_and_hitbox(
+                            *other_position,
+                            other_collision_component.hitbox_dimensions,
+                        );
+
+                        // TODO: trigger HardCollision script
+                        // if new_aabb.is_colliding(&other_aabb) {
+                        //     ...
+                        // }
+
+                        new_aabb.resolve_collision(&old_aabb, &other_aabb);
+                    }
+                }
+            }
+        }
     }
 
-    *position = new_position;
+    *position = new_aabb.get_center();
 }
 
 pub fn standing_cell(position: &WorldPos) -> CellPos {

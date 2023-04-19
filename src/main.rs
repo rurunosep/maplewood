@@ -24,7 +24,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 use std::{fs, iter};
-use world::{Cell, Point};
+use world::{Cell, Point, AABB};
 
 const TILE_SIZE: u32 = 16;
 const SCREEN_COLS: u32 = 16;
@@ -160,6 +160,9 @@ fn main() {
                     let mut walking_component =
                         ecs_query!(entities["player"], mut walking_component).unwrap().0;
                     // Don't end movement if it's being forced
+                    // TODO: should probably rework the way that input vs forced movement work
+                    // and update Or maybe movement should use polling
+                    // rather than events
                     if walking_component.destination.is_none() {
                         walking_component.speed = 0.;
                     }
@@ -288,24 +291,21 @@ fn main() {
         // Remove finished or aborted scripts
         script_instances.retain(|_, script| !script.finished);
 
-        // TODO: Entity updates should probably happen in this order:
-        // Walk (without collision), then end walk if reached destination, then trigger
-        // collision scripts, then resolve collision
-
         // Update walking entities
-        for (mut position, walking_component, collision_component) in
-            ecs_query!(entities, mut position, walking_component, collision_component)
+        for (id, mut position, walking_component, collision_component) in
+            ecs_query!(entities, id, mut position, walking_component, collision_component)
         {
-            entity::walk_and_resolve_tile_collisions(
+            entity::walk_and_resolve_collisions(
+                id,
                 &mut position,
                 &walking_component,
                 &collision_component,
                 &tilemap,
+                &entities,
             );
         }
 
         // End walking for entities that have reached destination
-        // (Could probably be combined with preceding update)
         for (mut position, mut walking_component) in
             ecs_query!(entities, mut position, mut walking_component)
         {
@@ -324,34 +324,23 @@ fn main() {
             }
         }
 
-        // Start player collision script
+        // Start player soft collision scripts
         // For each entity colliding with the player...
-        for (_, _, mut scripts) in ecs_query!(
-            entities,
-            position,
-            collision_component,
-            mut scripts
-        )
-        .filter(|(e_pos, e_coll, _)| {
-            // TODO: function to detect collision between AABB hitboxes
-            let e_top = e_pos.y - e_coll.hitbox_dimensions.y / 2.;
-            let e_bot = e_pos.y + e_coll.hitbox_dimensions.y / 2.;
-            let e_left = e_pos.x - e_coll.hitbox_dimensions.x / 2.;
-            let e_right = e_pos.x + e_coll.hitbox_dimensions.x / 2.;
-
-            let (p_pos, p_coll) =
-                ecs_query!(entities["player"], position, collision_component).unwrap();
-            let p_top = p_pos.y - p_coll.hitbox_dimensions.y / 2.;
-            let p_bot = p_pos.y + p_coll.hitbox_dimensions.y / 2.;
-            let p_left = p_pos.x - p_coll.hitbox_dimensions.x / 2.;
-            let p_right = p_pos.x + p_coll.hitbox_dimensions.x / 2.;
-
-            return e_top < p_bot && e_bot > p_top && e_left < p_right && e_right > p_left;
-        }) {
+        let (p_pos, p_coll) =
+            ecs_query!(entities["player"], position, collision_component).unwrap();
+        let p_aabb = AABB::from_pos_and_hitbox(*p_pos, p_coll.hitbox_dimensions);
+        for (_, _, mut scripts) in
+            ecs_query!(entities, position, collision_component, mut scripts).filter(
+                |(e_pos, e_coll, _)| {
+                    let e_aabb = AABB::from_pos_and_hitbox(**e_pos, e_coll.hitbox_dimensions);
+                    return e_aabb.is_colliding(&p_aabb);
+                },
+            )
+        {
             // ...start all scripts that have a collision trigger and fulfill start condition
             for script in script::filter_scripts_by_trigger_and_condition(
                 &mut scripts,
-                ScriptTrigger::Collision,
+                ScriptTrigger::SoftCollision,
                 &story_vars,
             ) {
                 script_instances.insert(
@@ -435,10 +424,14 @@ fn create_entities() -> HashMap<String, Entity> {
 
     let mut entities: HashMap<String, Entity> = HashMap::new();
 
+    // Entity ID and entity key in hashmap must match!
+
     entities.insert(
         "player".to_string(),
         Entity {
-            position: RefCell::new(Some(WorldPos::new(12.5, 5.5))),
+            id: "player".to_string(),
+            position: RefCell::new(Some(WorldPos::new(12.5, 6.5))),
+            // position: RefCell::new(Some(WorldPos::new(12.5, 5.5))),
             walking_component: RefCell::new(Some(WalkingComponent {
                 speed: 0.,
                 direction: Direction::Down,
@@ -446,7 +439,7 @@ fn create_entities() -> HashMap<String, Entity> {
             })),
             collision_component: RefCell::new(Some(CollisionComponent {
                 hitbox_dimensions: Point::new(8.0 / 16.0, 6.0 / 16.0),
-                enabled: true,
+                solid: true,
             })),
             sprite_component: RefCell::new(Some(SpriteComponent {
                 spriteset_rect: Rect::new(7 * 16, 0, 16 * 4, 16 * 4),
@@ -461,11 +454,12 @@ fn create_entities() -> HashMap<String, Entity> {
     entities.insert(
         "man".to_string(),
         Entity {
+            id: "man".to_string(),
             position: RefCell::new(Some(WorldPos::new(12.5, 7.8))),
             walking_component: RefCell::new(Some(WalkingComponent::default())),
             collision_component: RefCell::new(Some(CollisionComponent {
                 hitbox_dimensions: Point::new(8.0 / 16.0, 6.0 / 16.0),
-                enabled: true,
+                solid: true,
             })),
             sprite_component: RefCell::new(Some(SpriteComponent {
                 spriteset_rect: Rect::new(4 * 16, 0, 16 * 4, 16 * 4),
@@ -481,11 +475,12 @@ fn create_entities() -> HashMap<String, Entity> {
     entities.insert(
         "slime".to_string(),
         Entity {
+            id: "slime".to_string(),
             // Starts with no position
             walking_component: RefCell::new(Some(WalkingComponent::default())),
             collision_component: RefCell::new(Some(CollisionComponent {
                 hitbox_dimensions: Point::new(10.0 / 16.0, 8.0 / 16.0),
-                enabled: false,
+                solid: false,
             })),
             sprite_component: RefCell::new(Some(SpriteComponent {
                 spriteset_rect: Rect::new(0, 4 * 16, 16 * 4, 16 * 4),
@@ -497,7 +492,7 @@ fn create_entities() -> HashMap<String, Entity> {
             scripts: RefCell::new(Some(vec![
                 Script {
                     source: script::get_sub_script(&scripts_source, "slime_collision"),
-                    trigger: ScriptTrigger::Collision,
+                    trigger: ScriptTrigger::SoftCollision,
                     start_condition: Some(ScriptCondition {
                         story_var: "can_touch_slime".to_string(),
                         value: 1,
@@ -523,6 +518,7 @@ fn create_entities() -> HashMap<String, Entity> {
     entities.insert(
         "chest".to_string(),
         Entity {
+            id: "chest".to_string(),
             position: RefCell::new(Some(WorldPos::new(8.5, 5.5))),
             scripts: RefCell::new(Some(vec![Script {
                 source: script::get_sub_script(&scripts_source, "chest"),
@@ -536,6 +532,7 @@ fn create_entities() -> HashMap<String, Entity> {
     entities.insert(
         "pot".to_string(),
         Entity {
+            id: "pot".to_string(),
             position: RefCell::new(Some(WorldPos::new(12.5, 9.5))),
             scripts: RefCell::new(Some(vec![Script {
                 source: script::get_sub_script(&scripts_source, "pot"),
@@ -549,14 +546,15 @@ fn create_entities() -> HashMap<String, Entity> {
     entities.insert(
         "inside_door".to_string(),
         Entity {
+            id: "inside_door".to_string(),
             position: RefCell::new(Some(WorldPos::new(8.5, 7.5))),
             collision_component: RefCell::new(Some(CollisionComponent {
                 hitbox_dimensions: Point::new(1., 1.),
-                enabled: false,
+                solid: false,
             })),
             scripts: RefCell::new(Some(vec![Script {
                 source: script::get_sub_script(&scripts_source, "inside_door"),
-                trigger: ScriptTrigger::Collision,
+                trigger: ScriptTrigger::SoftCollision,
                 start_condition: Some(ScriptCondition {
                     story_var: "door_may_close".to_string(),
                     value: 1,
@@ -566,18 +564,19 @@ fn create_entities() -> HashMap<String, Entity> {
             ..Default::default()
         },
     );
-    entities.insert(
-        "auto_run_scripts".to_string(),
-        Entity {
-            scripts: RefCell::new(Some(vec![Script {
-                source: script::get_sub_script(&scripts_source, "start"),
-                trigger: ScriptTrigger::Auto,
-                start_condition: None,
-                abort_condition: None,
-            }])),
-            ..Default::default()
-        },
-    );
+    // entities.insert(
+    //     "auto_run_scripts".to_string(),
+    //     Entity {
+    //         id: "auto_run_scripts".to_string(),
+    //         scripts: RefCell::new(Some(vec![Script {
+    //             source: script::get_sub_script(&scripts_source, "start"),
+    //             trigger: ScriptTrigger::Auto,
+    //             start_condition: None,
+    //             abort_condition: None,
+    //         }])),
+    //         ..Default::default()
+    //     },
+    // );
     entities
 }
 
@@ -605,6 +604,11 @@ fn load_sound_effects() -> HashMap<String, Chunk> {
     );
     sound_effects
         .insert("flame".to_string(), Chunk::from_file("assets/audio/flame.wav").unwrap());
+    sound_effects
+        .insert("slip".to_string(), Chunk::from_file("assets/audio/slip.wav").unwrap());
+    sound_effects
+        .insert("squish".to_string(), Chunk::from_file("assets/audio/squish.wav").unwrap());
+
     sound_effects
 }
 

@@ -35,7 +35,10 @@ impl fmt::Display for ScriptError {
 #[derive(Clone, Debug, PartialEq)]
 pub enum ScriptTrigger {
     Interaction,
-    Collision,
+    // rename these two?
+    SoftCollision, // player is "colliding" AFTER movement update
+    #[allow(dead_code)]
+    HardCollision, // player collided DURING movement update
     Auto,
     None,
 }
@@ -252,7 +255,7 @@ impl ScriptInstance {
                                         .ok_or(LuaError::ExternalError(Arc::new(
                                             ScriptError::InvalidEntity(entity),
                                         )))?;
-                                collision_component.enabled = enabled;
+                                collision_component.solid = enabled;
                                 Ok(())
                             },
                         )?,

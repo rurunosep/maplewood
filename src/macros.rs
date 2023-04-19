@@ -12,6 +12,10 @@ macro_rules! ecs_query {
         )))
     };
 
+    (impl $e:ident id) => {
+        &$e.id
+    };
+
     (impl $e:ident mut $component:ident) => {
         $crate::utils::refmut_opt_to_opt_refmut($e.$component.borrow_mut())?
     };

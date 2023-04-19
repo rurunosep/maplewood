@@ -125,7 +125,7 @@ end
 
 lock_movement()
 set_dead_sprite("player", 32, 0)
--- play sfx
+play_sfx("slip")
 wait(1)
 remove_dead_sprite("player")
 unlock_movement()
@@ -136,6 +136,7 @@ while(get("times_touched_slime") < 2) do
 end
 
 -- stop music
+play_sfx("squish")
 set("slime_loop", 0)
 walk("slime", "down", 0, 1)
 set_dead_sprite("slime", 16, 32)
@@ -161,10 +162,14 @@ end
 
 set_cutscene_border()
 lock_movement()
--- squish sounds
--- wait
+play_sfx("squish")
+wait(0.8)
+play_sfx("squish")
+wait(0.8)
+play_sfx("squish")
+wait(0.8)
 set_cell_tile(12, 9, 2, 27)
-wait(0.5)
+wait(1)
 
 message("(great)")
 walk("player", "right", 0, 1)

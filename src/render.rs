@@ -140,7 +140,8 @@ pub fn render(
         // world -> top_left
         let position_in_world =
             entity::standing_cell(&ecs_query!(entities["player"], position).unwrap().0)
-                .to_worldpos();
+                .to_worldpos()
+                - Point::new(0.5, 0.5);
         let position_in_viewport = position_in_world - viewport_top_left;
         let position_on_screen = worldpos_to_screenpos(position_in_viewport);
         let top_left = position_on_screen;
@@ -160,7 +161,8 @@ pub fn render(
     if false {
         // world -> top_left
         let (p, f) = ecs_query!(entities["player"], position, facing).unwrap();
-        let position_in_world = entity::facing_cell(&p, *f).to_worldpos();
+        let position_in_world =
+            entity::facing_cell(&p, *f).to_worldpos() - Point::new(0.5, 0.5);
         let position_in_viewport = position_in_world - viewport_top_left;
         let position_on_screen = worldpos_to_screenpos(position_in_viewport);
         let top_left = position_on_screen;
