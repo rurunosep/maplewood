@@ -39,6 +39,7 @@ pub fn render(
     map_overlay_color: Color,
     dead_sprites: &Texture,
     cutscene_border: bool,
+    card: &Texture,
     show_card: bool,
 ) {
     canvas.set_draw_color(Color::RGB(255, 255, 255));
@@ -239,18 +240,7 @@ pub fn render(
 
     // Draw card
     if show_card {
-        canvas
-            .copy(
-                dead_sprites,
-                None,
-                Rect::new(
-                    50 * SCREEN_SCALE as i32,
-                    50 * SCREEN_SCALE as i32,
-                    156 * SCREEN_SCALE,
-                    92 * SCREEN_SCALE,
-                ),
-            )
-            .unwrap();
+        canvas.copy(card, None, Rect::new(112, 114, 800, 540)).unwrap();
     }
 
     // Draw message window

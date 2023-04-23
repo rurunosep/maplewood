@@ -35,7 +35,7 @@ impl fmt::Display for ScriptError {
 #[derive(Clone, Debug, PartialEq)]
 pub enum ScriptTrigger {
     Interaction,
-    // rename these two?
+    // TODO: rename these two?
     SoftCollision, // player is "colliding" AFTER movement update
     #[allow(dead_code)]
     HardCollision, // player collided DURING movement update
@@ -73,7 +73,8 @@ pub struct ScriptInstance {
 }
 
 impl ScriptInstance {
-    // TODO: take a script "class"?
+    // Should this just reference a script "class"?
+    // (rather than copying the source and abort condition)
     pub fn new(
         id: i32,
         script_source: &str,
@@ -82,16 +83,49 @@ impl ScriptInstance {
         let lua_instance = Lua::new();
         lua_instance
             .context(|context| -> LuaResult<()> {
+                let globals = context.globals();
+
                 // Wrap script in a thread so that blocking functions may yield
                 let thread: Thread = context
                     .load(&format!("coroutine.create(function() {script_source} end)"))
                     .eval()?;
-                context.globals().set("thread", thread)?;
+                globals.set("thread", thread)?;
+
+                // Create functions that don't use Rust callbacks and don't have to be
+                // recreated each update
+                context
+                    .load(
+                        r#"
+                        function walk_wait(entity, direction, distance, speed)
+                            walk(entity, direction, distance, speed)
+                            wait_until_not_walking(entity)
+                        end
+
+                        function walk_to_wait(entity, direction, destination, speed)
+                            walk_to(entity, direction, destination, speed)
+                            wait_until_not_walking(entity)
+                        end
+                        "#,
+                    )
+                    .exec()?;
+
                 Ok(())
             })
             .unwrap_or_else(|err| panic!("{err}\nsource: {:?}", err.source()));
 
-        // TODO: hook to abort after too many lines
+        // The hook yields the current thread when it's triggered and resumes it when it's
+        // finished. The only way that I've figured out to force the thread to yield AFTER the
+        // hook is to throw an error. I would probably then have to handle the error so that it
+        // doesn't panic and/or so that it doesn't finish the script. This way I can use hooks
+        // to manually abort or yield scripts that have executed for too long
+        //
+        // lua_instance.set_hook(
+        //     HookTriggers { every_nth_instruction: Some(10), ..Default::default() },
+        //     |context, debug| {
+        //         println!("a");
+        //         Ok(())
+        //     },
+        // );
 
         Self {
             lua_instance,
@@ -466,6 +500,14 @@ impl ScriptInstance {
                                 Ok(())
                             },
                         )?,
+                    )?;
+
+                    globals.set(
+                        "stop_music",
+                        scope.create_function_mut(|_, fade_out_time: f64| {
+                            Music::fade_out((fade_out_time * 1000.) as i32).unwrap();
+                            Ok(())
+                        })?,
                     )?;
 
                     globals.set(

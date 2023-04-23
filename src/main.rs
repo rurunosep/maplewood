@@ -74,16 +74,242 @@ fn main() {
     let tileset = texture_creator.load_texture("assets/basictiles.png").unwrap();
     let spritesheet = texture_creator.load_texture("assets/characters.png").unwrap();
     let dead_sprites = texture_creator.load_texture("assets/dead.png").unwrap();
+    let card = texture_creator.load_texture("assets/card.png").unwrap();
     let font = ttf_context.load_font("assets/Grand9KPixel.ttf", 8).unwrap();
 
     sdl2::mixer::open_audio(41_100, AUDIO_S16SYS, DEFAULT_CHANNELS, 512).unwrap();
     sdl2::mixer::allocate_channels(4);
-    let sound_effects = load_sound_effects();
+
+    let mut sound_effects: HashMap<String, Chunk> = HashMap::new();
+    sound_effects.insert(
+        "door_open".to_string(),
+        Chunk::from_file("assets/audio/door_open.wav").unwrap(),
+    );
+    sound_effects.insert(
+        "door_close".to_string(),
+        Chunk::from_file("assets/audio/door_close.wav").unwrap(),
+    );
+    sound_effects.insert(
+        "chest_open".to_string(),
+        Chunk::from_file("assets/audio/chest_open.wav").unwrap(),
+    );
+    sound_effects.insert(
+        "smash_pot".to_string(),
+        Chunk::from_file("assets/audio/smash_pot.wav").unwrap(),
+    );
+    sound_effects.insert(
+        "drop_in_water".to_string(),
+        Chunk::from_file("assets/audio/drop_in_water.wav").unwrap(),
+    );
+    sound_effects
+        .insert("flame".to_string(), Chunk::from_file("assets/audio/flame.wav").unwrap());
+    sound_effects
+        .insert("slip".to_string(), Chunk::from_file("assets/audio/slip.wav").unwrap());
+    sound_effects
+        .insert("squish".to_string(), Chunk::from_file("assets/audio/squish.wav").unwrap());
+    sound_effects
+        .insert("jump".to_string(), Chunk::from_file("assets/audio/jump.wav").unwrap());
+    sound_effects
+        .insert("quiver".to_string(), Chunk::from_file("assets/audio/quiver.wav").unwrap());
+
     let mut musics: HashMap<String, Music> = HashMap::new();
     musics.insert("sleep".to_string(), Music::from_file("assets/audio/sleep.wav").unwrap());
+    musics.insert("benny".to_string(), Music::from_file("assets/audio/benny.wav").unwrap());
+    musics.insert(
+        "spaghetti".to_string(),
+        Music::from_file("assets/audio/spaghetti.wav").unwrap(),
+    );
 
-    let mut tilemap = load_tilemap();
-    let mut entities = create_entities();
+    let mut tilemap = {
+        const IMPASSABLE_TILES: [i32; 21] =
+            [0, 1, 2, 3, 20, 27, 28, 31, 35, 36, 38, 45, 47, 48, 51, 53, 54, 55, 59, 60, 67];
+        let layer_1_ids: Vec<Vec<i32>> = fs::read_to_string("tiled/cottage_1.csv")
+            .unwrap()
+            .lines()
+            .map(|line| line.split(',').map(|x| x.trim().parse().unwrap()).collect())
+            .collect();
+        let layer_2_ids: Vec<Vec<i32>> = fs::read_to_string("tiled/cottage_2.csv")
+            .unwrap()
+            .lines()
+            .map(|line| line.split(',').map(|x| x.trim().parse().unwrap()).collect())
+            .collect();
+        let cells: Vec<Cell> = iter::zip(layer_1_ids.concat(), layer_2_ids.concat())
+            .map(|(tile_1, tile_2)| {
+                let passable =
+                    !IMPASSABLE_TILES.contains(&tile_1) && !IMPASSABLE_TILES.contains(&tile_2);
+                let tile_1 = if tile_1 == -1 { None } else { Some(tile_1 as u32) };
+                let tile_2 = if tile_2 == -1 { None } else { Some(tile_2 as u32) };
+                Cell { tile_1, tile_2, passable }
+            })
+            .collect();
+        Array2D::from_row_major(&cells, layer_1_ids.len(), layer_1_ids.get(0).unwrap().len())
+    };
+
+    let scripts_source = fs::read_to_string("lua/slime_glue.lua").unwrap();
+
+    // Entity ID and entity key in hashmap must match!
+    let mut entities: HashMap<String, Entity> = HashMap::new();
+    entities.insert(
+        "player".to_string(),
+        Entity {
+            id: "player".to_string(),
+            position: RefCell::new(Some(WorldPos::new(12.5, 5.5))),
+            walking_component: RefCell::new(Some(WalkingComponent {
+                speed: 0.,
+                direction: Direction::Down,
+                destination: None,
+            })),
+            collision_component: RefCell::new(Some(CollisionComponent {
+                hitbox_dimensions: Point::new(8.0 / 16.0, 6.0 / 16.0),
+                solid: true,
+            })),
+            sprite_component: RefCell::new(Some(SpriteComponent {
+                spriteset_rect: Rect::new(7 * 16, 0, 16 * 4, 16 * 4),
+                sprite_offset: Point::new(8, 13),
+                dead_sprite: None,
+                sine_offset_animation: None,
+            })),
+            facing: RefCell::new(Some(Direction::Down)),
+            ..Default::default()
+        },
+    );
+    entities.insert(
+        "man".to_string(),
+        Entity {
+            id: "man".to_string(),
+            position: RefCell::new(Some(WorldPos::new(12.5, 7.8))),
+            walking_component: RefCell::new(Some(WalkingComponent::default())),
+            collision_component: RefCell::new(Some(CollisionComponent {
+                hitbox_dimensions: Point::new(8.0 / 16.0, 6.0 / 16.0),
+                solid: true,
+            })),
+            sprite_component: RefCell::new(Some(SpriteComponent {
+                spriteset_rect: Rect::new(4 * 16, 0, 16 * 4, 16 * 4),
+                sprite_offset: Point::new(8, 13),
+                dead_sprite: None,
+                sine_offset_animation: None,
+            })),
+            facing: RefCell::new(Some(Direction::Up)),
+            scripts: RefCell::new(Some(vec![Script {
+                source: script::get_sub_script(&scripts_source, "look_at_player"),
+                trigger: ScriptTrigger::Auto,
+                start_condition: Some(ScriptCondition {
+                    story_var: "look_at_player".to_string(),
+                    value: 1,
+                }),
+                abort_condition: Some(ScriptCondition {
+                    story_var: "look_at_player".to_string(),
+                    value: 0,
+                }),
+            }])),
+            ..Default::default()
+        },
+    );
+    entities.insert(
+        "slime".to_string(),
+        Entity {
+            id: "slime".to_string(),
+            // Starts with no position
+            walking_component: RefCell::new(Some(WalkingComponent::default())),
+            collision_component: RefCell::new(Some(CollisionComponent {
+                hitbox_dimensions: Point::new(10.0 / 16.0, 8.0 / 16.0),
+                solid: false,
+            })),
+            sprite_component: RefCell::new(Some(SpriteComponent {
+                spriteset_rect: Rect::new(0, 4 * 16, 16 * 4, 16 * 4),
+                sprite_offset: Point::new(8, 11),
+                dead_sprite: None,
+                sine_offset_animation: None,
+            })),
+            facing: RefCell::new(Some(Direction::Down)),
+            scripts: RefCell::new(Some(vec![
+                Script {
+                    source: script::get_sub_script(&scripts_source, "slime_collision"),
+                    trigger: ScriptTrigger::SoftCollision,
+                    start_condition: Some(ScriptCondition {
+                        story_var: "can_touch_slime".to_string(),
+                        value: 1,
+                    }),
+                    abort_condition: None,
+                },
+                Script {
+                    source: script::get_sub_script(&scripts_source, "slime_loop"),
+                    trigger: ScriptTrigger::Auto,
+                    start_condition: Some(ScriptCondition {
+                        story_var: "slime_loop".to_string(),
+                        value: 1,
+                    }),
+                    abort_condition: Some(ScriptCondition {
+                        story_var: "slime_loop".to_string(),
+                        value: 0,
+                    }),
+                },
+            ])),
+            ..Default::default()
+        },
+    );
+    entities.insert(
+        "chest".to_string(),
+        Entity {
+            id: "chest".to_string(),
+            position: RefCell::new(Some(WorldPos::new(8.5, 5.5))),
+            scripts: RefCell::new(Some(vec![Script {
+                source: script::get_sub_script(&scripts_source, "chest"),
+                trigger: ScriptTrigger::Interaction,
+                start_condition: None,
+                abort_condition: None,
+            }])),
+            ..Default::default()
+        },
+    );
+    entities.insert(
+        "pot".to_string(),
+        Entity {
+            id: "pot".to_string(),
+            position: RefCell::new(Some(WorldPos::new(12.5, 9.5))),
+            scripts: RefCell::new(Some(vec![Script {
+                source: script::get_sub_script(&scripts_source, "pot"),
+                trigger: ScriptTrigger::Interaction,
+                start_condition: None,
+                abort_condition: None,
+            }])),
+            ..Default::default()
+        },
+    );
+    entities.insert(
+        "inside_door".to_string(),
+        Entity {
+            id: "inside_door".to_string(),
+            position: RefCell::new(Some(WorldPos::new(8.5, 7.5))),
+            collision_component: RefCell::new(Some(CollisionComponent {
+                hitbox_dimensions: Point::new(1., 1.),
+                solid: false,
+            })),
+            scripts: RefCell::new(Some(vec![Script {
+                source: script::get_sub_script(&scripts_source, "inside_door"),
+                trigger: ScriptTrigger::SoftCollision,
+                start_condition: Some(ScriptCondition {
+                    story_var: "door_may_close".to_string(),
+                    value: 1,
+                }),
+                abort_condition: None,
+            }])),
+            ..Default::default()
+        },
+    );
+    entities.insert(
+        "auto_run_scripts".to_string(),
+        Entity {
+            id: "auto_run_scripts".to_string(),
+            scripts: RefCell::new(Some(vec![Script {
+                source: script::get_sub_script(&scripts_source, "start"),
+                trigger: ScriptTrigger::Auto,
+                start_condition: None,
+                abort_condition: None,
+            }])),
+            ..Default::default()
+        },
+    );
 
     let mut story_vars: HashMap<String, i32> = HashMap::new();
     story_vars.insert("put_away_plushy".to_string(), 0);
@@ -92,6 +318,7 @@ fn main() {
     story_vars.insert("can_touch_slime".to_string(), 0);
     story_vars.insert("fixed_pot".to_string(), 0);
     story_vars.insert("door_may_close".to_string(), 0);
+    story_vars.insert("look_at_player".to_string(), 0);
 
     let mut message_window: Option<MessageWindow> = None;
     let mut player_movement_locked = false;
@@ -272,6 +499,7 @@ fn main() {
 
         // Update script execution
         for script in script_instances.values_mut() {
+            // TODO: abort, finished, waiting, etc checks should be within script.execute()?
             if let Some(condition) = &script.abort_condition {
                 if *story_vars.get(&condition.story_var).unwrap() == condition.value {
                     script.finished = true;
@@ -292,36 +520,17 @@ fn main() {
         script_instances.retain(|_, script| !script.finished);
 
         // Update walking entities
-        for (id, mut position, walking_component, collision_component) in
-            ecs_query!(entities, id, mut position, walking_component, collision_component)
+        for (id, mut position, mut walking_component, collision_component) in
+            ecs_query!(entities, id, mut position, mut walking_component, collision_component)
         {
             entity::walk_and_resolve_collisions(
                 id,
                 &mut position,
-                &walking_component,
+                &mut walking_component,
                 &collision_component,
                 &tilemap,
                 &entities,
             );
-        }
-
-        // End walking for entities that have reached destination
-        for (mut position, mut walking_component) in
-            ecs_query!(entities, mut position, mut walking_component)
-        {
-            if let Some(destination) = walking_component.destination {
-                let passed_destination = match walking_component.direction {
-                    Direction::Up => position.y < destination.y,
-                    Direction::Down => position.y > destination.y,
-                    Direction::Left => position.x < destination.x,
-                    Direction::Right => position.x > destination.x,
-                };
-                if passed_destination {
-                    *position = destination;
-                    walking_component.speed = 0.;
-                    walking_component.destination = None;
-                }
-            }
         }
 
         // Start player soft collision scripts
@@ -412,227 +621,10 @@ fn main() {
         render::render(
             &mut canvas, camera_position, &tileset, &tilemap,
             &message_window, &font, &spritesheet, &entities,
-            map_overlay_color, &dead_sprites, cutscene_border, show_card
+            map_overlay_color, &dead_sprites, cutscene_border,
+            &card, show_card
         );
 
         std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
     }
-}
-
-fn create_entities() -> HashMap<String, Entity> {
-    let scripts_source = fs::read_to_string("lua/slime_glue.lua").unwrap();
-
-    let mut entities: HashMap<String, Entity> = HashMap::new();
-
-    // Entity ID and entity key in hashmap must match!
-
-    entities.insert(
-        "player".to_string(),
-        Entity {
-            id: "player".to_string(),
-            position: RefCell::new(Some(WorldPos::new(12.5, 6.5))),
-            // position: RefCell::new(Some(WorldPos::new(12.5, 5.5))),
-            walking_component: RefCell::new(Some(WalkingComponent {
-                speed: 0.,
-                direction: Direction::Down,
-                destination: None,
-            })),
-            collision_component: RefCell::new(Some(CollisionComponent {
-                hitbox_dimensions: Point::new(8.0 / 16.0, 6.0 / 16.0),
-                solid: true,
-            })),
-            sprite_component: RefCell::new(Some(SpriteComponent {
-                spriteset_rect: Rect::new(7 * 16, 0, 16 * 4, 16 * 4),
-                sprite_offset: Point::new(8, 13),
-                dead_sprite: None,
-                sine_offset_animation: None,
-            })),
-            facing: RefCell::new(Some(Direction::Down)),
-            ..Default::default()
-        },
-    );
-    entities.insert(
-        "man".to_string(),
-        Entity {
-            id: "man".to_string(),
-            position: RefCell::new(Some(WorldPos::new(12.5, 7.8))),
-            walking_component: RefCell::new(Some(WalkingComponent::default())),
-            collision_component: RefCell::new(Some(CollisionComponent {
-                hitbox_dimensions: Point::new(8.0 / 16.0, 6.0 / 16.0),
-                solid: true,
-            })),
-            sprite_component: RefCell::new(Some(SpriteComponent {
-                spriteset_rect: Rect::new(4 * 16, 0, 16 * 4, 16 * 4),
-                sprite_offset: Point::new(8, 13),
-                dead_sprite: None,
-                sine_offset_animation: None,
-            })),
-            facing: RefCell::new(Some(Direction::Up)),
-
-            ..Default::default()
-        },
-    );
-    entities.insert(
-        "slime".to_string(),
-        Entity {
-            id: "slime".to_string(),
-            // Starts with no position
-            walking_component: RefCell::new(Some(WalkingComponent::default())),
-            collision_component: RefCell::new(Some(CollisionComponent {
-                hitbox_dimensions: Point::new(10.0 / 16.0, 8.0 / 16.0),
-                solid: false,
-            })),
-            sprite_component: RefCell::new(Some(SpriteComponent {
-                spriteset_rect: Rect::new(0, 4 * 16, 16 * 4, 16 * 4),
-                sprite_offset: Point::new(8, 11),
-                dead_sprite: None,
-                sine_offset_animation: None,
-            })),
-            facing: RefCell::new(Some(Direction::Down)),
-            scripts: RefCell::new(Some(vec![
-                Script {
-                    source: script::get_sub_script(&scripts_source, "slime_collision"),
-                    trigger: ScriptTrigger::SoftCollision,
-                    start_condition: Some(ScriptCondition {
-                        story_var: "can_touch_slime".to_string(),
-                        value: 1,
-                    }),
-                    abort_condition: None,
-                },
-                Script {
-                    source: script::get_sub_script(&scripts_source, "slime_loop"),
-                    trigger: ScriptTrigger::Auto,
-                    start_condition: Some(ScriptCondition {
-                        story_var: "slime_loop".to_string(),
-                        value: 1,
-                    }),
-                    abort_condition: Some(ScriptCondition {
-                        story_var: "slime_loop".to_string(),
-                        value: 0,
-                    }),
-                },
-            ])),
-            ..Default::default()
-        },
-    );
-    entities.insert(
-        "chest".to_string(),
-        Entity {
-            id: "chest".to_string(),
-            position: RefCell::new(Some(WorldPos::new(8.5, 5.5))),
-            scripts: RefCell::new(Some(vec![Script {
-                source: script::get_sub_script(&scripts_source, "chest"),
-                trigger: ScriptTrigger::Interaction,
-                start_condition: None,
-                abort_condition: None,
-            }])),
-            ..Default::default()
-        },
-    );
-    entities.insert(
-        "pot".to_string(),
-        Entity {
-            id: "pot".to_string(),
-            position: RefCell::new(Some(WorldPos::new(12.5, 9.5))),
-            scripts: RefCell::new(Some(vec![Script {
-                source: script::get_sub_script(&scripts_source, "pot"),
-                trigger: ScriptTrigger::Interaction,
-                start_condition: None,
-                abort_condition: None,
-            }])),
-            ..Default::default()
-        },
-    );
-    entities.insert(
-        "inside_door".to_string(),
-        Entity {
-            id: "inside_door".to_string(),
-            position: RefCell::new(Some(WorldPos::new(8.5, 7.5))),
-            collision_component: RefCell::new(Some(CollisionComponent {
-                hitbox_dimensions: Point::new(1., 1.),
-                solid: false,
-            })),
-            scripts: RefCell::new(Some(vec![Script {
-                source: script::get_sub_script(&scripts_source, "inside_door"),
-                trigger: ScriptTrigger::SoftCollision,
-                start_condition: Some(ScriptCondition {
-                    story_var: "door_may_close".to_string(),
-                    value: 1,
-                }),
-                abort_condition: None,
-            }])),
-            ..Default::default()
-        },
-    );
-    // entities.insert(
-    //     "auto_run_scripts".to_string(),
-    //     Entity {
-    //         id: "auto_run_scripts".to_string(),
-    //         scripts: RefCell::new(Some(vec![Script {
-    //             source: script::get_sub_script(&scripts_source, "start"),
-    //             trigger: ScriptTrigger::Auto,
-    //             start_condition: None,
-    //             abort_condition: None,
-    //         }])),
-    //         ..Default::default()
-    //     },
-    // );
-    entities
-}
-
-fn load_sound_effects() -> HashMap<String, Chunk> {
-    let mut sound_effects: HashMap<String, Chunk> = HashMap::new();
-    sound_effects.insert(
-        "door_open".to_string(),
-        Chunk::from_file("assets/audio/door_open.wav").unwrap(),
-    );
-    sound_effects.insert(
-        "door_close".to_string(),
-        Chunk::from_file("assets/audio/door_close.wav").unwrap(),
-    );
-    sound_effects.insert(
-        "chest_open".to_string(),
-        Chunk::from_file("assets/audio/chest_open.wav").unwrap(),
-    );
-    sound_effects.insert(
-        "smash_pot".to_string(),
-        Chunk::from_file("assets/audio/smash_pot.wav").unwrap(),
-    );
-    sound_effects.insert(
-        "drop_in_water".to_string(),
-        Chunk::from_file("assets/audio/drop_in_water.wav").unwrap(),
-    );
-    sound_effects
-        .insert("flame".to_string(), Chunk::from_file("assets/audio/flame.wav").unwrap());
-    sound_effects
-        .insert("slip".to_string(), Chunk::from_file("assets/audio/slip.wav").unwrap());
-    sound_effects
-        .insert("squish".to_string(), Chunk::from_file("assets/audio/squish.wav").unwrap());
-
-    sound_effects
-}
-
-fn load_tilemap() -> Array2D<Cell> {
-    const IMPASSABLE_TILES: [i32; 21] =
-        [0, 1, 2, 3, 20, 27, 28, 31, 35, 36, 38, 45, 47, 48, 51, 53, 54, 55, 59, 60, 67];
-    let layer_1_ids: Vec<Vec<i32>> = fs::read_to_string("tiled/cottage_1.csv")
-        .unwrap()
-        .lines()
-        .map(|line| line.split(',').map(|x| x.trim().parse().unwrap()).collect())
-        .collect();
-    let layer_2_ids: Vec<Vec<i32>> = fs::read_to_string("tiled/cottage_2.csv")
-        .unwrap()
-        .lines()
-        .map(|line| line.split(',').map(|x| x.trim().parse().unwrap()).collect())
-        .collect();
-    let cells: Vec<Cell> = iter::zip(layer_1_ids.concat(), layer_2_ids.concat())
-        .map(|(tile_1, tile_2)| {
-            let passable =
-                !IMPASSABLE_TILES.contains(&tile_1) && !IMPASSABLE_TILES.contains(&tile_2);
-            let tile_1 = if tile_1 == -1 { None } else { Some(tile_1 as u32) };
-            let tile_2 = if tile_2 == -1 { None } else { Some(tile_2 as u32) };
-            Cell { tile_1, tile_2, passable }
-        })
-        .collect();
-    Array2D::from_row_major(&cells, layer_1_ids.len(), layer_1_ids.get(0).unwrap().len())
 }

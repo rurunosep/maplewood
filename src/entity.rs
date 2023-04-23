@@ -62,12 +62,13 @@ pub struct CollisionComponent {
 pub fn walk_and_resolve_collisions(
     id: &String,
     position: &mut WorldPos,
-    walking_component: &WalkingComponent,
+    walking_component: &mut WalkingComponent,
     collision_component: &CollisionComponent,
     tilemap: &Array2D<Cell>,
     entities: &HashMap<String, Entity>,
 ) {
-    let new_position = *position
+    // Determine new position before collision resolution
+    let mut new_position = *position
         + match walking_component.direction {
             Direction::Up => WorldPos::new(0.0, -walking_component.speed),
             Direction::Down => WorldPos::new(0.0, walking_component.speed),
@@ -75,61 +76,84 @@ pub fn walk_and_resolve_collisions(
             Direction::Right => WorldPos::new(walking_component.speed, 0.0),
         };
 
-    let old_aabb = AABB::from_pos_and_hitbox(*position, collision_component.hitbox_dimensions);
+    // Resolve collisions and update new position
+    if collision_component.solid {
+        let old_aabb =
+            AABB::from_pos_and_hitbox(*position, collision_component.hitbox_dimensions);
 
-    let mut new_aabb =
-        AABB::from_pos_and_hitbox(new_position, collision_component.hitbox_dimensions);
+        let mut new_aabb =
+            AABB::from_pos_and_hitbox(new_position, collision_component.hitbox_dimensions);
 
-    // Check for and resolve collision with the 9 cells centered around new position
-    let new_cellpos = new_position.to_cellpos();
-    let cellposes_to_check = [
-        CellPos::new(new_cellpos.x - 1, new_cellpos.y - 1),
-        CellPos::new(new_cellpos.x, new_cellpos.y - 1),
-        CellPos::new(new_cellpos.x + 1, new_cellpos.y - 1),
-        CellPos::new(new_cellpos.x - 1, new_cellpos.y),
-        CellPos::new(new_cellpos.x, new_cellpos.y),
-        CellPos::new(new_cellpos.x + 1, new_cellpos.y),
-        CellPos::new(new_cellpos.x - 1, new_cellpos.y + 1),
-        CellPos::new(new_cellpos.x, new_cellpos.y + 1),
-        CellPos::new(new_cellpos.x + 1, new_cellpos.y + 1),
-    ];
-    for cellpos in cellposes_to_check {
-        if let Some(cell) = world::get_cell_at_cellpos(tilemap, cellpos) {
-            if !cell.passable {
-                let cell_aabb =
-                    AABB::from_pos_and_hitbox(cellpos.to_worldpos(), Point::new(1., 1.));
-                new_aabb.resolve_collision(&old_aabb, &cell_aabb);
+        // Check for and resolve collision with the 9 cells centered around new position
+        let new_cellpos = new_position.to_cellpos();
+        let cellposes_to_check = [
+            CellPos::new(new_cellpos.x - 1, new_cellpos.y - 1),
+            CellPos::new(new_cellpos.x, new_cellpos.y - 1),
+            CellPos::new(new_cellpos.x + 1, new_cellpos.y - 1),
+            CellPos::new(new_cellpos.x - 1, new_cellpos.y),
+            CellPos::new(new_cellpos.x, new_cellpos.y),
+            CellPos::new(new_cellpos.x + 1, new_cellpos.y),
+            CellPos::new(new_cellpos.x - 1, new_cellpos.y + 1),
+            CellPos::new(new_cellpos.x, new_cellpos.y + 1),
+            CellPos::new(new_cellpos.x + 1, new_cellpos.y + 1),
+        ];
+        for cellpos in cellposes_to_check {
+            if let Some(cell) = world::get_cell_at_cellpos(tilemap, cellpos) {
+                if !cell.passable {
+                    let cell_aabb =
+                        AABB::from_pos_and_hitbox(cellpos.to_worldpos(), Point::new(1., 1.));
+                    new_aabb.resolve_collision(&old_aabb, &cell_aabb);
+                }
             }
         }
-    }
 
-    // Check for and resolve collision with all solid entities except this one
-    // TODO: update ECS query to filter to not borrow twice instead of doing it manually here
-    for e in entities.values() {
-        if e.id != *id {
-            if let Some(other_position) = utils::ref_opt_to_opt_ref(e.position.borrow()) {
-                if let Some(other_collision_component) =
-                    utils::ref_opt_to_opt_ref(e.collision_component.borrow())
-                {
-                    if other_collision_component.solid {
-                        let other_aabb = AABB::from_pos_and_hitbox(
-                            *other_position,
-                            other_collision_component.hitbox_dimensions,
-                        );
+        // Check for and resolve collision with all solid entities except this one
+        // TODO: update ECS query to filter to not borrow twice instead of doing it manually
+        // here
+        for e in entities.values() {
+            if e.id != *id {
+                if let Some(other_position) = utils::ref_opt_to_opt_ref(e.position.borrow()) {
+                    if let Some(other_collision_component) =
+                        utils::ref_opt_to_opt_ref(e.collision_component.borrow())
+                    {
+                        if other_collision_component.solid {
+                            let other_aabb = AABB::from_pos_and_hitbox(
+                                *other_position,
+                                other_collision_component.hitbox_dimensions,
+                            );
 
-                        // TODO: trigger HardCollision script
-                        // if new_aabb.is_colliding(&other_aabb) {
-                        //     ...
-                        // }
+                            // TODO: trigger HardCollision script
+                            // if new_aabb.is_colliding(&other_aabb) {
+                            //     ...
+                            // }
 
-                        new_aabb.resolve_collision(&old_aabb, &other_aabb);
+                            new_aabb.resolve_collision(&old_aabb, &other_aabb);
+                        }
                     }
                 }
             }
         }
+
+        new_position = new_aabb.get_center();
     }
 
-    *position = new_aabb.get_center();
+    // Update position after collision resolution
+    *position = new_position;
+
+    // End forced walking if destination reached
+    if let Some(destination) = walking_component.destination {
+        let passed_destination = match walking_component.direction {
+            Direction::Up => position.y < destination.y,
+            Direction::Down => position.y > destination.y,
+            Direction::Left => position.x < destination.x,
+            Direction::Right => position.x > destination.x,
+        };
+        if passed_destination {
+            *position = destination;
+            walking_component.speed = 0.;
+            walking_component.destination = None;
+        }
+    }
 }
 
 pub fn standing_cell(position: &WorldPos) -> CellPos {

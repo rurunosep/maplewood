@@ -54,6 +54,10 @@ impl AABB {
             && self.right > other.left
     }
 
+    // The old AABB is required to determine the direction of motion
+    // And what the collision resolution really needs is just the direction
+    // So collision resolution could instead eventually take a direction enum
+    // or vector and use that directly
     pub fn resolve_collision(&mut self, old_self: &AABB, other: &AABB) {
         if self.is_colliding(other) {
             if self.top < other.bottom && old_self.top > other.bottom {
