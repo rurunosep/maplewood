@@ -1,6 +1,6 @@
 use crate::entity::{self, Direction, Entity, SineOffsetAnimation};
 use crate::world::{self, Cell, CellPos, Point, WorldPos};
-use crate::{ecs_query, MessageWindow, SCREEN_COLS, SCREEN_ROWS, SCREEN_SCALE, TILE_SIZE};
+use crate::{ecs_query, MessageWindow};
 use array2d::Array2D;
 use itertools::Itertools;
 use sdl2::pixels::Color;
@@ -9,6 +9,23 @@ use sdl2::render::{Texture, TextureQuery, WindowCanvas};
 use sdl2::ttf::Font;
 use std::collections::HashMap;
 use std::f64::consts::PI;
+
+pub const TILE_SIZE: u32 = 16;
+pub const SCREEN_COLS: u32 = 16;
+pub const SCREEN_ROWS: u32 = 12;
+pub const SCREEN_SCALE: u32 = 4;
+
+pub struct RenderData<'r> {
+    pub canvas: WindowCanvas,
+    pub tileset: Texture<'r>,
+    pub spritesheet: Texture<'r>,
+    pub dead_sprites: Texture<'r>,
+    pub card: Texture<'r>,
+    pub font: Font<'r, 'r>,
+    pub show_cutscene_border: bool,
+    pub show_card: bool,
+    pub map_overlay_color: Color,
+}
 
 // world -> top_left relies on two things:
 // world_units_to_screen_units in here, and
@@ -26,22 +43,25 @@ fn worldpos_to_screenpos(worldpos: WorldPos) -> ScreenPos {
     }
 }
 
-#[allow(clippy::too_many_arguments)]
 pub fn render(
-    canvas: &mut WindowCanvas,
+    render_data: &mut RenderData,
     camera_position: WorldPos,
-    tileset: &Texture,
     tilemap: &Array2D<Cell>,
     message_window: &Option<MessageWindow>,
-    font: &Font,
-    spritesheet: &Texture,
     entities: &HashMap<String, Entity>,
-    map_overlay_color: Color,
-    dead_sprites: &Texture,
-    cutscene_border: bool,
-    card: &Texture,
-    show_card: bool,
 ) {
+    let RenderData {
+        canvas,
+        tileset,
+        spritesheet,
+        dead_sprites,
+        card,
+        font,
+        show_cutscene_border,
+        show_card,
+        map_overlay_color,
+    } = render_data;
+
     canvas.set_draw_color(Color::RGB(255, 255, 255));
     canvas.clear();
 
@@ -69,6 +89,7 @@ pub fn render(
                     // to do with going down from the f64s to i32s, I think?
                     // Anyway, streching the tiles by a single screen pixel seems to fix it
                     // without any noticable distortion to the art
+                    // Works for now
                     TILE_SIZE * SCREEN_SCALE + 1,
                     TILE_SIZE * SCREEN_SCALE + 1,
                 );
@@ -136,81 +157,18 @@ pub fn render(
         }
     }
 
-    // Draw player standing cell marker
-    if false {
-        // world -> top_left
-        let position_in_world =
-            entity::standing_cell(&ecs_query!(entities["player"], position).unwrap().0)
-                .to_worldpos()
-                - Point::new(0.5, 0.5);
-        let position_in_viewport = position_in_world - viewport_top_left;
-        let position_on_screen = worldpos_to_screenpos(position_in_viewport);
-        let top_left = position_on_screen;
-
-        canvas.set_draw_color(Color::RGB(255, 0, 0));
-        canvas
-            .draw_rect(Rect::new(
-                top_left.x,
-                top_left.y,
-                TILE_SIZE * SCREEN_SCALE,
-                TILE_SIZE * SCREEN_SCALE,
-            ))
-            .unwrap();
-    }
-
-    // Draw player facing cell marker
-    if false {
-        // world -> top_left
-        let (p, f) = ecs_query!(entities["player"], position, facing).unwrap();
-        let position_in_world =
-            entity::facing_cell(&p, *f).to_worldpos() - Point::new(0.5, 0.5);
-        let position_in_viewport = position_in_world - viewport_top_left;
-        let position_on_screen = worldpos_to_screenpos(position_in_viewport);
-        let top_left = position_on_screen;
-
-        canvas.set_draw_color(Color::RGB(0, 0, 255));
-        canvas
-            .draw_rect(Rect::new(
-                top_left.x,
-                top_left.y,
-                TILE_SIZE * SCREEN_SCALE,
-                TILE_SIZE * SCREEN_SCALE,
-            ))
-            .unwrap();
-    }
-
-    // Draw player hitbox marker
-    if false {
-        let hitbox_screen_dimensions = worldpos_to_screenpos(
-            ecs_query!(entities["player"], collision_component).unwrap().0.hitbox_dimensions,
-        );
-        let screen_offset = hitbox_screen_dimensions / 2;
-
-        // world -> top_left
-        let position_in_world = *ecs_query!(entities["player"], position).unwrap().0;
-        let position_in_viewport = position_in_world - viewport_top_left;
-        let position_on_screen = worldpos_to_screenpos(position_in_viewport);
-        let top_left = position_on_screen - screen_offset;
-
-        canvas.set_draw_color(Color::RGB(255, 0, 255));
-        canvas
-            .draw_rect(Rect::new(
-                top_left.x,
-                top_left.y,
-                hitbox_screen_dimensions.x as u32,
-                hitbox_screen_dimensions.y as u32,
-            ))
-            .unwrap();
-    }
+    // draw_standing_cell_marker(canvas, entities, "player", viewport_top_left);
+    // draw_facing_cell_marker(canvas, entities, "player", viewport_top_left);
+    // draw_hitbox_marker(canvas, entities, "player", viewport_top_left);
 
     // Draw map overlay after map/entities/etc and before UI
-    canvas.set_draw_color(map_overlay_color);
+    canvas.set_draw_color(*map_overlay_color);
     canvas.set_blend_mode(sdl2::render::BlendMode::Blend);
     let (w, h) = canvas.output_size().unwrap();
     canvas.fill_rect(Rect::new(0, 0, w, h)).unwrap();
 
     // Draw cutscene border
-    if cutscene_border {
+    if *show_cutscene_border {
         const BORDER_THICKNESS: u32 = 6;
         canvas.set_draw_color(Color::RGB(0, 0, 0));
         let (w, h) = canvas.output_size().unwrap();
@@ -239,7 +197,7 @@ pub fn render(
     }
 
     // Draw card
-    if show_card {
+    if *show_card {
         canvas.copy(card, None, Rect::new(112, 114, 800, 540)).unwrap();
     }
 
@@ -280,4 +238,86 @@ pub fn render(
     }
 
     canvas.present();
+}
+
+#[allow(dead_code)]
+fn draw_hitbox_marker(
+    canvas: &mut WindowCanvas,
+    entities: &HashMap<String, Entity>,
+    entity_id: &str,
+    viewport_top_left: Point<f64>,
+) {
+    let hitbox_screen_dimensions = worldpos_to_screenpos(
+        ecs_query!(entities[entity_id], collision_component).unwrap().0.hitbox_dimensions,
+    );
+    let screen_offset = hitbox_screen_dimensions / 2;
+
+    // world -> top_left
+    let position_in_world = *ecs_query!(entities[entity_id], position).unwrap().0;
+    let position_in_viewport = position_in_world - viewport_top_left;
+    let position_on_screen = worldpos_to_screenpos(position_in_viewport);
+    let top_left = position_on_screen - screen_offset;
+
+    canvas.set_draw_color(Color::RGB(255, 0, 255));
+    canvas
+        .draw_rect(Rect::new(
+            top_left.x,
+            top_left.y,
+            hitbox_screen_dimensions.x as u32,
+            hitbox_screen_dimensions.y as u32,
+        ))
+        .unwrap();
+}
+
+#[allow(dead_code)]
+fn draw_facing_cell_marker(
+    canvas: &mut WindowCanvas,
+    entities: &HashMap<String, Entity>,
+    entity_id: &str,
+    viewport_top_left: Point<f64>,
+) {
+    let (p, f) = ecs_query!(entities[entity_id], position, facing).unwrap();
+
+    // world -> top_left
+    let position_in_world = entity::facing_cell(&p, *f).to_worldpos() - Point::new(0.5, 0.5);
+    let position_in_viewport = position_in_world - viewport_top_left;
+    let position_on_screen = worldpos_to_screenpos(position_in_viewport);
+    let top_left = position_on_screen;
+
+    canvas.set_draw_color(Color::RGB(0, 0, 255));
+    canvas
+        .draw_rect(Rect::new(
+            top_left.x,
+            top_left.y,
+            TILE_SIZE * SCREEN_SCALE,
+            TILE_SIZE * SCREEN_SCALE,
+        ))
+        .unwrap();
+}
+
+#[allow(dead_code)]
+fn draw_standing_cell_marker(
+    canvas: &mut WindowCanvas,
+    entities: &HashMap<String, Entity>,
+    entity_id: &str,
+    viewport_top_left: Point<f64>,
+) {
+    // world -> top_left
+    let position_in_world =
+        entity::standing_cell(&ecs_query!(entities[entity_id], position).unwrap().0)
+            .to_worldpos()
+            - Point::new(0.5, 0.5);
+    let position_in_viewport = position_in_world - viewport_top_left;
+    let position_on_screen = worldpos_to_screenpos(position_in_viewport);
+    let top_left = position_on_screen;
+
+    canvas.set_draw_color(Color::RGB(255, 0, 0));
+    canvas
+        .draw_rect(Rect::new(
+            top_left.x,
+            top_left.y,
+            TILE_SIZE * SCREEN_SCALE,
+            TILE_SIZE * SCREEN_SCALE,
+        ))
+        .unwrap();
 }

@@ -13,6 +13,7 @@ use crate::entity::{Direction, Entity};
 use crate::world::WorldPos;
 use array2d::Array2D;
 use entity::{CollisionComponent, SineOffsetAnimation, SpriteComponent, WalkingComponent};
+use render::{RenderData, SCREEN_COLS, SCREEN_ROWS, SCREEN_SCALE, TILE_SIZE};
 use script::{Script, ScriptCondition, ScriptInstance, ScriptTrigger};
 use sdl2::event::Event;
 use sdl2::image::LoadTexture;
@@ -26,10 +27,6 @@ use std::time::{Duration, Instant};
 use std::{fs, iter};
 use world::{Cell, Point, AABB};
 
-const TILE_SIZE: u32 = 16;
-const SCREEN_COLS: u32 = 16;
-const SCREEN_ROWS: u32 = 12;
-const SCREEN_SCALE: u32 = 4;
 const PLAYER_MOVE_SPEED: f64 = 0.12;
 
 pub struct MessageWindow {
@@ -38,6 +35,7 @@ pub struct MessageWindow {
     waiting_script_id: i32,
 }
 
+// should this go in RenderData?
 pub struct MapOverlayColorTransition {
     start_time: Instant,
     duration: Duration,
@@ -68,14 +66,26 @@ fn main() {
         .position_centered()
         .build()
         .unwrap();
-    let mut canvas = window.into_canvas().build().unwrap();
-    let texture_creator = canvas.texture_creator();
 
+    let canvas = window.into_canvas().build().unwrap();
+    let texture_creator = canvas.texture_creator();
     let tileset = texture_creator.load_texture("assets/basictiles.png").unwrap();
     let spritesheet = texture_creator.load_texture("assets/characters.png").unwrap();
     let dead_sprites = texture_creator.load_texture("assets/dead.png").unwrap();
     let card = texture_creator.load_texture("assets/card.png").unwrap();
     let font = ttf_context.load_font("assets/Grand9KPixel.ttf", 8).unwrap();
+
+    let mut render_data = RenderData {
+        canvas,
+        tileset,
+        spritesheet,
+        dead_sprites,
+        card,
+        font,
+        show_cutscene_border: false,
+        show_card: false,
+        map_overlay_color: Color::RGBA(0, 0, 0, 0),
+    };
 
     sdl2::mixer::open_audio(41_100, AUDIO_S16SYS, DEFAULT_CHANNELS, 512).unwrap();
     sdl2::mixer::allocate_channels(4);
@@ -120,6 +130,7 @@ fn main() {
         Music::from_file("assets/audio/spaghetti.wav").unwrap(),
     );
 
+    // NOW tilemap in game data struct?
     let mut tilemap = {
         const IMPASSABLE_TILES: [i32; 21] =
             [0, 1, 2, 3, 20, 27, 28, 31, 35, 36, 38, 45, 47, 48, 51, 53, 54, 55, 59, 60, 67];
@@ -148,6 +159,9 @@ fn main() {
     let scripts_source = fs::read_to_string("lua/slime_glue.lua").unwrap();
 
     // Entity ID and entity key in hashmap must match!
+    // TODO: make it easier to build entities
+    // (and really to use them in general... ECS needs work)
+    // NOW entities in game data struct?
     let mut entities: HashMap<String, Entity> = HashMap::new();
     entities.insert(
         "player".to_string(),
@@ -311,6 +325,7 @@ fn main() {
         },
     );
 
+    // NOW story vars in game data struct?
     let mut story_vars: HashMap<String, i32> = HashMap::new();
     story_vars.insert("put_away_plushy".to_string(), 0);
     story_vars.insert("slime_loop".to_string(), 0);
@@ -320,15 +335,17 @@ fn main() {
     story_vars.insert("door_may_close".to_string(), 0);
     story_vars.insert("look_at_player".to_string(), 0);
 
+    // UI
     let mut message_window: Option<MessageWindow> = None;
+    // Game Data?
     let mut player_movement_locked = false;
-    let mut map_overlay_color = Color::RGBA(0, 0, 0, 0);
+    // UI? Render? App?
     let mut map_overlay_color_transition: Option<MapOverlayColorTransition> = None;
-    let mut cutscene_border = false;
-    let mut show_card = false;
+    // Script Manager? App?
     let mut next_script_id = 0;
     let mut script_instances: HashMap<i32, ScriptInstance> = HashMap::new();
 
+    // App
     let mut running = true;
     while running {
         // ------------------------------------------
@@ -499,19 +516,28 @@ fn main() {
 
         // Update script execution
         for script in script_instances.values_mut() {
-            // TODO: abort, finished, waiting, etc checks should be within script.execute()?
+            // NOW abort, finished, waiting, etc checks should be within script.execute()?
             if let Some(condition) = &script.abort_condition {
                 if *story_vars.get(&condition.story_var).unwrap() == condition.value {
                     script.finished = true;
                 }
             }
             if !script.finished && !script.waiting && script.wait_until < Instant::now() {
+                // The only way to not pass all of this stuff AND MORE through a giant function
+                // signature, is going to be to store this stuff in some sort of struct, or
+                // several, and pass that
+                // It's all basically global state anyway. I'm probably going to need some
+                // global game state struct
+                // Entities, tilemap, and story vars are game data
+                // Message window, map overlay, border, card, and running are app data
+                // (possibly further divided into UI, renderer, or true app)
+                // Music and sound effects are resources and probably counts as app data, too
                 #[rustfmt::skip]
                 script.execute(
                     &mut story_vars, &mut entities, &mut message_window,
                     &mut player_movement_locked, &mut tilemap,
-                    &mut map_overlay_color_transition, map_overlay_color,
-                    &mut cutscene_border, &mut show_card, &mut running,
+                    &mut map_overlay_color_transition, render_data.map_overlay_color,
+                    &mut render_data.show_cutscene_border, &mut render_data.show_card, &mut running,
                     &musics, &sound_effects,
                 );
             }
@@ -592,7 +618,7 @@ fn main() {
                 + start_color.b as f64) as u8;
             let a = ((end_color.a as f64 - start_color.a as f64) * interp
                 + start_color.a as f64) as u8;
-            map_overlay_color = Color::RGBA(r, g, b, a);
+            render_data.map_overlay_color = Color::RGBA(r, g, b, a);
 
             if start_time.elapsed() > *duration {
                 map_overlay_color_transition = None;
@@ -617,12 +643,13 @@ fn main() {
             camera_position.y = map_dimensions.y - viewport_dimensions.y / 2.0;
         }
 
-        #[rustfmt::skip]
         render::render(
-            &mut canvas, camera_position, &tileset, &tilemap,
-            &message_window, &font, &spritesheet, &entities,
-            map_overlay_color, &dead_sprites, cutscene_border,
-            &card, show_card
+            &mut render_data,
+            // Should camera position be stored in render data???
+            camera_position,
+            &tilemap,
+            &message_window,
+            &entities,
         );
 
         std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
