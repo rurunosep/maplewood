@@ -1,6 +1,8 @@
 --# start
 
-map_overlay_color(0, 0, 0, 255, 0)
+set("start_script_started", 1)
+
+set_map_overlay_color(0, 0, 0, 255, 0)
 lock_movement()
 set_collision("player", false)
 set_dead_sprite("player", 32, 16)
@@ -15,7 +17,7 @@ message("Previously, in v0.1.0...")
 message("You broke into the house, got the plushy, and \n"
   .. "went to sleep.")
 
-map_overlay_color(0, 0, 0, 0, 3)
+set_map_overlay_color(0, 0, 0, 0, 3)
 wait(4)
 
 message("\"... ... ...\"")
@@ -247,7 +249,7 @@ wait(0.5)
 
 play_music("spaghetti")
 wait(1)
-map_overlay_color(0, 0, 0, 255, 5)
+set_map_overlay_color(0, 0, 0, 255, 5)
 wait(5)
 wait(1)
 show_card()

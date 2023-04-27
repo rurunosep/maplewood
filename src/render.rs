@@ -157,10 +157,6 @@ pub fn render(
         }
     }
 
-    // draw_standing_cell_marker(canvas, entities, "player", viewport_top_left);
-    // draw_facing_cell_marker(canvas, entities, "player", viewport_top_left);
-    // draw_hitbox_marker(canvas, entities, "player", viewport_top_left);
-
     // Draw map overlay after map/entities/etc and before UI
     canvas.set_draw_color(*map_overlay_color);
     canvas.set_blend_mode(sdl2::render::BlendMode::Blend);

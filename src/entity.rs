@@ -1,4 +1,4 @@
-use crate::script::Script;
+use crate::script::ScriptClass;
 use crate::utils;
 use crate::world::{self, Cell, CellPos, Point, WorldPos, AABB};
 use array2d::Array2D;
@@ -24,7 +24,7 @@ pub struct Entity {
     pub facing: RefCell<Option<Direction>>,
     pub walking_component: RefCell<Option<WalkingComponent>>,
     pub collision_component: RefCell<Option<CollisionComponent>>,
-    pub scripts: RefCell<Option<Vec<Script>>>,
+    pub scripts: RefCell<Option<Vec<ScriptClass>>>,
 }
 
 #[derive(Clone, Debug)]

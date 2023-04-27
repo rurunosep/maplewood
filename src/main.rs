@@ -14,7 +14,7 @@ use crate::world::WorldPos;
 use array2d::Array2D;
 use entity::{CollisionComponent, SineOffsetAnimation, SpriteComponent, WalkingComponent};
 use render::{RenderData, SCREEN_COLS, SCREEN_ROWS, SCREEN_SCALE, TILE_SIZE};
-use script::{Script, ScriptCondition, ScriptInstance, ScriptTrigger};
+use script::{ScriptClass, ScriptCondition, ScriptInstanceManager, ScriptTrigger};
 use sdl2::event::Event;
 use sdl2::image::LoadTexture;
 use sdl2::keyboard::Keycode;
@@ -130,7 +130,7 @@ fn main() {
         Music::from_file("assets/audio/spaghetti.wav").unwrap(),
     );
 
-    // NOW tilemap in game data struct?
+    // NOW: tilemap in game data struct?
     let mut tilemap = {
         const IMPASSABLE_TILES: [i32; 21] =
             [0, 1, 2, 3, 20, 27, 28, 31, 35, 36, 38, 45, 47, 48, 51, 53, 54, 55, 59, 60, 67];
@@ -161,7 +161,7 @@ fn main() {
     // Entity ID and entity key in hashmap must match!
     // TODO: make it easier to build entities
     // (and really to use them in general... ECS needs work)
-    // NOW entities in game data struct?
+    // NOW: entities in game data struct?
     let mut entities: HashMap<String, Entity> = HashMap::new();
     entities.insert(
         "player".to_string(),
@@ -204,7 +204,7 @@ fn main() {
                 sine_offset_animation: None,
             })),
             facing: RefCell::new(Some(Direction::Up)),
-            scripts: RefCell::new(Some(vec![Script {
+            scripts: RefCell::new(Some(vec![ScriptClass {
                 source: script::get_sub_script(&scripts_source, "look_at_player"),
                 trigger: ScriptTrigger::Auto,
                 start_condition: Some(ScriptCondition {
@@ -237,7 +237,7 @@ fn main() {
             })),
             facing: RefCell::new(Some(Direction::Down)),
             scripts: RefCell::new(Some(vec![
-                Script {
+                ScriptClass {
                     source: script::get_sub_script(&scripts_source, "slime_collision"),
                     trigger: ScriptTrigger::SoftCollision,
                     start_condition: Some(ScriptCondition {
@@ -246,7 +246,7 @@ fn main() {
                     }),
                     abort_condition: None,
                 },
-                Script {
+                ScriptClass {
                     source: script::get_sub_script(&scripts_source, "slime_loop"),
                     trigger: ScriptTrigger::Auto,
                     start_condition: Some(ScriptCondition {
@@ -267,7 +267,7 @@ fn main() {
         Entity {
             id: "chest".to_string(),
             position: RefCell::new(Some(WorldPos::new(8.5, 5.5))),
-            scripts: RefCell::new(Some(vec![Script {
+            scripts: RefCell::new(Some(vec![ScriptClass {
                 source: script::get_sub_script(&scripts_source, "chest"),
                 trigger: ScriptTrigger::Interaction,
                 start_condition: None,
@@ -281,7 +281,7 @@ fn main() {
         Entity {
             id: "pot".to_string(),
             position: RefCell::new(Some(WorldPos::new(12.5, 9.5))),
-            scripts: RefCell::new(Some(vec![Script {
+            scripts: RefCell::new(Some(vec![ScriptClass {
                 source: script::get_sub_script(&scripts_source, "pot"),
                 trigger: ScriptTrigger::Interaction,
                 start_condition: None,
@@ -299,7 +299,7 @@ fn main() {
                 hitbox_dimensions: Point::new(1., 1.),
                 solid: false,
             })),
-            scripts: RefCell::new(Some(vec![Script {
+            scripts: RefCell::new(Some(vec![ScriptClass {
                 source: script::get_sub_script(&scripts_source, "inside_door"),
                 trigger: ScriptTrigger::SoftCollision,
                 start_condition: Some(ScriptCondition {
@@ -315,18 +315,22 @@ fn main() {
         "auto_run_scripts".to_string(),
         Entity {
             id: "auto_run_scripts".to_string(),
-            scripts: RefCell::new(Some(vec![Script {
+            scripts: RefCell::new(Some(vec![ScriptClass {
                 source: script::get_sub_script(&scripts_source, "start"),
                 trigger: ScriptTrigger::Auto,
-                start_condition: None,
+                start_condition: Some(ScriptCondition {
+                    story_var: "start_script_started".to_string(),
+                    value: 0,
+                }),
                 abort_condition: None,
             }])),
             ..Default::default()
         },
     );
 
-    // NOW story vars in game data struct?
+    // NOW: story vars in game data struct?
     let mut story_vars: HashMap<String, i32> = HashMap::new();
+    story_vars.insert("start_script_started".to_string(), 0);
     story_vars.insert("put_away_plushy".to_string(), 0);
     story_vars.insert("slime_loop".to_string(), 0);
     story_vars.insert("times_touched_slime".to_string(), 0);
@@ -341,16 +345,16 @@ fn main() {
     let mut player_movement_locked = false;
     // UI? Render? App?
     let mut map_overlay_color_transition: Option<MapOverlayColorTransition> = None;
-    // Script Manager? App?
-    let mut next_script_id = 0;
-    let mut script_instances: HashMap<i32, ScriptInstance> = HashMap::new();
+
+    let mut script_instance_manager =
+        ScriptInstanceManager { script_instances: HashMap::new(), next_script_id: 0 };
 
     // App
     let mut running = true;
     while running {
-        // ------------------------------------------
+        // ----------------------------------------
         // Process Input
-        // ------------------------------------------
+        // ----------------------------------------
         for event in event_pump.poll_iter() {
             match event {
                 // Close program
@@ -423,8 +427,10 @@ fn main() {
                     let message_window_option = &mut message_window;
                     if let Some(message_window) = message_window_option {
                         if message_window.is_selection {
-                            if let Some(script) =
-                                script_instances.get_mut(&message_window.waiting_script_id)
+                            // NOW do this through the script instance manager?
+                            if let Some(script) = script_instance_manager
+                                .script_instances
+                                .get_mut(&message_window.waiting_script_id)
                             {
                                 script.input = match keycode {
                                     Keycode::Num1 => 1,
@@ -449,8 +455,10 @@ fn main() {
                     let message_window_option = &mut message_window;
                     if let Some(message_window) = message_window_option {
                         if !message_window.is_selection {
-                            if let Some(script) =
-                                script_instances.get_mut(&message_window.waiting_script_id)
+                            // NOW do this through the script instance manager?
+                            if let Some(script) = script_instance_manager
+                                .script_instances
+                                .get_mut(&message_window.waiting_script_id)
                             {
                                 script.waiting = false;
                                 *message_window_option = None;
@@ -460,12 +468,13 @@ fn main() {
                     // Start script (if no window is open and no script is running)
                     } else {
                         // For entity standing in cell player that is facing...
+                        let (player_pos, player_facing) =
+                            ecs_query!(entities["player"], position, facing).unwrap();
+                        let player_facing_cell =
+                            entity::facing_cell(&player_pos, *player_facing);
                         for (_, mut scripts) in ecs_query!(entities, position, mut scripts)
-                            .filter(|(pos_comp, _)| {
-                                let (player_pos_comp, player_facing) =
-                                    ecs_query!(entities["player"], position, facing).unwrap();
-                                entity::standing_cell(pos_comp)
-                                    == entity::facing_cell(&player_pos_comp, *player_facing)
+                            .filter(|(position, _)| {
+                                entity::standing_cell(position) == player_facing_cell
                             })
                         {
                             // ...start all scripts with interaction trigger and fulfilled
@@ -475,15 +484,7 @@ fn main() {
                                 ScriptTrigger::Interaction,
                                 &story_vars,
                             ) {
-                                script_instances.insert(
-                                    next_script_id,
-                                    ScriptInstance::new(
-                                        next_script_id,
-                                        &script.source,
-                                        script.abort_condition.clone(),
-                                    ),
-                                );
-                                next_script_id += 1;
+                                script_instance_manager.start_script(&script);
                             }
                         }
                     }
@@ -493,57 +494,46 @@ fn main() {
             }
         }
 
+        // ----------------------------------------
+        // Update
+        // ----------------------------------------
+
         // Start any auto-run scripts
+        // Currently, auto-run scripts must rely on a start condition that must be immediately
+        // unfulfilled at the start of the script in order to avoid starting a new instance on
+        // every single frame
         for (mut scripts,) in ecs_query!(entities, mut scripts) {
             for script in script::filter_scripts_by_trigger_and_condition(
                 &mut scripts,
                 ScriptTrigger::Auto,
                 &story_vars,
             ) {
-                script_instances.insert(
-                    next_script_id,
-                    ScriptInstance::new(
-                        next_script_id,
-                        &script.source,
-                        script.abort_condition.clone(),
-                    ),
-                );
-                next_script_id += 1;
-                // Only run auto-run script once
-                script.trigger = ScriptTrigger::None;
+                script_instance_manager.start_script(&script);
             }
         }
 
         // Update script execution
-        for script in script_instances.values_mut() {
-            // NOW abort, finished, waiting, etc checks should be within script.execute()?
-            if let Some(condition) = &script.abort_condition {
-                if *story_vars.get(&condition.story_var).unwrap() == condition.value {
-                    script.finished = true;
-                }
-            }
-            if !script.finished && !script.waiting && script.wait_until < Instant::now() {
-                // The only way to not pass all of this stuff AND MORE through a giant function
-                // signature, is going to be to store this stuff in some sort of struct, or
-                // several, and pass that
-                // It's all basically global state anyway. I'm probably going to need some
-                // global game state struct
-                // Entities, tilemap, and story vars are game data
-                // Message window, map overlay, border, card, and running are app data
-                // (possibly further divided into UI, renderer, or true app)
-                // Music and sound effects are resources and probably counts as app data, too
-                #[rustfmt::skip]
-                script.execute(
+        for script in script_instance_manager.script_instances.values_mut() {
+            // The only way to not pass all of this stuff AND MORE through a giant function
+            // signature, is going to be to store this stuff in some sort of struct, or
+            // several, and pass that
+            // It's all basically global state anyway. I'm probably going to need some
+            // global game state struct
+            // Entities, tilemap, and story vars are game data
+            // Message window, map overlay, border, card, and running are app data
+            // (possibly further divided into UI, renderer, or true app)
+            // Music and sound effects are resources and probably counts as app data, too
+            #[rustfmt::skip]
+                script.update(
                     &mut story_vars, &mut entities, &mut message_window,
                     &mut player_movement_locked, &mut tilemap,
                     &mut map_overlay_color_transition, render_data.map_overlay_color,
                     &mut render_data.show_cutscene_border, &mut render_data.show_card, &mut running,
                     &musics, &sound_effects,
                 );
-            }
         }
         // Remove finished or aborted scripts
-        script_instances.retain(|_, script| !script.finished);
+        script_instance_manager.script_instances.retain(|_, script| !script.finished);
 
         // Update walking entities
         for (id, mut position, mut walking_component, collision_component) in
@@ -578,15 +568,7 @@ fn main() {
                 ScriptTrigger::SoftCollision,
                 &story_vars,
             ) {
-                script_instances.insert(
-                    next_script_id,
-                    ScriptInstance::new(
-                        next_script_id,
-                        &script.source,
-                        script.abort_condition.clone(),
-                    ),
-                );
-                next_script_id += 1;
+                script_instance_manager.start_script(&script);
             }
         }
 
@@ -643,6 +625,9 @@ fn main() {
             camera_position.y = map_dimensions.y - viewport_dimensions.y / 2.0;
         }
 
+        // ----------------------------------------
+        // Render
+        // ----------------------------------------
         render::render(
             &mut render_data,
             // Should camera position be stored in render data???
