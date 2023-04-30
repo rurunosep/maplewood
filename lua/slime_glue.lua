@@ -71,9 +71,7 @@ remove_cutscene_border()
 
 set("look_at_player", 1)
 
-while(get("put_away_plushy") == 0) do
-  coroutine.yield()
-end
+wait_storyvar("put_away_plushy", 1)
 
 lock_movement()
 walk_to("player", "down", 6.5, 0.06)
@@ -148,9 +146,7 @@ remove_cutscene_border()
 unlock_movement()
 set("can_touch_slime", 1)
 
-while(get("times_touched_slime") < 1) do
-  coroutine.yield()
-end
+wait_storyvar("times_touched_slime", 1)
 
 lock_movement()
 set_dead_sprite("player", 32, 0)
@@ -160,9 +156,7 @@ remove_dead_sprite("player")
 unlock_movement()
 set("can_touch_slime", 1)
 
-while(get("times_touched_slime") < 2) do
-  coroutine.yield()
-end
+wait_storyvar("times_touched_slime", 2)
 
 stop_music(0)
 play_sfx("squish")
@@ -187,9 +181,7 @@ remove_position("slime")
 remove_cutscene_border()
 unlock_movement()
 
-while(get("fixed_pot") == 0) do
-  coroutine.yield()
-end
+wait_storyvar("fixed_pot", 1)
 
 set_cutscene_border()
 lock_movement()
@@ -225,9 +217,7 @@ walk_wait("man", "left", 2, 0.06)
 walk_wait("man", "up", 1, 0.06)
 remove_position("man")
 
-while(get("door_may_close") == 1) do
-  coroutine.yield()
-end
+wait_storyvar("door_may_close", 0)
 
 wait(2)
 
@@ -281,6 +271,8 @@ set("door_may_close", 0)
 
 --# look_at_player
 
+set("look_at_player", 2)
+
 while(true) do
 
   local player_x, player_y = get_entity_position("player")
@@ -306,6 +298,8 @@ while(true) do
 end
 
 --# slime_loop
+
+set("slime_loop", 2)
 
 while(true) do
   walk_wait("slime", "left", 2, 0.2)

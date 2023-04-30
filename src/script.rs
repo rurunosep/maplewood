@@ -39,9 +39,9 @@ impl Error for ScriptError {}
 impl fmt::Display for ScriptError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ScriptError::InvalidStoryVar(var) => write!(f, "no story var: {var}"),
+            ScriptError::InvalidStoryVar(var) => write!(f, "no story var {var}"),
             ScriptError::InvalidEntity(name) => {
-                write!(f, "no entity: {name} with necessary components")
+                write!(f, "no entity {name} with necessary components")
             }
         }
     }
@@ -65,24 +65,29 @@ pub struct ScriptCondition {
 }
 
 #[derive(Clone, Debug)]
+pub enum WaitCondition {
+    Time(Instant),
+    Message,
+    StoryVar(String, i32),
+}
+
+#[derive(Clone, Debug)]
 // Rename this?
 pub struct ScriptClass {
     pub source: String,
     pub trigger: ScriptTrigger,
     pub start_condition: Option<ScriptCondition>,
     pub abort_condition: Option<ScriptCondition>,
+    pub name: Option<String>, // the source file name and subscript label for debug purposes
 }
 
 pub struct ScriptInstance {
     pub lua_instance: Lua,
     pub script_class: ScriptClass,
     pub id: i32,
-    // Waiting for external event (like message advanced)
-    pub waiting: bool,
-    pub input: i32,
     pub finished: bool,
-    // Waiting on internal timer from wait(n) command
-    pub wait_until: Instant,
+    pub wait_condition: Option<WaitCondition>,
+    pub input: i32,
 }
 
 impl ScriptInstance {
@@ -93,9 +98,10 @@ impl ScriptInstance {
                 // Wrap script in a thread so that blocking functions may yield
                 context
                     .load(&format!(
-                        "thread = coroutine.create(function() {} end)",
+                        "thread = coroutine.create(function () {} end)",
                         script_class.source
                     ))
+                    .set_name(script_class.name.as_deref().unwrap_or("unnamed"))?
                     .exec()?;
 
                 // Utility function that will wrap a function that should
@@ -107,7 +113,7 @@ impl ScriptInstance {
                         wrap_yielding = function(f)
                             return function(...)
                                 f(...)
-                                return coroutine.yield()
+                                coroutine.yield()
                             end
                         end"#,
                     )
@@ -140,16 +146,20 @@ impl ScriptInstance {
 
                 Ok(())
             })
-            .unwrap_or_else(|err| panic!("{err}\nsource: {:?}", err.source()));
+            .unwrap_or_else(|err| {
+                panic!(
+                    "lua error:\n{err}\nsource: {:?}\n",
+                    err.source().map(|e| e.to_string())
+                )
+            });
 
         Self {
             lua_instance,
             script_class,
             id,
-            waiting: false,
-            input: 0,
             finished: false,
-            wait_until: Instant::now(),
+            wait_condition: None,
+            input: 0,
         }
     }
 
@@ -169,17 +179,25 @@ impl ScriptInstance {
         musics: &HashMap<String, Music>,
         sound_effects: &HashMap<String, Chunk>,
     ) {
-        // Abort script if abort condition fulfilled
+        // Abort script if abort condition is fulfilled
         if let Some(condition) = &self.script_class.abort_condition {
             if *story_vars.get(&condition.story_var).unwrap() == condition.value {
                 self.finished = true;
+                return;
             }
         }
 
-        // Do not proceed with executing script if it is waiting or has finished
-        if self.finished || self.waiting || self.wait_until > Instant::now() {
+        // Skip updating script if it is waiting
+        if match self.wait_condition.clone() {
+            Some(WaitCondition::Time(until)) => until > Instant::now(),
+            Some(WaitCondition::Message) => message_window.is_some(),
+            Some(WaitCondition::StoryVar(key, val)) => *story_vars.get(&key).unwrap() != val,
+            None => false,
+        } {
             return;
         }
+
+        self.wait_condition = None;
 
         // Wrap mut refs that are used by multiple callbacks in RefCells
         let story_vars = RefCell::new(story_vars);
@@ -187,7 +205,7 @@ impl ScriptInstance {
         let message_window = RefCell::new(message_window);
         let player_movement_locked = RefCell::new(player_movement_locked);
         let tilemap = RefCell::new(tilemap);
-        let waiting = RefCell::new(&mut self.waiting);
+        let wait_condition = RefCell::new(&mut self.wait_condition);
         let cutscene_border = RefCell::new(cutscene_border);
         let show_card = RefCell::new(show_card);
 
@@ -195,10 +213,11 @@ impl ScriptInstance {
 
         self.lua_instance
             .context(|context| -> LuaResult<()> {
-                let globals = context.globals();
-                let wrap_yielding: Function = globals.get("wrap_yielding").unwrap();
-
                 context.scope(|scope| {
+                    let globals = context.globals();
+                    let wrap_yielding: Function = globals.get("wrap_yielding").unwrap();
+                    globals.set("input", self.input)?;
+
                     // Every function that references Rust data must be recreated in this scope
                     // each time we execute some of the script, to ensure that the references
                     // in the closure remain valid
@@ -383,7 +402,7 @@ impl ScriptInstance {
                                 cb_message(
                                     args,
                                     *message_window.borrow_mut(),
-                                    *waiting.borrow_mut(),
+                                    *wait_condition.borrow_mut(),
                                     self.id,
                                 )
                             },
@@ -397,7 +416,7 @@ impl ScriptInstance {
                                 cb_selection(
                                     args,
                                     *message_window.borrow_mut(),
-                                    *waiting.borrow_mut(),
+                                    *wait_condition.borrow_mut(),
                                     self.id,
                                 )
                             },
@@ -408,8 +427,20 @@ impl ScriptInstance {
                         "wait",
                         wrap_yielding.call::<_, Function>(scope.create_function_mut(
                             |_, duration: f64| {
-                                self.wait_until =
-                                    Instant::now() + Duration::from_secs_f64(duration);
+                                **wait_condition.borrow_mut() = Some(WaitCondition::Time(
+                                    Instant::now() + Duration::from_secs_f64(duration),
+                                ));
+                                Ok(())
+                            },
+                        )?)?,
+                    )?;
+
+                    globals.set(
+                        "wait_storyvar",
+                        wrap_yielding.call::<_, Function>(scope.create_function_mut(
+                            |_, (key, val): (String, i32)| {
+                                **wait_condition.borrow_mut() =
+                                    Some(WaitCondition::StoryVar(key, val));
                                 Ok(())
                             },
                         )?)?,
@@ -417,7 +448,7 @@ impl ScriptInstance {
 
                     // Get saved thread out of globals and execute until script yields or ends
                     let thread = globals.get::<_, Thread>("thread")?;
-                    thread.resume::<_, _>(self.input)?;
+                    thread.resume::<_, _>(())?;
                     match thread.status() {
                         ThreadStatus::Unresumable | ThreadStatus::Error => {
                             self.finished = true
@@ -432,8 +463,10 @@ impl ScriptInstance {
             // Eventually we probably want to handle it differently depending on the error and
             // the circumstances
             .unwrap_or_else(|err| {
-                // TODO: A reference to the source filename and subscript label
-                panic!("{err}\nsource: {:?}", err.source());
+                panic!(
+                    "lua error:\n{err}\nsource: {:?}\n",
+                    err.source().map(|e| e.to_string())
+                );
             });
     }
 }
@@ -722,23 +755,23 @@ fn cb_is_not_walking(entity: String, entities: &HashMap<String, Entity>) -> LuaR
 fn cb_message(
     message: String,
     message_window: &mut Option<MessageWindow>,
-    waiting: &mut bool,
+    wait_condition: &mut Option<WaitCondition>,
     script_id: i32,
 ) -> LuaResult<()> {
     *message_window =
         Some(MessageWindow { message, is_selection: false, waiting_script_id: script_id });
-    *waiting = true;
+    *wait_condition = Some(WaitCondition::Message);
     Ok(())
 }
 
 fn cb_selection(
     message: String,
     message_window: &mut Option<MessageWindow>,
-    waiting: &mut bool,
+    wait_condition: &mut Option<WaitCondition>,
     script_id: i32,
 ) -> LuaResult<()> {
     *message_window =
         Some(MessageWindow { message, is_selection: true, waiting_script_id: script_id });
-    *waiting = true;
+    *wait_condition = Some(WaitCondition::Message);
     Ok(())
 }

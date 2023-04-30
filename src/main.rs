@@ -215,6 +215,7 @@ fn main() {
                     story_var: "look_at_player".to_string(),
                     value: 0,
                 }),
+                name: Some("slime_glue:look_at_player".to_string()),
             }])),
             ..Default::default()
         },
@@ -245,6 +246,7 @@ fn main() {
                         value: 1,
                     }),
                     abort_condition: None,
+                    name: Some("slime_glue:slime_collision".to_string()),
                 },
                 ScriptClass {
                     source: script::get_sub_script(&scripts_source, "slime_loop"),
@@ -257,6 +259,7 @@ fn main() {
                         story_var: "slime_loop".to_string(),
                         value: 0,
                     }),
+                    name: Some("slime_glue:slime_loop".to_string()),
                 },
             ])),
             ..Default::default()
@@ -272,6 +275,7 @@ fn main() {
                 trigger: ScriptTrigger::Interaction,
                 start_condition: None,
                 abort_condition: None,
+                name: Some("slime_glue:chest".to_string()),
             }])),
             ..Default::default()
         },
@@ -286,6 +290,7 @@ fn main() {
                 trigger: ScriptTrigger::Interaction,
                 start_condition: None,
                 abort_condition: None,
+                name: Some("slime_glue:pot".to_string()),
             }])),
             ..Default::default()
         },
@@ -307,6 +312,7 @@ fn main() {
                     value: 1,
                 }),
                 abort_condition: None,
+                name: Some("slime_glue:inside_door".to_string()),
             }])),
             ..Default::default()
         },
@@ -323,6 +329,7 @@ fn main() {
                     value: 0,
                 }),
                 abort_condition: None,
+                name: Some("slime_glue:start".to_string()),
             }])),
             ..Default::default()
         },
@@ -339,17 +346,13 @@ fn main() {
     story_vars.insert("door_may_close".to_string(), 0);
     story_vars.insert("look_at_player".to_string(), 0);
 
-    // UI
     let mut message_window: Option<MessageWindow> = None;
-    // Game Data?
     let mut player_movement_locked = false;
-    // UI? Render? App?
     let mut map_overlay_color_transition: Option<MapOverlayColorTransition> = None;
 
     let mut script_instance_manager =
         ScriptInstanceManager { script_instances: HashMap::new(), next_script_id: 0 };
 
-    // App
     let mut running = true;
     while running {
         // ----------------------------------------
@@ -427,7 +430,14 @@ fn main() {
                     let message_window_option = &mut message_window;
                     if let Some(message_window) = message_window_option {
                         if message_window.is_selection {
-                            // NOW do this through the script instance manager?
+                            // TODO: I think I want to redo how this works
+                            // Does the message window set the script's input?
+                            // Is the input then passed into thread.resume?
+                            // Or is it just set as a global?
+                            // Or is the current selection saved elsewhere in some UI struct
+                            // and the script then polls that?
+                            // Or does the message window put the selection in a specific story
+                            // var which the script then checks?
                             if let Some(script) = script_instance_manager
                                 .script_instances
                                 .get_mut(&message_window.waiting_script_id)
@@ -439,10 +449,9 @@ fn main() {
                                     Keycode::Num4 => 4,
                                     _ => unreachable!(),
                                 };
-                                script.waiting = false;
-                                *message_window_option = None;
                             }
                         }
+                        *message_window_option = None;
                     }
                 }
 
@@ -452,19 +461,8 @@ fn main() {
                 Event::KeyDown { keycode: Some(Keycode::Return), .. }
                 | Event::KeyDown { keycode: Some(Keycode::Space), .. } => {
                     // Advance message (if a non-selection message window is open)
-                    let message_window_option = &mut message_window;
-                    if let Some(message_window) = message_window_option {
-                        if !message_window.is_selection {
-                            // NOW do this through the script instance manager?
-                            if let Some(script) = script_instance_manager
-                                .script_instances
-                                .get_mut(&message_window.waiting_script_id)
-                            {
-                                script.waiting = false;
-                                *message_window_option = None;
-                            }
-                        }
-
+                    if message_window.is_some() {
+                        message_window = None;
                     // Start script (if no window is open and no script is running)
                     } else {
                         // For entity standing in cell player that is facing...
@@ -502,6 +500,8 @@ fn main() {
         // Currently, auto-run scripts must rely on a start condition that must be immediately
         // unfulfilled at the start of the script in order to avoid starting a new instance on
         // every single frame
+        // FORGETTING THIS IS A VERY EASY MISTAKE TO MAKE!
+        // Be careful, and eventually rework
         for (mut scripts,) in ecs_query!(entities, mut scripts) {
             for script in script::filter_scripts_by_trigger_and_condition(
                 &mut scripts,
