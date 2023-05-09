@@ -2,6 +2,8 @@
 #![feature(div_duration)]
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod new_ecs;
+//
 mod entity;
 mod macros;
 mod render;
@@ -21,7 +23,7 @@ use sdl2::keyboard::Keycode;
 use sdl2::mixer::{Chunk, Music, AUDIO_S16SYS, DEFAULT_CHANNELS};
 use sdl2::pixels::Color;
 use sdl2::rect::Rect;
-use std::cell::RefCell;
+use std::cell::{Ref, RefCell, RefMut};
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 use std::{fs, iter};
@@ -353,6 +355,86 @@ fn main() {
     let mut script_instance_manager =
         ScriptInstanceManager { script_instances: HashMap::new(), next_script_id: 0 };
 
+    // ----- Scratchpad -----
+
+    #[derive(Debug)]
+    struct Comp1 {
+        x: f64,
+    }
+    impl new_ecs::Component for Comp1 {}
+
+    #[allow(dead_code)]
+    #[derive(Debug)]
+    struct Comp2 {
+        y: f64,
+    }
+    impl new_ecs::Component for Comp2 {}
+
+    struct Comp3 {}
+    impl new_ecs::Component for Comp3 {}
+
+    struct Comp4 {}
+    impl new_ecs::Component for Comp4 {}
+
+    let mut ecs = new_ecs::ECS { entities: HashMap::new() };
+
+    let mut nent1 = new_ecs::Entity::new();
+    nent1.add_component(Comp1 { x: 1. });
+    nent1.add_component(Comp2 { y: 1. });
+    nent1.add_component(Comp3 {});
+    nent1.add_component(Comp4 {});
+    ecs.entities.insert("1".to_string(), nent1);
+
+    let mut nent2 = new_ecs::Entity::new();
+    nent2.add_component(Comp1 { x: 2. });
+    nent2.add_component(Comp2 { y: 2. });
+    ecs.entities.insert("2".to_string(), nent2);
+
+    let mut nent3 = new_ecs::Entity::new();
+    nent3.add_component(Comp1 { x: 3. });
+    ecs.entities.insert("3".to_string(), nent3);
+
+    let mut nent4 = new_ecs::Entity::new();
+    nent4.add_component(Comp2 { y: 4. });
+    ecs.entities.insert("4".to_string(), nent4);
+
+    let nent5 = new_ecs::Entity::new();
+    ecs.entities.insert("5".to_string(), nent5);
+
+    for e in ecs.filter_entities::<(Comp1, Comp2)>() {
+        let mut c1 = e.get_components::<RefMut<Comp1>>();
+        c1.x = 5.;
+    }
+
+    for e in ecs.filter_entities::<(Comp1, Comp2)>() {
+        let (c1, c2) = e.get_components::<(Ref<Comp1>, Ref<Comp2>)>();
+        println!("{c1:?} {c2:?}");
+
+        e.get_components::<(Ref<Comp1>, Ref<Comp2>)>();
+    }
+
+    // Combined filter+get query for convenience!
+    for (_c1, _c2) in ecs.get_components::<(Ref<Comp1>, Ref<Comp2>)>() {}
+
+    // Nested query for optional components!
+    for e in ecs.filter_entities::<(Comp1, Comp2)>() {
+        let _c1 = e.get_components::<RefMut<Comp1>>();
+        let _c2 = e.get_components::<RefMut<Comp2>>();
+    }
+
+    // Nested query for combinations!
+    for e1 in ecs.filter_entities::<(Comp1, Comp2)>() {
+        for e2 in ecs.filter_entities::<(Comp1, Comp2)>() {
+            if e1 as *const _ == e2 as *const _ {
+                continue;
+            }
+            let (_e1c1, _e1c2) = e1.get_components::<(RefMut<Comp1>, RefMut<Comp2>)>();
+            let (_e2c1, _e2c2) = e2.get_components::<(RefMut<Comp1>, RefMut<Comp2>)>();
+        }
+    }
+
+    // ----- Scratchpad -----
+
     let mut running = true;
     while running {
         // ----------------------------------------
@@ -553,6 +635,16 @@ fn main() {
         // For each entity colliding with the player...
         let (p_pos, p_coll) =
             ecs_query!(entities["player"], position, collision_component).unwrap();
+
+        // NOW
+        // Example using new ECS:
+        //
+        // let (p, c) = ecs
+        //     .entities
+        //     .get("player")
+        //     .unwrap()
+        //     .get_components::<(Ref<Position>, RefMut<Collision>)>();
+
         let p_aabb = AABB::from_pos_and_hitbox(*p_pos, p_coll.hitbox_dimensions);
         for (_, _, mut scripts) in
             ecs_query!(entities, position, collision_component, mut scripts).filter(

@@ -5,6 +5,7 @@ name = "maplewood"
 version = "0.1.0"
 
 [dependencies]
+anymap = "0.12.1"
 array2d = "0.2.1"
 derivative = "2.2.0"
 derive-new = "0.5.9"

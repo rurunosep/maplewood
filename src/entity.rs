@@ -108,8 +108,8 @@ pub fn walk_and_resolve_collisions(
         }
 
         // Check for and resolve collision with all solid entities except this one
-        // TODO: update ECS query to filter to not borrow twice instead of doing it manually
-        // here
+        // TODO: rework ECS with inspiration from the Bevy ECS Query struct in order to solve
+        // this nested query problem
         for e in entities.values() {
             if e.id != *id {
                 if let Some(other_position) = utils::ref_opt_to_opt_ref(e.position.borrow()) {

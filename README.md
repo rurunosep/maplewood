@@ -25,7 +25,7 @@ The humble beginnings of a 2D adventure game engine built from the ground up wit
 
 Developed with nightly Rust.
 
-[Install Rust](https://www.rust-lang.org/tools/install) using rustup. Select the nightly toolchain. Install the Visual Studio build tools when prompted. The minimal requirements are:
+[Install Rust](https://www.rust-lang.org/tools/install) using rustup. Select the nightly toolchain. Install the Visual Studio build tools if prompted. The minimal requirements are:
 
 - `MSVC v143 - VS 2022 C++ x64/x86 build tools (Latest)`
 - `Windows 11 SDK (10.0.22621.0)`
@@ -38,4 +38,4 @@ Build and run with `cargo run` in the project root directory.
 [SDL2_ttf](https://github.com/libsdl-org/SDL_ttf/releases) |
 [SLD2_mixer](https://github.com/libsdl-org/SDL_mixer/releases)
 
-For Windows with rustup, download `SDL2-devel-2.x.x-VC.zip` from the latest releases, copy all `.lib` files to `C:\Users\{username}\.rustup\toolchains\{toolchain}\lib\rustlib\{toolchain}\lib`, and copy all `.dll` files to the cargo project's root directory.
+For Windows with rustup, download `SDL2-devel-2.x.x-VC.zip` from the latest releases, copy all `.lib` files to `C:\Users\{username}\.rustup\toolchains\{toolchain}\lib\rustlib\{toolchain}\lib`, and copy all `.dll` files to the project root directory.

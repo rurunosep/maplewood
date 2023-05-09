@@ -271,12 +271,14 @@ impl ScriptInstance {
                             Ok(())
                         })?,
                     )?;
+                    // NOW name isn't too accurate
                     globals.set(
                         "set_collision",
                         scope.create_function_mut(|_, args| {
                             cb_set_collision(args, *entities.borrow_mut())
                         })?,
                     )?;
+                    // NOW reconsider walk and walk_to (and _wait variants)
                     globals.set(
                         "walk",
                         scope.create_function_mut(|_, args| {
@@ -289,6 +291,7 @@ impl ScriptInstance {
                             cb_walk_to(args, *entities.borrow_mut())
                         })?,
                     )?;
+                    // NOW set_entity_position?
                     globals.set(
                         "teleport_entity",
                         scope.create_function_mut(|_, args| {
@@ -336,6 +339,7 @@ impl ScriptInstance {
                         "stop_music",
                         scope.create_function_mut(|_, args| cb_stop_music(args))?,
                     )?;
+                    // NOW reconsider these two
                     globals.set(
                         "add_position",
                         scope.create_function_mut(|_, args| {
@@ -348,6 +352,7 @@ impl ScriptInstance {
                             cb_remove_position(args, *entities.borrow_mut())
                         })?,
                     )?;
+                    // NOW have to remove this but it's still necessary for v0.2 demo
                     globals.set(
                         "set_dead_sprite",
                         scope.create_function_mut(|_, args| {
@@ -360,6 +365,7 @@ impl ScriptInstance {
                             cb_remove_dead_sprite(args, *entities.borrow_mut())
                         })?,
                     )?;
+                    // NOW jank
                     globals.set(
                         "is_not_walking",
                         scope.create_function(|_, args| {
@@ -380,6 +386,7 @@ impl ScriptInstance {
                             Ok(())
                         })?,
                     )?;
+                    // NOW should probably remove or improve this feature
                     globals.set(
                         "show_card",
                         scope.create_function_mut(|_, ()| {

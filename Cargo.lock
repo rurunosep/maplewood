@@ -3,6 +3,12 @@
 version = 3
 
 [[package]]
+name = "anymap"
+version = "0.12.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "33954243bd79057c2de7338850b85983a44588021f8a5fee574a8888c6de4344"
+
+[[package]]
 name = "array2d"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -119,6 +125,7 @@ checksum = "fc7fcc620a3bff7cdd7a365be3376c97191aeaccc2a603e600951e452615bf89"
 name = "maplewood"
 version = "0.1.0"
 dependencies = [
+ "anymap",
  "array2d",
  "derivative",
  "derive-new",
