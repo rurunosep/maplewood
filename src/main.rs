@@ -2,19 +2,21 @@
 #![feature(div_duration)]
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-mod new_ecs;
-//
-mod entity;
-mod macros;
+mod component;
+mod ecs;
 mod render;
 mod script;
 mod utils;
 mod world;
 
-use crate::entity::{Direction, Entity};
+use crate::component::{
+    CollisionComponent, Position, Scripts, SineOffsetAnimation, SpriteComponent,
+    WalkingComponent,
+};
 use crate::world::WorldPos;
 use array2d::Array2D;
-use entity::{CollisionComponent, SineOffsetAnimation, SpriteComponent, WalkingComponent};
+use component::Facing;
+use ecs::ECS;
 use render::{RenderData, SCREEN_COLS, SCREEN_ROWS, SCREEN_SCALE, TILE_SIZE};
 use script::{ScriptClass, ScriptCondition, ScriptInstanceManager, ScriptTrigger};
 use sdl2::event::Event;
@@ -23,13 +25,21 @@ use sdl2::keyboard::Keycode;
 use sdl2::mixer::{Chunk, Music, AUDIO_S16SYS, DEFAULT_CHANNELS};
 use sdl2::pixels::Color;
 use sdl2::rect::Rect;
-use std::cell::{Ref, RefCell, RefMut};
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 use std::{fs, iter};
-use world::{Cell, Point, AABB};
+use world::{Cell, CellPos, Point, AABB};
 
 const PLAYER_MOVE_SPEED: f64 = 0.12;
+
+#[derive(Clone, Copy, Debug, Default)]
+pub enum Direction {
+    Up,
+    #[default]
+    Down,
+    Left,
+    Right,
+}
 
 pub struct MessageWindow {
     message: String,
@@ -160,182 +170,160 @@ fn main() {
 
     let scripts_source = fs::read_to_string("lua/slime_glue.lua").unwrap();
 
-    // Entity ID and entity key in hashmap must match!
-    // TODO: make it easier to build entities
-    // (and really to use them in general... ECS needs work)
     // NOW: entities in game data struct?
-    let mut entities: HashMap<String, Entity> = HashMap::new();
-    entities.insert(
-        "player".to_string(),
-        Entity {
-            id: "player".to_string(),
-            position: RefCell::new(Some(WorldPos::new(12.5, 5.5))),
-            walking_component: RefCell::new(Some(WalkingComponent {
-                speed: 0.,
-                direction: Direction::Down,
-                destination: None,
-            })),
-            collision_component: RefCell::new(Some(CollisionComponent {
-                hitbox_dimensions: Point::new(8.0 / 16.0, 6.0 / 16.0),
-                solid: true,
-            })),
-            sprite_component: RefCell::new(Some(SpriteComponent {
-                spriteset_rect: Rect::new(7 * 16, 0, 16 * 4, 16 * 4),
-                sprite_offset: Point::new(8, 13),
-                dead_sprite: None,
-                sine_offset_animation: None,
-            })),
-            facing: RefCell::new(Some(Direction::Down)),
-            ..Default::default()
-        },
-    );
-    entities.insert(
-        "man".to_string(),
-        Entity {
-            id: "man".to_string(),
-            position: RefCell::new(Some(WorldPos::new(12.5, 7.8))),
-            walking_component: RefCell::new(Some(WalkingComponent::default())),
-            collision_component: RefCell::new(Some(CollisionComponent {
-                hitbox_dimensions: Point::new(8.0 / 16.0, 6.0 / 16.0),
-                solid: true,
-            })),
-            sprite_component: RefCell::new(Some(SpriteComponent {
-                spriteset_rect: Rect::new(4 * 16, 0, 16 * 4, 16 * 4),
-                sprite_offset: Point::new(8, 13),
-                dead_sprite: None,
-                sine_offset_animation: None,
-            })),
-            facing: RefCell::new(Some(Direction::Up)),
-            scripts: RefCell::new(Some(vec![ScriptClass {
-                source: script::get_sub_script(&scripts_source, "look_at_player"),
+    let mut entities: HashMap<String, ecs::Entity> = HashMap::new();
+    {
+        let mut e = ecs::Entity::new();
+        e.add_component(Position(WorldPos::new(12.5, 5.5)));
+        e.add_component(WalkingComponent::default());
+        e.add_component(CollisionComponent {
+            hitbox_dimensions: Point::new(8.0 / 16.0, 6.0 / 16.0),
+            solid: true,
+        });
+        e.add_component(SpriteComponent {
+            spriteset_rect: Rect::new(7 * 16, 0, 16 * 4, 16 * 4),
+            sprite_offset: Point::new(8, 13),
+            dead_sprite: None,
+            sine_offset_animation: None,
+        });
+        e.add_component(Facing(Direction::Down));
+        entities.insert("player".to_string(), e);
+    }
+
+    {
+        let mut e = ecs::Entity::new();
+        e.add_component(Position(WorldPos::new(12.5, 7.8)));
+        e.add_component(WalkingComponent::default());
+        e.add_component(CollisionComponent {
+            hitbox_dimensions: Point::new(8.0 / 16.0, 6.0 / 16.0),
+            solid: true,
+        });
+        e.add_component(SpriteComponent {
+            spriteset_rect: Rect::new(4 * 16, 0, 16 * 4, 16 * 4),
+            sprite_offset: Point::new(8, 13),
+            dead_sprite: None,
+            sine_offset_animation: None,
+        });
+        e.add_component(Facing(Direction::Up));
+        e.add_component(Scripts(vec![ScriptClass {
+            source: script::get_sub_script(&scripts_source, "look_at_player"),
+            trigger: ScriptTrigger::Auto,
+            start_condition: Some(ScriptCondition {
+                story_var: "look_at_player".to_string(),
+                value: 1,
+            }),
+            abort_condition: Some(ScriptCondition {
+                story_var: "look_at_player".to_string(),
+                value: 0,
+            }),
+            name: Some("slime_glue:look_at_player".to_string()),
+        }]));
+        entities.insert("man".to_string(), e);
+    }
+
+    {
+        let mut e = ecs::Entity::new();
+        e.add_component(WalkingComponent::default());
+        e.add_component(CollisionComponent {
+            hitbox_dimensions: Point::new(10.0 / 16.0, 8.0 / 16.0),
+            solid: false,
+        });
+        e.add_component(SpriteComponent {
+            spriteset_rect: Rect::new(0, 4 * 16, 16 * 4, 16 * 4),
+            sprite_offset: Point::new(8, 11),
+            dead_sprite: None,
+            sine_offset_animation: None,
+        });
+        e.add_component(Facing(Direction::Down));
+        e.add_component(Scripts(vec![
+            ScriptClass {
+                source: script::get_sub_script(&scripts_source, "slime_collision"),
+                trigger: ScriptTrigger::SoftCollision,
+                start_condition: Some(ScriptCondition {
+                    story_var: "can_touch_slime".to_string(),
+                    value: 1,
+                }),
+                abort_condition: None,
+                name: Some("slime_glue:slime_collision".to_string()),
+            },
+            ScriptClass {
+                source: script::get_sub_script(&scripts_source, "slime_loop"),
                 trigger: ScriptTrigger::Auto,
                 start_condition: Some(ScriptCondition {
-                    story_var: "look_at_player".to_string(),
+                    story_var: "slime_loop".to_string(),
                     value: 1,
                 }),
                 abort_condition: Some(ScriptCondition {
-                    story_var: "look_at_player".to_string(),
+                    story_var: "slime_loop".to_string(),
                     value: 0,
                 }),
-                name: Some("slime_glue:look_at_player".to_string()),
-            }])),
-            ..Default::default()
-        },
-    );
-    entities.insert(
-        "slime".to_string(),
-        Entity {
-            id: "slime".to_string(),
-            // Starts with no position
-            walking_component: RefCell::new(Some(WalkingComponent::default())),
-            collision_component: RefCell::new(Some(CollisionComponent {
-                hitbox_dimensions: Point::new(10.0 / 16.0, 8.0 / 16.0),
-                solid: false,
-            })),
-            sprite_component: RefCell::new(Some(SpriteComponent {
-                spriteset_rect: Rect::new(0, 4 * 16, 16 * 4, 16 * 4),
-                sprite_offset: Point::new(8, 11),
-                dead_sprite: None,
-                sine_offset_animation: None,
-            })),
-            facing: RefCell::new(Some(Direction::Down)),
-            scripts: RefCell::new(Some(vec![
-                ScriptClass {
-                    source: script::get_sub_script(&scripts_source, "slime_collision"),
-                    trigger: ScriptTrigger::SoftCollision,
-                    start_condition: Some(ScriptCondition {
-                        story_var: "can_touch_slime".to_string(),
-                        value: 1,
-                    }),
-                    abort_condition: None,
-                    name: Some("slime_glue:slime_collision".to_string()),
-                },
-                ScriptClass {
-                    source: script::get_sub_script(&scripts_source, "slime_loop"),
-                    trigger: ScriptTrigger::Auto,
-                    start_condition: Some(ScriptCondition {
-                        story_var: "slime_loop".to_string(),
-                        value: 1,
-                    }),
-                    abort_condition: Some(ScriptCondition {
-                        story_var: "slime_loop".to_string(),
-                        value: 0,
-                    }),
-                    name: Some("slime_glue:slime_loop".to_string()),
-                },
-            ])),
-            ..Default::default()
-        },
-    );
-    entities.insert(
-        "chest".to_string(),
-        Entity {
-            id: "chest".to_string(),
-            position: RefCell::new(Some(WorldPos::new(8.5, 5.5))),
-            scripts: RefCell::new(Some(vec![ScriptClass {
-                source: script::get_sub_script(&scripts_source, "chest"),
-                trigger: ScriptTrigger::Interaction,
-                start_condition: None,
-                abort_condition: None,
-                name: Some("slime_glue:chest".to_string()),
-            }])),
-            ..Default::default()
-        },
-    );
-    entities.insert(
-        "pot".to_string(),
-        Entity {
-            id: "pot".to_string(),
-            position: RefCell::new(Some(WorldPos::new(12.5, 9.5))),
-            scripts: RefCell::new(Some(vec![ScriptClass {
-                source: script::get_sub_script(&scripts_source, "pot"),
-                trigger: ScriptTrigger::Interaction,
-                start_condition: None,
-                abort_condition: None,
-                name: Some("slime_glue:pot".to_string()),
-            }])),
-            ..Default::default()
-        },
-    );
-    entities.insert(
-        "inside_door".to_string(),
-        Entity {
-            id: "inside_door".to_string(),
-            position: RefCell::new(Some(WorldPos::new(8.5, 7.5))),
-            collision_component: RefCell::new(Some(CollisionComponent {
-                hitbox_dimensions: Point::new(1., 1.),
-                solid: false,
-            })),
-            scripts: RefCell::new(Some(vec![ScriptClass {
-                source: script::get_sub_script(&scripts_source, "inside_door"),
-                trigger: ScriptTrigger::SoftCollision,
-                start_condition: Some(ScriptCondition {
-                    story_var: "door_may_close".to_string(),
-                    value: 1,
-                }),
-                abort_condition: None,
-                name: Some("slime_glue:inside_door".to_string()),
-            }])),
-            ..Default::default()
-        },
-    );
-    entities.insert(
-        "auto_run_scripts".to_string(),
-        Entity {
-            id: "auto_run_scripts".to_string(),
-            scripts: RefCell::new(Some(vec![ScriptClass {
-                source: script::get_sub_script(&scripts_source, "start"),
-                trigger: ScriptTrigger::Auto,
-                start_condition: Some(ScriptCondition {
-                    story_var: "start_script_started".to_string(),
-                    value: 0,
-                }),
-                abort_condition: None,
-                name: Some("slime_glue:start".to_string()),
-            }])),
-            ..Default::default()
-        },
-    );
+                name: Some("slime_glue:slime_loop".to_string()),
+            },
+        ]));
+        entities.insert("slime".to_string(), e);
+    }
+
+    {
+        let mut e = ecs::Entity::new();
+        e.add_component(Position(WorldPos::new(8.5, 5.5)));
+        e.add_component(Scripts(vec![ScriptClass {
+            source: script::get_sub_script(&scripts_source, "chest"),
+            trigger: ScriptTrigger::Interaction,
+            start_condition: None,
+            abort_condition: None,
+            name: Some("slime_glue:chest".to_string()),
+        }]));
+        entities.insert("chest".to_string(), e);
+    }
+
+    {
+        let mut e = ecs::Entity::new();
+        e.add_component(Position(WorldPos::new(12.5, 9.5)));
+        e.add_component(Scripts(vec![ScriptClass {
+            source: script::get_sub_script(&scripts_source, "pot"),
+            trigger: ScriptTrigger::Interaction,
+            start_condition: None,
+            abort_condition: None,
+            name: Some("slime_glue:pot".to_string()),
+        }]));
+        entities.insert("pot".to_string(), e);
+    }
+
+    {
+        let mut e = ecs::Entity::new();
+        e.add_component(Position(WorldPos::new(8.5, 7.5)));
+        e.add_component(CollisionComponent {
+            hitbox_dimensions: Point::new(1., 1.),
+            solid: false,
+        });
+        e.add_component(Scripts(vec![ScriptClass {
+            source: script::get_sub_script(&scripts_source, "inside_door"),
+            trigger: ScriptTrigger::SoftCollision,
+            start_condition: Some(ScriptCondition {
+                story_var: "door_may_close".to_string(),
+                value: 1,
+            }),
+            abort_condition: None,
+            name: Some("slime_glue:inside_door".to_string()),
+        }]));
+        entities.insert("inside_door".to_string(), e);
+    }
+
+    {
+        let mut e = ecs::Entity::new();
+        e.add_component(Scripts(vec![ScriptClass {
+            source: script::get_sub_script(&scripts_source, "start"),
+            trigger: ScriptTrigger::Auto,
+            start_condition: Some(ScriptCondition {
+                story_var: "start_script_started".to_string(),
+                value: 0,
+            }),
+            abort_condition: None,
+            name: Some("slime_glue:start".to_string()),
+        }]));
+        entities.insert("auto_run_scripts".to_string(), e);
+    }
+    let mut ecs = ECS { entities };
 
     // NOW: story vars in game data struct?
     let mut story_vars: HashMap<String, i32> = HashMap::new();
@@ -356,83 +344,7 @@ fn main() {
         ScriptInstanceManager { script_instances: HashMap::new(), next_script_id: 0 };
 
     // ----- Scratchpad -----
-
-    #[derive(Debug)]
-    struct Comp1 {
-        x: f64,
-    }
-    impl new_ecs::Component for Comp1 {}
-
-    #[allow(dead_code)]
-    #[derive(Debug)]
-    struct Comp2 {
-        y: f64,
-    }
-    impl new_ecs::Component for Comp2 {}
-
-    struct Comp3 {}
-    impl new_ecs::Component for Comp3 {}
-
-    struct Comp4 {}
-    impl new_ecs::Component for Comp4 {}
-
-    let mut ecs = new_ecs::ECS { entities: HashMap::new() };
-
-    let mut nent1 = new_ecs::Entity::new();
-    nent1.add_component(Comp1 { x: 1. });
-    nent1.add_component(Comp2 { y: 1. });
-    nent1.add_component(Comp3 {});
-    nent1.add_component(Comp4 {});
-    ecs.entities.insert("1".to_string(), nent1);
-
-    let mut nent2 = new_ecs::Entity::new();
-    nent2.add_component(Comp1 { x: 2. });
-    nent2.add_component(Comp2 { y: 2. });
-    ecs.entities.insert("2".to_string(), nent2);
-
-    let mut nent3 = new_ecs::Entity::new();
-    nent3.add_component(Comp1 { x: 3. });
-    ecs.entities.insert("3".to_string(), nent3);
-
-    let mut nent4 = new_ecs::Entity::new();
-    nent4.add_component(Comp2 { y: 4. });
-    ecs.entities.insert("4".to_string(), nent4);
-
-    let nent5 = new_ecs::Entity::new();
-    ecs.entities.insert("5".to_string(), nent5);
-
-    for e in ecs.filter_entities::<(Comp1, Comp2)>() {
-        let mut c1 = e.get_components::<RefMut<Comp1>>();
-        c1.x = 5.;
-    }
-
-    for e in ecs.filter_entities::<(Comp1, Comp2)>() {
-        let (c1, c2) = e.get_components::<(Ref<Comp1>, Ref<Comp2>)>();
-        println!("{c1:?} {c2:?}");
-
-        e.get_components::<(Ref<Comp1>, Ref<Comp2>)>();
-    }
-
-    // Combined filter+get query for convenience!
-    for (_c1, _c2) in ecs.get_components::<(Ref<Comp1>, Ref<Comp2>)>() {}
-
-    // Nested query for optional components!
-    for e in ecs.filter_entities::<(Comp1, Comp2)>() {
-        let _c1 = e.get_components::<RefMut<Comp1>>();
-        let _c2 = e.get_components::<RefMut<Comp2>>();
-    }
-
-    // Nested query for combinations!
-    for e1 in ecs.filter_entities::<(Comp1, Comp2)>() {
-        for e2 in ecs.filter_entities::<(Comp1, Comp2)>() {
-            if e1 as *const _ == e2 as *const _ {
-                continue;
-            }
-            let (_e1c1, _e1c2) = e1.get_components::<(RefMut<Comp1>, RefMut<Comp2>)>();
-            let (_e2c1, _e2c2) = e2.get_components::<(RefMut<Comp1>, RefMut<Comp2>)>();
-        }
-    }
-
+    {}
     // ----- Scratchpad -----
 
     let mut running = true;
@@ -458,9 +370,9 @@ fn main() {
                     // Some conditions (such as a message window open, or movement being
                     // forced) lock player movement
                     // Scripts can also lock/unlock it as necessary
-                    let (mut facing, mut walking_component) =
-                        ecs_query!(entities["player"], mut facing, mut walking_component)
-                            .unwrap();
+                    let (mut facing, mut walking_component) = ecs
+                        .query_one::<(&mut Facing, &mut WalkingComponent)>("player")
+                        .unwrap();
                     if message_window.is_none()
                         && walking_component.destination.is_none()
                         && !player_movement_locked
@@ -473,15 +385,15 @@ fn main() {
                             Keycode::Right => Direction::Right,
                             _ => unreachable!(),
                         };
-                        *facing = walking_component.direction;
+                        facing.0 = walking_component.direction;
                     }
                 }
                 // End player movement if directional key matching player direction is released
                 Event::KeyUp { keycode: Some(keycode), .. }
                     if keycode
-                        == match ecs_query!(entities["player"], walking_component)
+                        == match ecs
+                            .query_one::<&WalkingComponent>("player")
                             .unwrap()
-                            .0
                             .direction
                         {
                             Direction::Up => Keycode::Up,
@@ -491,7 +403,7 @@ fn main() {
                         } =>
                 {
                     let mut walking_component =
-                        ecs_query!(entities["player"], mut walking_component).unwrap().0;
+                        ecs.query_one::<&mut WalkingComponent>("player").unwrap();
                     // Don't end movement if it's being forced
                     // TODO: should probably rework the way that input vs forced movement work
                     // and update Or maybe movement should use polling
@@ -512,14 +424,9 @@ fn main() {
                     let message_window_option = &mut message_window;
                     if let Some(message_window) = message_window_option {
                         if message_window.is_selection {
-                            // TODO: I think I want to redo how this works
-                            // Does the message window set the script's input?
-                            // Is the input then passed into thread.resume?
-                            // Or is it just set as a global?
-                            // Or is the current selection saved elsewhere in some UI struct
-                            // and the script then polls that?
-                            // Or does the message window put the selection in a specific story
-                            // var which the script then checks?
+                            // TODO: I want to redo how window<->script communcation works
+                            // How should the window (or UI in general) give the input to the
+                            // correct script?
                             if let Some(script) = script_instance_manager
                                 .script_instances
                                 .get_mut(&message_window.waiting_script_id)
@@ -549,18 +456,17 @@ fn main() {
                     } else {
                         // For entity standing in cell player that is facing...
                         let (player_pos, player_facing) =
-                            ecs_query!(entities["player"], position, facing).unwrap();
-                        let player_facing_cell =
-                            entity::facing_cell(&player_pos, *player_facing);
-                        for (_, mut scripts) in ecs_query!(entities, position, mut scripts)
-                            .filter(|(position, _)| {
-                                entity::standing_cell(position) == player_facing_cell
+                            ecs.query_one::<(&Position, &Facing)>("player").unwrap();
+                        let player_facing_cell = facing_cell(&player_pos.0, player_facing.0);
+                        for (_, mut scripts) in
+                            ecs.query::<(&Position, &mut Scripts)>().filter(|(position, _)| {
+                                standing_cell(&position.0) == player_facing_cell
                             })
                         {
                             // ...start all scripts with interaction trigger and fulfilled
                             // start condition
                             for script in script::filter_scripts_by_trigger_and_condition(
-                                &mut scripts,
+                                &mut scripts.0,
                                 ScriptTrigger::Interaction,
                                 &story_vars,
                             ) {
@@ -584,9 +490,9 @@ fn main() {
         // every single frame
         // FORGETTING THIS IS A VERY EASY MISTAKE TO MAKE!
         // Be careful, and eventually rework
-        for (mut scripts,) in ecs_query!(entities, mut scripts) {
+        for mut scripts in ecs.query::<&mut Scripts>() {
             for script in script::filter_scripts_by_trigger_and_condition(
-                &mut scripts,
+                &mut scripts.0,
                 ScriptTrigger::Auto,
                 &story_vars,
             ) {
@@ -607,7 +513,7 @@ fn main() {
             // Music and sound effects are resources and probably counts as app data, too
             #[rustfmt::skip]
                 script.update(
-                    &mut story_vars, &mut entities, &mut message_window,
+                    &mut story_vars, &mut ecs, &mut message_window,
                     &mut player_movement_locked, &mut tilemap,
                     &mut map_overlay_color_transition, render_data.map_overlay_color,
                     &mut render_data.show_cutscene_border, &mut render_data.show_card, &mut running,
@@ -617,46 +523,24 @@ fn main() {
         // Remove finished or aborted scripts
         script_instance_manager.script_instances.retain(|_, script| !script.finished);
 
-        // Update walking entities
-        for (id, mut position, mut walking_component, collision_component) in
-            ecs_query!(entities, id, mut position, mut walking_component, collision_component)
-        {
-            entity::walk_and_resolve_collisions(
-                id,
-                &mut position,
-                &mut walking_component,
-                &collision_component,
-                &tilemap,
-                &entities,
-            );
-        }
+        // Update walking entities (move and resolve collisions)
+        update_walking_entities(&ecs, &tilemap);
 
         // Start player soft collision scripts
         // For each entity colliding with the player...
         let (p_pos, p_coll) =
-            ecs_query!(entities["player"], position, collision_component).unwrap();
-
-        // NOW
-        // Example using new ECS:
-        //
-        // let (p, c) = ecs
-        //     .entities
-        //     .get("player")
-        //     .unwrap()
-        //     .get_components::<(Ref<Position>, RefMut<Collision>)>();
-
-        let p_aabb = AABB::from_pos_and_hitbox(*p_pos, p_coll.hitbox_dimensions);
-        for (_, _, mut scripts) in
-            ecs_query!(entities, position, collision_component, mut scripts).filter(
-                |(e_pos, e_coll, _)| {
-                    let e_aabb = AABB::from_pos_and_hitbox(**e_pos, e_coll.hitbox_dimensions);
-                    return e_aabb.is_colliding(&p_aabb);
-                },
-            )
+            ecs.query_one::<(&Position, &CollisionComponent)>("player").unwrap();
+        let p_aabb = AABB::from_pos_and_hitbox(p_pos.0, p_coll.hitbox_dimensions);
+        for (_, _, mut scripts) in ecs
+            .query::<(&Position, &CollisionComponent, &mut Scripts)>()
+            .filter(|(e_pos, e_coll, _)| {
+                let e_aabb = AABB::from_pos_and_hitbox(e_pos.0, e_coll.hitbox_dimensions);
+                return e_aabb.is_colliding(&p_aabb);
+            })
         {
             // ...start all scripts that have a collision trigger and fulfill start condition
             for script in script::filter_scripts_by_trigger_and_condition(
-                &mut scripts,
+                &mut scripts.0,
                 ScriptTrigger::SoftCollision,
                 &story_vars,
             ) {
@@ -665,7 +549,7 @@ fn main() {
         }
 
         // End entity SineOffsetAnimations that have exceeded their duration
-        for (mut sprite_component,) in ecs_query!(entities, mut sprite_component) {
+        for mut sprite_component in ecs.query::<&mut SpriteComponent>() {
             if let Some(SineOffsetAnimation { start_time, duration, .. }) =
                 sprite_component.sine_offset_animation
             {
@@ -700,7 +584,7 @@ fn main() {
         }
 
         // Camera follows player but stays clamped to map
-        let mut camera_position = *ecs_query!(entities["player"], position).unwrap().0;
+        let mut camera_position = ecs.query_one::<&Position>("player").unwrap().0;
         let viewport_dimensions = WorldPos::new(SCREEN_COLS as f64, SCREEN_ROWS as f64);
         let map_dimensions =
             WorldPos::new(tilemap.num_rows() as f64, tilemap.num_columns() as f64);
@@ -726,9 +610,123 @@ fn main() {
             camera_position,
             &tilemap,
             &message_window,
-            &entities,
+            &ecs,
         );
 
         std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
     }
+}
+
+fn update_walking_entities(ecs: &ECS, tilemap: &Array2D<Cell>) {
+    // Must do a split filter+borrow query so that I have a ref to the entity to compare in the
+    // upcoming nested query
+    for e in ecs.filter_entities::<(Position, WalkingComponent, CollisionComponent)>() {
+        let (mut position, mut walking_component, collision_component) = e
+            .borrow_components::<(&mut Position, &mut WalkingComponent, &CollisionComponent)>(
+            );
+
+        // Determine new position before collision resolution
+        let mut new_position = position.0
+            + match walking_component.direction {
+                Direction::Up => WorldPos::new(0.0, -walking_component.speed),
+                Direction::Down => WorldPos::new(0.0, walking_component.speed),
+                Direction::Left => WorldPos::new(-walking_component.speed, 0.0),
+                Direction::Right => WorldPos::new(walking_component.speed, 0.0),
+            };
+
+        // Resolve collisions and update new position
+        if collision_component.solid {
+            let old_aabb =
+                AABB::from_pos_and_hitbox(position.0, collision_component.hitbox_dimensions);
+
+            let mut new_aabb =
+                AABB::from_pos_and_hitbox(new_position, collision_component.hitbox_dimensions);
+
+            // Check for and resolve collision with the 9 cells centered around new
+            // position
+            let new_cellpos = new_position.to_cellpos();
+            let cellposes_to_check = [
+                CellPos::new(new_cellpos.x - 1, new_cellpos.y - 1),
+                CellPos::new(new_cellpos.x, new_cellpos.y - 1),
+                CellPos::new(new_cellpos.x + 1, new_cellpos.y - 1),
+                CellPos::new(new_cellpos.x - 1, new_cellpos.y),
+                CellPos::new(new_cellpos.x, new_cellpos.y),
+                CellPos::new(new_cellpos.x + 1, new_cellpos.y),
+                CellPos::new(new_cellpos.x - 1, new_cellpos.y + 1),
+                CellPos::new(new_cellpos.x, new_cellpos.y + 1),
+                CellPos::new(new_cellpos.x + 1, new_cellpos.y + 1),
+            ];
+            for cellpos in cellposes_to_check {
+                if let Some(cell) = world::get_cell_at_cellpos(tilemap, cellpos) {
+                    if !cell.passable {
+                        let cell_aabb = AABB::from_pos_and_hitbox(
+                            cellpos.to_worldpos(),
+                            Point::new(1., 1.),
+                        );
+                        new_aabb.resolve_collision(&old_aabb, &cell_aabb);
+                    }
+                }
+            }
+
+            // Check for and resolve collision with all solid entities except this one
+            //
+            // Query split into "filter" and "borrow components" steps so that entities can be
+            // further filtered in between in order to avoid re-borrowing from the
+            // same entity in this nested query
+            for other in ecs
+                .filter_entities::<(Position, CollisionComponent)>()
+                .filter(|&other_ref| other_ref as *const _ != e as *const _)
+            {
+                let (other_pos, other_coll) =
+                    other.borrow_components::<(&Position, &CollisionComponent)>();
+
+                if other_coll.solid {
+                    let other_aabb =
+                        AABB::from_pos_and_hitbox(other_pos.0, other_coll.hitbox_dimensions);
+
+                    // TODO: trigger HardCollision script
+                    // if new_aabb.is_colliding(&other_aabb) {
+                    //     ...
+                    // }
+
+                    new_aabb.resolve_collision(&old_aabb, &other_aabb);
+                }
+            }
+
+            new_position = new_aabb.get_center();
+        }
+
+        // Update position after collision resolution
+        position.0 = new_position;
+
+        // End forced walking if destination reached
+        if let Some(destination) = walking_component.destination {
+            let passed_destination = match walking_component.direction {
+                Direction::Up => position.0.y < destination.y,
+                Direction::Down => position.0.y > destination.y,
+                Direction::Left => position.0.x < destination.x,
+                Direction::Right => position.0.x > destination.x,
+            };
+            if passed_destination {
+                position.0 = destination;
+                walking_component.speed = 0.;
+                walking_component.destination = None;
+            }
+        }
+    }
+}
+
+pub fn standing_cell(position: &WorldPos) -> CellPos {
+    position.to_cellpos()
+}
+
+pub fn facing_cell(position: &WorldPos, facing: Direction) -> CellPos {
+    let maximum_distance = 0.6;
+    let facing_cell_position = match facing {
+        Direction::Up => *position + WorldPos::new(0.0, -maximum_distance),
+        Direction::Down => *position + WorldPos::new(0.0, maximum_distance),
+        Direction::Left => *position + WorldPos::new(-maximum_distance, 0.0),
+        Direction::Right => *position + WorldPos::new(maximum_distance, 0.0),
+    };
+    facing_cell_position.to_cellpos()
 }

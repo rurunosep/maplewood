@@ -1,13 +1,15 @@
-use crate::entity::{self, Direction, Entity, SineOffsetAnimation};
+use crate::component::{
+    CollisionComponent, Facing, Position, SineOffsetAnimation, SpriteComponent,
+};
+use crate::ecs::ECS;
 use crate::world::{self, Cell, CellPos, Point, WorldPos};
-use crate::{ecs_query, MessageWindow};
+use crate::{facing_cell, standing_cell, Direction, MessageWindow};
 use array2d::Array2D;
 use itertools::Itertools;
 use sdl2::pixels::Color;
 use sdl2::rect::Rect;
 use sdl2::render::{Texture, TextureQuery, WindowCanvas};
 use sdl2::ttf::Font;
-use std::collections::HashMap;
 use std::f64::consts::PI;
 
 pub const TILE_SIZE: u32 = 16;
@@ -48,7 +50,7 @@ pub fn render(
     camera_position: WorldPos,
     tilemap: &Array2D<Cell>,
     message_window: &Option<MessageWindow>,
-    entities: &HashMap<String, Entity>,
+    ecs: &ECS,
 ) {
     let RenderData {
         canvas,
@@ -110,11 +112,11 @@ pub fn render(
     }
 
     // Draw entities with character components
-    for (position, sprite_component, facing) in
-        ecs_query!(entities, position, sprite_component, facing)
-            .sorted_by(|(p1, _, _), (p2, _, _)| p1.y.partial_cmp(&p2.y).unwrap())
+    for (position, sprite_component, facing) in ecs
+        .query::<(&Position, &SpriteComponent, &Facing)>()
+        .sorted_by(|(p1, _, _), (p2, _, _)| p1.0.y.partial_cmp(&p2.0.y).unwrap())
     {
-        let sprite_row = match *facing {
+        let sprite_row = match facing.0 {
             Direction::Up => 3,
             Direction::Down => 0,
             Direction::Left => 1,
@@ -129,7 +131,7 @@ pub fn render(
         );
 
         // If entity has a SineOffsetAnimation, offset sprite position accordingly
-        let mut position = *position;
+        let mut position = position.0;
         if let Some(SineOffsetAnimation {
             start_time, frequency, amplitude, direction, ..
         }) = sprite_component.sine_offset_animation
@@ -239,17 +241,17 @@ pub fn render(
 #[allow(dead_code)]
 fn draw_hitbox_marker(
     canvas: &mut WindowCanvas,
-    entities: &HashMap<String, Entity>,
+    ecs: &ECS,
     entity_id: &str,
     viewport_top_left: Point<f64>,
 ) {
     let hitbox_screen_dimensions = worldpos_to_screenpos(
-        ecs_query!(entities[entity_id], collision_component).unwrap().0.hitbox_dimensions,
+        ecs.query_one::<&CollisionComponent>(entity_id).unwrap().hitbox_dimensions,
     );
     let screen_offset = hitbox_screen_dimensions / 2;
 
     // world -> top_left
-    let position_in_world = *ecs_query!(entities[entity_id], position).unwrap().0;
+    let position_in_world = ecs.query_one::<&Position>(entity_id).unwrap().0;
     let position_in_viewport = position_in_world - viewport_top_left;
     let position_on_screen = worldpos_to_screenpos(position_in_viewport);
     let top_left = position_on_screen - screen_offset;
@@ -268,14 +270,14 @@ fn draw_hitbox_marker(
 #[allow(dead_code)]
 fn draw_facing_cell_marker(
     canvas: &mut WindowCanvas,
-    entities: &HashMap<String, Entity>,
+    ecs: &ECS,
     entity_id: &str,
     viewport_top_left: Point<f64>,
 ) {
-    let (p, f) = ecs_query!(entities[entity_id], position, facing).unwrap();
+    let (p, f) = ecs.query_one::<(&Position, &Facing)>(entity_id).unwrap();
 
     // world -> top_left
-    let position_in_world = entity::facing_cell(&p, *f).to_worldpos() - Point::new(0.5, 0.5);
+    let position_in_world = facing_cell(&p.0, f.0).to_worldpos() - Point::new(0.5, 0.5);
     let position_in_viewport = position_in_world - viewport_top_left;
     let position_on_screen = worldpos_to_screenpos(position_in_viewport);
     let top_left = position_on_screen;
@@ -294,15 +296,14 @@ fn draw_facing_cell_marker(
 #[allow(dead_code)]
 fn draw_standing_cell_marker(
     canvas: &mut WindowCanvas,
-    entities: &HashMap<String, Entity>,
+    ecs: &ECS,
     entity_id: &str,
     viewport_top_left: Point<f64>,
 ) {
     // world -> top_left
-    let position_in_world =
-        entity::standing_cell(&ecs_query!(entities[entity_id], position).unwrap().0)
-            .to_worldpos()
-            - Point::new(0.5, 0.5);
+    let position_in_world = standing_cell(&ecs.query_one::<&Position>(entity_id).unwrap().0)
+        .to_worldpos()
+        - Point::new(0.5, 0.5);
     let position_in_viewport = position_in_world - viewport_top_left;
     let position_on_screen = worldpos_to_screenpos(position_in_viewport);
     let top_left = position_on_screen;

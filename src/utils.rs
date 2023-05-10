@@ -1,5 +1,6 @@
 use std::cell::{Ref, RefMut};
 
+#[allow(dead_code)]
 #[allow(clippy::manual_map)]
 pub fn ref_opt_to_opt_ref<T>(r: Ref<Option<T>>) -> Option<Ref<T>> {
     match *r {
@@ -8,6 +9,7 @@ pub fn ref_opt_to_opt_ref<T>(r: Ref<Option<T>>) -> Option<Ref<T>> {
     }
 }
 
+#[allow(dead_code)]
 #[allow(clippy::manual_map)]
 pub fn refmut_opt_to_opt_refmut<T>(r: RefMut<Option<T>>) -> Option<RefMut<T>> {
     match *r {
