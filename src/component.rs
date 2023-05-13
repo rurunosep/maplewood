@@ -15,14 +15,20 @@ pub struct Scripts(pub Vec<ScriptClass>);
 impl Component for Scripts {}
 
 pub struct SpriteComponent {
-    pub spriteset_rect: Rect, // The region of the full spritesheet with this entity's sprites
+    pub up_sprite: Sprite,
+    pub down_sprite: Sprite,
+    pub left_sprite: Sprite,
+    pub right_sprite: Sprite,
+    pub forced_sprite: Option<Sprite>,
     pub sprite_offset: Point<i32>,
     pub sine_offset_animation: Option<SineOffsetAnimation>,
-
-    // TODO: ad hoc
-    pub dead_sprite: Option<Rect>,
 }
 impl Component for SpriteComponent {}
+
+pub struct Sprite {
+    pub spritesheet_name: String,
+    pub rect: Rect,
+}
 
 #[derive(Clone, Debug)]
 pub struct SineOffsetAnimation {

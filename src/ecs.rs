@@ -32,6 +32,12 @@ impl Entity {
 }
 
 pub struct ECS {
+    // Slotmap or similar rather than string ids?
+    // Entities could have a name component to refer to them by name in scripts
+    // Performance doesn't matter. Just .find() the one with the right name
+    // If performance ever mattered, just use a separate index of name to entity id?
+    // Such an index could also enforce that names are unique, but for now
+    // unchecked is fine
     pub entities: HashMap<String, Entity>,
 }
 

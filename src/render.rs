@@ -10,6 +10,7 @@ use sdl2::pixels::Color;
 use sdl2::rect::Rect;
 use sdl2::render::{Texture, TextureQuery, WindowCanvas};
 use sdl2::ttf::Font;
+use std::collections::HashMap;
 use std::f64::consts::PI;
 
 pub const TILE_SIZE: u32 = 16;
@@ -20,12 +21,11 @@ pub const SCREEN_SCALE: u32 = 4;
 pub struct RenderData<'r> {
     pub canvas: WindowCanvas,
     pub tileset: Texture<'r>,
-    pub spritesheet: Texture<'r>,
-    pub dead_sprites: Texture<'r>,
-    pub card: Texture<'r>,
+    pub spritesheets: HashMap<String, Texture<'r>>,
+    pub cards: HashMap<String, Texture<'r>>,
     pub font: Font<'r, 'r>,
     pub show_cutscene_border: bool,
-    pub show_card: bool,
+    pub displayed_card_name: Option<String>,
     pub map_overlay_color: Color,
 }
 
@@ -55,12 +55,11 @@ pub fn render(
     let RenderData {
         canvas,
         tileset,
-        spritesheet,
-        dead_sprites,
-        card,
+        spritesheets,
+        cards,
         font,
         show_cutscene_border,
-        show_card,
+        displayed_card_name,
         map_overlay_color,
     } = render_data;
 
@@ -116,19 +115,17 @@ pub fn render(
         .query::<(&Position, &SpriteComponent, &Facing)>()
         .sorted_by(|(p1, _, _), (p2, _, _)| p1.0.y.partial_cmp(&p2.0.y).unwrap())
     {
-        let sprite_row = match facing.0 {
-            Direction::Up => 3,
-            Direction::Down => 0,
-            Direction::Left => 1,
-            Direction::Right => 2,
+        // Choose sprite to draw
+        let sprite = if let Some(forced_sprite) = &sprite_component.forced_sprite {
+            forced_sprite
+        } else {
+            match facing.0 {
+                Direction::Up => &sprite_component.up_sprite,
+                Direction::Down => &sprite_component.down_sprite,
+                Direction::Left => &sprite_component.left_sprite,
+                Direction::Right => &sprite_component.right_sprite,
+            }
         };
-
-        let sprite_rect = Rect::new(
-            sprite_component.spriteset_rect.x,
-            sprite_component.spriteset_rect.y + sprite_row * 16,
-            16,
-            16,
-        );
 
         // If entity has a SineOffsetAnimation, offset sprite position accordingly
         let mut position = position.0;
@@ -152,11 +149,13 @@ pub fn render(
         let screen_rect =
             Rect::new(top_left.x, top_left.y, 16 * SCREEN_SCALE, 16 * SCREEN_SCALE);
 
-        if let Some(dead_sprite_rect) = sprite_component.dead_sprite {
-            canvas.copy(dead_sprites, dead_sprite_rect, screen_rect).unwrap();
-        } else {
-            canvas.copy(spritesheet, sprite_rect, screen_rect).unwrap();
-        }
+        canvas
+            .copy(
+                spritesheets.get(&sprite.spritesheet_name).unwrap(),
+                sprite.rect,
+                screen_rect,
+            )
+            .unwrap();
     }
 
     // Draw map overlay after map/entities/etc and before UI
@@ -195,8 +194,10 @@ pub fn render(
     }
 
     // Draw card
-    if *show_card {
-        canvas.copy(card, None, Rect::new(112, 114, 800, 540)).unwrap();
+    if let Some(displayed_card_name) = displayed_card_name {
+        canvas
+            .copy(cards.get(displayed_card_name).unwrap(), None, Rect::new(112, 114, 800, 540))
+            .unwrap();
     }
 
     // Draw message window

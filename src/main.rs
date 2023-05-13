@@ -15,7 +15,7 @@ use crate::component::{
 };
 use crate::world::WorldPos;
 use array2d::Array2D;
-use component::Facing;
+use component::{Facing, Sprite};
 use ecs::ECS;
 use render::{RenderData, SCREEN_COLS, SCREEN_ROWS, SCREEN_SCALE, TILE_SIZE};
 use script::{ScriptClass, ScriptCondition, ScriptInstanceManager, ScriptTrigger};
@@ -25,6 +25,7 @@ use sdl2::keyboard::Keycode;
 use sdl2::mixer::{Chunk, Music, AUDIO_S16SYS, DEFAULT_CHANNELS};
 use sdl2::pixels::Color;
 use sdl2::rect::Rect;
+use sdl2::render::Texture;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 use std::{fs, iter};
@@ -82,25 +83,36 @@ fn main() {
     let canvas = window.into_canvas().build().unwrap();
     let texture_creator = canvas.texture_creator();
     let tileset = texture_creator.load_texture("assets/basictiles.png").unwrap();
-    let spritesheet = texture_creator.load_texture("assets/characters.png").unwrap();
-    let dead_sprites = texture_creator.load_texture("assets/dead.png").unwrap();
-    let card = texture_creator.load_texture("assets/card.png").unwrap();
+
+    let mut spritesheets: HashMap<String, Texture> = HashMap::new();
+    spritesheets.insert(
+        "characters".to_string(),
+        texture_creator.load_texture("assets/characters.png").unwrap(),
+    );
+    spritesheets
+        .insert("dead".to_string(), texture_creator.load_texture("assets/dead.png").unwrap());
+
+    let mut cards: HashMap<String, Texture> = HashMap::new();
+    cards.insert(
+        "spaghetti_time".to_string(),
+        texture_creator.load_texture("assets/card.png").unwrap(),
+    );
+
     let font = ttf_context.load_font("assets/Grand9KPixel.ttf", 8).unwrap();
 
     let mut render_data = RenderData {
         canvas,
         tileset,
-        spritesheet,
-        dead_sprites,
-        card,
+        spritesheets,
+        cards,
         font,
         show_cutscene_border: false,
-        show_card: false,
+        displayed_card_name: None,
         map_overlay_color: Color::RGBA(0, 0, 0, 0),
     };
 
     sdl2::mixer::open_audio(41_100, AUDIO_S16SYS, DEFAULT_CHANNELS, 512).unwrap();
-    sdl2::mixer::allocate_channels(4);
+    sdl2::mixer::allocate_channels(10);
 
     let mut sound_effects: HashMap<String, Chunk> = HashMap::new();
     sound_effects.insert(
@@ -142,7 +154,6 @@ fn main() {
         Music::from_file("assets/audio/spaghetti.wav").unwrap(),
     );
 
-    // NOW: tilemap in game data struct?
     let mut tilemap = {
         const IMPASSABLE_TILES: [i32; 21] =
             [0, 1, 2, 3, 20, 27, 28, 31, 35, 36, 38, 45, 47, 48, 51, 53, 54, 55, 59, 60, 67];
@@ -170,7 +181,7 @@ fn main() {
 
     let scripts_source = fs::read_to_string("lua/slime_glue.lua").unwrap();
 
-    // NOW: entities in game data struct?
+    // TODO: describe entities in Lua file
     let mut entities: HashMap<String, ecs::Entity> = HashMap::new();
     {
         let mut e = ecs::Entity::new();
@@ -181,15 +192,29 @@ fn main() {
             solid: true,
         });
         e.add_component(SpriteComponent {
-            spriteset_rect: Rect::new(7 * 16, 0, 16 * 4, 16 * 4),
+            up_sprite: Sprite {
+                spritesheet_name: "characters".to_string(),
+                rect: Rect::new(7 * 16, 3 * 16, 16, 16),
+            },
+            down_sprite: Sprite {
+                spritesheet_name: "characters".to_string(),
+                rect: Rect::new(7 * 16, 0 * 16, 16, 16),
+            },
+            left_sprite: Sprite {
+                spritesheet_name: "characters".to_string(),
+                rect: Rect::new(7 * 16, 1 * 16, 16, 16),
+            },
+            right_sprite: Sprite {
+                spritesheet_name: "characters".to_string(),
+                rect: Rect::new(7 * 16, 2 * 16, 16, 16),
+            },
             sprite_offset: Point::new(8, 13),
-            dead_sprite: None,
+            forced_sprite: None,
             sine_offset_animation: None,
         });
         e.add_component(Facing(Direction::Down));
         entities.insert("player".to_string(), e);
     }
-
     {
         let mut e = ecs::Entity::new();
         e.add_component(Position(WorldPos::new(12.5, 7.8)));
@@ -199,9 +224,24 @@ fn main() {
             solid: true,
         });
         e.add_component(SpriteComponent {
-            spriteset_rect: Rect::new(4 * 16, 0, 16 * 4, 16 * 4),
+            up_sprite: Sprite {
+                spritesheet_name: "characters".to_string(),
+                rect: Rect::new(4 * 16, 3 * 16, 16, 16),
+            },
+            down_sprite: Sprite {
+                spritesheet_name: "characters".to_string(),
+                rect: Rect::new(4 * 16, 0 * 16, 16, 16),
+            },
+            left_sprite: Sprite {
+                spritesheet_name: "characters".to_string(),
+                rect: Rect::new(4 * 16, 1 * 16, 16, 16),
+            },
+            right_sprite: Sprite {
+                spritesheet_name: "characters".to_string(),
+                rect: Rect::new(4 * 16, 2 * 16, 16, 16),
+            },
             sprite_offset: Point::new(8, 13),
-            dead_sprite: None,
+            forced_sprite: None,
             sine_offset_animation: None,
         });
         e.add_component(Facing(Direction::Up));
@@ -220,7 +260,6 @@ fn main() {
         }]));
         entities.insert("man".to_string(), e);
     }
-
     {
         let mut e = ecs::Entity::new();
         e.add_component(WalkingComponent::default());
@@ -229,9 +268,24 @@ fn main() {
             solid: false,
         });
         e.add_component(SpriteComponent {
-            spriteset_rect: Rect::new(0, 4 * 16, 16 * 4, 16 * 4),
+            up_sprite: Sprite {
+                spritesheet_name: "characters".to_string(),
+                rect: Rect::new(0 * 16, 7 * 16, 16, 16),
+            },
+            down_sprite: Sprite {
+                spritesheet_name: "characters".to_string(),
+                rect: Rect::new(0 * 16, 4 * 16, 16, 16),
+            },
+            left_sprite: Sprite {
+                spritesheet_name: "characters".to_string(),
+                rect: Rect::new(0 * 16, 5 * 16, 16, 16),
+            },
+            right_sprite: Sprite {
+                spritesheet_name: "characters".to_string(),
+                rect: Rect::new(0 * 16, 6 * 16, 16, 16),
+            },
             sprite_offset: Point::new(8, 11),
-            dead_sprite: None,
+            forced_sprite: None,
             sine_offset_animation: None,
         });
         e.add_component(Facing(Direction::Down));
@@ -262,7 +316,6 @@ fn main() {
         ]));
         entities.insert("slime".to_string(), e);
     }
-
     {
         let mut e = ecs::Entity::new();
         e.add_component(Position(WorldPos::new(8.5, 5.5)));
@@ -275,7 +328,6 @@ fn main() {
         }]));
         entities.insert("chest".to_string(), e);
     }
-
     {
         let mut e = ecs::Entity::new();
         e.add_component(Position(WorldPos::new(12.5, 9.5)));
@@ -288,7 +340,6 @@ fn main() {
         }]));
         entities.insert("pot".to_string(), e);
     }
-
     {
         let mut e = ecs::Entity::new();
         e.add_component(Position(WorldPos::new(8.5, 7.5)));
@@ -308,7 +359,6 @@ fn main() {
         }]));
         entities.insert("inside_door".to_string(), e);
     }
-
     {
         let mut e = ecs::Entity::new();
         e.add_component(Scripts(vec![ScriptClass {
@@ -325,7 +375,8 @@ fn main() {
     }
     let mut ecs = ECS { entities };
 
-    // NOW: story vars in game data struct?
+    // TODO: tilemap, entities, story vars in game data struct?
+
     let mut story_vars: HashMap<String, i32> = HashMap::new();
     story_vars.insert("start_script_started".to_string(), 0);
     story_vars.insert("put_away_plushy".to_string(), 0);
@@ -516,7 +567,7 @@ fn main() {
                     &mut story_vars, &mut ecs, &mut message_window,
                     &mut player_movement_locked, &mut tilemap,
                     &mut map_overlay_color_transition, render_data.map_overlay_color,
-                    &mut render_data.show_cutscene_border, &mut render_data.show_card, &mut running,
+                    &mut render_data.show_cutscene_border, &mut render_data.displayed_card_name, &mut running,
                     &musics, &sound_effects,
                 );
         }

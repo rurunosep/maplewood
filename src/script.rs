@@ -1,5 +1,19 @@
+// TODO: rework eventually with the new architecture I've been thinking of:
+// ScriptClass references a function rather than holding a source string
+// ScriptInstance references a thread created from the function
+//      let thread = context.create_thread(globals.get::<_,Function>(function_name));
+//      globals.set(thread_name, thread);
+//      let script_instance = ScriptInstance::new(thread_name, ...);
+// All the scripts run in a single Lua state in a single context call per frame
+// Callbacks only have to be bound once per frame for all scripts
+// ScriptInstances hold a local context/env that is loaded before resuming the thread
+// This local context/env can hold stuff like the owning entity, script id, UI input, etc
+//      globals.set("SCRIPT_CONTEXT", script_instance.context_table);
+//      let thread = globals.get::<_, Thread>(script_instance.thread_name);
+//      thread.resume();
+
 use crate::component::{
-    CollisionComponent, Facing, Position, SineOffsetAnimation, SpriteComponent,
+    CollisionComponent, Facing, Position, SineOffsetAnimation, Sprite, SpriteComponent,
     WalkingComponent,
 };
 use crate::ecs::ECS;
@@ -140,7 +154,7 @@ impl ScriptInstance {
                         end
 
                         function wait_until_not_walking(entity)
-                            while(not is_not_walking(entity)) do
+                            while(is_entity_walking(entity)) do
                                 coroutine.yield()
                             end
                         end
@@ -178,7 +192,7 @@ impl ScriptInstance {
         map_overlay_color_transition: &mut Option<MapOverlayColorTransition>,
         map_overlay_color: Color,
         cutscene_border: &mut bool,
-        show_card: &mut bool,
+        displayed_card_name: &mut Option<String>,
         running: &mut bool,
         musics: &HashMap<String, Music>,
         sound_effects: &HashMap<String, Chunk>,
@@ -211,9 +225,7 @@ impl ScriptInstance {
         let tilemap = RefCell::new(tilemap);
         let wait_condition = RefCell::new(&mut self.wait_condition);
         let cutscene_border = RefCell::new(cutscene_border);
-        let show_card = RefCell::new(show_card);
-
-        // NOW: rework API, how waiting/yielding works, etc
+        let displayed_card_name = RefCell::new(displayed_card_name);
 
         self.lua_instance
             .context(|context| -> LuaResult<()> {
@@ -259,9 +271,9 @@ impl ScriptInstance {
                         })?,
                     )?;
                     globals.set(
-                        "lock_movement",
+                        "lock_player_input",
                         scope.create_function_mut(|_, args| {
-                            cb_lock_movement(
+                            cb_lock_player_input(
                                 args,
                                 *player_movement_locked.borrow_mut(),
                                 *ecs.borrow_mut(),
@@ -269,20 +281,18 @@ impl ScriptInstance {
                         })?,
                     )?;
                     globals.set(
-                        "unlock_movement",
+                        "unlock_player_input",
                         scope.create_function_mut(|_, ()| {
                             **player_movement_locked.borrow_mut() = false;
                             Ok(())
                         })?,
                     )?;
-                    // NOW name isn't too accurate
                     globals.set(
-                        "set_collision",
+                        "set_entity_solid",
                         scope.create_function_mut(|_, args| {
-                            cb_set_collision(args, *ecs.borrow_mut())
+                            cb_set_entity_solid(args, *ecs.borrow_mut())
                         })?,
                     )?;
-                    // NOW reconsider walk and walk_to (and _wait variants)
                     globals.set(
                         "walk",
                         scope
@@ -294,11 +304,16 @@ impl ScriptInstance {
                             cb_walk_to(args, *ecs.borrow_mut())
                         })?,
                     )?;
-                    // NOW set_entity_position?
                     globals.set(
-                        "teleport_entity",
+                        "is_entity_walking",
+                        scope.create_function(|_, args| {
+                            cb_is_entity_walking(args, *ecs.borrow())
+                        })?,
+                    )?;
+                    globals.set(
+                        "set_entity_position",
                         scope.create_function_mut(|_, args| {
-                            cb_teleport_entity(args, *ecs.borrow_mut())
+                            cb_set_entity_position(args, *ecs.borrow_mut())
                         })?,
                     )?;
                     globals.set(
@@ -312,15 +327,16 @@ impl ScriptInstance {
                         })?,
                     )?;
                     globals.set(
-                        "quiver",
+                        "anim_quiver",
                         scope.create_function_mut(|_, args| {
-                            cb_quiver(args, *ecs.borrow_mut())
+                            cb_anim_quiver(args, *ecs.borrow_mut())
                         })?,
                     )?;
                     globals.set(
-                        "jump",
-                        scope
-                            .create_function_mut(|_, args| cb_jump(args, *ecs.borrow_mut()))?,
+                        "anim_jump",
+                        scope.create_function_mut(|_, args| {
+                            cb_anim_jump(args, *ecs.borrow_mut())
+                        })?,
                     )?;
                     globals.set(
                         "close_game",
@@ -341,37 +357,28 @@ impl ScriptInstance {
                         "stop_music",
                         scope.create_function_mut(|_, args| cb_stop_music(args))?,
                     )?;
-                    // NOW reconsider these two
                     globals.set(
-                        "add_position",
+                        "add_position_component",
                         scope.create_function_mut(|_, args| {
-                            cb_add_position(args, *ecs.borrow_mut())
+                            cb_add_position_component(args, *ecs.borrow_mut())
                         })?,
                     )?;
                     globals.set(
-                        "remove_position",
+                        "remove_position_component",
                         scope.create_function_mut(|_, args| {
-                            cb_remove_position(args, *ecs.borrow_mut())
-                        })?,
-                    )?;
-                    // NOW have to remove this but it's still necessary for v0.2 demo
-                    globals.set(
-                        "set_dead_sprite",
-                        scope.create_function_mut(|_, args| {
-                            cb_set_dead_sprite(args, *ecs.borrow_mut())
+                            cb_remove_position_component(args, *ecs.borrow_mut())
                         })?,
                     )?;
                     globals.set(
-                        "remove_dead_sprite",
+                        "set_forced_sprite",
                         scope.create_function_mut(|_, args| {
-                            cb_remove_dead_sprite(args, *ecs.borrow_mut())
+                            cb_set_forced_sprite(args, *ecs.borrow_mut())
                         })?,
                     )?;
-                    // NOW jank
                     globals.set(
-                        "is_not_walking",
-                        scope.create_function(|_, args| {
-                            cb_is_not_walking(args, *ecs.borrow())
+                        "remove_forced_sprite",
+                        scope.create_function_mut(|_, args| {
+                            cb_remove_forced_sprite(args, *ecs.borrow_mut())
                         })?,
                     )?;
                     globals.set(
@@ -388,18 +395,17 @@ impl ScriptInstance {
                             Ok(())
                         })?,
                     )?;
-                    // NOW should probably remove or improve this feature
                     globals.set(
                         "show_card",
-                        scope.create_function_mut(|_, ()| {
-                            **show_card.borrow_mut() = true;
+                        scope.create_function_mut(|_, name: String| {
+                            **displayed_card_name.borrow_mut() = Some(name);
                             Ok(())
                         })?,
                     )?;
                     globals.set(
                         "remove_card",
                         scope.create_function_mut(|_, ()| {
-                            **show_card.borrow_mut() = false;
+                            **displayed_card_name.borrow_mut() = None;
                             Ok(())
                         })?,
                     )?;
@@ -552,7 +558,7 @@ fn cb_set_cell_passable(
     Ok(())
 }
 
-fn cb_lock_movement(
+fn cb_lock_player_input(
     _args: (),
     player_movement_locked: &mut bool,
     ecs: &mut ECS,
@@ -566,7 +572,7 @@ fn cb_lock_movement(
     Ok(())
 }
 
-fn cb_set_collision((entity, enabled): (String, bool), ecs: &mut ECS) -> LuaResult<()> {
+fn cb_set_entity_solid((entity, enabled): (String, bool), ecs: &mut ECS) -> LuaResult<()> {
     let mut collision_component = ecs
         .query_one::<&mut CollisionComponent>(&entity)
         .ok_or(LuaError::ExternalError(Arc::new(ScriptError::InvalidEntity(entity))))?;
@@ -631,7 +637,7 @@ fn cb_walk_to(
     Ok(())
 }
 
-fn cb_teleport_entity((entity, x, y): (String, f64, f64), ecs: &mut ECS) -> LuaResult<()> {
+fn cb_set_entity_position((entity, x, y): (String, f64, f64), ecs: &mut ECS) -> LuaResult<()> {
     let mut position = ecs
         .query_one::<&mut Position>(&entity)
         .ok_or(LuaError::ExternalError(Arc::new(ScriptError::InvalidEntity(entity))))?;
@@ -653,7 +659,7 @@ fn cb_set_map_overlay_color(
     Ok(())
 }
 
-fn cb_quiver((entity, duration): (String, f64), ecs: &mut ECS) -> LuaResult<()> {
+fn cb_anim_quiver((entity, duration): (String, f64), ecs: &mut ECS) -> LuaResult<()> {
     let mut sprite_component = ecs
         .query_one::<&mut SpriteComponent>(&entity)
         .ok_or(LuaError::ExternalError(Arc::new(ScriptError::InvalidEntity(entity))))?;
@@ -667,7 +673,7 @@ fn cb_quiver((entity, duration): (String, f64), ecs: &mut ECS) -> LuaResult<()> 
     Ok(())
 }
 
-fn cb_jump(entity: String, ecs: &mut ECS) -> LuaResult<()> {
+fn cb_anim_jump(entity: String, ecs: &mut ECS) -> LuaResult<()> {
     let mut sprite_component = ecs
         .query_one::<&mut SpriteComponent>(&entity)
         .ok_or(LuaError::ExternalError(Arc::new(ScriptError::InvalidEntity(entity))))?;
@@ -700,7 +706,10 @@ fn cb_stop_music(fade_out_time: f64) -> LuaResult<()> {
     Ok(())
 }
 
-fn cb_add_position((entity, x, y): (String, f64, f64), ecs: &mut ECS) -> LuaResult<()> {
+fn cb_add_position_component(
+    (entity, x, y): (String, f64, f64),
+    ecs: &mut ECS,
+) -> LuaResult<()> {
     ecs.entities
         .get_mut(&entity)
         .map(|e| e.add_component(Position(WorldPos::new(x, y))))
@@ -708,7 +717,7 @@ fn cb_add_position((entity, x, y): (String, f64, f64), ecs: &mut ECS) -> LuaResu
     Ok(())
 }
 
-fn cb_remove_position(entity: String, ecs: &mut ECS) -> LuaResult<()> {
+fn cb_remove_position_component(entity: String, ecs: &mut ECS) -> LuaResult<()> {
     ecs.entities
         .get_mut(&entity)
         .map(|e| e.remove_component::<Position>())
@@ -716,27 +725,38 @@ fn cb_remove_position(entity: String, ecs: &mut ECS) -> LuaResult<()> {
     Ok(())
 }
 
-fn cb_set_dead_sprite((entity, x, y): (String, i32, i32), ecs: &mut ECS) -> LuaResult<()> {
+fn cb_set_forced_sprite(
+    (entity, spritesheet_name, rect_x, rect_y, rect_w, rect_h): (
+        String,
+        String,
+        i32,
+        i32,
+        u32,
+        u32,
+    ),
+    ecs: &mut ECS,
+) -> LuaResult<()> {
     let mut sprite_component = ecs
         .query_one::<&mut SpriteComponent>(&entity)
         .ok_or(LuaError::ExternalError(Arc::new(ScriptError::InvalidEntity(entity))))?;
-    sprite_component.dead_sprite = Some(Rect::new(x, y, 16, 16));
+    sprite_component.forced_sprite =
+        Some(Sprite { spritesheet_name, rect: Rect::new(rect_x, rect_y, rect_w, rect_h) });
     Ok(())
 }
 
-fn cb_remove_dead_sprite(entity: String, ecs: &mut ECS) -> LuaResult<()> {
+fn cb_remove_forced_sprite(entity: String, ecs: &mut ECS) -> LuaResult<()> {
     let mut sprite_component = ecs
         .query_one::<&mut SpriteComponent>(&entity)
         .ok_or(LuaError::ExternalError(Arc::new(ScriptError::InvalidEntity(entity))))?;
-    sprite_component.dead_sprite = None;
+    sprite_component.forced_sprite = None;
     Ok(())
 }
 
-fn cb_is_not_walking(entity: String, ecs: &ECS) -> LuaResult<bool> {
+fn cb_is_entity_walking(entity: String, ecs: &ECS) -> LuaResult<bool> {
     let walking_component = ecs
         .query_one::<&WalkingComponent>(&entity)
         .ok_or(LuaError::ExternalError(Arc::new(ScriptError::InvalidEntity(entity))))?;
-    Ok(walking_component.destination.is_none())
+    Ok(walking_component.destination.is_some())
 }
 
 fn cb_message(
