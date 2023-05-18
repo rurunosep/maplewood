@@ -1,7 +1,6 @@
 use crate::ecs::Component;
 use crate::script::ScriptClass;
-use crate::world::{Point, WorldPos};
-use crate::Direction;
+use crate::{Direction, Point, WorldPos};
 use sdl2::rect::Rect;
 use std::time::{Duration, Instant};
 

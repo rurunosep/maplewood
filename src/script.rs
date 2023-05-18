@@ -17,8 +17,7 @@ use crate::component::{
     WalkingComponent,
 };
 use crate::ecs::ECS;
-use crate::world::{Cell, Point, WorldPos};
-use crate::{Direction, MapOverlayColorTransition, MessageWindow};
+use crate::{Cell, Direction, MapOverlayColorTransition, MessageWindow, Point, WorldPos};
 use array2d::Array2D;
 use rlua::{Error as LuaError, Function, Lua, Result as LuaResult, Thread, ThreadStatus};
 use sdl2::mixer::{Chunk, Music};
@@ -217,7 +216,10 @@ impl ScriptInstance {
 
         self.wait_condition = None;
 
-        // Wrap mut refs that are used by multiple callbacks in RefCells
+        // Wrap mut refs that are used by multiple callbacks in RefCells to copy into closures.
+        // Illegal borrow panics should never occur since Rust callbacks should never really
+        // need to call back into Lua, let alone call another Rust callback, let alone one that
+        // borrows the same refs.
         let story_vars = RefCell::new(story_vars);
         let ecs = RefCell::new(ecs);
         let message_window = RefCell::new(message_window);

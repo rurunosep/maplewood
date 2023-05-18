@@ -7,15 +7,15 @@ mod ecs;
 mod render;
 mod script;
 mod utils;
-mod world;
 
 use crate::component::{
     CollisionComponent, Position, Scripts, SineOffsetAnimation, SpriteComponent,
     WalkingComponent,
 };
-use crate::world::WorldPos;
 use array2d::Array2D;
 use component::{Facing, Sprite};
+use derive_more::{Add, AddAssign, Div, Mul, Sub};
+use derive_new::new;
 use ecs::ECS;
 use render::{RenderData, SCREEN_COLS, SCREEN_ROWS, SCREEN_SCALE, TILE_SIZE};
 use script::{ScriptClass, ScriptCondition, ScriptInstanceManager, ScriptTrigger};
@@ -29,9 +29,6 @@ use sdl2::render::Texture;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 use std::{fs, iter};
-use world::{Cell, CellPos, Point, AABB};
-
-const PLAYER_MOVE_SPEED: f64 = 0.12;
 
 #[derive(Clone, Copy, Debug, Default)]
 pub enum Direction {
@@ -55,6 +52,15 @@ pub struct MapOverlayColorTransition {
     start_color: Color,
     end_color: Color,
 }
+
+// Global static renderdata, ecs, script manager, etc?
+// Using OnceCell or lazy_static
+// Do I know if those want to be global and static? Will I ever change them or use more than
+// one? Probably not. Considering that is thinking too far. IF that's ever the case, I can
+// rework. I think probably the simplest thing right now is to make those big systems that are
+// passed around a lot into global statics... Except right now they're not even passed around a
+// lot. Passing manually is working fine so far. But it's an option. If I notice a circumstance
+// later when a global static system might be useful, just do it.
 
 fn main() {
     // Prevent high DPI scaling on Windows
@@ -83,6 +89,7 @@ fn main() {
     let canvas = window.into_canvas().build().unwrap();
     let texture_creator = canvas.texture_creator();
     let tileset = texture_creator.load_texture("assets/basictiles.png").unwrap();
+    let font = ttf_context.load_font("assets/Grand9KPixel.ttf", 8).unwrap();
 
     let mut spritesheets: HashMap<String, Texture> = HashMap::new();
     spritesheets.insert(
@@ -97,8 +104,6 @@ fn main() {
         "spaghetti_time".to_string(),
         texture_creator.load_texture("assets/card.png").unwrap(),
     );
-
-    let font = ttf_context.load_font("assets/Grand9KPixel.ttf", 8).unwrap();
 
     let mut render_data = RenderData {
         canvas,
@@ -411,7 +416,7 @@ fn main() {
                 }
 
                 // Player movement
-                // TODO: Can I decouple this with some sort of InputComponent?
+                // Can I decouple this with some sort of InputComponent? (prob UI/Input update)
                 Event::KeyDown { keycode: Some(keycode), .. }
                     if keycode == Keycode::Up
                         || keycode == Keycode::Down
@@ -428,7 +433,7 @@ fn main() {
                         && walking_component.destination.is_none()
                         && !player_movement_locked
                     {
-                        walking_component.speed = PLAYER_MOVE_SPEED;
+                        walking_component.speed = 0.12;
                         walking_component.direction = match keycode {
                             Keycode::Up => Direction::Up,
                             Keycode::Down => Direction::Down,
@@ -456,9 +461,9 @@ fn main() {
                     let mut walking_component =
                         ecs.query_one::<&mut WalkingComponent>("player").unwrap();
                     // Don't end movement if it's being forced
-                    // TODO: should probably rework the way that input vs forced movement work
-                    // and update Or maybe movement should use polling
-                    // rather than events
+                    // I need to rework the way that input vs forced movement work and update
+                    // Or maybe movement should use polling rather than events
+                    // (prob UI/Input update)
                     if walking_component.destination.is_none() {
                         walking_component.speed = 0.;
                     }
@@ -471,13 +476,14 @@ fn main() {
                         || keycode == Keycode::Num3
                         || keycode == Keycode::Num4 =>
                 {
-                    // Let chains would be nice here. But rustfmt doesn't handle them yet
+                    // if-let-chains would be nice here. But rustfmt doesn't handle them yet...
                     let message_window_option = &mut message_window;
                     if let Some(message_window) = message_window_option {
                         if message_window.is_selection {
-                            // TODO: I want to redo how window<->script communcation works
+                            // I want to redo how window<->script communcation works
                             // How should the window (or UI in general) give the input to the
                             // correct script?
+                            // (prob UI/Input update)
                             if let Some(script) = script_instance_manager
                                 .script_instances
                                 .get_mut(&message_window.waiting_script_id)
@@ -497,7 +503,7 @@ fn main() {
 
                 // Interact with entity to start script
                 // OR advance message
-                // TODO: delegate to UI system and/or to world/entity system?
+                // Delegate to UI system and/or to world/entity system? (prob UI/Input update)
                 Event::KeyDown { keycode: Some(Keycode::Return), .. }
                 | Event::KeyDown { keycode: Some(Keycode::Space), .. } => {
                     // Advance message (if a non-selection message window is open)
@@ -668,13 +674,16 @@ fn main() {
     }
 }
 
+// ----------------------------------------
+// Collision stuff
+// ----------------------------------------
+
 fn update_walking_entities(ecs: &ECS, tilemap: &Array2D<Cell>) {
     // Must do a split filter+borrow query so that I have a ref to the entity to compare in the
     // upcoming nested query
-    for e in ecs.filter_entities::<(Position, WalkingComponent, CollisionComponent)>() {
-        let (mut position, mut walking_component, collision_component) = e
-            .borrow_components::<(&mut Position, &mut WalkingComponent, &CollisionComponent)>(
-            );
+    for e in ecs.filter_entities::<(Position, WalkingComponent)>() {
+        let (mut position, mut walking_component) =
+            e.borrow_components::<(&mut Position, &mut WalkingComponent)>().unwrap();
 
         // Determine new position before collision resolution
         let mut new_position = position.0
@@ -686,65 +695,70 @@ fn update_walking_entities(ecs: &ECS, tilemap: &Array2D<Cell>) {
             };
 
         // Resolve collisions and update new position
-        if collision_component.solid {
-            let old_aabb =
-                AABB::from_pos_and_hitbox(position.0, collision_component.hitbox_dimensions);
+        if let Some(collision_component) = e.borrow_components::<&CollisionComponent>() {
+            if collision_component.solid {
+                let old_aabb = AABB::from_pos_and_hitbox(
+                    position.0,
+                    collision_component.hitbox_dimensions,
+                );
 
-            let mut new_aabb =
-                AABB::from_pos_and_hitbox(new_position, collision_component.hitbox_dimensions);
+                let mut new_aabb = AABB::from_pos_and_hitbox(
+                    new_position,
+                    collision_component.hitbox_dimensions,
+                );
 
-            // Check for and resolve collision with the 9 cells centered around new
-            // position
-            let new_cellpos = new_position.to_cellpos();
-            let cellposes_to_check = [
-                CellPos::new(new_cellpos.x - 1, new_cellpos.y - 1),
-                CellPos::new(new_cellpos.x, new_cellpos.y - 1),
-                CellPos::new(new_cellpos.x + 1, new_cellpos.y - 1),
-                CellPos::new(new_cellpos.x - 1, new_cellpos.y),
-                CellPos::new(new_cellpos.x, new_cellpos.y),
-                CellPos::new(new_cellpos.x + 1, new_cellpos.y),
-                CellPos::new(new_cellpos.x - 1, new_cellpos.y + 1),
-                CellPos::new(new_cellpos.x, new_cellpos.y + 1),
-                CellPos::new(new_cellpos.x + 1, new_cellpos.y + 1),
-            ];
-            for cellpos in cellposes_to_check {
-                if let Some(cell) = world::get_cell_at_cellpos(tilemap, cellpos) {
-                    if !cell.passable {
-                        let cell_aabb = AABB::from_pos_and_hitbox(
-                            cellpos.to_worldpos(),
-                            Point::new(1., 1.),
-                        );
-                        new_aabb.resolve_collision(&old_aabb, &cell_aabb);
+                // Check for and resolve collision with the 9 cells centered around new
+                // position
+                let new_cellpos = new_position.to_cellpos();
+                let cellposes_to_check = [
+                    CellPos::new(new_cellpos.x - 1, new_cellpos.y - 1),
+                    CellPos::new(new_cellpos.x, new_cellpos.y - 1),
+                    CellPos::new(new_cellpos.x + 1, new_cellpos.y - 1),
+                    CellPos::new(new_cellpos.x - 1, new_cellpos.y),
+                    CellPos::new(new_cellpos.x, new_cellpos.y),
+                    CellPos::new(new_cellpos.x + 1, new_cellpos.y),
+                    CellPos::new(new_cellpos.x - 1, new_cellpos.y + 1),
+                    CellPos::new(new_cellpos.x, new_cellpos.y + 1),
+                    CellPos::new(new_cellpos.x + 1, new_cellpos.y + 1),
+                ];
+                for cellpos in cellposes_to_check {
+                    if let Some(cell) = get_cell_at_cellpos(tilemap, cellpos) {
+                        if !cell.passable {
+                            let cell_aabb = AABB::from_pos_and_hitbox(
+                                cellpos.to_worldpos(),
+                                Point::new(1., 1.),
+                            );
+                            new_aabb.resolve_collision(&old_aabb, &cell_aabb);
+                        }
                     }
                 }
-            }
 
-            // Check for and resolve collision with all solid entities except this one
-            //
-            // Query split into "filter" and "borrow components" steps so that entities can be
-            // further filtered in between in order to avoid re-borrowing from the
-            // same entity in this nested query
-            for other in ecs
-                .filter_entities::<(Position, CollisionComponent)>()
-                .filter(|&other_ref| other_ref as *const _ != e as *const _)
-            {
-                let (other_pos, other_coll) =
-                    other.borrow_components::<(&Position, &CollisionComponent)>();
+                // Check for and resolve collision with all solid entities except this one
+                //
+                // Query split into "filter" and "borrow components" steps so that entities can
+                // be further filtered in between in order to avoid
+                // re-borrowing from the same entity in this nested query
+                for other in ecs
+                    .filter_entities::<(Position, CollisionComponent)>()
+                    .filter(|&other_ref| other_ref as *const _ != e as *const _)
+                {
+                    let (other_pos, other_coll) =
+                        other.borrow_components::<(&Position, &CollisionComponent)>().unwrap();
 
-                if other_coll.solid {
-                    let other_aabb =
-                        AABB::from_pos_and_hitbox(other_pos.0, other_coll.hitbox_dimensions);
+                    if other_coll.solid {
+                        let other_aabb = AABB::from_pos_and_hitbox(
+                            other_pos.0,
+                            other_coll.hitbox_dimensions,
+                        );
 
-                    // TODO: trigger HardCollision script
-                    // if new_aabb.is_colliding(&other_aabb) {
-                    //     ...
-                    // }
+                        // Trigger HardCollision script here...
 
-                    new_aabb.resolve_collision(&old_aabb, &other_aabb);
+                        new_aabb.resolve_collision(&old_aabb, &other_aabb);
+                    }
                 }
-            }
 
-            new_position = new_aabb.get_center();
+                new_position = new_aabb.get_center();
+            }
         }
 
         // Update position after collision resolution
@@ -764,6 +778,115 @@ fn update_walking_entities(ecs: &ECS, tilemap: &Array2D<Cell>) {
                 walking_component.destination = None;
             }
         }
+    }
+}
+
+#[derive(Clone, Copy, Default, Debug)]
+pub struct AABB {
+    pub top: f64,
+    pub bottom: f64,
+    pub left: f64,
+    pub right: f64,
+}
+
+impl AABB {
+    pub fn from_pos_and_hitbox(position: Point<f64>, hitbox_dimensions: Point<f64>) -> Self {
+        Self {
+            top: position.y - hitbox_dimensions.y / 2.0,
+            bottom: position.y + hitbox_dimensions.y / 2.0,
+            left: position.x - hitbox_dimensions.x / 2.0,
+            right: position.x + hitbox_dimensions.x / 2.0,
+        }
+    }
+
+    pub fn is_colliding(&self, other: &AABB) -> bool {
+        self.top < other.bottom
+            && self.bottom > other.top
+            && self.left < other.right
+            && self.right > other.left
+    }
+
+    // The old AABB is required to determine the direction of motion
+    // And what the collision resolution really needs is just the direction
+    // So collision resolution could instead eventually take a direction enum
+    // or vector and use that directly
+    pub fn resolve_collision(&mut self, old_self: &AABB, other: &AABB) {
+        if self.is_colliding(other) {
+            if self.top < other.bottom && old_self.top > other.bottom {
+                let depth = other.bottom - self.top + 0.01;
+                self.top += depth;
+                self.bottom += depth;
+            }
+
+            if self.bottom > other.top && old_self.bottom < other.top {
+                let depth = self.bottom - other.top + 0.01;
+                self.top -= depth;
+                self.bottom -= depth;
+            }
+
+            if self.left < other.right && old_self.left > other.right {
+                let depth = other.right - self.left + 0.01;
+                self.left += depth;
+                self.right += depth;
+            }
+
+            if self.right > other.left && old_self.right < other.left {
+                let depth = self.right - other.left + 0.01;
+                self.left -= depth;
+                self.right -= depth;
+            }
+        }
+    }
+
+    pub fn get_center(&self) -> WorldPos {
+        WorldPos::new((self.left + self.right) / 2., (self.top + self.bottom) / 2.)
+    }
+}
+
+// ----------------------------------------
+// World stuff
+// ----------------------------------------
+
+// Mul doesn't work if Point is the right-hand side
+// Writing "num * point" is like writing "num.mul(point)"
+// So multiplying with Point must be implemented on the "num"
+#[derive(
+    new, Clone, Copy, Add, AddAssign, Sub, Mul, Div, PartialEq, Eq, Hash, Default, Debug,
+)]
+pub struct Point<T> {
+    pub x: T,
+    pub y: T,
+}
+
+pub type WorldPos = Point<f64>;
+pub type CellPos = Point<i32>;
+
+impl WorldPos {
+    pub fn to_cellpos(self) -> CellPos {
+        CellPos { x: self.x.floor() as i32, y: self.y.floor() as i32 }
+    }
+}
+
+impl CellPos {
+    // Resulting WorldPos will be centered on the tile
+    pub fn to_worldpos(self) -> WorldPos {
+        WorldPos { x: self.x as f64 + 0.5, y: self.y as f64 + 0.5 }
+    }
+}
+
+#[derive(Clone, Copy, Default, Debug)]
+pub struct Cell {
+    pub tile_1: Option<u32>,
+    pub tile_2: Option<u32>,
+    pub passable: bool,
+}
+
+pub fn get_cell_at_cellpos(tilemap: &Array2D<Cell>, cellpos: CellPos) -> Option<Cell> {
+    let CellPos { x, y } = cellpos;
+    if x >= 0 && x < tilemap.num_columns() as i32 && y >= 0 && y < tilemap.num_rows() as i32 {
+        Some(tilemap[(y as usize, x as usize)])
+    } else {
+        None
     }
 }
 

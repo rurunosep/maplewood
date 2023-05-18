@@ -1,5 +1,3 @@
-// TODO: rename these methods
-
 use anymap::AnyMap;
 use std::cell::{Ref, RefCell, RefMut};
 use std::collections::HashMap;
@@ -15,9 +13,14 @@ impl Entity {
         Self { components: AnyMap::new() }
     }
 
-    // Get components specified by query type
-    // Panics if components don't exist or are borrowed illegally
-    pub fn borrow_components<'ent, Q: ComponentsQuery>(&'ent self) -> Q::Result<'ent> {
+    // Get tuple of Refs/RefMuts to components specified by query type
+    // (Return tuple of individual options rather than option of complete tuple?... This would
+    // make it much more annoying to get the refs out of the result after performing the
+    // query. Maybe it should be saved for when I implement explicitly optional components in
+    // the query, as in `::<(&mut Position, &Velocity, Option<&Collision>)>`)
+    pub fn borrow_components<'ent, Q: ComponentBorrowQuery>(
+        &'ent self,
+    ) -> Option<Q::Result<'ent>> {
         Q::get_components(&self)
     }
 
@@ -25,7 +28,6 @@ impl Entity {
         self.components.insert(RefCell::new(component));
     }
 
-    #[allow(dead_code)]
     pub fn remove_component<C: Component + 'static>(&mut self) {
         self.components.remove::<RefCell<C>>();
     }
@@ -49,78 +51,72 @@ impl ECS {
         Q::filter(self.entities.values())
     }
 
-    // Get iterator over groups of Refs/RefMuts to components specified by query type for each
+    // Get iterator over tuples of Refs/RefMuts to components specified by query type for each
     // entity that has those components
-    // Panics if components are borrowed illegally
-    pub fn query<'ecs, Q: ComponentsQuery>(
+    pub fn query<'ecs, Q: ComponentBorrowQuery>(
         &'ecs self,
     ) -> Box<dyn Iterator<Item = Q::Result<'ecs>> + 'ecs> {
         Box::new(
             Q::ToEntityFilterQuery::filter(self.entities.values())
-                .map(|e| e.borrow_components::<Q>()),
+                .map(|e| e.borrow_components::<Q>().unwrap()),
         )
     }
 
-    // Get group of Refs/RefMuts to components specified by query type for the specific entity
+    // Get tuple of Refs/RefMuts to components specified by query type for the specific entity
     // specified by id
-    // Panics if components are borrowed illegally
-    pub fn query_one<'ecs, Q: ComponentsQuery>(
+    pub fn query_one<'ecs, Q: ComponentBorrowQuery>(
         &'ecs self,
         id: &str,
     ) -> Option<Q::Result<'ecs>> {
-        Some(self.entities.get(id)?.borrow_components::<Q>())
+        Some(self.entities.get(id)?.borrow_components::<Q>()?)
     }
 }
 
-pub trait ComponentsQuery {
+pub trait ComponentBorrowQuery {
     type Result<'res>;
     type ToEntityFilterQuery: EntityFilterQuery;
 
-    fn get_components<'ent>(e: &'ent Entity) -> Self::Result<'ent>;
+    fn get_components<'ent>(e: &'ent Entity) -> Option<Self::Result<'ent>>;
 }
 
-impl<A> ComponentsQuery for A
+impl<A> ComponentBorrowQuery for A
 where
     A: QueryRef + 'static,
 {
     type Result<'res> = A::ResultRef<'res>;
     type ToEntityFilterQuery = A::Component;
 
-    fn get_components<'ent>(e: &'ent Entity) -> Self::Result<'ent> {
-        A::borrow(e.components.get::<RefCell<A::Component>>().unwrap())
+    fn get_components<'ent>(e: &'ent Entity) -> Option<Self::Result<'ent>> {
+        e.components.get::<RefCell<A::Component>>().map(|rfc| A::borrow(rfc))
     }
 }
 
-macro_rules! impl_components_query_for_tuple {
+macro_rules! impl_component_borrow_query_for_tuple {
     ($($name:ident)*) => {
         #[allow(unused)]
-        impl<$($name,)*> ComponentsQuery for ($($name,)*)
+        impl<$($name,)*> ComponentBorrowQuery for ($($name,)*)
         where $($name: QueryRef + 'static,)*
         {
             type Result<'res> = ($($name::ResultRef<'res>,)*);
             type ToEntityFilterQuery = ($($name::Component,)*);
-            fn get_components<'ent>(e: &'ent Entity) -> Self::Result<'ent> {
-                (
+            fn get_components<'ent>(e: &'ent Entity) -> Option<Self::Result<'ent>> {
+                Some((
                     $(
-                        $name::borrow(e.components.get::<RefCell<$name::Component>>().unwrap()),
+                        e.components.get::<RefCell<$name::Component>>()
+                            .map(|rfc| $name::borrow(rfc))?,
                     )*
-                )
+                ))
             }
         }
     };
 }
 
-impl_components_query_for_tuple!();
-impl_components_query_for_tuple!(A);
-impl_components_query_for_tuple!(A B);
-impl_components_query_for_tuple!(A B C);
-impl_components_query_for_tuple!(A B C D);
-impl_components_query_for_tuple!(A B C D E);
-impl_components_query_for_tuple!(A B C D E F);
-impl_components_query_for_tuple!(A B C D E F G);
-impl_components_query_for_tuple!(A B C D E F G H);
-impl_components_query_for_tuple!(A B C D E F G H I);
-impl_components_query_for_tuple!(A B C D E F G H I J);
+impl_component_borrow_query_for_tuple!();
+impl_component_borrow_query_for_tuple!(A);
+impl_component_borrow_query_for_tuple!(A B);
+impl_component_borrow_query_for_tuple!(A B C);
+impl_component_borrow_query_for_tuple!(A B C D);
+impl_component_borrow_query_for_tuple!(A B C D E);
 
 pub trait QueryRef {
     type Component: Component + 'static;
@@ -207,8 +203,3 @@ impl_entity_filter_query_for_tuple!(A B);
 impl_entity_filter_query_for_tuple!(A B C);
 impl_entity_filter_query_for_tuple!(A B C D);
 impl_entity_filter_query_for_tuple!(A B C D E);
-impl_entity_filter_query_for_tuple!(A B C D E F);
-impl_entity_filter_query_for_tuple!(A B C D E F G);
-impl_entity_filter_query_for_tuple!(A B C D E F G H);
-impl_entity_filter_query_for_tuple!(A B C D E F G H I);
-impl_entity_filter_query_for_tuple!(A B C D E F G H I J);

@@ -273,8 +273,7 @@ set("door_may_close", 0)
 
 set("look_at_player", 2)
 
-while(true) do
-
+while (true) do
   local player_x, player_y = get_entity_position("player")
   local man_x, man_y = get_entity_position("man")
   local man_to_player_x = player_x - man_x
@@ -301,7 +300,7 @@ end
 
 set("slime_loop", 2)
 
-while(true) do
+while (true) do
   walk_wait("slime", "left", 2, 0.2)
   walk_wait("slime", "down", 2, 0.2)
   walk_wait("slime", "right", 1, 0.2)

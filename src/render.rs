@@ -2,8 +2,7 @@ use crate::component::{
     CollisionComponent, Facing, Position, SineOffsetAnimation, SpriteComponent,
 };
 use crate::ecs::ECS;
-use crate::world::{self, Cell, CellPos, Point, WorldPos};
-use crate::{facing_cell, standing_cell, Direction, MessageWindow};
+use crate::{Cell, CellPos, Direction, MessageWindow, Point, WorldPos};
 use array2d::Array2D;
 use itertools::Itertools;
 use sdl2::pixels::Color;
@@ -74,7 +73,7 @@ pub fn render(
     for row in 0..tilemap.num_rows() {
         for col in 0..tilemap.num_columns() {
             if let Some(cell) =
-                world::get_cell_at_cellpos(tilemap, CellPos::new(col as i32, row as i32))
+                crate::get_cell_at_cellpos(tilemap, CellPos::new(col as i32, row as i32))
             {
                 // world -> top_left
                 let position_in_world = WorldPos::new(col as f64, row as f64);
@@ -278,7 +277,7 @@ fn draw_facing_cell_marker(
     let (p, f) = ecs.query_one::<(&Position, &Facing)>(entity_id).unwrap();
 
     // world -> top_left
-    let position_in_world = facing_cell(&p.0, f.0).to_worldpos() - Point::new(0.5, 0.5);
+    let position_in_world = crate::facing_cell(&p.0, f.0).to_worldpos() - Point::new(0.5, 0.5);
     let position_in_viewport = position_in_world - viewport_top_left;
     let position_on_screen = worldpos_to_screenpos(position_in_viewport);
     let top_left = position_on_screen;
@@ -302,9 +301,9 @@ fn draw_standing_cell_marker(
     viewport_top_left: Point<f64>,
 ) {
     // world -> top_left
-    let position_in_world = standing_cell(&ecs.query_one::<&Position>(entity_id).unwrap().0)
-        .to_worldpos()
-        - Point::new(0.5, 0.5);
+    let position_in_world =
+        crate::standing_cell(&ecs.query_one::<&Position>(entity_id).unwrap().0).to_worldpos()
+            - Point::new(0.5, 0.5);
     let position_in_viewport = position_in_world - viewport_top_left;
     let position_on_screen = worldpos_to_screenpos(position_in_viewport);
     let top_left = position_on_screen;
