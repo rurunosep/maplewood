@@ -50,7 +50,7 @@ impl Ecs {
         Box::new(self.entities.iter().filter(|(_, e)| Q::filter(e)))
     }
 
-    pub fn query<Q>(&self) -> Box<dyn Iterator<Item = Q::Result<'_>> + '_>
+    pub fn query_all<Q>(&self) -> Box<dyn Iterator<Item = Q::Result<'_>> + '_>
     where
         Q: ComponentBorrowQuery,
     {
@@ -60,7 +60,7 @@ impl Ecs {
         )
     }
 
-    pub fn query_one<Q>(&self, id: EntityId) -> Option<Q::Result<'_>>
+    pub fn query_one_by_id<Q>(&self, id: EntityId) -> Option<Q::Result<'_>>
     where
         Q: ComponentBorrowQuery,
     {
@@ -70,10 +70,15 @@ impl Ecs {
             .map(|e| e.borrow_components::<Q>())
     }
 
-    pub fn find_by_label(&self, label: &str) -> Option<EntityId> {
-        self.query::<(EntityId, &Label)>()
+    pub fn query_one_by_label<Q>(&self, label: &str) -> Option<Q::Result<'_>>
+    where
+        Q: ComponentBorrowQuery,
+    {
+        self.query_all::<(EntityId, &Label)>()
             .find(|(_, l)| l.0.as_str() == label)
-            .map(|(id, _)| id)
+            .and_then(|(id, _)| self.entities.get(id))
+            .filter(|e| Q::ToEntityFilterQuery::filter(e))
+            .map(|e| e.borrow_components::<Q>())
     }
 }
 

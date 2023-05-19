@@ -109,7 +109,7 @@ pub fn render(
 
     // Draw entities with character components
     for (position, sprite_component, facing, sine_offset_animation) in ecs
-        .query::<(&Position, &SpriteComp, &Facing, Option<&SineOffsetAnimation>)>()
+        .query_all::<(&Position, &SpriteComp, &Facing, Option<&SineOffsetAnimation>)>()
         .sorted_by(|(p1, _, _, _), (p2, _, _, _)| p1.0.y.partial_cmp(&p2.0.y).unwrap())
     {
         // Choose sprite to draw
@@ -241,12 +241,12 @@ fn draw_hitbox_marker(
     viewport_top_left: Point<f64>,
 ) {
     let hitbox_screen_dimensions = worldpos_to_screenpos(
-        ecs.query_one::<&Collision>(entity_id).unwrap().hitbox_dimensions,
+        ecs.query_one_by_id::<&Collision>(entity_id).unwrap().hitbox_dimensions,
     );
     let screen_offset = hitbox_screen_dimensions / 2;
 
     // world -> top_left
-    let position_in_world = ecs.query_one::<&Position>(entity_id).unwrap().0;
+    let position_in_world = ecs.query_one_by_id::<&Position>(entity_id).unwrap().0;
     let position_in_viewport = position_in_world - viewport_top_left;
     let position_on_screen = worldpos_to_screenpos(position_in_viewport);
     let top_left = position_on_screen - screen_offset;
@@ -269,7 +269,7 @@ fn draw_facing_cell_marker(
     entity_id: EntityId,
     viewport_top_left: Point<f64>,
 ) {
-    let (p, f) = ecs.query_one::<(&Position, &Facing)>(entity_id).unwrap();
+    let (p, f) = ecs.query_one_by_id::<(&Position, &Facing)>(entity_id).unwrap();
 
     // world -> top_left
     let position_in_world = crate::facing_cell(&p.0, f.0).to_worldpos() - Point::new(0.5, 0.5);
@@ -297,7 +297,8 @@ fn draw_standing_cell_marker(
 ) {
     // world -> top_left
     let position_in_world =
-        crate::standing_cell(&ecs.query_one::<&Position>(entity_id).unwrap().0).to_worldpos()
+        crate::standing_cell(&ecs.query_one_by_id::<&Position>(entity_id).unwrap().0)
+            .to_worldpos()
             - Point::new(0.5, 0.5);
     let position_in_viewport = position_in_world - viewport_top_left;
     let position_on_screen = worldpos_to_screenpos(position_in_viewport);

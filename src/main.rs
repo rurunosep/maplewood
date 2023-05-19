@@ -17,7 +17,7 @@ use derive_more::{Add, AddAssign, Div, Mul, Sub};
 use derive_new::new;
 use ecs::{Ecs, Entity, EntityId};
 use render::{RenderData, SCREEN_COLS, SCREEN_ROWS, SCREEN_SCALE, TILE_SIZE};
-use script::{ScriptClass, ScriptCondition, ScriptInstanceManager, ScriptTrigger};
+use script::{ScriptClass, ScriptCondition, ScriptId, ScriptInstanceManager, ScriptTrigger};
 use sdl2::event::Event;
 use sdl2::image::LoadTexture;
 use sdl2::keyboard::Keycode;
@@ -42,7 +42,7 @@ pub enum Direction {
 pub struct MessageWindow {
     message: String,
     is_selection: bool,
-    waiting_script_id: i32,
+    waiting_script_id: ScriptId,
 }
 
 // should this go in RenderData?
@@ -380,7 +380,7 @@ fn main() {
     }
     let mut ecs = Ecs { entities };
 
-    let player_id = ecs.find_by_label("player").unwrap();
+    let player_id = ecs.query_one_by_label::<EntityId>("player").unwrap();
 
     // TODO: tilemap, entities, story vars in game data struct?
 
@@ -399,7 +399,7 @@ fn main() {
     let mut map_overlay_color_transition: Option<MapOverlayColorTransition> = None;
 
     let mut script_instance_manager =
-        ScriptInstanceManager { script_instances: HashMap::new(), next_script_id: 0 };
+        ScriptInstanceManager { script_instances: SlotMap::with_key() };
 
     // ----- Scratchpad -----
     {}
@@ -429,7 +429,7 @@ fn main() {
                     // forced) lock player movement
                     // Scripts can also lock/unlock it as necessary
                     let (mut facing, mut walking_component) =
-                        ecs.query_one::<(&mut Facing, &mut Walking)>(player_id).unwrap();
+                        ecs.query_one_by_id::<(&mut Facing, &mut Walking)>(player_id).unwrap();
                     if message_window.is_none()
                         && walking_component.destination.is_none()
                         && !player_movement_locked
@@ -448,7 +448,8 @@ fn main() {
                 // End player movement if directional key matching player direction is released
                 Event::KeyUp { keycode: Some(keycode), .. }
                     if keycode
-                        == match ecs.query_one::<&Walking>(player_id).unwrap().direction {
+                        == match ecs.query_one_by_id::<&Walking>(player_id).unwrap().direction
+                        {
                             Direction::Up => Keycode::Up,
                             Direction::Down => Keycode::Down,
                             Direction::Left => Keycode::Left,
@@ -456,7 +457,7 @@ fn main() {
                         } =>
                 {
                     let mut walking_component =
-                        ecs.query_one::<&mut Walking>(player_id).unwrap();
+                        ecs.query_one_by_id::<&mut Walking>(player_id).unwrap();
                     // Don't end movement if it's being forced
                     // I need to rework the way that input vs forced movement work and update
                     // Or maybe movement should use polling rather than events
@@ -483,7 +484,7 @@ fn main() {
                             // (prob UI/Input update)
                             if let Some(script) = script_instance_manager
                                 .script_instances
-                                .get_mut(&message_window.waiting_script_id)
+                                .get_mut(message_window.waiting_script_id)
                             {
                                 script.input = match keycode {
                                     Keycode::Num1 => 1,
@@ -510,10 +511,10 @@ fn main() {
                     } else {
                         // For entity standing in cell player that is facing...
                         let (player_pos, player_facing) =
-                            ecs.query_one::<(&Position, &Facing)>(player_id).unwrap();
+                            ecs.query_one_by_id::<(&Position, &Facing)>(player_id).unwrap();
                         let player_facing_cell = facing_cell(&player_pos.0, player_facing.0);
                         for (_, scripts) in
-                            ecs.query::<(&Position, &Scripts)>().filter(|(position, _)| {
+                            ecs.query_all::<(&Position, &Scripts)>().filter(|(position, _)| {
                                 standing_cell(&position.0) == player_facing_cell
                             })
                         {
@@ -544,7 +545,7 @@ fn main() {
         // every single frame
         // FORGETTING THIS IS A VERY EASY MISTAKE TO MAKE!
         // Be careful, and eventually rework
-        for scripts in ecs.query::<&Scripts>() {
+        for scripts in ecs.query_all::<&Scripts>() {
             for script in script::filter_scripts_by_trigger_and_condition(
                 &scripts.0,
                 ScriptTrigger::Auto,
@@ -585,16 +586,17 @@ fn main() {
             // (player_aabb is defined in a block so that the required pos and coll component
             // Refs are dropped at the end. Otherwise they have to be dropped manually in order
             // to borrow the ECS mutably later)
-            let (pos, coll) = ecs.query_one::<(&Position, &Collision)>(player_id).unwrap();
+            let (pos, coll) =
+                ecs.query_one_by_id::<(&Position, &Collision)>(player_id).unwrap();
             AABB::from_pos_and_hitbox(pos.0, coll.hitbox_dimensions)
         };
         // For each entity colliding with the player (and with necessary components)...
-        for (_, _, scripts) in
-            ecs.query::<(&Position, &Collision, &mut Scripts)>().filter(|(pos, coll, _)| {
+        for (_, _, scripts) in ecs.query_all::<(&Position, &Collision, &mut Scripts)>().filter(
+            |(pos, coll, _)| {
                 let aabb = AABB::from_pos_and_hitbox(pos.0, coll.hitbox_dimensions);
                 aabb.is_colliding(&player_aabb)
-            })
-        {
+            },
+        ) {
             // ...start all scripts that have a collision trigger and fulfill start condition
             for script in script::filter_scripts_by_trigger_and_condition(
                 &scripts.0,
@@ -660,7 +662,7 @@ fn main() {
         }
 
         // Camera follows player but stays clamped to map
-        let mut camera_position = ecs.query_one::<&Position>(player_id).unwrap().0;
+        let mut camera_position = ecs.query_one_by_id::<&Position>(player_id).unwrap().0;
         let viewport_dimensions = WorldPos::new(SCREEN_COLS as f64, SCREEN_ROWS as f64);
         let map_dimensions =
             WorldPos::new(tilemap.num_rows() as f64, tilemap.num_columns() as f64);
@@ -699,7 +701,7 @@ fn main() {
 
 fn update_walking_entities(ecs: &Ecs, tilemap: &Array2D<Cell>) {
     for (id, mut position, mut walking, collision) in
-        ecs.query::<(EntityId, &mut Position, &mut Walking, Option<&Collision>)>()
+        ecs.query_all::<(EntityId, &mut Position, &mut Walking, Option<&Collision>)>()
     {
         // Determine new position before collision resolution
         let mut new_position = position.0

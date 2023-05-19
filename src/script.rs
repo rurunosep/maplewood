@@ -22,25 +22,23 @@ use rlua::{Error as LuaError, Function, Lua, Result as LuaResult, Thread, Thread
 use sdl2::mixer::{Chunk, Music};
 use sdl2::pixels::Color;
 use sdl2::rect::Rect;
+use slotmap::{new_key_type, SlotMap};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::error::Error;
-use std::fmt;
+use std::fmt::{self, Display};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+new_key_type! { pub struct ScriptId; }
+
 pub struct ScriptInstanceManager {
-    pub script_instances: HashMap<i32, ScriptInstance>,
-    pub next_script_id: i32,
+    pub script_instances: SlotMap<ScriptId, ScriptInstance>,
 }
 
 impl ScriptInstanceManager {
     pub fn start_script(&mut self, script: &ScriptClass) {
-        self.script_instances.insert(
-            self.next_script_id,
-            ScriptInstance::new(script.clone(), self.next_script_id),
-        );
-        self.next_script_id += 1;
+        self.script_instances.insert_with_key(|id| ScriptInstance::new(script.clone(), id));
     }
 }
 
@@ -52,7 +50,7 @@ pub enum ScriptError {
 
 impl Error for ScriptError {}
 
-impl fmt::Display for ScriptError {
+impl Display for ScriptError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ScriptError::InvalidStoryVar(var) => write!(f, "no story var {var}"),
@@ -60,6 +58,12 @@ impl fmt::Display for ScriptError {
                 write!(f, "no entity {name} with necessary components")
             }
         }
+    }
+}
+
+impl From<ScriptError> for LuaError {
+    fn from(err: ScriptError) -> Self {
+        LuaError::ExternalError(Arc::new(err))
     }
 }
 
@@ -100,14 +104,14 @@ pub struct ScriptClass {
 pub struct ScriptInstance {
     pub lua_instance: Lua,
     pub script_class: ScriptClass,
-    pub id: i32,
+    pub id: ScriptId,
     pub finished: bool,
     pub wait_condition: Option<WaitCondition>,
     pub input: i32,
 }
 
 impl ScriptInstance {
-    pub fn new(script_class: ScriptClass, id: i32) -> Self {
+    pub fn new(script_class: ScriptClass, id: ScriptId) -> Self {
         let lua_instance = Lua::new();
         lua_instance
             .context(|context| -> LuaResult<()> {
@@ -518,10 +522,8 @@ pub fn filter_scripts_by_trigger_and_condition<'a>(
 // ----------------------------------------
 
 fn cb_get(key: String, story_vars: &HashMap<String, i32>) -> LuaResult<i32> {
-    story_vars
-        .get(&key)
-        .copied()
-        .ok_or(LuaError::ExternalError(Arc::new(ScriptError::InvalidStoryVar(key))))
+    let val = story_vars.get(&key).copied().ok_or(ScriptError::InvalidStoryVar(key))?;
+    Ok(val)
 }
 
 fn cb_set((key, val): (String, i32), story_vars: &mut HashMap<String, i32>) -> LuaResult<()> {
@@ -531,9 +533,8 @@ fn cb_set((key, val): (String, i32), story_vars: &mut HashMap<String, i32>) -> L
 
 fn cb_get_entity_position(entity: String, ecs: &Ecs) -> LuaResult<(f64, f64)> {
     let position = ecs
-        .find_by_label(&entity)
-        .and_then(|id| ecs.query_one::<&Position>(id))
-        .ok_or(LuaError::ExternalError(Arc::new(ScriptError::InvalidEntity(entity))))?;
+        .query_one_by_label::<&Position>(&entity)
+        .ok_or(ScriptError::InvalidEntity(entity))?;
     Ok((position.0.x, position.0.y))
 }
 
@@ -573,16 +574,15 @@ fn cb_lock_player_input(
     // There's no way to tell if it's from input or other
     // It might be better to set speed to 0 at end of each update (if movement is not being
     // forced) and then set it again in input processing as long as key is still held
-    ecs.query_one::<&mut Walking>(player_id).unwrap().speed = 0.;
+    ecs.query_one_by_id::<&mut Walking>(player_id).unwrap().speed = 0.;
     Ok(())
 }
 
 fn cb_set_entity_solid((entity, enabled): (String, bool), ecs: &mut Ecs) -> LuaResult<()> {
-    let mut collision_component = ecs
-        .find_by_label(&entity)
-        .and_then(|id| ecs.query_one::<&mut Collision>(id))
-        .ok_or(LuaError::ExternalError(Arc::new(ScriptError::InvalidEntity(entity))))?;
-    collision_component.solid = enabled;
+    let mut collision = ecs
+        .query_one_by_label::<&mut Collision>(&entity)
+        .ok_or(ScriptError::InvalidEntity(entity))?;
+    collision.solid = enabled;
     Ok(())
 }
 
@@ -590,22 +590,21 @@ fn cb_walk(
     (entity, direction, distance, speed): (String, String, f64, f64),
     ecs: &mut Ecs,
 ) -> LuaResult<()> {
-    let (position, mut facing, mut walking_component) = ecs
-        .find_by_label(&entity)
-        .and_then(|id| ecs.query_one::<(&Position, &mut Facing, &mut Walking)>(id))
-        .ok_or(LuaError::ExternalError(Arc::new(ScriptError::InvalidEntity(entity))))?;
+    let (position, mut facing, mut walking) = ecs
+        .query_one_by_label::<(&Position, &mut Facing, &mut Walking)>(&entity)
+        .ok_or(ScriptError::InvalidEntity(entity))?;
 
-    walking_component.direction = match direction.as_str() {
+    walking.direction = match direction.as_str() {
         "up" => Direction::Up,
         "down" => Direction::Down,
         "left" => Direction::Left,
         "right" => Direction::Right,
         s => panic!("{s} is not a valid direction"),
     };
-    walking_component.speed = speed;
-    walking_component.destination = Some(
+    walking.speed = speed;
+    walking.destination = Some(
         position.0
-            + match walking_component.direction {
+            + match walking.direction {
                 Direction::Up => WorldPos::new(0., -distance),
                 Direction::Down => WorldPos::new(0., distance),
                 Direction::Left => WorldPos::new(-distance, 0.),
@@ -613,7 +612,7 @@ fn cb_walk(
             },
     );
 
-    facing.0 = walking_component.direction;
+    facing.0 = walking.direction;
 
     Ok(())
 }
@@ -622,34 +621,32 @@ fn cb_walk_to(
     (entity, direction, destination, speed): (String, String, f64, f64),
     ecs: &mut Ecs,
 ) -> LuaResult<()> {
-    let (position, mut facing, mut walking_component) = ecs
-        .find_by_label(&entity)
-        .and_then(|id| ecs.query_one::<(&Position, &mut Facing, &mut Walking)>(id))
-        .ok_or(LuaError::ExternalError(Arc::new(ScriptError::InvalidEntity(entity))))?;
+    let (position, mut facing, mut walking) = ecs
+        .query_one_by_label::<(&Position, &mut Facing, &mut Walking)>(&entity)
+        .ok_or(ScriptError::InvalidEntity(entity))?;
 
-    walking_component.direction = match direction.as_str() {
+    walking.direction = match direction.as_str() {
         "up" => Direction::Up,
         "down" => Direction::Down,
         "left" => Direction::Left,
         "right" => Direction::Right,
         s => panic!("{s} is not a valid direction"),
     };
-    walking_component.speed = speed;
-    walking_component.destination = Some(match walking_component.direction {
+    walking.speed = speed;
+    walking.destination = Some(match walking.direction {
         Direction::Up | Direction::Down => WorldPos::new(position.0.x, destination),
         Direction::Left | Direction::Right => WorldPos::new(destination, position.0.y),
     });
 
-    facing.0 = walking_component.direction;
+    facing.0 = walking.direction;
 
     Ok(())
 }
 
 fn cb_set_entity_position((entity, x, y): (String, f64, f64), ecs: &mut Ecs) -> LuaResult<()> {
     let mut position = ecs
-        .find_by_label(&entity)
-        .and_then(|id| ecs.query_one::<&mut Position>(id))
-        .ok_or(LuaError::ExternalError(Arc::new(ScriptError::InvalidEntity(entity))))?;
+        .query_one_by_label::<&mut Position>(&entity)
+        .ok_or(ScriptError::InvalidEntity(entity))?;
     position.0 = WorldPos::new(x, y);
     Ok(())
 }
@@ -670,9 +667,9 @@ fn cb_set_map_overlay_color(
 
 fn cb_anim_quiver((entity, duration): (String, f64), ecs: &mut Ecs) -> LuaResult<()> {
     let e = ecs
-        .find_by_label(&entity)
+        .query_one_by_label::<EntityId>(&entity)
         .and_then(|id| ecs.entities.get_mut(id))
-        .ok_or(LuaError::ExternalError(Arc::new(ScriptError::InvalidEntity(entity))))?;
+        .ok_or(ScriptError::InvalidEntity(entity))?;
 
     e.add_component(SineOffsetAnimation {
         start_time: Instant::now(),
@@ -687,9 +684,9 @@ fn cb_anim_quiver((entity, duration): (String, f64), ecs: &mut Ecs) -> LuaResult
 
 fn cb_anim_jump(entity: String, ecs: &mut Ecs) -> LuaResult<()> {
     let e = ecs
-        .find_by_label(&entity)
+        .query_one_by_label::<EntityId>(&entity)
         .and_then(|id| ecs.entities.get_mut(id))
-        .ok_or(LuaError::ExternalError(Arc::new(ScriptError::InvalidEntity(entity))))?;
+        .ok_or(ScriptError::InvalidEntity(entity))?;
 
     e.add_component(SineOffsetAnimation {
         start_time: Instant::now(),
@@ -726,9 +723,9 @@ fn cb_add_position_component(
     ecs: &mut Ecs,
 ) -> LuaResult<()> {
     let e = ecs
-        .find_by_label(&entity)
+        .query_one_by_label::<EntityId>(&entity)
         .and_then(|id| ecs.entities.get_mut(id))
-        .ok_or(LuaError::ExternalError(Arc::new(ScriptError::InvalidEntity(entity))))?;
+        .ok_or(ScriptError::InvalidEntity(entity))?;
 
     e.add_component(Position(WorldPos::new(x, y)));
 
@@ -737,9 +734,9 @@ fn cb_add_position_component(
 
 fn cb_remove_position_component(entity: String, ecs: &mut Ecs) -> LuaResult<()> {
     let e = ecs
-        .find_by_label(&entity)
+        .query_one_by_label::<EntityId>(&entity)
         .and_then(|id| ecs.entities.get_mut(id))
-        .ok_or(LuaError::ExternalError(Arc::new(ScriptError::InvalidEntity(entity))))?;
+        .ok_or(ScriptError::InvalidEntity(entity))?;
 
     e.remove_component::<Position>();
 
@@ -758,9 +755,8 @@ fn cb_set_forced_sprite(
     ecs: &mut Ecs,
 ) -> LuaResult<()> {
     let mut sprite_component = ecs
-        .find_by_label(&entity)
-        .and_then(|id| ecs.query_one::<&mut SpriteComp>(id))
-        .ok_or(LuaError::ExternalError(Arc::new(ScriptError::InvalidEntity(entity))))?;
+        .query_one_by_label::<&mut SpriteComp>(&entity)
+        .ok_or(ScriptError::InvalidEntity(entity))?;
     sprite_component.forced_sprite =
         Some(Sprite { spritesheet_name, rect: Rect::new(rect_x, rect_y, rect_w, rect_h) });
     Ok(())
@@ -768,26 +764,24 @@ fn cb_set_forced_sprite(
 
 fn cb_remove_forced_sprite(entity: String, ecs: &mut Ecs) -> LuaResult<()> {
     let mut sprite_component = ecs
-        .find_by_label(&entity)
-        .and_then(|id| ecs.query_one::<&mut SpriteComp>(id))
-        .ok_or(LuaError::ExternalError(Arc::new(ScriptError::InvalidEntity(entity))))?;
+        .query_one_by_label::<&mut SpriteComp>(&entity)
+        .ok_or(ScriptError::InvalidEntity(entity))?;
     sprite_component.forced_sprite = None;
     Ok(())
 }
 
 fn cb_is_entity_walking(entity: String, ecs: &Ecs) -> LuaResult<bool> {
-    let walking_component = ecs
-        .find_by_label(&entity)
-        .and_then(|id| ecs.query_one::<&Walking>(id))
-        .ok_or(LuaError::ExternalError(Arc::new(ScriptError::InvalidEntity(entity))))?;
-    Ok(walking_component.destination.is_some())
+    let walking = ecs
+        .query_one_by_label::<&Walking>(&entity)
+        .ok_or(ScriptError::InvalidEntity(entity))?;
+    Ok(walking.destination.is_some())
 }
 
 fn cb_message(
     message: String,
     message_window: &mut Option<MessageWindow>,
     wait_condition: &mut Option<WaitCondition>,
-    script_id: i32,
+    script_id: ScriptId,
 ) -> LuaResult<()> {
     *message_window =
         Some(MessageWindow { message, is_selection: false, waiting_script_id: script_id });
@@ -799,7 +793,7 @@ fn cb_selection(
     message: String,
     message_window: &mut Option<MessageWindow>,
     wait_condition: &mut Option<WaitCondition>,
-    script_id: i32,
+    script_id: ScriptId,
 ) -> LuaResult<()> {
     *message_window =
         Some(MessageWindow { message, is_selection: true, waiting_script_id: script_id });
