@@ -110,9 +110,9 @@ pub fn render(
     }
 
     // Draw entities with character components
-    for (position, sprite_component, facing) in ecs
-        .query::<(&Position, &SpriteComponent, &Facing)>()
-        .sorted_by(|(p1, _, _), (p2, _, _)| p1.0.y.partial_cmp(&p2.0.y).unwrap())
+    for (position, sprite_component, facing, sine_offset_animation) in ecs
+        .query::<(&Position, &SpriteComponent, &Facing, Option<&SineOffsetAnimation>)>()
+        .sorted_by(|(p1, _, _, _), (p2, _, _, _)| p1.0.y.partial_cmp(&p2.0.y).unwrap())
     {
         // Choose sprite to draw
         let sprite = if let Some(forced_sprite) = &sprite_component.forced_sprite {
@@ -128,13 +128,10 @@ pub fn render(
 
         // If entity has a SineOffsetAnimation, offset sprite position accordingly
         let mut position = position.0;
-        if let Some(SineOffsetAnimation {
-            start_time, frequency, amplitude, direction, ..
-        }) = sprite_component.sine_offset_animation
-        {
-            let offset = direction
-                * (start_time.elapsed().as_secs_f64() * frequency * (PI * 2.)).sin()
-                * amplitude;
+        if let Some(soa) = sine_offset_animation {
+            let offset = soa.direction
+                * (soa.start_time.elapsed().as_secs_f64() * soa.frequency * (PI * 2.)).sin()
+                * soa.amplitude;
             position += offset;
         }
 

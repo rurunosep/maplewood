@@ -20,7 +20,6 @@ pub struct SpriteComponent {
     pub right_sprite: Sprite,
     pub forced_sprite: Option<Sprite>,
     pub sprite_offset: Point<i32>,
-    pub sine_offset_animation: Option<SineOffsetAnimation>,
 }
 impl Component for SpriteComponent {}
 
@@ -37,6 +36,7 @@ pub struct SineOffsetAnimation {
     pub frequency: f64,
     pub direction: Point<f64>,
 }
+impl Component for SineOffsetAnimation {}
 
 #[derive(Clone, Debug, Default)]
 pub struct WalkingComponent {

@@ -16,7 +16,7 @@ use array2d::Array2D;
 use component::{Facing, Sprite};
 use derive_more::{Add, AddAssign, Div, Mul, Sub};
 use derive_new::new;
-use ecs::ECS;
+use ecs::{Entity, ECS};
 use render::{RenderData, SCREEN_COLS, SCREEN_ROWS, SCREEN_SCALE, TILE_SIZE};
 use script::{ScriptClass, ScriptCondition, ScriptInstanceManager, ScriptTrigger};
 use sdl2::event::Event;
@@ -215,7 +215,6 @@ fn main() {
             },
             sprite_offset: Point::new(8, 13),
             forced_sprite: None,
-            sine_offset_animation: None,
         });
         e.add_component(Facing(Direction::Down));
         entities.insert("player".to_string(), e);
@@ -247,7 +246,6 @@ fn main() {
             },
             sprite_offset: Point::new(8, 13),
             forced_sprite: None,
-            sine_offset_animation: None,
         });
         e.add_component(Facing(Direction::Up));
         e.add_component(Scripts(vec![ScriptClass {
@@ -291,7 +289,6 @@ fn main() {
             },
             sprite_offset: Point::new(8, 11),
             forced_sprite: None,
-            sine_offset_animation: None,
         });
         e.add_component(Facing(Direction::Down));
         e.add_component(Scripts(vec![
@@ -584,15 +581,20 @@ fn main() {
         update_walking_entities(&ecs, &tilemap);
 
         // Start player soft collision scripts
-        // For each entity colliding with the player...
-        let (p_pos, p_coll) =
-            ecs.query_one::<(&Position, &CollisionComponent)>("player").unwrap();
-        let p_aabb = AABB::from_pos_and_hitbox(p_pos.0, p_coll.hitbox_dimensions);
+        let player_aabb = {
+            // (player_aabb is defined in a block so that the required pos and coll component
+            // Refs are dropped at the end. Otherwise they have to be dropped manually in order
+            // to borrow the ECS mutably later)
+            let (pos, coll) =
+                ecs.query_one::<(&Position, &CollisionComponent)>("player").unwrap();
+            AABB::from_pos_and_hitbox(pos.0, coll.hitbox_dimensions)
+        };
+        // For each entity colliding with the player (and with necessary components)...
         for (_, _, mut scripts) in ecs
             .query::<(&Position, &CollisionComponent, &mut Scripts)>()
-            .filter(|(e_pos, e_coll, _)| {
-                let e_aabb = AABB::from_pos_and_hitbox(e_pos.0, e_coll.hitbox_dimensions);
-                return e_aabb.is_colliding(&p_aabb);
+            .filter(|(pos, coll, _)| {
+                let aabb = AABB::from_pos_and_hitbox(pos.0, coll.hitbox_dimensions);
+                return aabb.is_colliding(&player_aabb);
             })
         {
             // ...start all scripts that have a collision trigger and fulfill start condition
@@ -606,15 +608,34 @@ fn main() {
         }
 
         // End entity SineOffsetAnimations that have exceeded their duration
-        for mut sprite_component in ecs.query::<&mut SpriteComponent>() {
-            if let Some(SineOffsetAnimation { start_time, duration, .. }) =
-                sprite_component.sine_offset_animation
-            {
-                if start_time.elapsed() > duration {
-                    sprite_component.sine_offset_animation = None;
-                }
+        let mut to_remove: Vec<*const Entity> = Vec::new();
+        for e in ecs.filter_entities::<SineOffsetAnimation>() {
+            let SineOffsetAnimation { start_time, duration, .. } =
+                *e.borrow_components::<&SineOffsetAnimation>();
+            if start_time.elapsed() > duration {
+                to_remove.push(e as *const Entity);
             }
         }
+        for e in
+            ecs.entities.values_mut().filter(|e| to_remove.contains(&((*e) as *const Entity)))
+        {
+            e.remove_component::<SineOffsetAnimation>();
+        }
+
+        // All ECS queries use shared references to the list of entities and to individual
+        // entities. Only the individual components may be modified within a query as they are
+        // behind RefCells. Any modification such as adding/removing entities or
+        // components must be done outside the query. At the moment, this must be handled
+        // manually as seen in the preceding SineOffsetAnimation updating code.
+        // TODO: add functions to ECS to queue entity/component additions/removals which can be
+        // executed outside of a query
+        // Example:
+        //      for e in ecs.filter_entities::<...>() {
+        //           if (...) {
+        //              ecs.queue_remove_entity(e); <-- takes &self
+        //           }
+        //       }
+        //       ecs.flush_modifications(); <-- takes &mut self
 
         // Update map overlay color
         if let Some(MapOverlayColorTransition {

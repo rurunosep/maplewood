@@ -120,7 +120,6 @@ where
     type Result<'res> = Ref<'res, C>;
 
     fn borrow<'ent>(e: &'ent Entity) -> Self::Result<'ent> {
-        // Panics here if the entity doesn't have the component (or if illegal borrow)
         e.components.get::<RefCell<C>>().unwrap().borrow()
     }
 }
@@ -145,8 +144,6 @@ where
     type Result<'res> = Option<Ref<'res, C>>;
 
     fn borrow<'ent>(e: &'ent Entity) -> Self::Result<'ent> {
-        // Doesn't panic if entity doesn't have component. Returns an option.
-        // (Still panics if illegal borrow)
         e.components.get::<RefCell<C>>().map(|r| r.borrow())
     }
 }
