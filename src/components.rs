@@ -4,6 +4,9 @@ use crate::{Direction, Point, WorldPos};
 use sdl2::rect::Rect;
 use std::time::{Duration, Instant};
 
+pub struct Label(pub String);
+impl Component for Label {}
+
 pub struct Position(pub WorldPos);
 impl Component for Position {}
 
@@ -13,7 +16,7 @@ impl Component for Facing {}
 pub struct Scripts(pub Vec<ScriptClass>);
 impl Component for Scripts {}
 
-pub struct SpriteComponent {
+pub struct SpriteComp {
     pub up_sprite: Sprite,
     pub down_sprite: Sprite,
     pub left_sprite: Sprite,
@@ -21,14 +24,13 @@ pub struct SpriteComponent {
     pub forced_sprite: Option<Sprite>,
     pub sprite_offset: Point<i32>,
 }
-impl Component for SpriteComponent {}
+impl Component for SpriteComp {}
 
 pub struct Sprite {
     pub spritesheet_name: String,
     pub rect: Rect,
 }
 
-#[derive(Clone, Debug)]
 pub struct SineOffsetAnimation {
     pub start_time: Instant,
     pub duration: Duration,
@@ -38,17 +40,15 @@ pub struct SineOffsetAnimation {
 }
 impl Component for SineOffsetAnimation {}
 
-#[derive(Clone, Debug, Default)]
-pub struct WalkingComponent {
+pub struct Walking {
     pub speed: f64,
     pub direction: Direction,
     pub destination: Option<WorldPos>,
 }
-impl Component for WalkingComponent {}
+impl Component for Walking {}
 
-#[derive(Clone, Debug)]
-pub struct CollisionComponent {
+pub struct Collision {
     pub hitbox_dimensions: Point<f64>,
     pub solid: bool,
 }
-impl Component for CollisionComponent {}
+impl Component for Collision {}

@@ -1,6 +1,7 @@
+use crate::components::Label;
 use anymap::AnyMap;
+use slotmap::{new_key_type, Key, SlotMap};
 use std::cell::{Ref, RefCell, RefMut};
-use std::collections::HashMap;
 
 pub trait Component {}
 
@@ -13,92 +14,105 @@ impl Entity {
         Self { components: AnyMap::new() }
     }
 
-    pub fn borrow_components<'ent, Q: ComponentBorrowQuery>(&'ent self) -> Q::Result<'ent> {
-        Q::get_components(&self)
+    pub fn borrow_components<Q>(&self) -> Q::Result<'_>
+    where
+        Q: ComponentBorrowQuery,
+    {
+        Q::get_components((EntityId::null(), self))
     }
 
-    pub fn add_component<C: Component + 'static>(&mut self, component: C) {
+    pub fn add_component<C>(&mut self, component: C)
+    where
+        C: Component + 'static,
+    {
         self.components.insert(RefCell::new(component));
     }
 
-    pub fn remove_component<C: Component + 'static>(&mut self) {
+    pub fn remove_component<C>(&mut self)
+    where
+        C: Component + 'static,
+    {
         self.components.remove::<RefCell<C>>();
     }
 }
 
-pub struct ECS {
-    // Slotmap or similar rather than string ids?
-    // Entities could have a name component to refer to them by name in scripts
-    // Performance doesn't matter. Just .find() the one with the right name
-    // If performance ever mattered, just use a separate index of name to entity id?
-    // Such an index could also enforce that names are unique, but for now
-    // unchecked is fine
-    pub entities: HashMap<String, Entity>,
+new_key_type! { pub struct EntityId; }
+
+pub struct Ecs {
+    pub entities: SlotMap<EntityId, Entity>,
 }
 
-impl ECS {
-    pub fn filter_entities<'ecs, Q: EntityFilterQuery>(
-        &'ecs self,
-    ) -> Box<dyn Iterator<Item = &'ecs Entity> + 'ecs> {
-        Box::new(self.entities.values().filter(|e| Q::filter(e)))
+impl Ecs {
+    pub fn filter_entities<Q>(&self) -> Box<dyn Iterator<Item = (EntityId, &Entity)> + '_>
+    where
+        Q: EntityFilterQuery,
+    {
+        Box::new(self.entities.iter().filter(|(_, e)| Q::filter(e)))
     }
 
-    pub fn query<'ecs, Q: ComponentBorrowQuery>(
-        &'ecs self,
-    ) -> Box<dyn Iterator<Item = Q::Result<'ecs>> + 'ecs> {
+    pub fn query<Q>(&self) -> Box<dyn Iterator<Item = Q::Result<'_>> + '_>
+    where
+        Q: ComponentBorrowQuery,
+    {
         Box::new(
             self.filter_entities::<Q::ToEntityFilterQuery>()
-                .map(|e| e.borrow_components::<Q>()),
+                .map(|(id, e)| Q::get_components((id, e))),
         )
     }
 
-    pub fn query_one<'ecs, Q: ComponentBorrowQuery>(
-        &'ecs self,
-        id: &str,
-    ) -> Option<Q::Result<'ecs>> {
+    pub fn query_one<Q>(&self, id: EntityId) -> Option<Q::Result<'_>>
+    where
+        Q: ComponentBorrowQuery,
+    {
         self.entities
             .get(id)
             .filter(|e| Q::ToEntityFilterQuery::filter(e))
             .map(|e| e.borrow_components::<Q>())
     }
+
+    pub fn find_by_label(&self, label: &str) -> Option<EntityId> {
+        self.query::<(EntityId, &Label)>()
+            .find(|(_, l)| l.0.as_str() == label)
+            .map(|(id, _)| id)
+    }
 }
 
 pub trait ComponentBorrowQuery {
-    type Result<'res>;
+    type Result<'r>;
     type ToEntityFilterQuery: EntityFilterQuery;
 
-    fn get_components<'ent>(e: &'ent Entity) -> Self::Result<'ent>;
+    fn get_components(id_e: (EntityId, &Entity)) -> Self::Result<'_>;
 }
 
 impl<A> ComponentBorrowQuery for A
 where
     A: BorrowQueryElement + 'static,
 {
-    type Result<'res> = A::Result<'res>;
+    type Result<'r> = A::Result<'r>;
     type ToEntityFilterQuery = A::ToFilterQueryElement;
 
-    fn get_components<'ent>(e: &'ent Entity) -> Self::Result<'ent> {
-        A::borrow(e)
+    fn get_components((id, e): (EntityId, &Entity)) -> Self::Result<'_> {
+        A::borrow((id, e))
     }
 }
 
 macro_rules! impl_component_borrow_query_for_tuple {
     ($($name:ident)*) => {
         #[allow(unused)]
+        #[allow(clippy::unused_unit)]
         impl<$($name,)*> ComponentBorrowQuery for ($($name,)*)
         where $($name: BorrowQueryElement + 'static,)*
         {
-            type Result<'res> = ($($name::Result<'res>,)*);
+            type Result<'r> = ($($name::Result<'r>,)*);
             type ToEntityFilterQuery = ($($name::ToFilterQueryElement,)*);
 
-            fn get_components<'ent>(e: &'ent Entity) -> Self::Result<'ent> {
-                ($($name::borrow(e),)*)
+            fn get_components((id, e): (EntityId, &Entity)) -> Self::Result<'_> {
+                ($($name::borrow((id, e)),)*)
             }
         }
     };
 }
 
-impl_component_borrow_query_for_tuple!();
 impl_component_borrow_query_for_tuple!(A);
 impl_component_borrow_query_for_tuple!(A B);
 impl_component_borrow_query_for_tuple!(A B C);
@@ -107,9 +121,24 @@ impl_component_borrow_query_for_tuple!(A B C D E);
 
 pub trait BorrowQueryElement {
     type ToFilterQueryElement: FilterQueryElement;
-    type Result<'res>;
+    type Result<'r>;
 
-    fn borrow<'ent>(e: &'ent Entity) -> Self::Result<'ent>;
+    fn borrow(id_e: (EntityId, &Entity)) -> Self::Result<'_>;
+}
+
+impl BorrowQueryElement for () {
+    type ToFilterQueryElement = ();
+    type Result<'r> = ();
+    fn borrow(_: (EntityId, &Entity)) -> Self::Result<'_> {}
+}
+
+impl BorrowQueryElement for EntityId {
+    type ToFilterQueryElement = ();
+    type Result<'r> = EntityId;
+
+    fn borrow((id, _): (EntityId, &Entity)) -> Self::Result<'_> {
+        id
+    }
 }
 
 impl<C> BorrowQueryElement for &C
@@ -117,9 +146,9 @@ where
     C: Component + 'static,
 {
     type ToFilterQueryElement = C;
-    type Result<'res> = Ref<'res, C>;
+    type Result<'r> = Ref<'r, C>;
 
-    fn borrow<'ent>(e: &'ent Entity) -> Self::Result<'ent> {
+    fn borrow((_, e): (EntityId, &Entity)) -> Self::Result<'_> {
         e.components.get::<RefCell<C>>().unwrap().borrow()
     }
 }
@@ -131,7 +160,7 @@ where
     type ToFilterQueryElement = C;
     type Result<'res> = RefMut<'res, C>;
 
-    fn borrow<'ent>(e: &'ent Entity) -> Self::Result<'ent> {
+    fn borrow((_, e): (EntityId, &Entity)) -> Self::Result<'_> {
         e.components.get::<RefCell<C>>().unwrap().borrow_mut()
     }
 }
@@ -140,10 +169,10 @@ impl<C> BorrowQueryElement for Option<&C>
 where
     C: Component + 'static,
 {
-    type ToFilterQueryElement = Option<C>;
+    type ToFilterQueryElement = ();
     type Result<'res> = Option<Ref<'res, C>>;
 
-    fn borrow<'ent>(e: &'ent Entity) -> Self::Result<'ent> {
+    fn borrow((_, e): (EntityId, &Entity)) -> Self::Result<'_> {
         e.components.get::<RefCell<C>>().map(|r| r.borrow())
     }
 }
@@ -152,10 +181,10 @@ impl<C> BorrowQueryElement for Option<&mut C>
 where
     C: Component + 'static,
 {
-    type ToFilterQueryElement = Option<C>;
+    type ToFilterQueryElement = ();
     type Result<'res> = Option<RefMut<'res, C>>;
 
-    fn borrow<'ent>(e: &'ent Entity) -> Self::Result<'ent> {
+    fn borrow((_, e): (EntityId, &Entity)) -> Self::Result<'_> {
         e.components.get::<RefCell<C>>().map(|r| r.borrow_mut())
     }
 }
@@ -196,7 +225,6 @@ macro_rules! replace_pat {
     };
 }
 
-impl_entity_filter_query_for_tuple!();
 impl_entity_filter_query_for_tuple!(A);
 impl_entity_filter_query_for_tuple!(A B);
 impl_entity_filter_query_for_tuple!(A B C);
@@ -205,6 +233,12 @@ impl_entity_filter_query_for_tuple!(A B C D E);
 
 pub trait FilterQueryElement {
     fn filter(e: &Entity) -> bool;
+}
+
+impl FilterQueryElement for () {
+    fn filter(_: &Entity) -> bool {
+        true
+    }
 }
 
 impl<T> FilterQueryElement for T

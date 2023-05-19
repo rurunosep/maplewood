@@ -1,7 +1,5 @@
-use crate::component::{
-    CollisionComponent, Facing, Position, SineOffsetAnimation, SpriteComponent,
-};
-use crate::ecs::ECS;
+use crate::components::{Collision, Facing, Position, SineOffsetAnimation, SpriteComp};
+use crate::ecs::{Ecs, EntityId};
 use crate::{Cell, CellPos, Direction, MessageWindow, Point, WorldPos};
 use array2d::Array2D;
 use itertools::Itertools;
@@ -49,7 +47,7 @@ pub fn render(
     camera_position: WorldPos,
     tilemap: &Array2D<Cell>,
     message_window: &Option<MessageWindow>,
-    ecs: &ECS,
+    ecs: &Ecs,
 ) {
     let RenderData {
         canvas,
@@ -111,7 +109,7 @@ pub fn render(
 
     // Draw entities with character components
     for (position, sprite_component, facing, sine_offset_animation) in ecs
-        .query::<(&Position, &SpriteComponent, &Facing, Option<&SineOffsetAnimation>)>()
+        .query::<(&Position, &SpriteComp, &Facing, Option<&SineOffsetAnimation>)>()
         .sorted_by(|(p1, _, _, _), (p2, _, _, _)| p1.0.y.partial_cmp(&p2.0.y).unwrap())
     {
         // Choose sprite to draw
@@ -238,12 +236,12 @@ pub fn render(
 #[allow(dead_code)]
 fn draw_hitbox_marker(
     canvas: &mut WindowCanvas,
-    ecs: &ECS,
-    entity_id: &str,
+    ecs: &Ecs,
+    entity_id: EntityId,
     viewport_top_left: Point<f64>,
 ) {
     let hitbox_screen_dimensions = worldpos_to_screenpos(
-        ecs.query_one::<&CollisionComponent>(entity_id).unwrap().hitbox_dimensions,
+        ecs.query_one::<&Collision>(entity_id).unwrap().hitbox_dimensions,
     );
     let screen_offset = hitbox_screen_dimensions / 2;
 
@@ -267,8 +265,8 @@ fn draw_hitbox_marker(
 #[allow(dead_code)]
 fn draw_facing_cell_marker(
     canvas: &mut WindowCanvas,
-    ecs: &ECS,
-    entity_id: &str,
+    ecs: &Ecs,
+    entity_id: EntityId,
     viewport_top_left: Point<f64>,
 ) {
     let (p, f) = ecs.query_one::<(&Position, &Facing)>(entity_id).unwrap();
@@ -293,8 +291,8 @@ fn draw_facing_cell_marker(
 #[allow(dead_code)]
 fn draw_standing_cell_marker(
     canvas: &mut WindowCanvas,
-    ecs: &ECS,
-    entity_id: &str,
+    ecs: &Ecs,
+    entity_id: EntityId,
     viewport_top_left: Point<f64>,
 ) {
     // world -> top_left
