@@ -102,7 +102,7 @@ fn main() {
     let mut cards: HashMap<String, Texture> = HashMap::new();
     cards.insert(
         "spaghetti_time".to_string(),
-        texture_creator.load_texture("assets/card.png").unwrap(),
+        texture_creator.load_texture("assets/spaghetti_time.png").unwrap(),
     );
 
     let mut render_data = RenderData {
@@ -155,8 +155,8 @@ fn main() {
     musics.insert("sleep".to_string(), Music::from_file("assets/audio/sleep.wav").unwrap());
     musics.insert("benny".to_string(), Music::from_file("assets/audio/benny.wav").unwrap());
     musics.insert(
-        "spaghetti".to_string(),
-        Music::from_file("assets/audio/spaghetti.wav").unwrap(),
+        "spaghetti_time".to_string(),
+        Music::from_file("assets/audio/spaghetti_time.wav").unwrap(),
     );
 
     let mut tilemap = {
@@ -682,8 +682,14 @@ fn update_walking_entities(ecs: &ECS, tilemap: &Array2D<Cell>) {
     // Must do a split filter+borrow query so that I have a ref to the entity to compare in the
     // upcoming nested query
     for e in ecs.filter_entities::<(Position, WalkingComponent)>() {
-        let (mut position, mut walking_component) =
-            e.borrow_components::<(&mut Position, &mut WalkingComponent)>().unwrap();
+        // Getting the optional collision component here in the original query (as opposed to
+        // in a separate query when I need it) is not necessary since this is already a split
+        // filter+borrow query.
+        let (mut position, mut walking_component, collision) = e.borrow_components::<(
+            &mut Position,
+            &mut WalkingComponent,
+            Option<&CollisionComponent>,
+        )>();
 
         // Determine new position before collision resolution
         let mut new_position = position.0
@@ -695,17 +701,13 @@ fn update_walking_entities(ecs: &ECS, tilemap: &Array2D<Cell>) {
             };
 
         // Resolve collisions and update new position
-        if let Some(collision_component) = e.borrow_components::<&CollisionComponent>() {
-            if collision_component.solid {
-                let old_aabb = AABB::from_pos_and_hitbox(
-                    position.0,
-                    collision_component.hitbox_dimensions,
-                );
+        if let Some(collision) = collision {
+            if collision.solid {
+                let old_aabb =
+                    AABB::from_pos_and_hitbox(position.0, collision.hitbox_dimensions);
 
-                let mut new_aabb = AABB::from_pos_and_hitbox(
-                    new_position,
-                    collision_component.hitbox_dimensions,
-                );
+                let mut new_aabb =
+                    AABB::from_pos_and_hitbox(new_position, collision.hitbox_dimensions);
 
                 // Check for and resolve collision with the 9 cells centered around new
                 // position
@@ -743,7 +745,7 @@ fn update_walking_entities(ecs: &ECS, tilemap: &Array2D<Cell>) {
                     .filter(|&other_ref| other_ref as *const _ != e as *const _)
                 {
                     let (other_pos, other_coll) =
-                        other.borrow_components::<(&Position, &CollisionComponent)>().unwrap();
+                        other.borrow_components::<(&Position, &CollisionComponent)>();
 
                     if other_coll.solid {
                         let other_aabb = AABB::from_pos_and_hitbox(
