@@ -192,7 +192,7 @@ pub fn render(
     // Draw card
     if let Some(displayed_card_name) = displayed_card_name {
         canvas
-            .copy(cards.get(displayed_card_name).unwrap(), None, Rect::new(112, 114, 800, 540))
+            .copy(cards.get(displayed_card_name).unwrap(), None, Rect::new(152, 114, 720, 540))
             .unwrap();
     }
 
