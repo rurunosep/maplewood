@@ -1,4 +1,4 @@
-use crate::components::{Collision, Facing, Position, SineOffsetAnimation, SpriteComp};
+use crate::components::{Collision, Facing, Position, SineOffsetAnimation, SpriteComponent};
 use crate::ecs::{Ecs, EntityId};
 use crate::{Cell, CellPos, Direction, MessageWindow, Point, WorldPos};
 use array2d::Array2D;
@@ -109,7 +109,7 @@ pub fn render(
 
     // Draw entities with character components
     for (position, sprite_component, facing, sine_offset_animation) in ecs
-        .query_all::<(&Position, &SpriteComp, &Facing, Option<&SineOffsetAnimation>)>()
+        .query_all::<(&Position, &SpriteComponent, &Facing, Option<&SineOffsetAnimation>)>()
         .sorted_by(|(p1, _, _, _), (p2, _, _, _)| p1.0.y.partial_cmp(&p2.0.y).unwrap())
     {
         // Choose sprite to draw

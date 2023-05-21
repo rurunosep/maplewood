@@ -16,7 +16,7 @@ impl Component for Facing {}
 pub struct Scripts(pub Vec<ScriptClass>);
 impl Component for Scripts {}
 
-pub struct SpriteComp {
+pub struct SpriteComponent {
     pub up_sprite: Sprite,
     pub down_sprite: Sprite,
     pub left_sprite: Sprite,
@@ -24,7 +24,7 @@ pub struct SpriteComp {
     pub forced_sprite: Option<Sprite>,
     pub sprite_offset: Point<i32>,
 }
-impl Component for SpriteComp {}
+impl Component for SpriteComponent {}
 
 pub struct Sprite {
     pub spritesheet_name: String,

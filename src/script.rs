@@ -1,4 +1,4 @@
-// TODO: rework eventually with the new architecture I've been thinking of:
+// Rework eventually with the new architecture I've been thinking of:
 // ScriptClass references a function rather than holding a source string
 // ScriptInstance references a thread created from the function
 //      let thread = context.create_thread(globals.get::<_,Function>(function_name));
@@ -13,7 +13,7 @@
 //      thread.resume();
 
 use crate::components::{
-    Collision, Facing, Position, SineOffsetAnimation, Sprite, SpriteComp, Walking,
+    Collision, Facing, Position, SineOffsetAnimation, Sprite, SpriteComponent, Walking,
 };
 use crate::ecs::{Ecs, EntityId};
 use crate::{Cell, Direction, MapOverlayColorTransition, MessageWindow, Point, WorldPos};
@@ -671,7 +671,7 @@ fn cb_anim_quiver((entity, duration): (String, f64), ecs: &mut Ecs) -> LuaResult
         .and_then(|id| ecs.entities.get_mut(id))
         .ok_or(ScriptError::InvalidEntity(entity))?;
 
-    e.add_component(SineOffsetAnimation {
+    e.add_components(SineOffsetAnimation {
         start_time: Instant::now(),
         duration: Duration::from_secs_f64(duration),
         amplitude: 0.03,
@@ -688,7 +688,7 @@ fn cb_anim_jump(entity: String, ecs: &mut Ecs) -> LuaResult<()> {
         .and_then(|id| ecs.entities.get_mut(id))
         .ok_or(ScriptError::InvalidEntity(entity))?;
 
-    e.add_component(SineOffsetAnimation {
+    e.add_components(SineOffsetAnimation {
         start_time: Instant::now(),
         duration: Duration::from_secs_f64(0.3),
         amplitude: 0.5,
@@ -727,7 +727,7 @@ fn cb_add_position_component(
         .and_then(|id| ecs.entities.get_mut(id))
         .ok_or(ScriptError::InvalidEntity(entity))?;
 
-    e.add_component(Position(WorldPos::new(x, y)));
+    e.add_components(Position(WorldPos::new(x, y)));
 
     Ok(())
 }
@@ -738,7 +738,7 @@ fn cb_remove_position_component(entity: String, ecs: &mut Ecs) -> LuaResult<()> 
         .and_then(|id| ecs.entities.get_mut(id))
         .ok_or(ScriptError::InvalidEntity(entity))?;
 
-    e.remove_component::<Position>();
+    e.remove_components::<Position>();
 
     Ok(())
 }
@@ -755,7 +755,7 @@ fn cb_set_forced_sprite(
     ecs: &mut Ecs,
 ) -> LuaResult<()> {
     let mut sprite_component = ecs
-        .query_one_by_label::<&mut SpriteComp>(&entity)
+        .query_one_by_label::<&mut SpriteComponent>(&entity)
         .ok_or(ScriptError::InvalidEntity(entity))?;
     sprite_component.forced_sprite =
         Some(Sprite { spritesheet_name, rect: Rect::new(rect_x, rect_y, rect_w, rect_h) });
@@ -764,7 +764,7 @@ fn cb_set_forced_sprite(
 
 fn cb_remove_forced_sprite(entity: String, ecs: &mut Ecs) -> LuaResult<()> {
     let mut sprite_component = ecs
-        .query_one_by_label::<&mut SpriteComp>(&entity)
+        .query_one_by_label::<&mut SpriteComponent>(&entity)
         .ok_or(ScriptError::InvalidEntity(entity))?;
     sprite_component.forced_sprite = None;
     Ok(())
