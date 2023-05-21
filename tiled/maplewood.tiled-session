@@ -3,11 +3,28 @@
         "height": 4300,
         "width": 2
     },
-    "activeFile": "cottage.tmx",
+    "activeFile": "1_Terrains_and_Fences_16x16.tsx",
     "expandedProjectPaths": [
         "."
     ],
+    "file.lastUsedOpenFilter": "All Files (*)",
     "fileStates": {
+        "": {
+            "scaleInDock": 1
+        },
+        "11_Camping_16x16.tsx": {
+            "scaleInDock": 1,
+            "scaleInEditor": 1
+        },
+        "1_Terrains_and_Fences_16x16.tsx": {
+            "dynamicWrapping": false,
+            "scaleInDock": 1.5,
+            "scaleInEditor": 3
+        },
+        "7_Villas_16x16.tsx": {
+            "scaleInDock": 2,
+            "scaleInEditor": 1
+        },
         "D:/Dev/_resources/dawnlike/Examples/Underworld.tmx": {
             "scale": 3.2577083333333334,
             "selectedLayer": 0,
@@ -90,7 +107,15 @@
             "selectedLayer": 1,
             "viewCenter": {
                 "x": 137.75,
-                "y": 81.5
+                "y": 141.5
+            }
+        },
+        "inf_test.tmx": {
+            "scale": 4.3431,
+            "selectedLayer": 1,
+            "viewCenter": {
+                "x": -15.657019179848504,
+                "y": 23.25527848771614
             }
         },
         "limezu_interiors.tsx": {
@@ -130,40 +155,56 @@
             "scaleInDock": 1,
             "scaleInEditor": 1
         },
+        "two_houses.tmx": {
+            "scale": 2,
+            "selectedLayer": 2,
+            "viewCenter": {
+                "x": 218,
+                "y": 201.75
+            }
+        },
         "weeb_room.tmx": {
             "scale": 3,
-            "selectedLayer": 0,
+            "selectedLayer": 4,
             "viewCenter": {
-                "x": 320,
-                "y": 319.66666666666663
+                "x": 315.3333333333333,
+                "y": 319
             }
         }
     },
     "last.exportedFilePath": "D:/Dev/maplewood/tiled",
-    "last.imagePath": "D:/Dev/_resources/limezu/modern_interiors/1_Interiors",
-    "map.height": 40,
-    "map.lastUsedExportFilter": "CSV files (*.csv)",
+    "last.imagePath": "D:/Dev/_resources/limezu/modern-exteriors",
+    "last.worldFilePath": "D:/Dev/maplewood/tiled",
+    "lastUsedTilesetExportFilter": "Lua files (*.lua)",
+    "loadedWorlds": [
+    ],
+    "map.fixedSize": true,
+    "map.height": 20,
+    "map.lastUsedExportFilter": "Lua files (*.lua)",
     "map.lastUsedFormat": "tmx",
     "map.tileHeight": 16,
     "map.tileWidth": 16,
-    "map.width": 40,
+    "map.width": 20,
     "openFiles": [
-        "weeb_room.tmx",
-        "cottage.tmx"
+        "two_houses.tmx",
+        "1_Terrains_and_Fences_16x16.tsx",
+        "7_Villas_16x16.tsx",
+        "11_Camping_16x16.tsx"
     ],
     "project": "maplewood.tiled-project",
     "recentFiles": [
+        "two_houses.tmx",
+        "11_Camping_16x16.tsx",
+        "7_Villas_16x16.tsx",
+        "1_Terrains_and_Fences_16x16.tsx",
+        "inf_test.tmx",
+        "basictiles.tsx",
         "weeb_room.tmx",
         "cottage.tmx",
         "D:/Dev/_resources/dawnlike/Examples/Underworld.tmx",
         "limezu_interiors.tsx",
         "limezu_room_builder.tsx",
-        "basictiles.tsx",
-        "D:/Programs/Tiled/examples/sticker-knight/map/sandbox.tmx",
-        "test.tmx",
-        "tmw_desert_spacing.tsx",
-        "test2.tmx",
-        "test.js"
+        "D:/Programs/Tiled/examples/sticker-knight/map/sandbox.tmx"
     ],
     "tileset.lastUsedFormat": "tsx",
     "tileset.margin": 0,

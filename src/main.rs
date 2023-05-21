@@ -162,12 +162,12 @@ fn main() {
     let mut tilemap = {
         const IMPASSABLE_TILES: [i32; 21] =
             [0, 1, 2, 3, 20, 27, 28, 31, 35, 36, 38, 45, 47, 48, 51, 53, 54, 55, 59, 60, 67];
-        let layer_1_ids: Vec<Vec<i32>> = fs::read_to_string("tiled/cottage_1.csv")
+        let layer_1_ids: Vec<Vec<i32>> = fs::read_to_string("assets/cottage_1.csv")
             .unwrap()
             .lines()
             .map(|line| line.split(',').map(|x| x.trim().parse().unwrap()).collect())
             .collect();
-        let layer_2_ids: Vec<Vec<i32>> = fs::read_to_string("tiled/cottage_2.csv")
+        let layer_2_ids: Vec<Vec<i32>> = fs::read_to_string("assets/cottage_2.csv")
             .unwrap()
             .lines()
             .map(|line| line.split(',').map(|x| x.trim().parse().unwrap()).collect())
@@ -190,7 +190,8 @@ fn main() {
     let mut entities: SlotMap<EntityId, Entity> = SlotMap::with_key();
     #[allow(clippy::identity_op, clippy::erasing_op)]
     {
-        let mut e = Entity::new();
+        let id = entities.insert_with_key(|id| Entity::new(id));
+        let e = entities.get_mut(id).unwrap();
         e.add_component(Label("player".to_string()));
         e.add_component(Position(WorldPos::new(12.5, 5.5)));
         e.add_component(Walking { speed: 0., direction: Direction::Down, destination: None });
@@ -219,11 +220,11 @@ fn main() {
             forced_sprite: None,
         });
         e.add_component(Facing(Direction::Down));
-        entities.insert(e);
     }
     #[allow(clippy::identity_op, clippy::erasing_op)]
     {
-        let mut e = Entity::new();
+        let id = entities.insert_with_key(|id| Entity::new(id));
+        let e = entities.get_mut(id).unwrap();
         e.add_component(Label("man".to_string()));
         e.add_component(Position(WorldPos::new(12.5, 7.8)));
         e.add_component(Walking { speed: 0., direction: Direction::Down, destination: None });
@@ -265,11 +266,11 @@ fn main() {
             }),
             name: Some("slime_glue:look_at_player".to_string()),
         }]));
-        entities.insert(e);
     }
     #[allow(clippy::identity_op, clippy::erasing_op)]
     {
-        let mut e = Entity::new();
+        let id = entities.insert_with_key(|id| Entity::new(id));
+        let e = entities.get_mut(id).unwrap();
         e.add_component(Label("slime".to_string()));
         e.add_component(Walking { speed: 0., direction: Direction::Down, destination: None });
         e.add_component(Collision {
@@ -322,10 +323,10 @@ fn main() {
                 name: Some("slime_glue:slime_loop".to_string()),
             },
         ]));
-        entities.insert(e);
     }
     {
-        let mut e = Entity::new();
+        let id = entities.insert_with_key(|id| Entity::new(id));
+        let e = entities.get_mut(id).unwrap();
         e.add_component(Position(WorldPos::new(8.5, 5.5)));
         e.add_component(Scripts(vec![ScriptClass {
             source: script::get_sub_script(&scripts_source, "chest"),
@@ -334,10 +335,10 @@ fn main() {
             abort_condition: None,
             name: Some("slime_glue:chest".to_string()),
         }]));
-        entities.insert(e);
     }
     {
-        let mut e = Entity::new();
+        let id = entities.insert_with_key(|id| Entity::new(id));
+        let e = entities.get_mut(id).unwrap();
         e.add_component(Position(WorldPos::new(12.5, 9.5)));
         e.add_component(Scripts(vec![ScriptClass {
             source: script::get_sub_script(&scripts_source, "pot"),
@@ -346,10 +347,10 @@ fn main() {
             abort_condition: None,
             name: Some("slime_glue:pot".to_string()),
         }]));
-        entities.insert(e);
     }
     {
-        let mut e = Entity::new();
+        let id = entities.insert_with_key(|id| Entity::new(id));
+        let e = entities.get_mut(id).unwrap();
         e.add_component(Position(WorldPos::new(8.5, 7.5)));
         e.add_component(Collision { hitbox_dimensions: Point::new(1., 1.), solid: false });
         e.add_component(Scripts(vec![ScriptClass {
@@ -362,10 +363,10 @@ fn main() {
             abort_condition: None,
             name: Some("slime_glue:inside_door".to_string()),
         }]));
-        entities.insert(e);
     }
     {
-        let mut e = Entity::new();
+        let id = entities.insert_with_key(|id| Entity::new(id));
+        let e = entities.get_mut(id).unwrap();
         e.add_component(Scripts(vec![ScriptClass {
             source: script::get_sub_script(&scripts_source, "start"),
             trigger: ScriptTrigger::Auto,
@@ -376,7 +377,6 @@ fn main() {
             abort_condition: None,
             name: Some("slime_glue:start".to_string()),
         }]));
-        entities.insert(e);
     }
     let mut ecs = Ecs { entities };
 
@@ -609,7 +609,7 @@ fn main() {
 
         // End entity SineOffsetAnimations that have exceeded their duration
         let mut to_remove: Vec<*const Entity> = Vec::new();
-        for (_, e) in ecs.filter_entities::<SineOffsetAnimation>() {
+        for e in ecs.filter_entities::<&SineOffsetAnimation>() {
             let SineOffsetAnimation { start_time, duration, .. } =
                 *e.borrow_components::<&SineOffsetAnimation>();
             if start_time.elapsed() > duration {
@@ -752,9 +752,9 @@ fn update_walking_entities(ecs: &Ecs, tilemap: &Array2D<Cell>) {
                 // be further filtered in between in order to avoid re-borrowing from the same
                 // entity in this nested query
                 for (other_pos, other_coll) in ecs
-                    .filter_entities::<(Position, Collision)>()
-                    .filter(|(other_id, _)| *other_id != id)
-                    .map(|(_, e)| e.borrow_components::<(&Position, &Collision)>())
+                    .filter_entities::<(&Position, &Collision)>()
+                    .filter(|e| e.borrow_components::<EntityId>() != id)
+                    .map(|e| e.borrow_components::<(&Position, &Collision)>())
                 {
                     if other_coll.solid {
                         let other_aabb = AABB::from_pos_and_hitbox(

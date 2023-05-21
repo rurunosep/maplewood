@@ -1,24 +1,25 @@
 use crate::components::Label;
 use anymap::AnyMap;
-use slotmap::{new_key_type, Key, SlotMap};
+use slotmap::{new_key_type, SlotMap};
 use std::cell::{Ref, RefCell, RefMut};
 
 pub trait Component {}
 
 pub struct Entity {
+    id: EntityId,
     components: AnyMap,
 }
 
 impl Entity {
-    pub fn new() -> Self {
-        Self { components: AnyMap::new() }
+    pub fn new(id: EntityId) -> Self {
+        Self { id, components: AnyMap::new() }
     }
 
     pub fn borrow_components<Q>(&self) -> Q::Result<'_>
     where
-        Q: ComponentBorrowQuery,
+        Q: Query,
     {
-        Q::get_components((EntityId::null(), self))
+        Q::borrow(self)
     }
 
     pub fn add_component<C>(&mut self, component: C)
@@ -43,61 +44,100 @@ pub struct Ecs {
 }
 
 impl Ecs {
-    pub fn filter_entities<Q>(&self) -> Box<dyn Iterator<Item = (EntityId, &Entity)> + '_>
+    pub fn filter_entities<Q>(&self) -> Box<dyn Iterator<Item = &Entity> + '_>
     where
-        Q: EntityFilterQuery,
+        Q: Query,
     {
-        Box::new(self.entities.iter().filter(|(_, e)| Q::filter(e)))
+        Box::new(self.entities.values().filter(|e| Q::filter(e)))
     }
 
     pub fn query_all<Q>(&self) -> Box<dyn Iterator<Item = Q::Result<'_>> + '_>
     where
-        Q: ComponentBorrowQuery,
+        Q: Query,
     {
-        Box::new(
-            self.filter_entities::<Q::ToEntityFilterQuery>()
-                .map(|(id, e)| Q::get_components((id, e))),
-        )
+        Box::new(self.filter_entities::<Q>().map(|e| Q::borrow(e)))
     }
 
     pub fn query_one_by_id<Q>(&self, id: EntityId) -> Option<Q::Result<'_>>
     where
-        Q: ComponentBorrowQuery,
+        Q: Query,
     {
-        self.entities
-            .get(id)
-            .filter(|e| Q::ToEntityFilterQuery::filter(e))
-            .map(|e| e.borrow_components::<Q>())
+        self.entities.get(id).filter(|e| Q::filter(e)).map(|e| Q::borrow(e))
     }
 
     pub fn query_one_by_label<Q>(&self, label: &str) -> Option<Q::Result<'_>>
     where
-        Q: ComponentBorrowQuery,
+        Q: Query + 'static,
     {
-        self.query_all::<(EntityId, &Label)>()
-            .find(|(_, l)| l.0.as_str() == label)
-            .and_then(|(id, _)| self.entities.get(id))
-            .filter(|e| Q::ToEntityFilterQuery::filter(e))
-            .map(|e| e.borrow_components::<Q>())
+        self.query_all::<(&Label, Q)>().find(|(l, _)| l.0.as_str() == label).map(|(_, q)| q)
     }
 }
 
-pub trait ComponentBorrowQuery {
+pub trait Query {
     type Result<'r>;
-    type ToEntityFilterQuery: EntityFilterQuery;
 
-    fn get_components(id_e: (EntityId, &Entity)) -> Self::Result<'_>;
+    fn borrow(e: &Entity) -> Self::Result<'_>;
+    fn filter(e: &Entity) -> bool;
 }
 
-impl<A> ComponentBorrowQuery for A
-where
-    A: BorrowQueryElement + 'static,
-{
-    type Result<'r> = A::Result<'r>;
-    type ToEntityFilterQuery = A::ToFilterQueryElement;
+impl Query for EntityId {
+    type Result<'r> = EntityId;
 
-    fn get_components((id, e): (EntityId, &Entity)) -> Self::Result<'_> {
-        A::borrow((id, e))
+    fn borrow(e: &Entity) -> Self::Result<'_> {
+        e.id
+    }
+
+    fn filter(_: &Entity) -> bool {
+        true
+    }
+}
+
+impl<C> Query for &C
+where
+    C: Component + 'static,
+{
+    type Result<'r> = Ref<'r, C>;
+
+    fn borrow(e: &Entity) -> Self::Result<'_> {
+        e.components.get::<RefCell<C>>().unwrap().borrow()
+    }
+
+    fn filter(e: &Entity) -> bool {
+        e.components.get::<RefCell<C>>().is_some()
+    }
+}
+
+impl<C> Query for &mut C
+where
+    C: Component + 'static,
+{
+    type Result<'res> = RefMut<'res, C>;
+
+    fn borrow(e: &Entity) -> Self::Result<'_> {
+        e.components.get::<RefCell<C>>().unwrap().borrow_mut()
+    }
+
+    fn filter(e: &Entity) -> bool {
+        e.components.get::<RefCell<C>>().is_some()
+    }
+}
+
+impl<Q> Query for Option<Q>
+where
+    Q: Query + 'static,
+{
+    type Result<'res> = Option<Q::Result<'res>>;
+
+    fn borrow(e: &Entity) -> Self::Result<'_> {
+        if Q::filter(e) {
+            Some(Q::borrow(e))
+        } else {
+            None
+        }
+    }
+
+    fn filter(_: &Entity) -> bool {
+        true
     }
 }
 
@@ -105,115 +145,15 @@ macro_rules! impl_component_borrow_query_for_tuple {
     ($($name:ident)*) => {
         #[allow(unused)]
         #[allow(clippy::unused_unit)]
-        impl<$($name,)*> ComponentBorrowQuery for ($($name,)*)
-        where $($name: BorrowQueryElement + 'static,)*
+        impl<$($name,)*> Query for ($($name,)*)
+        where $($name: Query + 'static,)*
         {
             type Result<'r> = ($($name::Result<'r>,)*);
-            type ToEntityFilterQuery = ($($name::ToFilterQueryElement,)*);
 
-            fn get_components((id, e): (EntityId, &Entity)) -> Self::Result<'_> {
-                ($($name::borrow((id, e)),)*)
+            fn borrow(e: &Entity) -> Self::Result<'_> {
+                ($($name::borrow(e),)*)
             }
-        }
-    };
-}
 
-impl_component_borrow_query_for_tuple!(A);
-impl_component_borrow_query_for_tuple!(A B);
-impl_component_borrow_query_for_tuple!(A B C);
-impl_component_borrow_query_for_tuple!(A B C D);
-impl_component_borrow_query_for_tuple!(A B C D E);
-
-pub trait BorrowQueryElement {
-    type ToFilterQueryElement: FilterQueryElement;
-    type Result<'r>;
-
-    fn borrow(id_e: (EntityId, &Entity)) -> Self::Result<'_>;
-}
-
-impl BorrowQueryElement for () {
-    type ToFilterQueryElement = ();
-    type Result<'r> = ();
-    fn borrow(_: (EntityId, &Entity)) -> Self::Result<'_> {}
-}
-
-impl BorrowQueryElement for EntityId {
-    type ToFilterQueryElement = ();
-    type Result<'r> = EntityId;
-
-    fn borrow((id, _): (EntityId, &Entity)) -> Self::Result<'_> {
-        id
-    }
-}
-
-impl<C> BorrowQueryElement for &C
-where
-    C: Component + 'static,
-{
-    type ToFilterQueryElement = C;
-    type Result<'r> = Ref<'r, C>;
-
-    fn borrow((_, e): (EntityId, &Entity)) -> Self::Result<'_> {
-        e.components.get::<RefCell<C>>().unwrap().borrow()
-    }
-}
-
-impl<C> BorrowQueryElement for &mut C
-where
-    C: Component + 'static,
-{
-    type ToFilterQueryElement = C;
-    type Result<'res> = RefMut<'res, C>;
-
-    fn borrow((_, e): (EntityId, &Entity)) -> Self::Result<'_> {
-        e.components.get::<RefCell<C>>().unwrap().borrow_mut()
-    }
-}
-
-impl<C> BorrowQueryElement for Option<&C>
-where
-    C: Component + 'static,
-{
-    type ToFilterQueryElement = ();
-    type Result<'res> = Option<Ref<'res, C>>;
-
-    fn borrow((_, e): (EntityId, &Entity)) -> Self::Result<'_> {
-        e.components.get::<RefCell<C>>().map(|r| r.borrow())
-    }
-}
-
-impl<C> BorrowQueryElement for Option<&mut C>
-where
-    C: Component + 'static,
-{
-    type ToFilterQueryElement = ();
-    type Result<'res> = Option<RefMut<'res, C>>;
-
-    fn borrow((_, e): (EntityId, &Entity)) -> Self::Result<'_> {
-        e.components.get::<RefCell<C>>().map(|r| r.borrow_mut())
-    }
-}
-
-pub trait EntityFilterQuery {
-    fn filter(e: &Entity) -> bool;
-}
-
-impl<A> EntityFilterQuery for A
-where
-    A: FilterQueryElement + 'static,
-{
-    fn filter(e: &Entity) -> bool {
-        A::filter(e)
-    }
-}
-
-macro_rules! impl_entity_filter_query_for_tuple {
-    ($($name:ident)*) => {
-        #[allow(unused)]
-        #[allow(unreachable_patterns)]
-        impl<$($name,)*> EntityFilterQuery for ($($name,)*)
-        where $($name: FilterQueryElement + 'static,)*
-        {
             fn filter(e: &Entity) -> bool {
                 match ($($name::filter(e),)*) {
                     ($(replace_pat!($name true),)*) => true,
@@ -230,36 +170,9 @@ macro_rules! replace_pat {
     };
 }
 
-impl_entity_filter_query_for_tuple!(A);
-impl_entity_filter_query_for_tuple!(A B);
-impl_entity_filter_query_for_tuple!(A B C);
-impl_entity_filter_query_for_tuple!(A B C D);
-impl_entity_filter_query_for_tuple!(A B C D E);
-
-pub trait FilterQueryElement {
-    fn filter(e: &Entity) -> bool;
-}
-
-impl FilterQueryElement for () {
-    fn filter(_: &Entity) -> bool {
-        true
-    }
-}
-
-impl<T> FilterQueryElement for T
-where
-    T: Component + 'static,
-{
-    fn filter(e: &Entity) -> bool {
-        e.components.get::<RefCell<T>>().is_some()
-    }
-}
-
-impl<T> FilterQueryElement for Option<T>
-where
-    T: Component + 'static,
-{
-    fn filter(_: &Entity) -> bool {
-        true
-    }
-}
+impl_component_borrow_query_for_tuple!();
+impl_component_borrow_query_for_tuple!(A);
+impl_component_borrow_query_for_tuple!(A B);
+impl_component_borrow_query_for_tuple!(A B C);
+impl_component_borrow_query_for_tuple!(A B C D);
+impl_component_borrow_query_for_tuple!(A B C D E);
