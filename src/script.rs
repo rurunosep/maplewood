@@ -666,35 +666,39 @@ fn cb_set_map_overlay_color(
 }
 
 fn cb_anim_quiver((entity, duration): (String, f64), ecs: &mut Ecs) -> LuaResult<()> {
-    let e = ecs
+    let id = ecs
         .query_one_by_label::<EntityId>(&entity)
-        .and_then(|id| ecs.entities.get_mut(id))
         .ok_or(ScriptError::InvalidEntity(entity))?;
 
-    e.add_component(SineOffsetAnimation {
-        start_time: Instant::now(),
-        duration: Duration::from_secs_f64(duration),
-        amplitude: 0.03,
-        frequency: 10.,
-        direction: Point::new(1., 0.),
-    });
+    ecs.add_component(
+        id,
+        SineOffsetAnimation {
+            start_time: Instant::now(),
+            duration: Duration::from_secs_f64(duration),
+            amplitude: 0.03,
+            frequency: 10.,
+            direction: Point::new(1., 0.),
+        },
+    );
 
     Ok(())
 }
 
 fn cb_anim_jump(entity: String, ecs: &mut Ecs) -> LuaResult<()> {
-    let e = ecs
+    let id = ecs
         .query_one_by_label::<EntityId>(&entity)
-        .and_then(|id| ecs.entities.get_mut(id))
         .ok_or(ScriptError::InvalidEntity(entity))?;
 
-    e.add_component(SineOffsetAnimation {
-        start_time: Instant::now(),
-        duration: Duration::from_secs_f64(0.3),
-        amplitude: 0.5,
-        frequency: 1. / 2. / 0.3,
-        direction: Point::new(0., -1.),
-    });
+    ecs.add_component(
+        id,
+        SineOffsetAnimation {
+            start_time: Instant::now(),
+            duration: Duration::from_secs_f64(0.3),
+            amplitude: 0.5,
+            frequency: 1. / 2. / 0.3,
+            direction: Point::new(0., -1.),
+        },
+    );
 
     Ok(())
 }
@@ -722,23 +726,21 @@ fn cb_add_position_component(
     (entity, x, y): (String, f64, f64),
     ecs: &mut Ecs,
 ) -> LuaResult<()> {
-    let e = ecs
+    let id = ecs
         .query_one_by_label::<EntityId>(&entity)
-        .and_then(|id| ecs.entities.get_mut(id))
         .ok_or(ScriptError::InvalidEntity(entity))?;
 
-    e.add_component(Position(WorldPos::new(x, y)));
+    ecs.add_component(id, Position(WorldPos::new(x, y)));
 
     Ok(())
 }
 
 fn cb_remove_position_component(entity: String, ecs: &mut Ecs) -> LuaResult<()> {
-    let e = ecs
+    let id = ecs
         .query_one_by_label::<EntityId>(&entity)
-        .and_then(|id| ecs.entities.get_mut(id))
         .ok_or(ScriptError::InvalidEntity(entity))?;
 
-    e.remove_component::<Position>();
+    ecs.remove_component::<Position>(id);
 
     Ok(())
 }
