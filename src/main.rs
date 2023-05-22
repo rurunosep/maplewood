@@ -16,7 +16,7 @@ use components::{
 };
 use derive_more::{Add, AddAssign, Div, Mul, Sub};
 use derive_new::new;
-use ecs::{Ecs, EcsCommands, Entity, EntityId};
+use ecs::{Ecs, Entity, EntityId};
 use render::{RenderData, SCREEN_COLS, SCREEN_ROWS, SCREEN_SCALE, TILE_SIZE};
 use script::{ScriptClass, ScriptCondition, ScriptId, ScriptInstanceManager, ScriptTrigger};
 use sdl2::event::Event;
@@ -54,14 +54,7 @@ pub struct MapOverlayColorTransition {
     end_color: Color,
 }
 
-// Global static renderdata, ecs, script manager, etc?
-// Using OnceCell or lazy_static
-// Do I know if those want to be global and static? Will I ever change them or use more than
-// one? Probably not. Considering that is thinking too far. IF that's ever the case, I can
-// rework. I think probably the simplest thing right now is to make those big systems that are
-// passed around a lot into global statics... Except right now they're not even passed around a
-// lot. Passing manually is working fine so far. But it's an option. If I notice a circumstance
-// later when a global static system might be useful, just do it.
+// Global static renderdata, ecs, script manager, etc, using OnceCell or lazy_static?
 
 fn main() {
     // Prevent high DPI scaling on Windows
@@ -190,16 +183,16 @@ fn main() {
     let mut ecs = Ecs::new();
     #[allow(clippy::identity_op, clippy::erasing_op)]
     {
-        let id = ecs.entities.insert_with_key(|id| Entity::new(id));
+        let id = ecs.add_entity(Entity::new());
         let e = ecs.entities.get_mut(id).unwrap();
-        e.add_components(Label("player".to_string()));
-        e.add_components(Position(WorldPos::new(12.5, 5.5)));
-        e.add_components(Walking { speed: 0., direction: Direction::Down, destination: None });
-        e.add_components(Collision {
+        e.add_component(Label("player".to_string()));
+        e.add_component(Position(WorldPos::new(12.5, 5.5)));
+        e.add_component(Walking { speed: 0., direction: Direction::Down, destination: None });
+        e.add_component(Collision {
             hitbox_dimensions: Point::new(8.0 / 16.0, 6.0 / 16.0),
             solid: true,
         });
-        e.add_components(SpriteComponent {
+        e.add_component(SpriteComponent {
             up_sprite: Sprite {
                 spritesheet_name: "characters".to_string(),
                 rect: Rect::new(7 * 16, 3 * 16, 16, 16),
@@ -219,20 +212,20 @@ fn main() {
             sprite_offset: Point::new(8, 13),
             forced_sprite: None,
         });
-        e.add_components(Facing(Direction::Down));
+        e.add_component(Facing(Direction::Down));
     }
     #[allow(clippy::identity_op, clippy::erasing_op)]
     {
-        let id = ecs.entities.insert_with_key(|id| Entity::new(id));
+        let id = ecs.add_entity(Entity::new());
         let e = ecs.entities.get_mut(id).unwrap();
-        e.add_components(Label("man".to_string()));
-        e.add_components(Position(WorldPos::new(12.5, 7.8)));
-        e.add_components(Walking { speed: 0., direction: Direction::Down, destination: None });
-        e.add_components(Collision {
+        e.add_component(Label("man".to_string()));
+        e.add_component(Position(WorldPos::new(12.5, 7.8)));
+        e.add_component(Walking { speed: 0., direction: Direction::Down, destination: None });
+        e.add_component(Collision {
             hitbox_dimensions: Point::new(8.0 / 16.0, 6.0 / 16.0),
             solid: true,
         });
-        e.add_components(SpriteComponent {
+        e.add_component(SpriteComponent {
             up_sprite: Sprite {
                 spritesheet_name: "characters".to_string(),
                 rect: Rect::new(4 * 16, 3 * 16, 16, 16),
@@ -252,8 +245,8 @@ fn main() {
             sprite_offset: Point::new(8, 13),
             forced_sprite: None,
         });
-        e.add_components(Facing(Direction::Up));
-        e.add_components(Scripts(vec![
+        e.add_component(Facing(Direction::Up));
+        e.add_component(Scripts(vec![
             ScriptClass {
                 source: script::get_sub_script(&scripts_source, "look_at_player"),
                 trigger: ScriptTrigger::Auto,
@@ -278,15 +271,15 @@ fn main() {
     }
     #[allow(clippy::identity_op, clippy::erasing_op)]
     {
-        let id = ecs.entities.insert_with_key(|id| Entity::new(id));
+        let id = ecs.add_entity(Entity::new());
         let e = ecs.entities.get_mut(id).unwrap();
-        e.add_components(Label("slime".to_string()));
-        e.add_components(Walking { speed: 0., direction: Direction::Down, destination: None });
-        e.add_components(Collision {
+        e.add_component(Label("slime".to_string()));
+        e.add_component(Walking { speed: 0., direction: Direction::Down, destination: None });
+        e.add_component(Collision {
             hitbox_dimensions: Point::new(10.0 / 16.0, 8.0 / 16.0),
             solid: false,
         });
-        e.add_components(SpriteComponent {
+        e.add_component(SpriteComponent {
             up_sprite: Sprite {
                 spritesheet_name: "characters".to_string(),
                 rect: Rect::new(0 * 16, 7 * 16, 16, 16),
@@ -306,8 +299,8 @@ fn main() {
             sprite_offset: Point::new(8, 11),
             forced_sprite: None,
         });
-        e.add_components(Facing(Direction::Down));
-        e.add_components(Scripts(vec![
+        e.add_component(Facing(Direction::Down));
+        e.add_component(Scripts(vec![
             ScriptClass {
                 source: script::get_sub_script(&scripts_source, "slime_collision"),
                 trigger: ScriptTrigger::SoftCollision,
@@ -334,10 +327,10 @@ fn main() {
         ]));
     }
     {
-        let id = ecs.entities.insert_with_key(|id| Entity::new(id));
+        let id = ecs.add_entity(Entity::new());
         let e = ecs.entities.get_mut(id).unwrap();
-        e.add_components(Position(WorldPos::new(8.5, 5.5)));
-        e.add_components(Scripts(vec![ScriptClass {
+        e.add_component(Position(WorldPos::new(8.5, 5.5)));
+        e.add_component(Scripts(vec![ScriptClass {
             source: script::get_sub_script(&scripts_source, "chest"),
             trigger: ScriptTrigger::Interaction,
             start_condition: None,
@@ -346,10 +339,10 @@ fn main() {
         }]));
     }
     {
-        let id = ecs.entities.insert_with_key(|id| Entity::new(id));
+        let id = ecs.add_entity(Entity::new());
         let e = ecs.entities.get_mut(id).unwrap();
-        e.add_components(Position(WorldPos::new(12.5, 9.5)));
-        e.add_components(Scripts(vec![ScriptClass {
+        e.add_component(Position(WorldPos::new(12.5, 9.5)));
+        e.add_component(Scripts(vec![ScriptClass {
             source: script::get_sub_script(&scripts_source, "pot"),
             trigger: ScriptTrigger::Interaction,
             start_condition: None,
@@ -358,11 +351,11 @@ fn main() {
         }]));
     }
     {
-        let id = ecs.entities.insert_with_key(|id| Entity::new(id));
+        let id = ecs.add_entity(Entity::new());
         let e = ecs.entities.get_mut(id).unwrap();
-        e.add_components(Position(WorldPos::new(8.5, 7.5)));
-        e.add_components(Collision { hitbox_dimensions: Point::new(1., 1.), solid: false });
-        e.add_components(Scripts(vec![ScriptClass {
+        e.add_component(Position(WorldPos::new(8.5, 7.5)));
+        e.add_component(Collision { hitbox_dimensions: Point::new(1., 1.), solid: false });
+        e.add_component(Scripts(vec![ScriptClass {
             source: script::get_sub_script(&scripts_source, "inside_door"),
             trigger: ScriptTrigger::SoftCollision,
             start_condition: Some(ScriptCondition {
@@ -374,9 +367,9 @@ fn main() {
         }]));
     }
     {
-        let id = ecs.entities.insert_with_key(|id| Entity::new(id));
+        let id = ecs.add_entity(Entity::new());
         let e = ecs.entities.get_mut(id).unwrap();
-        e.add_components(Scripts(vec![ScriptClass {
+        e.add_component(Scripts(vec![ScriptClass {
             source: script::get_sub_script(&scripts_source, "start"),
             trigger: ScriptTrigger::Auto,
             start_condition: Some(ScriptCondition {
@@ -584,7 +577,7 @@ fn main() {
         // Remove finished or aborted scripts
         script_instance_manager.script_instances.retain(|_, script| !script.finished);
 
-        // Update walking entities (move and resolve collisions)
+        // Move entities and resolve collisions
         update_walking_entities(&ecs, &tilemap, &mut script_instance_manager, &story_vars);
 
         // Start player soft collision scripts
@@ -596,7 +589,7 @@ fn main() {
                 ecs.query_one_by_id::<(&Position, &Collision)>(player_id).unwrap();
             AABB::from_pos_and_hitbox(pos.0, coll.hitbox_dimensions)
         };
-        // For each entity colliding with the player (and with necessary components)...
+        // For each entity colliding with the player...
         for (_, _, scripts) in ecs.query_all::<(&Position, &Collision, &mut Scripts)>().filter(
             |(pos, coll, _)| {
                 let aabb = AABB::from_pos_and_hitbox(pos.0, coll.hitbox_dimensions);
@@ -614,14 +607,12 @@ fn main() {
         }
 
         // End entity SineOffsetAnimations that have exceeded their duration
-        let mut commands = EcsCommands::new();
         for (id, soa) in ecs.query_all::<(EntityId, &SineOffsetAnimation)>() {
-            let SineOffsetAnimation { start_time, duration, .. } = *soa;
-            if start_time.elapsed() > duration {
-                commands.remove_components::<SineOffsetAnimation>(id)
+            if soa.start_time.elapsed() > soa.duration {
+                ecs.remove_component_deferred::<SineOffsetAnimation>(id)
             }
         }
-        ecs.apply_commands(commands);
+        ecs.flush_deferred_mutations();
 
         // Update map overlay color
         if let Some(MapOverlayColorTransition {

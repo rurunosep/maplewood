@@ -671,7 +671,7 @@ fn cb_anim_quiver((entity, duration): (String, f64), ecs: &mut Ecs) -> LuaResult
         .and_then(|id| ecs.entities.get_mut(id))
         .ok_or(ScriptError::InvalidEntity(entity))?;
 
-    e.add_components(SineOffsetAnimation {
+    e.add_component(SineOffsetAnimation {
         start_time: Instant::now(),
         duration: Duration::from_secs_f64(duration),
         amplitude: 0.03,
@@ -688,7 +688,7 @@ fn cb_anim_jump(entity: String, ecs: &mut Ecs) -> LuaResult<()> {
         .and_then(|id| ecs.entities.get_mut(id))
         .ok_or(ScriptError::InvalidEntity(entity))?;
 
-    e.add_components(SineOffsetAnimation {
+    e.add_component(SineOffsetAnimation {
         start_time: Instant::now(),
         duration: Duration::from_secs_f64(0.3),
         amplitude: 0.5,
@@ -727,7 +727,7 @@ fn cb_add_position_component(
         .and_then(|id| ecs.entities.get_mut(id))
         .ok_or(ScriptError::InvalidEntity(entity))?;
 
-    e.add_components(Position(WorldPos::new(x, y)));
+    e.add_component(Position(WorldPos::new(x, y)));
 
     Ok(())
 }
@@ -738,7 +738,7 @@ fn cb_remove_position_component(entity: String, ecs: &mut Ecs) -> LuaResult<()> 
         .and_then(|id| ecs.entities.get_mut(id))
         .ok_or(ScriptError::InvalidEntity(entity))?;
 
-    e.remove_components::<Position>();
+    e.remove_component::<Position>();
 
     Ok(())
 }
