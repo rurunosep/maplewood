@@ -3,13 +3,30 @@ use anymap::AnyMap;
 use slotmap::{new_key_type, Key, SecondaryMap, SlotMap};
 use std::cell::{Ref, RefCell, RefMut};
 
-type QueryResultIter<'a, Q> = Box<dyn Iterator<Item = <Q as Query>::Result<'a>> + 'a>;
-type ComponentMap<C> = SecondaryMap<EntityId, RefCell<C>>;
-
 pub trait Component {}
 
 new_key_type! { pub struct EntityId; }
 new_key_type! { pub struct DeferredEntityId; }
+
+pub enum RealOrDeferredEntityId {
+    Real(EntityId),
+    Deferred(DeferredEntityId),
+}
+
+impl From<EntityId> for RealOrDeferredEntityId {
+    fn from(id: EntityId) -> Self {
+        RealOrDeferredEntityId::Real(id)
+    }
+}
+
+impl From<DeferredEntityId> for RealOrDeferredEntityId {
+    fn from(id: DeferredEntityId) -> Self {
+        RealOrDeferredEntityId::Deferred(id)
+    }
+}
+
+type QueryResultIter<'a, Q> = Box<dyn Iterator<Item = <Q as Query>::Result<'a>> + 'a>;
+type ComponentMap<C> = SecondaryMap<EntityId, RefCell<C>>;
 
 pub struct Ecs {
     pub entity_ids: SlotMap<EntityId, ()>,
@@ -112,20 +129,6 @@ impl Ecs {
     }
 
     #[allow(dead_code)]
-    pub fn add_component_to_deferred_entity<C>(&self, def_id: DeferredEntityId, component: C)
-    where
-        C: Component + 'static,
-    {
-        let f = move |ecs: &mut Ecs| {
-            let real_id = ecs.deferred_entity_ids.borrow().get(def_id).map(|id| id.clone());
-            if let Some(real_id) = real_id {
-                ecs.add_component(real_id, component);
-            }
-        };
-        self.deferred_mutations.borrow_mut().push(Box::new(f));
-    }
-
-    #[allow(dead_code)]
     pub fn remove_entity_deferred(&self, entity_id: EntityId) {
         self.deferred_mutations.borrow_mut().push(Box::new(move |ecs: &mut Ecs| {
             ecs.remove_entity(entity_id);
@@ -133,13 +136,28 @@ impl Ecs {
     }
 
     #[allow(dead_code)]
-    pub fn add_component_deferred<C>(&self, entity_id: EntityId, component: C)
+    pub fn add_component_deferred<E, C>(&self, entity_id: E, component: C)
     where
+        E: Into<RealOrDeferredEntityId>,
         C: Component + 'static,
     {
-        self.deferred_mutations.borrow_mut().push(Box::new(move |ecs: &mut Ecs| {
-            ecs.add_component(entity_id, component);
-        }));
+        match entity_id.into() {
+            RealOrDeferredEntityId::Real(real_id) => {
+                self.deferred_mutations.borrow_mut().push(Box::new(move |ecs: &mut Ecs| {
+                    ecs.add_component(real_id, component);
+                }));
+            }
+            RealOrDeferredEntityId::Deferred(def_id) => {
+                let f = move |ecs: &mut Ecs| {
+                    let real_id =
+                        ecs.deferred_entity_ids.borrow().get(def_id).map(|id| id.clone());
+                    if let Some(real_id) = real_id {
+                        ecs.add_component(real_id, component);
+                    }
+                };
+                self.deferred_mutations.borrow_mut().push(Box::new(f));
+            }
+        };
     }
 
     #[allow(dead_code)]

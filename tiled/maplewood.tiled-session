@@ -156,11 +156,11 @@
             "scaleInEditor": 1
         },
         "two_houses.tmx": {
-            "scale": 2,
+            "scale": 3.2131,
             "selectedLayer": 2,
             "viewCenter": {
-                "x": 218,
-                "y": 201.75
+                "x": 150.63334474495036,
+                "y": 104.41629578911332
             }
         },
         "weeb_room.tmx": {
