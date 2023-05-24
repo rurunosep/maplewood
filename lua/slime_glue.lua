@@ -93,7 +93,7 @@ wait(0.5)
 
 message("\"Good. Now come follow me outside.\"")
 set_cell_tile(8, 8, 2, -1)
-set_cell_passable(8, 8, true)
+set_cell_solid(8, 8, true)
 play_sfx("door_open")
 walk_to("man", "down", 10.5, 0.06)
 wait(0.7)
@@ -265,7 +265,7 @@ set("fixed_pot", 1)
 --# inside_door
 
 set_cell_tile(8, 8, 2, 48)
-set_cell_passable(8, 8, false)
+set_cell_solid(8, 8, false)
 play_sfx("door_close")
 set("door_may_close", 0)
 

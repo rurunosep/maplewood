@@ -28,8 +28,8 @@ use sdl2::rect::Rect;
 use sdl2::render::Texture;
 use slotmap::SlotMap;
 use std::collections::HashMap;
+use std::fs;
 use std::time::{Duration, Instant};
-use std::{fs, iter};
 
 #[derive(Clone, Copy, Debug, Default)]
 pub enum Direction {
@@ -153,30 +153,36 @@ fn main() {
         Music::from_file("assets/audio/spaghetti_time.wav").unwrap(),
     );
 
-    let mut tilemap = {
-        const IMPASSABLE_TILES: [i32; 21] =
-            [0, 1, 2, 3, 20, 27, 28, 31, 35, 36, 38, 45, 47, 48, 51, 53, 54, 55, 59, 60, 67];
-        let layer_1_ids: Vec<Vec<i32>> = fs::read_to_string("assets/cottage_1.csv")
+    // Tiled ------------------
+
+    let project = ldtk_rust::Project::new("assets/cottage.ldtk");
+    let layers = project.levels[0].layer_instances.as_ref().unwrap();
+    let tiles_1 = layers.iter().find(|l| l.identifier == "Tiles").unwrap();
+    let tiles_2 = layers.iter().find(|l| l.identifier == "Tiles2").unwrap();
+    let collision = layers.iter().find(|l| l.identifier == "Collision").unwrap();
+    let mut tilemap =
+        Array2D::filled_with(Cell::default(), tiles_1.c_wid as usize, tiles_1.c_hei as usize);
+    for tile in tiles_1.grid_tiles.iter() {
+        tilemap
+            .get_mut((tile.px[1] / 16) as usize, (tile.px[0] / 16) as usize)
             .unwrap()
-            .lines()
-            .map(|line| line.split(',').map(|x| x.trim().parse().unwrap()).collect())
-            .collect();
-        let layer_2_ids: Vec<Vec<i32>> = fs::read_to_string("assets/cottage_2.csv")
+            .tile_1 = Some(tile.t as u32);
+    }
+    for tile in tiles_2.grid_tiles.iter() {
+        tilemap
+            .get_mut((tile.px[1] / 16) as usize, (tile.px[0] / 16) as usize)
             .unwrap()
-            .lines()
-            .map(|line| line.split(',').map(|x| x.trim().parse().unwrap()).collect())
-            .collect();
-        let cells: Vec<Cell> = iter::zip(layer_1_ids.concat(), layer_2_ids.concat())
-            .map(|(tile_1, tile_2)| {
-                let passable =
-                    !IMPASSABLE_TILES.contains(&tile_1) && !IMPASSABLE_TILES.contains(&tile_2);
-                let tile_1 = if tile_1 == -1 { None } else { Some(tile_1 as u32) };
-                let tile_2 = if tile_2 == -1 { None } else { Some(tile_2 as u32) };
-                Cell { tile_1, tile_2, passable }
-            })
-            .collect();
-        Array2D::from_row_major(&cells, layer_1_ids.len(), layer_1_ids.get(0).unwrap().len())
-    };
+            .tile_2 = Some(tile.t as u32);
+    }
+    for (coord, val) in collision.int_grid_csv.iter().enumerate() {
+        tilemap.get_mut((coord / 20) as usize, (coord % 20) as usize).unwrap().solid =
+            match val {
+                1 => true,
+                _ => false,
+            };
+    }
+
+    // ------------------------
 
     let scripts_source = fs::read_to_string("lua/slime_glue.lua").unwrap();
 
@@ -750,7 +756,7 @@ fn update_walking_entities(
                 ];
                 for cellpos in cellposes_to_check {
                     if let Some(cell) = get_cell_at_cellpos(tilemap, cellpos) {
-                        if !cell.passable {
+                        if cell.solid {
                             let cell_aabb = AABB::from_pos_and_hitbox(
                                 cellpos.to_worldpos(),
                                 Point::new(1., 1.),
@@ -924,7 +930,7 @@ impl CellPos {
 pub struct Cell {
     pub tile_1: Option<u32>,
     pub tile_2: Option<u32>,
-    pub passable: bool,
+    pub solid: bool,
 }
 
 pub fn get_cell_at_cellpos(tilemap: &Array2D<Cell>, cellpos: CellPos) -> Option<Cell> {

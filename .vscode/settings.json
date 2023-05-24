@@ -19,7 +19,6 @@
 		"wait_storyvar",
 		"walk_to",
 		"set_cell_tile",
-		"set_cell_passable",
 		"add_position_component",
 		"play_music",
 		"stop_music",
@@ -28,6 +27,7 @@
 		"show_card",
 		"close_game",
 		"get",
-		"get_entity_position"
+		"get_entity_position",
+		"set_cell_solid"
 	]
 }

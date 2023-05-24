@@ -271,9 +271,9 @@ impl ScriptInstance {
                         })?,
                     )?;
                     globals.set(
-                        "set_cell_passable",
+                        "set_cell_solid",
                         scope.create_function(|_, args| {
-                            cb_set_cell_passable(args, *tilemap.borrow_mut())
+                            cb_set_cell_solid(args, *tilemap.borrow_mut())
                         })?,
                     )?;
                     globals.set(
@@ -553,12 +553,12 @@ fn cb_set_cell_tile(
     Ok(())
 }
 
-fn cb_set_cell_passable(
-    (x, y, pass): (i32, i32, bool),
+fn cb_set_cell_solid(
+    (x, y, solid): (i32, i32, bool),
     tilemap: &mut Array2D<Cell>,
 ) -> LuaResult<()> {
-    if let Some(Cell { passable, .. }) = tilemap.get_mut(y as usize, x as usize) {
-        *passable = pass;
+    if let Some(cell) = tilemap.get_mut(y as usize, x as usize) {
+        cell.solid = solid;
     }
     Ok(())
 }
