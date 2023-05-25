@@ -2,33 +2,32 @@
 #![feature(div_duration)]
 #![feature(macro_metavar_expr)]
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+// TODO
+#![allow(unused)]
+#![allow(unused_mut)]
 
 mod components;
 mod ecs;
+mod ldtk_json;
 mod render;
 mod script;
-mod utils;
 
 use array2d::Array2D;
-use components::{
-    Collision, Facing, Label, Position, Scripts, SineOffsetAnimation, Sprite, SpriteComponent,
-    Walking,
-};
+use components::{Collision, Facing, Position, Scripts, SineOffsetAnimation, Walking};
 use derive_more::{Add, AddAssign, Div, Mul, Sub};
 use derive_new::new;
 use ecs::{Ecs, EntityId};
 use render::{RenderData, SCREEN_COLS, SCREEN_ROWS, SCREEN_SCALE, TILE_SIZE};
-use script::{ScriptClass, ScriptCondition, ScriptId, ScriptInstanceManager, ScriptTrigger};
+use script::{ScriptId, ScriptInstanceManager, ScriptTrigger};
 use sdl2::event::Event;
 use sdl2::image::LoadTexture;
 use sdl2::keyboard::Keycode;
 use sdl2::mixer::{Chunk, Music, AUDIO_S16SYS, DEFAULT_CHANNELS};
 use sdl2::pixels::Color;
-use sdl2::rect::Rect;
 use sdl2::render::Texture;
 use slotmap::SlotMap;
 use std::collections::HashMap;
-use std::fs;
+use std::io::BufReader;
 use std::time::{Duration, Instant};
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -82,22 +81,12 @@ fn main() {
 
     let canvas = window.into_canvas().build().unwrap();
     let texture_creator = canvas.texture_creator();
-    let tileset = texture_creator.load_texture("assets/basictiles.png").unwrap();
     let font = ttf_context.load_font("assets/Grand9KPixel.ttf", 8).unwrap();
 
-    let mut spritesheets: HashMap<String, Texture> = HashMap::new();
-    spritesheets.insert(
-        "characters".to_string(),
-        texture_creator.load_texture("assets/characters.png").unwrap(),
-    );
-    spritesheets
-        .insert("dead".to_string(), texture_creator.load_texture("assets/dead.png").unwrap());
+    let tileset = texture_creator.load_texture("assets/modern_interiors.png").unwrap();
 
+    let mut spritesheets: HashMap<String, Texture> = HashMap::new();
     let mut cards: HashMap<String, Texture> = HashMap::new();
-    cards.insert(
-        "spaghetti_time".to_string(),
-        texture_creator.load_texture("assets/spaghetti_time.png").unwrap(),
-    );
 
     let mut render_data = RenderData {
         canvas,
@@ -112,331 +101,30 @@ fn main() {
 
     sdl2::mixer::open_audio(41_100, AUDIO_S16SYS, DEFAULT_CHANNELS, 512).unwrap();
     sdl2::mixer::allocate_channels(10);
-
     let mut sound_effects: HashMap<String, Chunk> = HashMap::new();
-    sound_effects.insert(
-        "door_open".to_string(),
-        Chunk::from_file("assets/audio/door_open.wav").unwrap(),
-    );
-    sound_effects.insert(
-        "door_close".to_string(),
-        Chunk::from_file("assets/audio/door_close.wav").unwrap(),
-    );
-    sound_effects.insert(
-        "chest_open".to_string(),
-        Chunk::from_file("assets/audio/chest_open.wav").unwrap(),
-    );
-    sound_effects.insert(
-        "smash_pot".to_string(),
-        Chunk::from_file("assets/audio/smash_pot.wav").unwrap(),
-    );
-    sound_effects.insert(
-        "drop_in_water".to_string(),
-        Chunk::from_file("assets/audio/drop_in_water.wav").unwrap(),
-    );
-    sound_effects
-        .insert("flame".to_string(), Chunk::from_file("assets/audio/flame.wav").unwrap());
-    sound_effects
-        .insert("slip".to_string(), Chunk::from_file("assets/audio/slip.wav").unwrap());
-    sound_effects
-        .insert("squish".to_string(), Chunk::from_file("assets/audio/squish.wav").unwrap());
-    sound_effects
-        .insert("jump".to_string(), Chunk::from_file("assets/audio/jump.wav").unwrap());
-    sound_effects
-        .insert("quiver".to_string(), Chunk::from_file("assets/audio/quiver.wav").unwrap());
-
     let mut musics: HashMap<String, Music> = HashMap::new();
-    musics.insert("sleep".to_string(), Music::from_file("assets/audio/sleep.wav").unwrap());
-    musics.insert("benny".to_string(), Music::from_file("assets/audio/benny.wav").unwrap());
-    musics.insert(
-        "spaghetti_time".to_string(),
-        Music::from_file("assets/audio/spaghetti_time.wav").unwrap(),
-    );
 
-    // Tiled ------------------
+    let project: ldtk_json::Project =
+        serde_json::from_str(&std::fs::read_to_string("assets/cottage.ldtk").unwrap())
+            .unwrap();
 
-    let project = ldtk_rust::Project::new("assets/cottage.ldtk");
-    let layers = project.levels[0].layer_instances.as_ref().unwrap();
-    let tiles_1 = layers.iter().find(|l| l.identifier == "Tiles").unwrap();
-    let tiles_2 = layers.iter().find(|l| l.identifier == "Tiles2").unwrap();
-    let collision = layers.iter().find(|l| l.identifier == "Collision").unwrap();
-    let mut tilemap =
-        Array2D::filled_with(Cell::default(), tiles_1.c_wid as usize, tiles_1.c_hei as usize);
-    for tile in tiles_1.grid_tiles.iter() {
-        tilemap
-            .get_mut((tile.px[1] / 16) as usize, (tile.px[0] / 16) as usize)
-            .unwrap()
-            .tile_1 = Some(tile.t as u32);
-    }
-    for tile in tiles_2.grid_tiles.iter() {
-        tilemap
-            .get_mut((tile.px[1] / 16) as usize, (tile.px[0] / 16) as usize)
-            .unwrap()
-            .tile_2 = Some(tile.t as u32);
-    }
-    for (coord, val) in collision.int_grid_csv.iter().enumerate() {
-        tilemap.get_mut((coord / 20) as usize, (coord % 20) as usize).unwrap().solid =
-            match val {
-                1 => true,
-                _ => false,
-            };
-    }
-
-    // ------------------------
-
-    let scripts_source = fs::read_to_string("lua/slime_glue.lua").unwrap();
+    let mut tilemap = Array2D::filled_with(Cell::default(), 0, 0);
 
     let mut ecs = Ecs::new();
-    #[allow(clippy::identity_op, clippy::erasing_op)]
-    {
-        let id = ecs.add_entity();
-        ecs.add_component(id, Label("player".to_string()));
-        ecs.add_component(id, Position(WorldPos::new(12.5, 5.5)));
-        ecs.add_component(
-            id,
-            Walking { speed: 0., direction: Direction::Down, destination: None },
-        );
-        ecs.add_component(
-            id,
-            Collision { hitbox_dimensions: Point::new(8.0 / 16.0, 6.0 / 16.0), solid: true },
-        );
-        ecs.add_component(
-            id,
-            SpriteComponent {
-                up_sprite: Sprite {
-                    spritesheet_name: "characters".to_string(),
-                    rect: Rect::new(7 * 16, 3 * 16, 16, 16),
-                },
-                down_sprite: Sprite {
-                    spritesheet_name: "characters".to_string(),
-                    rect: Rect::new(7 * 16, 0 * 16, 16, 16),
-                },
-                left_sprite: Sprite {
-                    spritesheet_name: "characters".to_string(),
-                    rect: Rect::new(7 * 16, 1 * 16, 16, 16),
-                },
-                right_sprite: Sprite {
-                    spritesheet_name: "characters".to_string(),
-                    rect: Rect::new(7 * 16, 2 * 16, 16, 16),
-                },
-                sprite_offset: Point::new(8, 13),
-                forced_sprite: None,
-            },
-        );
-        ecs.add_component(id, Facing(Direction::Down));
-    }
-    #[allow(clippy::identity_op, clippy::erasing_op)]
-    {
-        let id = ecs.add_entity();
-        ecs.add_component(id, Label("man".to_string()));
-        ecs.add_component(id, Position(WorldPos::new(12.5, 7.8)));
-        ecs.add_component(
-            id,
-            Walking { speed: 0., direction: Direction::Down, destination: None },
-        );
-        ecs.add_component(
-            id,
-            Collision { hitbox_dimensions: Point::new(8.0 / 16.0, 6.0 / 16.0), solid: true },
-        );
-        ecs.add_component(
-            id,
-            SpriteComponent {
-                up_sprite: Sprite {
-                    spritesheet_name: "characters".to_string(),
-                    rect: Rect::new(4 * 16, 3 * 16, 16, 16),
-                },
-                down_sprite: Sprite {
-                    spritesheet_name: "characters".to_string(),
-                    rect: Rect::new(4 * 16, 0 * 16, 16, 16),
-                },
-                left_sprite: Sprite {
-                    spritesheet_name: "characters".to_string(),
-                    rect: Rect::new(4 * 16, 1 * 16, 16, 16),
-                },
-                right_sprite: Sprite {
-                    spritesheet_name: "characters".to_string(),
-                    rect: Rect::new(4 * 16, 2 * 16, 16, 16),
-                },
-                sprite_offset: Point::new(8, 13),
-                forced_sprite: None,
-            },
-        );
-        ecs.add_component(id, Facing(Direction::Up));
-        ecs.add_component(
-            id,
-            Scripts(vec![
-                ScriptClass {
-                    source: script::get_sub_script(&scripts_source, "look_at_player"),
-                    trigger: ScriptTrigger::Auto,
-                    start_condition: Some(ScriptCondition {
-                        story_var: "look_at_player".to_string(),
-                        value: 1,
-                    }),
-                    abort_condition: Some(ScriptCondition {
-                        story_var: "look_at_player".to_string(),
-                        value: 0,
-                    }),
-                    name: Some("slime_glue:look_at_player".to_string()),
-                },
-                ScriptClass {
-                    source: script::get_sub_script(&scripts_source, "bump"),
-                    trigger: ScriptTrigger::HardCollision,
-                    start_condition: None,
-                    abort_condition: None,
-                    name: Some("slime_glue:bump".to_string()),
-                },
-            ]),
-        );
-    }
-    #[allow(clippy::identity_op, clippy::erasing_op)]
-    {
-        let id = ecs.add_entity();
-        ecs.add_component(id, Label("slime".to_string()));
-        ecs.add_component(
-            id,
-            Walking { speed: 0., direction: Direction::Down, destination: None },
-        );
-        ecs.add_component(
-            id,
-            Collision { hitbox_dimensions: Point::new(10.0 / 16.0, 8.0 / 16.0), solid: false },
-        );
-        ecs.add_component(
-            id,
-            SpriteComponent {
-                up_sprite: Sprite {
-                    spritesheet_name: "characters".to_string(),
-                    rect: Rect::new(0 * 16, 7 * 16, 16, 16),
-                },
-                down_sprite: Sprite {
-                    spritesheet_name: "characters".to_string(),
-                    rect: Rect::new(0 * 16, 4 * 16, 16, 16),
-                },
-                left_sprite: Sprite {
-                    spritesheet_name: "characters".to_string(),
-                    rect: Rect::new(0 * 16, 5 * 16, 16, 16),
-                },
-                right_sprite: Sprite {
-                    spritesheet_name: "characters".to_string(),
-                    rect: Rect::new(0 * 16, 6 * 16, 16, 16),
-                },
-                sprite_offset: Point::new(8, 11),
-                forced_sprite: None,
-            },
-        );
-        ecs.add_component(id, Facing(Direction::Down));
-        ecs.add_component(
-            id,
-            Scripts(vec![
-                ScriptClass {
-                    source: script::get_sub_script(&scripts_source, "slime_collision"),
-                    trigger: ScriptTrigger::SoftCollision,
-                    start_condition: Some(ScriptCondition {
-                        story_var: "can_touch_slime".to_string(),
-                        value: 1,
-                    }),
-                    abort_condition: None,
-                    name: Some("slime_glue:slime_collision".to_string()),
-                },
-                ScriptClass {
-                    source: script::get_sub_script(&scripts_source, "slime_loop"),
-                    trigger: ScriptTrigger::Auto,
-                    start_condition: Some(ScriptCondition {
-                        story_var: "slime_loop".to_string(),
-                        value: 1,
-                    }),
-                    abort_condition: Some(ScriptCondition {
-                        story_var: "slime_loop".to_string(),
-                        value: 0,
-                    }),
-                    name: Some("slime_glue:slime_loop".to_string()),
-                },
-            ]),
-        );
-    }
-    {
-        let id = ecs.add_entity();
-        ecs.add_component(id, Position(WorldPos::new(8.5, 5.5)));
-        ecs.add_component(
-            id,
-            Scripts(vec![ScriptClass {
-                source: script::get_sub_script(&scripts_source, "chest"),
-                trigger: ScriptTrigger::Interaction,
-                start_condition: None,
-                abort_condition: None,
-                name: Some("slime_glue:chest".to_string()),
-            }]),
-        );
-    }
-    {
-        let id = ecs.add_entity();
-        ecs.add_component(id, Position(WorldPos::new(12.5, 9.5)));
-        ecs.add_component(
-            id,
-            Scripts(vec![ScriptClass {
-                source: script::get_sub_script(&scripts_source, "pot"),
-                trigger: ScriptTrigger::Interaction,
-                start_condition: None,
-                abort_condition: None,
-                name: Some("slime_glue:pot".to_string()),
-            }]),
-        );
-    }
-    {
-        let id = ecs.add_entity();
-        ecs.add_component(id, Position(WorldPos::new(8.5, 7.5)));
-        ecs.add_component(
-            id,
-            Collision { hitbox_dimensions: Point::new(1., 1.), solid: false },
-        );
-        ecs.add_component(
-            id,
-            Scripts(vec![ScriptClass {
-                source: script::get_sub_script(&scripts_source, "inside_door"),
-                trigger: ScriptTrigger::SoftCollision,
-                start_condition: Some(ScriptCondition {
-                    story_var: "door_may_close".to_string(),
-                    value: 1,
-                }),
-                abort_condition: None,
-                name: Some("slime_glue:inside_door".to_string()),
-            }]),
-        );
-    }
-    {
-        let id = ecs.add_entity();
-        ecs.add_component(
-            id,
-            Scripts(vec![ScriptClass {
-                source: script::get_sub_script(&scripts_source, "start"),
-                trigger: ScriptTrigger::Auto,
-                start_condition: Some(ScriptCondition {
-                    story_var: "start_script_started".to_string(),
-                    value: 0,
-                }),
-                abort_condition: None,
-                name: Some("slime_glue:start".to_string()),
-            }]),
-        );
-    }
-
-    let player_id = ecs.query_one_by_label::<EntityId>("player").unwrap();
+    let player_id = ecs.add_entity();
+    ecs.add_component(player_id, Position::default());
+    ecs.add_component(player_id, Facing::default());
+    ecs.add_component(player_id, Walking::default());
+    ecs.add_component(player_id, Collision::default());
 
     let mut story_vars: HashMap<String, i32> = HashMap::new();
-    story_vars.insert("start_script_started".to_string(), 0);
-    story_vars.insert("put_away_plushy".to_string(), 0);
-    story_vars.insert("slime_loop".to_string(), 0);
-    story_vars.insert("times_touched_slime".to_string(), 0);
-    story_vars.insert("can_touch_slime".to_string(), 0);
-    story_vars.insert("fixed_pot".to_string(), 0);
-    story_vars.insert("door_may_close".to_string(), 0);
-    story_vars.insert("look_at_player".to_string(), 0);
+
+    let mut script_instance_manager =
+        ScriptInstanceManager { script_instances: SlotMap::with_key() };
 
     let mut message_window: Option<MessageWindow> = None;
     let mut player_movement_locked = false;
     let mut map_overlay_color_transition: Option<MapOverlayColorTransition> = None;
-
-    let mut script_instance_manager =
-        ScriptInstanceManager { script_instances: SlotMap::with_key() };
 
     // ----- Scratchpad -----
     {}

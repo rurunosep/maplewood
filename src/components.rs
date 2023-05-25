@@ -7,9 +7,11 @@ use std::time::{Duration, Instant};
 pub struct Label(pub String);
 impl Component for Label {}
 
+#[derive(Default)]
 pub struct Position(pub WorldPos);
 impl Component for Position {}
 
+#[derive(Default)]
 pub struct Facing(pub Direction);
 impl Component for Facing {}
 
@@ -40,6 +42,7 @@ pub struct SineOffsetAnimation {
 }
 impl Component for SineOffsetAnimation {}
 
+#[derive(Default)]
 pub struct Walking {
     pub speed: f64,
     pub direction: Direction,
@@ -47,6 +50,7 @@ pub struct Walking {
 }
 impl Component for Walking {}
 
+#[derive(Default)]
 pub struct Collision {
     pub hitbox_dimensions: Point<f64>,
     pub solid: bool,
