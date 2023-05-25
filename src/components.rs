@@ -1,6 +1,6 @@
 use crate::ecs::Component;
 use crate::script::ScriptClass;
-use crate::{Direction, Point, WorldPos};
+use crate::{Direction, MapPos, Point};
 use sdl2::rect::Rect;
 use std::time::{Duration, Instant};
 
@@ -8,7 +8,7 @@ pub struct Label(pub String);
 impl Component for Label {}
 
 #[derive(Default)]
-pub struct Position(pub WorldPos);
+pub struct Position(pub MapPos);
 impl Component for Position {}
 
 #[derive(Default)]
@@ -46,7 +46,7 @@ impl Component for SineOffsetAnimation {}
 pub struct Walking {
     pub speed: f64,
     pub direction: Direction,
-    pub destination: Option<WorldPos>,
+    pub destination: Option<MapPos>,
 }
 impl Component for Walking {}
 

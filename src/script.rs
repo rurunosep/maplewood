@@ -16,7 +16,7 @@ use crate::components::{
     Collision, Facing, Position, SineOffsetAnimation, Sprite, SpriteComponent, Walking,
 };
 use crate::ecs::{Ecs, EntityId};
-use crate::{Cell, Direction, MapOverlayColorTransition, MessageWindow, Point, WorldPos};
+use crate::{Cell, Direction, MapOverlayColorTransition, MapPos, MessageWindow, Point};
 use array2d::Array2D;
 use rlua::{Error as LuaError, Function, Lua, Result as LuaResult, Thread, ThreadStatus};
 use sdl2::mixer::{Chunk, Music};
@@ -190,7 +190,6 @@ impl ScriptInstance {
         ecs: &mut Ecs,
         message_window: &mut Option<MessageWindow>,
         player_movement_locked: &mut bool,
-        tilemap: &mut Array2D<Cell>,
         map_overlay_color_transition: &mut Option<MapOverlayColorTransition>,
         map_overlay_color: Color,
         cutscene_border: &mut bool,
@@ -228,7 +227,6 @@ impl ScriptInstance {
         let ecs = RefCell::new(ecs);
         let message_window = RefCell::new(message_window);
         let player_movement_locked = RefCell::new(player_movement_locked);
-        let tilemap = RefCell::new(tilemap);
         let wait_condition = RefCell::new(&mut self.wait_condition);
         let cutscene_border = RefCell::new(cutscene_border);
         let displayed_card_name = RefCell::new(displayed_card_name);
@@ -264,18 +262,18 @@ impl ScriptInstance {
                             cb_get_entity_position(args, *ecs.borrow())
                         })?,
                     )?;
-                    globals.set(
-                        "set_cell_tile",
-                        scope.create_function_mut(|_, args| {
-                            cb_set_cell_tile(args, *tilemap.borrow_mut())
-                        })?,
-                    )?;
-                    globals.set(
-                        "set_cell_solid",
-                        scope.create_function(|_, args| {
-                            cb_set_cell_solid(args, *tilemap.borrow_mut())
-                        })?,
-                    )?;
+                    // globals.set(
+                    //     "set_cell_tile",
+                    //     scope.create_function_mut(|_, args| {
+                    //         cb_set_cell_tile(args, *tilemap.borrow_mut())
+                    //     })?,
+                    // )?;
+                    // globals.set(
+                    //     "set_cell_solid",
+                    //     scope.create_function(|_, args| {
+                    //         cb_set_cell_solid(args, *tilemap.borrow_mut())
+                    //     })?,
+                    // )?;
                     globals.set(
                         "lock_player_input",
                         scope.create_function_mut(|_, args| {
@@ -605,10 +603,10 @@ fn cb_walk(
     walking.destination = Some(
         position.0
             + match walking.direction {
-                Direction::Up => WorldPos::new(0., -distance),
-                Direction::Down => WorldPos::new(0., distance),
-                Direction::Left => WorldPos::new(-distance, 0.),
-                Direction::Right => WorldPos::new(distance, 0.),
+                Direction::Up => MapPos::new(0., -distance),
+                Direction::Down => MapPos::new(0., distance),
+                Direction::Left => MapPos::new(-distance, 0.),
+                Direction::Right => MapPos::new(distance, 0.),
             },
     );
 
@@ -634,8 +632,8 @@ fn cb_walk_to(
     };
     walking.speed = speed;
     walking.destination = Some(match walking.direction {
-        Direction::Up | Direction::Down => WorldPos::new(position.0.x, destination),
-        Direction::Left | Direction::Right => WorldPos::new(destination, position.0.y),
+        Direction::Up | Direction::Down => MapPos::new(position.0.x, destination),
+        Direction::Left | Direction::Right => MapPos::new(destination, position.0.y),
     });
 
     facing.0 = walking.direction;
@@ -647,7 +645,7 @@ fn cb_set_entity_position((entity, x, y): (String, f64, f64), ecs: &mut Ecs) -> 
     let mut position = ecs
         .query_one_by_label::<&mut Position>(&entity)
         .ok_or(ScriptError::InvalidEntity(entity))?;
-    position.0 = WorldPos::new(x, y);
+    position.0 = MapPos::new(x, y);
     Ok(())
 }
 
@@ -730,7 +728,7 @@ fn cb_add_position_component(
         .query_one_by_label::<EntityId>(&entity)
         .ok_or(ScriptError::InvalidEntity(entity))?;
 
-    ecs.add_component(id, Position(WorldPos::new(x, y)));
+    ecs.add_component(id, Position(MapPos::new(x, y)));
 
     Ok(())
 }

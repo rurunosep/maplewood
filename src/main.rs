@@ -9,14 +9,20 @@
 mod components;
 mod ecs;
 mod ldtk_json;
+mod map;
 mod render;
 mod script;
 
 use array2d::Array2D;
-use components::{Collision, Facing, Position, Scripts, SineOffsetAnimation, Walking};
+use components::{
+    Collision, Facing, Position, Scripts, SineOffsetAnimation, Sprite, SpriteComponent,
+    Walking,
+};
 use derive_more::{Add, AddAssign, Div, Mul, Sub};
 use derive_new::new;
 use ecs::{Ecs, EntityId};
+use ldtk_json::Level;
+use map::{CellCollisionShape, Map};
 use render::{RenderData, SCREEN_COLS, SCREEN_ROWS, SCREEN_SCALE, TILE_SIZE};
 use script::{ScriptId, ScriptInstanceManager, ScriptTrigger};
 use sdl2::event::Event;
@@ -24,6 +30,7 @@ use sdl2::image::LoadTexture;
 use sdl2::keyboard::Keycode;
 use sdl2::mixer::{Chunk, Music, AUDIO_S16SYS, DEFAULT_CHANNELS};
 use sdl2::pixels::Color;
+use sdl2::rect::Rect;
 use sdl2::render::Texture;
 use slotmap::SlotMap;
 use std::collections::HashMap;
@@ -53,8 +60,6 @@ pub struct MapOverlayColorTransition {
     end_color: Color,
 }
 
-// Global static renderdata, ecs, script manager, etc, using OnceCell or lazy_static?
-
 fn main() {
     // Prevent high DPI scaling on Windows
     #[cfg(target_os = "windows")]
@@ -83,14 +88,43 @@ fn main() {
     let texture_creator = canvas.texture_creator();
     let font = ttf_context.load_font("assets/Grand9KPixel.ttf", 8).unwrap();
 
-    let tileset = texture_creator.load_texture("assets/modern_interiors.png").unwrap();
+    let mut tilesets: HashMap<String, Texture> = HashMap::new();
+    tilesets.insert(
+        "walls.png".to_string(),
+        texture_creator.load_texture("assets/walls.png").unwrap(),
+    );
+    tilesets.insert(
+        "floors.png".to_string(),
+        texture_creator.load_texture("assets/floors.png").unwrap(),
+    );
+    tilesets.insert(
+        "ceilings.png".to_string(),
+        texture_creator.load_texture("assets/ceilings.png").unwrap(),
+    );
+    tilesets.insert(
+        "room_builder.png".to_string(),
+        texture_creator.load_texture("assets/room_builder.png").unwrap(),
+    );
+    tilesets.insert(
+        "modern_interiors.png".to_string(),
+        texture_creator.load_texture("assets/modern_interiors.png").unwrap(),
+    );
+    tilesets.insert(
+        "modern_exteriors.png".to_string(),
+        texture_creator.load_texture("assets/modern_exteriors.png").unwrap(),
+    );
 
     let mut spritesheets: HashMap<String, Texture> = HashMap::new();
+    spritesheets.insert(
+        "characters".to_string(),
+        texture_creator.load_texture("assets/characters.png").unwrap(),
+    );
+
     let mut cards: HashMap<String, Texture> = HashMap::new();
 
     let mut render_data = RenderData {
         canvas,
-        tileset,
+        tilesets,
         spritesheets,
         cards,
         font,
@@ -104,18 +138,48 @@ fn main() {
     let mut sound_effects: HashMap<String, Chunk> = HashMap::new();
     let mut musics: HashMap<String, Music> = HashMap::new();
 
-    let project: ldtk_json::Project =
-        serde_json::from_str(&std::fs::read_to_string("assets/cottage.ldtk").unwrap())
-            .unwrap();
+    // ----------
 
-    let mut tilemap = Array2D::filled_with(Cell::default(), 0, 0);
+    let project: ldtk_json::Project =
+        serde_json::from_str(&std::fs::read_to_string("assets/limezu.ldtk").unwrap()).unwrap();
+    let level = project.levels.get(0).unwrap();
+
+    let map = Map::new(&level);
+
+    // ----------
 
     let mut ecs = Ecs::new();
     let player_id = ecs.add_entity();
-    ecs.add_component(player_id, Position::default());
+    ecs.add_component(player_id, Position(Point::new(16.5, 16.5)));
     ecs.add_component(player_id, Facing::default());
     ecs.add_component(player_id, Walking::default());
-    ecs.add_component(player_id, Collision::default());
+    ecs.add_component(
+        player_id,
+        Collision { hitbox_dimensions: Point::new(8.0 / 16.0, 6.0 / 16.0), solid: true },
+    );
+    ecs.add_component(
+        player_id,
+        SpriteComponent {
+            up_sprite: Sprite {
+                spritesheet_name: "characters".to_string(),
+                rect: Rect::new(7 * 16, 3 * 16, 16, 16),
+            },
+            down_sprite: Sprite {
+                spritesheet_name: "characters".to_string(),
+                rect: Rect::new(7 * 16, 0 * 16, 16, 16),
+            },
+            left_sprite: Sprite {
+                spritesheet_name: "characters".to_string(),
+                rect: Rect::new(7 * 16, 1 * 16, 16, 16),
+            },
+            right_sprite: Sprite {
+                spritesheet_name: "characters".to_string(),
+                rect: Rect::new(7 * 16, 2 * 16, 16, 16),
+            },
+            sprite_offset: Point::new(8, 13),
+            forced_sprite: None,
+        },
+    );
 
     let mut story_vars: HashMap<String, i32> = HashMap::new();
 
@@ -294,7 +358,7 @@ fn main() {
             #[rustfmt::skip]
                 script.update(
                     &mut story_vars, &mut ecs, &mut message_window,
-                    &mut player_movement_locked, &mut tilemap,
+                    &mut player_movement_locked,
                     &mut map_overlay_color_transition, render_data.map_overlay_color,
                     &mut render_data.show_cutscene_border, &mut render_data.displayed_card_name, &mut running,
                     &musics, &sound_effects, player_id
@@ -304,7 +368,7 @@ fn main() {
         script_instance_manager.script_instances.retain(|_, script| !script.finished);
 
         // Move entities and resolve collisions
-        update_walking_entities(&ecs, &tilemap, &mut script_instance_manager, &story_vars);
+        update_walking_entities(&ecs, &map, &mut script_instance_manager, &story_vars);
 
         // Start player soft collision scripts
         let player_aabb = {
@@ -366,9 +430,9 @@ fn main() {
 
         // Camera follows player but stays clamped to map
         let mut camera_position = ecs.query_one_by_id::<&Position>(player_id).unwrap().0;
-        let viewport_dimensions = WorldPos::new(SCREEN_COLS as f64, SCREEN_ROWS as f64);
+        let viewport_dimensions = MapPos::new(SCREEN_COLS as f64, SCREEN_ROWS as f64);
         let map_dimensions =
-            WorldPos::new(tilemap.num_rows() as f64, tilemap.num_columns() as f64);
+            MapPos::new((level.px_wid / 16) as f64, (level.px_hei / 16) as f64);
         if camera_position.x - viewport_dimensions.x / 2.0 < 0.0 {
             camera_position.x = viewport_dimensions.x / 2.0;
         }
@@ -389,7 +453,7 @@ fn main() {
             &mut render_data,
             // Should camera position be stored in render data???
             camera_position,
-            &tilemap,
+            &map,
             &message_window,
             &ecs,
         );
@@ -404,7 +468,7 @@ fn main() {
 
 fn update_walking_entities(
     ecs: &Ecs,
-    tilemap: &Array2D<Cell>,
+    map: &Map,
     script_instance_manager: &mut ScriptInstanceManager,
     story_vars: &HashMap<String, i32>,
 ) {
@@ -414,10 +478,10 @@ fn update_walking_entities(
         // Determine new position before collision resolution
         let mut new_position = position.0
             + match walking.direction {
-                Direction::Up => WorldPos::new(0.0, -walking.speed),
-                Direction::Down => WorldPos::new(0.0, walking.speed),
-                Direction::Left => WorldPos::new(-walking.speed, 0.0),
-                Direction::Right => WorldPos::new(walking.speed, 0.0),
+                Direction::Up => MapPos::new(0.0, -walking.speed),
+                Direction::Down => MapPos::new(0.0, walking.speed),
+                Direction::Left => MapPos::new(-walking.speed, 0.0),
+                Direction::Right => MapPos::new(walking.speed, 0.0),
             };
 
         // Resolve collisions and update new position
@@ -443,14 +507,8 @@ fn update_walking_entities(
                     CellPos::new(new_cellpos.x + 1, new_cellpos.y + 1),
                 ];
                 for cellpos in cellposes_to_check {
-                    if let Some(cell) = get_cell_at_cellpos(tilemap, cellpos) {
-                        if cell.solid {
-                            let cell_aabb = AABB::from_pos_and_hitbox(
-                                cellpos.to_worldpos(),
-                                Point::new(1., 1.),
-                            );
-                            new_aabb.resolve_collision(&old_aabb, &cell_aabb);
-                        }
+                    if let Some(cell_aabb) = map.get_cell_collision_aabb(cellpos) {
+                        new_aabb.resolve_collision(&old_aabb, &cell_aabb);
                     }
                 }
 
@@ -530,7 +588,7 @@ pub struct AABB {
 }
 
 impl AABB {
-    pub fn from_pos_and_hitbox(position: Point<f64>, hitbox_dimensions: Point<f64>) -> Self {
+    pub fn from_pos_and_hitbox(position: MapPos, hitbox_dimensions: Point<f64>) -> Self {
         Self {
             top: position.y - hitbox_dimensions.y / 2.0,
             bottom: position.y + hitbox_dimensions.y / 2.0,
@@ -578,8 +636,8 @@ impl AABB {
         }
     }
 
-    pub fn get_center(&self) -> WorldPos {
-        WorldPos::new((self.left + self.right) / 2., (self.top + self.bottom) / 2.)
+    pub fn get_center(&self) -> MapPos {
+        MapPos::new((self.left + self.right) / 2., (self.top + self.bottom) / 2.)
     }
 }
 
@@ -598,10 +656,10 @@ pub struct Point<T> {
     pub y: T,
 }
 
-pub type WorldPos = Point<f64>;
+pub type MapPos = Point<f64>;
 pub type CellPos = Point<i32>;
 
-impl WorldPos {
+impl MapPos {
     pub fn to_cellpos(self) -> CellPos {
         CellPos { x: self.x.floor() as i32, y: self.y.floor() as i32 }
     }
@@ -609,8 +667,8 @@ impl WorldPos {
 
 impl CellPos {
     // Resulting WorldPos will be centered on the tile
-    pub fn to_worldpos(self) -> WorldPos {
-        WorldPos { x: self.x as f64 + 0.5, y: self.y as f64 + 0.5 }
+    pub fn to_worldpos(self) -> MapPos {
+        MapPos { x: self.x as f64 + 0.5, y: self.y as f64 + 0.5 }
     }
 }
 
@@ -621,26 +679,17 @@ pub struct Cell {
     pub solid: bool,
 }
 
-pub fn get_cell_at_cellpos(tilemap: &Array2D<Cell>, cellpos: CellPos) -> Option<Cell> {
-    let CellPos { x, y } = cellpos;
-    if x >= 0 && x < tilemap.num_columns() as i32 && y >= 0 && y < tilemap.num_rows() as i32 {
-        Some(tilemap[(y as usize, x as usize)])
-    } else {
-        None
-    }
-}
-
-pub fn standing_cell(position: &WorldPos) -> CellPos {
+pub fn standing_cell(position: &MapPos) -> CellPos {
     position.to_cellpos()
 }
 
-pub fn facing_cell(position: &WorldPos, facing: Direction) -> CellPos {
+pub fn facing_cell(position: &MapPos, facing: Direction) -> CellPos {
     let maximum_distance = 0.6;
     let facing_cell_position = match facing {
-        Direction::Up => *position + WorldPos::new(0.0, -maximum_distance),
-        Direction::Down => *position + WorldPos::new(0.0, maximum_distance),
-        Direction::Left => *position + WorldPos::new(-maximum_distance, 0.0),
-        Direction::Right => *position + WorldPos::new(maximum_distance, 0.0),
+        Direction::Up => *position + MapPos::new(0.0, -maximum_distance),
+        Direction::Down => *position + MapPos::new(0.0, maximum_distance),
+        Direction::Left => *position + MapPos::new(-maximum_distance, 0.0),
+        Direction::Right => *position + MapPos::new(maximum_distance, 0.0),
     };
     facing_cell_position.to_cellpos()
 }

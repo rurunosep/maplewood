@@ -1,6 +1,8 @@
 use crate::components::{Collision, Facing, Position, SineOffsetAnimation, SpriteComponent};
 use crate::ecs::{Ecs, EntityId};
-use crate::{Cell, CellPos, Direction, MessageWindow, Point, WorldPos};
+use crate::ldtk_json::Level;
+use crate::map::Map;
+use crate::{Cell, CellPos, Direction, MapPos, MessageWindow, Point};
 use array2d::Array2D;
 use itertools::Itertools;
 use sdl2::pixels::Color;
@@ -17,7 +19,7 @@ pub const SCREEN_SCALE: u32 = 4;
 
 pub struct RenderData<'r> {
     pub canvas: WindowCanvas,
-    pub tileset: Texture<'r>,
+    pub tilesets: HashMap<String, Texture<'r>>,
     pub spritesheets: HashMap<String, Texture<'r>>,
     pub cards: HashMap<String, Texture<'r>>,
     pub font: Font<'r, 'r>,
@@ -34,7 +36,7 @@ pub struct RenderData<'r> {
 
 type ScreenPos = Point<i32>;
 
-fn worldpos_to_screenpos(worldpos: WorldPos) -> ScreenPos {
+fn worldpos_to_screenpos(worldpos: MapPos) -> ScreenPos {
     let world_units_to_screen_units = (TILE_SIZE * SCREEN_SCALE) as f64;
     ScreenPos {
         x: (worldpos.x * world_units_to_screen_units) as i32,
@@ -44,14 +46,14 @@ fn worldpos_to_screenpos(worldpos: WorldPos) -> ScreenPos {
 
 pub fn render(
     render_data: &mut RenderData,
-    camera_position: WorldPos,
-    tilemap: &Array2D<Cell>,
+    camera_position: MapPos,
+    map: &Map,
     message_window: &Option<MessageWindow>,
     ecs: &Ecs,
 ) {
     let RenderData {
         canvas,
-        tileset,
+        tilesets,
         spritesheets,
         cards,
         font,
@@ -60,54 +62,49 @@ pub fn render(
         map_overlay_color,
     } = render_data;
 
-    canvas.set_draw_color(Color::RGB(255, 255, 255));
+    canvas.set_draw_color(Color::RGB(0, 0, 0));
     canvas.clear();
 
     let viewport_dimensions = Point::new(SCREEN_COLS as f64, SCREEN_ROWS as f64);
     let viewport_top_left = camera_position - viewport_dimensions / 2.0;
 
     // Draw tiles
-    let tileset_num_cols = tileset.query().width / TILE_SIZE;
-    for row in 0..tilemap.num_rows() {
-        for col in 0..tilemap.num_columns() {
-            if let Some(cell) =
-                crate::get_cell_at_cellpos(tilemap, CellPos::new(col as i32, row as i32))
-            {
-                // world -> top_left
-                let position_in_world = WorldPos::new(col as f64, row as f64);
-                let position_in_viewport = position_in_world - viewport_top_left;
-                let position_on_screen = worldpos_to_screenpos(position_in_viewport);
-                let top_left = position_on_screen;
+    for layer in &map.tile_layers {
+        let tileset = tilesets.get(&layer.tileset_path).unwrap();
+        let tileset_width_in_tiles = (tileset.query().width / 16);
 
-                let screen_rect = Rect::new(
-                    top_left.x,
-                    top_left.y,
-                    // I'm not sure why, but sometimes some rows or columns end up 1 pixel
-                    // off? which leaves gaps that stripe the screen. It must have something
-                    // to do with going down from the f64s to i32s, I think?
-                    // Anyway, streching the tiles by a single screen pixel seems to fix it
-                    // without any noticable distortion to the art
-                    // Works for now
-                    TILE_SIZE * SCREEN_SCALE + 1,
-                    TILE_SIZE * SCREEN_SCALE + 1,
-                );
+        for col in 0..map.width_in_cells {
+            for row in 0..map.height_in_cells {
+                if let Some(tile_id) =
+                    layer.tile_ids.get((row * map.width_in_cells + col) as usize).unwrap()
+                {
+                    let position_in_world = MapPos::new(col as f64, row as f64);
+                    // Apply layer offset
+                    let position_in_world =
+                        position_in_world + Point::new(layer.x_offset, layer.y_offset);
+                    let position_in_viewport = position_in_world - viewport_top_left;
+                    let position_on_screen = worldpos_to_screenpos(position_in_viewport);
+                    let top_left = position_on_screen;
 
-                for tile_id in [cell.tile_1, cell.tile_2].iter().flatten() {
-                    let tileset_row = tile_id / tileset_num_cols;
-                    let tileset_col = tile_id % tileset_num_cols;
-                    let tileset_rect = Rect::new(
-                        (tileset_col * TILE_SIZE) as i32,
-                        (tileset_row * TILE_SIZE) as i32,
-                        TILE_SIZE,
-                        TILE_SIZE,
+                    let screen_rect = Rect::new(
+                        top_left.x,
+                        top_left.y,
+                        TILE_SIZE * SCREEN_SCALE + 1,
+                        TILE_SIZE * SCREEN_SCALE + 1,
                     );
+
+                    let tile_y_in_tileset = (tile_id / tileset_width_in_tiles) * 16;
+                    let tile_x_in_tileset = (tile_id % tileset_width_in_tiles) * 16;
+                    let tileset_rect =
+                        Rect::new(tile_x_in_tileset as i32, tile_y_in_tileset as i32, 16, 16);
+
                     canvas.copy(tileset, tileset_rect, screen_rect).unwrap();
                 }
             }
         }
     }
 
-    // Draw entities with character components
+    // Draw entities
     for (position, sprite_component, facing, sine_offset_animation) in ecs
         .query_all::<(&Position, &SpriteComponent, &Facing, Option<&SineOffsetAnimation>)>()
         .sorted_by(|(p1, _, _, _), (p2, _, _, _)| p1.0.y.partial_cmp(&p2.0.y).unwrap())

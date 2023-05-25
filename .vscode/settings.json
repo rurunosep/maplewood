@@ -29,5 +29,6 @@
 		"get",
 		"get_entity_position",
 		"set_cell_solid"
-	]
+	],
+	"rust-analyzer.showUnlinkedFileNotification": false
 }
