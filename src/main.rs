@@ -2,27 +2,19 @@
 #![feature(div_duration)]
 #![feature(macro_metavar_expr)]
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
-// TODO
-#![allow(unused)]
-#![allow(unused_mut)]
 
 mod components;
 mod ecs;
 mod ldtk_json;
-mod map;
 mod render;
 mod script;
+mod world;
 
-use array2d::Array2D;
 use components::{
     Collision, Facing, Position, Scripts, SineOffsetAnimation, Sprite, SpriteComponent,
     Walking,
 };
-use derive_more::{Add, AddAssign, Div, Mul, Sub};
-use derive_new::new;
 use ecs::{Ecs, EntityId};
-use ldtk_json::Level;
-use map::{CellCollisionShape, Map};
 use render::{RenderData, SCREEN_COLS, SCREEN_ROWS, SCREEN_SCALE, TILE_SIZE};
 use script::{ScriptId, ScriptInstanceManager, ScriptTrigger};
 use sdl2::event::Event;
@@ -34,8 +26,8 @@ use sdl2::rect::Rect;
 use sdl2::render::Texture;
 use slotmap::SlotMap;
 use std::collections::HashMap;
-use std::io::BufReader;
 use std::time::{Duration, Instant};
+use world::{facing_cell, CellPos, Map, MapPos, Point};
 
 #[derive(Clone, Copy, Debug, Default)]
 pub enum Direction {
@@ -120,6 +112,7 @@ fn main() {
         texture_creator.load_texture("assets/characters.png").unwrap(),
     );
 
+    #[allow(unused)]
     let mut cards: HashMap<String, Texture> = HashMap::new();
 
     let mut render_data = RenderData {
@@ -135,7 +128,9 @@ fn main() {
 
     sdl2::mixer::open_audio(41_100, AUDIO_S16SYS, DEFAULT_CHANNELS, 512).unwrap();
     sdl2::mixer::allocate_channels(10);
+    #[allow(unused)]
     let mut sound_effects: HashMap<String, Chunk> = HashMap::new();
+    #[allow(unused)]
     let mut musics: HashMap<String, Music> = HashMap::new();
 
     // ----------
@@ -150,7 +145,7 @@ fn main() {
 
     let mut ecs = Ecs::new();
     let player_id = ecs.add_entity();
-    ecs.add_component(player_id, Position(Point::new(16.5, 16.5)));
+    ecs.add_component(player_id, Position(MapPos::new(16.5, 16.5)));
     ecs.add_component(player_id, Facing::default());
     ecs.add_component(player_id, Walking::default());
     ecs.add_component(
@@ -304,7 +299,7 @@ fn main() {
                         let player_facing_cell = facing_cell(&player_pos.0, player_facing.0);
                         for (_, scripts) in
                             ecs.query_all::<(&Position, &Scripts)>().filter(|(position, _)| {
-                                standing_cell(&position.0) == player_facing_cell
+                                position.0.as_cellpos() == player_facing_cell
                             })
                         {
                             // ...start all scripts with interaction trigger and fulfilled
@@ -433,18 +428,15 @@ fn main() {
         let viewport_dimensions = MapPos::new(SCREEN_COLS as f64, SCREEN_ROWS as f64);
         let map_dimensions =
             MapPos::new((level.px_wid / 16) as f64, (level.px_hei / 16) as f64);
-        if camera_position.x - viewport_dimensions.x / 2.0 < 0.0 {
-            camera_position.x = viewport_dimensions.x / 2.0;
-        }
-        if camera_position.x + viewport_dimensions.x / 2.0 > map_dimensions.x {
-            camera_position.x = map_dimensions.x - viewport_dimensions.x / 2.0;
-        }
-        if camera_position.y - viewport_dimensions.y / 2.0 < 0.0 {
-            camera_position.y = viewport_dimensions.y / 2.0;
-        }
-        if camera_position.y + viewport_dimensions.y / 2.0 > map_dimensions.y {
-            camera_position.y = map_dimensions.y - viewport_dimensions.y / 2.0;
-        }
+
+        camera_position.x = camera_position.x.clamp(
+            viewport_dimensions.x / 2.0,
+            map_dimensions.x - viewport_dimensions.x / 2.0,
+        );
+        camera_position.y = camera_position.y.clamp(
+            viewport_dimensions.y / 2.0,
+            map_dimensions.y - viewport_dimensions.y / 2.0,
+        );
 
         // ----------------------------------------
         // Render
@@ -494,7 +486,7 @@ fn update_walking_entities(
                     AABB::from_pos_and_hitbox(new_position, collision.hitbox_dimensions);
 
                 // Resolve collisions with the 9 cells centered around new position
-                let new_cellpos = new_position.to_cellpos();
+                let new_cellpos = new_position.as_cellpos();
                 let cellposes_to_check = [
                     CellPos::new(new_cellpos.x - 1, new_cellpos.y - 1),
                     CellPos::new(new_cellpos.x, new_cellpos.y - 1),
@@ -639,57 +631,4 @@ impl AABB {
     pub fn get_center(&self) -> MapPos {
         MapPos::new((self.left + self.right) / 2., (self.top + self.bottom) / 2.)
     }
-}
-
-// ----------------------------------------
-// World stuff
-// ----------------------------------------
-
-// Mul doesn't work if Point is the right-hand side
-// Writing "num * point" is like writing "num.mul(point)"
-// So multiplying with Point must be implemented on the "num"
-#[derive(
-    new, Clone, Copy, Add, AddAssign, Sub, Mul, Div, PartialEq, Eq, Hash, Default, Debug,
-)]
-pub struct Point<T> {
-    pub x: T,
-    pub y: T,
-}
-
-pub type MapPos = Point<f64>;
-pub type CellPos = Point<i32>;
-
-impl MapPos {
-    pub fn to_cellpos(self) -> CellPos {
-        CellPos { x: self.x.floor() as i32, y: self.y.floor() as i32 }
-    }
-}
-
-impl CellPos {
-    // Resulting WorldPos will be centered on the tile
-    pub fn to_worldpos(self) -> MapPos {
-        MapPos { x: self.x as f64 + 0.5, y: self.y as f64 + 0.5 }
-    }
-}
-
-#[derive(Clone, Copy, Default, Debug)]
-pub struct Cell {
-    pub tile_1: Option<u32>,
-    pub tile_2: Option<u32>,
-    pub solid: bool,
-}
-
-pub fn standing_cell(position: &MapPos) -> CellPos {
-    position.to_cellpos()
-}
-
-pub fn facing_cell(position: &MapPos, facing: Direction) -> CellPos {
-    let maximum_distance = 0.6;
-    let facing_cell_position = match facing {
-        Direction::Up => *position + MapPos::new(0.0, -maximum_distance),
-        Direction::Down => *position + MapPos::new(0.0, maximum_distance),
-        Direction::Left => *position + MapPos::new(-maximum_distance, 0.0),
-        Direction::Right => *position + MapPos::new(maximum_distance, 0.0),
-    };
-    facing_cell_position.to_cellpos()
 }

@@ -16,8 +16,7 @@ use crate::components::{
     Collision, Facing, Position, SineOffsetAnimation, Sprite, SpriteComponent, Walking,
 };
 use crate::ecs::{Ecs, EntityId};
-use crate::{Cell, Direction, MapOverlayColorTransition, MapPos, MessageWindow, Point};
-use array2d::Array2D;
+use crate::{Direction, MapOverlayColorTransition, MapPos, MessageWindow, Point};
 use rlua::{Error as LuaError, Function, Lua, Result as LuaResult, Thread, ThreadStatus};
 use sdl2::mixer::{Chunk, Music};
 use sdl2::pixels::Color;
@@ -491,6 +490,7 @@ impl ScriptInstance {
     }
 }
 
+#[allow(unused)]
 pub fn get_sub_script(full_source: &str, label: &str) -> String {
     let (_, after_label) = full_source.split_once(&format!("--# {label}")).unwrap();
     let (between_label_and_end, _) = after_label.split_once("--#").unwrap();
@@ -536,30 +536,30 @@ fn cb_get_entity_position(entity: String, ecs: &Ecs) -> LuaResult<(f64, f64)> {
     Ok((position.0.x, position.0.y))
 }
 
-fn cb_set_cell_tile(
-    (x, y, layer, id): (i32, i32, i32, i32),
-    tilemap: &mut Array2D<Cell>,
-) -> LuaResult<()> {
-    let new_tile = if id == -1 { None } else { Some(id as u32) };
-    if let Some(Cell { tile_1, tile_2, .. }) = tilemap.get_mut(y as usize, x as usize) {
-        if layer == 1 {
-            *tile_1 = new_tile;
-        } else if layer == 2 {
-            *tile_2 = new_tile;
-        }
-    }
-    Ok(())
-}
+// fn cb_set_cell_tile(
+//     (x, y, layer, id): (i32, i32, i32, i32),
+//     tilemap: &mut Array2D<Cell>,
+// ) -> LuaResult<()> {
+//     let new_tile = if id == -1 { None } else { Some(id as u32) };
+//     if let Some(Cell { tile_1, tile_2, .. }) = tilemap.get_mut(y as usize, x as usize) {
+//         if layer == 1 {
+//             *tile_1 = new_tile;
+//         } else if layer == 2 {
+//             *tile_2 = new_tile;
+//         }
+//     }
+//     Ok(())
+// }
 
-fn cb_set_cell_solid(
-    (x, y, solid): (i32, i32, bool),
-    tilemap: &mut Array2D<Cell>,
-) -> LuaResult<()> {
-    if let Some(cell) = tilemap.get_mut(y as usize, x as usize) {
-        cell.solid = solid;
-    }
-    Ok(())
-}
+// fn cb_set_cell_solid(
+//     (x, y, solid): (i32, i32, bool),
+//     tilemap: &mut Array2D<Cell>,
+// ) -> LuaResult<()> {
+//     if let Some(cell) = tilemap.get_mut(y as usize, x as usize) {
+//         cell.solid = solid;
+//     }
+//     Ok(())
+// }
 
 fn cb_lock_player_input(
     _args: (),

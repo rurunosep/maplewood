@@ -1,5 +1,40 @@
 use crate::ldtk_json::Level;
-use crate::{CellPos, AABB};
+use crate::{Direction, AABB};
+use derive_more::{Add, AddAssign, Deref, DerefMut, Div, Mul, Sub};
+use derive_new::new;
+
+#[derive(new, Clone, Copy, Default, Debug, Add, AddAssign, Sub, Mul, Div, PartialEq, Eq)]
+pub struct Point<T> {
+    pub x: T,
+    pub y: T,
+}
+
+#[derive(Clone, Copy, Default, Debug, Deref, DerefMut, Add, AddAssign, Sub)]
+pub struct MapPos(pub Point<f64>);
+
+impl MapPos {
+    pub fn new(x: f64, y: f64) -> Self {
+        Self(Point::new(x, y))
+    }
+
+    pub fn as_cellpos(self) -> CellPos {
+        CellPos::new(self.0.x.floor() as i32, self.0.y.floor() as i32)
+    }
+}
+
+#[derive(Clone, Copy, Default, Debug, Deref, PartialEq)]
+pub struct CellPos(pub Point<i32>);
+
+impl CellPos {
+    pub fn new(x: i32, y: i32) -> Self {
+        Self(Point::new(x, y))
+    }
+
+    // Resulting WorldPos will be centered on the tile
+    pub fn as_worldpos(self) -> MapPos {
+        MapPos::new(self.0.x as f64 + 0.5, self.0.y as f64 + 0.5)
+    }
+}
 
 type TileId = u32;
 
@@ -99,4 +134,15 @@ impl<'l> Map<'l> {
             },
         )
     }
+}
+
+pub fn facing_cell(position: &MapPos, facing: Direction) -> CellPos {
+    let maximum_distance = 0.6;
+    let facing_cell_position = match facing {
+        Direction::Up => *position + MapPos::new(0.0, -maximum_distance),
+        Direction::Down => *position + MapPos::new(0.0, maximum_distance),
+        Direction::Left => *position + MapPos::new(-maximum_distance, 0.0),
+        Direction::Right => *position + MapPos::new(maximum_distance, 0.0),
+    };
+    facing_cell_position.as_cellpos()
 }
