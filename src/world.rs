@@ -47,9 +47,15 @@ pub struct TileLayer {
 }
 
 pub enum CellCollisionShape {
-    FullBox,
-    LowerHalf,
-    UpperHalf,
+    Full,
+    Top,
+    Bottom,
+    Left,
+    Right,
+    TopLeft,
+    TopRight,
+    BottomLeft,
+    BottomRight,
 }
 
 pub struct Map<'l> {
@@ -98,9 +104,15 @@ impl<'l> Map<'l> {
             .int_grid_csv
             .iter()
             .map(|v| match v {
-                1 => Some(CellCollisionShape::FullBox),
-                2 => Some(CellCollisionShape::LowerHalf),
-                3 => Some(CellCollisionShape::UpperHalf),
+                1 => Some(CellCollisionShape::Full),
+                2 => Some(CellCollisionShape::Top),
+                3 => Some(CellCollisionShape::Bottom),
+                4 => Some(CellCollisionShape::Left),
+                5 => Some(CellCollisionShape::Right),
+                6 => Some(CellCollisionShape::TopLeft),
+                7 => Some(CellCollisionShape::TopRight),
+                8 => Some(CellCollisionShape::BottomLeft),
+                9 => Some(CellCollisionShape::BottomRight),
                 _ => None,
             })
             .collect();
@@ -112,22 +124,58 @@ impl<'l> Map<'l> {
         self.collisions.get((cellpos.y * self.width_in_cells + cellpos.x) as usize).and_then(
             |o| {
                 o.as_ref().map(|shape| match shape {
-                    CellCollisionShape::FullBox => AABB {
+                    CellCollisionShape::Full => AABB {
                         top: cellpos.y as f64,
                         bottom: cellpos.y as f64 + 1.,
                         left: cellpos.x as f64,
                         right: cellpos.x as f64 + 1.,
                     },
-                    CellCollisionShape::LowerHalf => AABB {
+                    CellCollisionShape::Top => AABB {
+                        top: cellpos.y as f64,
+                        bottom: cellpos.y as f64 + 0.5,
+                        left: cellpos.x as f64,
+                        right: cellpos.x as f64 + 1.,
+                    },
+                    CellCollisionShape::Bottom => AABB {
                         top: cellpos.y as f64 + 0.5,
                         bottom: cellpos.y as f64 + 1.,
                         left: cellpos.x as f64,
                         right: cellpos.x as f64 + 1.,
                     },
-                    CellCollisionShape::UpperHalf => AABB {
+                    CellCollisionShape::Left => AABB {
+                        top: cellpos.y as f64,
+                        bottom: cellpos.y as f64 + 1.,
+                        left: cellpos.x as f64,
+                        right: cellpos.x as f64 + 0.5,
+                    },
+                    CellCollisionShape::Right => AABB {
+                        top: cellpos.y as f64,
+                        bottom: cellpos.y as f64 + 1.,
+                        left: cellpos.x as f64 + 0.5,
+                        right: cellpos.x as f64 + 1.,
+                    },
+                    CellCollisionShape::TopLeft => AABB {
                         top: cellpos.y as f64,
                         bottom: cellpos.y as f64 + 0.5,
                         left: cellpos.x as f64,
+                        right: cellpos.x as f64 + 0.5,
+                    },
+                    CellCollisionShape::TopRight => AABB {
+                        top: cellpos.y as f64,
+                        bottom: cellpos.y as f64 + 0.5,
+                        left: cellpos.x as f64 + 0.5,
+                        right: cellpos.x as f64 + 1.,
+                    },
+                    CellCollisionShape::BottomLeft => AABB {
+                        top: cellpos.y as f64 + 0.5,
+                        bottom: cellpos.y as f64 + 1.,
+                        left: cellpos.x as f64,
+                        right: cellpos.x as f64 + 0.5,
+                    },
+                    CellCollisionShape::BottomRight => AABB {
+                        top: cellpos.y as f64 + 0.5,
+                        bottom: cellpos.y as f64 + 1.,
+                        left: cellpos.x as f64 + 0.5,
                         right: cellpos.x as f64 + 1.,
                     },
                 })

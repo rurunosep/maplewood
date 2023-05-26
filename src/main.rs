@@ -428,7 +428,6 @@ fn main() {
         let viewport_dimensions = MapPos::new(SCREEN_COLS as f64, SCREEN_ROWS as f64);
         let map_dimensions =
             MapPos::new((level.px_wid / 16) as f64, (level.px_hei / 16) as f64);
-
         camera_position.x = camera_position.x.clamp(
             viewport_dimensions.x / 2.0,
             map_dimensions.x - viewport_dimensions.x / 2.0,
