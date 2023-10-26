@@ -149,8 +149,7 @@ impl Ecs {
             }
             RealOrDeferredEntityId::Deferred(def_id) => {
                 let f = move |ecs: &mut Ecs| {
-                    let real_id =
-                        ecs.deferred_entity_ids.borrow().get(def_id).map(|id| id.clone());
+                    let real_id = ecs.deferred_entity_ids.borrow().get(def_id).copied();
                     if let Some(real_id) = real_id {
                         ecs.add_component(real_id, component);
                     }

@@ -62,9 +62,8 @@ pub fn render(
                 x: (position_in_viewport.x * world_units_to_screen_units) as i32,
                 y: (position_in_viewport.y * world_units_to_screen_units) as i32,
             });
-            let top_left_in_screen =
-                position_on_screen - ScreenPos(sprite_offset.unwrap_or_default());
-            top_left_in_screen
+
+            position_on_screen - ScreenPos(sprite_offset.unwrap_or_default())
         };
 
     // Draw tiles

@@ -30,8 +30,8 @@ impl CellPos {
         Self(Point::new(x, y))
     }
 
-    // Resulting WorldPos will be centered on the tile
-    pub fn as_worldpos(self) -> MapPos {
+    // Resulting MapPos will be centered on the tile
+    pub fn as_mappos(self) -> MapPos {
         MapPos::new(self.0.x as f64 + 0.5, self.0.y as f64 + 0.5)
     }
 }

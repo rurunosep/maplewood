@@ -137,9 +137,9 @@ fn main() {
 
     let project: ldtk_json::Project =
         serde_json::from_str(&std::fs::read_to_string("assets/limezu.ldtk").unwrap()).unwrap();
-    let level = project.levels.get(0).unwrap();
+    let level = project.worlds.get(0).unwrap().levels.get(0).unwrap();
 
-    let map = Map::new(&level);
+    let map = Map::new(level);
 
     // ----------
 
@@ -394,7 +394,7 @@ fn main() {
         // End entity SineOffsetAnimations that have exceeded their duration
         for (id, soa) in ecs.query_all::<(EntityId, &SineOffsetAnimation)>() {
             if soa.start_time.elapsed() > soa.duration {
-                ecs.remove_component_deferred::<SineOffsetAnimation>(id)
+                ecs.remove_component_deferred::<SineOffsetAnimation>(id);
             }
         }
         ecs.flush_deferred_mutations();
@@ -535,7 +535,7 @@ fn update_walking_entities(
                                 for script in script::filter_scripts_by_trigger_and_condition(
                                     &scripts.0,
                                     ScriptTrigger::HardCollision,
-                                    &story_vars,
+                                    story_vars,
                                 ) {
                                     script_instance_manager.start_script(script);
                                 }
