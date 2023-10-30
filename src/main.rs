@@ -186,7 +186,27 @@ fn main() {
     let mut map_overlay_color_transition: Option<MapOverlayColorTransition> = None;
 
     // ----- Scratchpad -----
-    {}
+    {
+        // #[derive(Debug)]
+        // struct Comp1(i32);
+        // impl ecs::Component for Comp1 {}
+        // #[derive(Debug)]
+        // struct Comp2();
+        // impl ecs::Component for Comp2 {}
+
+        // let mut test_ecs = Ecs::new();
+
+        // let e1 = test_ecs.add_entity();
+        // test_ecs.add_component(e1, Comp1(1));
+        // test_ecs.add_component(e1, Comp2 {});
+
+        // let e2 = test_ecs.add_entity();
+        // test_ecs.add_component(e2, Comp1(2));
+
+        // for (c1, _) in test_ecs.query_all::<(&Comp1, ecs::Without<Comp2>)>() {
+        //     println!("{:?}", c1);
+        // }
+    }
     // ----- Scratchpad -----
 
     let mut running = true;

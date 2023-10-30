@@ -245,6 +245,44 @@ where
     }
 }
 
+pub struct With<C>(std::marker::PhantomData<C>)
+where
+    C: Component + 'static;
+
+impl<C> Query for With<C>
+where
+    C: Component + 'static,
+{
+    type Result<'r> = ();
+
+    fn borrow(_: EntityId, _: &AnyMap) -> Self::Result<'_> {
+        ()
+    }
+
+    fn filter(id: EntityId, component_maps: &AnyMap) -> bool {
+        component_maps.get::<ComponentMap<C>>().map(|cm| cm.contains_key(id)).unwrap_or(false)
+    }
+}
+
+pub struct Without<C>(std::marker::PhantomData<C>)
+where
+    C: Component + 'static;
+
+impl<C> Query for Without<C>
+where
+    C: Component + 'static,
+{
+    type Result<'r> = ();
+
+    fn borrow(_: EntityId, _: &AnyMap) -> Self::Result<'_> {
+        ()
+    }
+
+    fn filter(id: EntityId, component_maps: &AnyMap) -> bool {
+        !component_maps.get::<ComponentMap<C>>().map(|cm| cm.contains_key(id)).unwrap_or(false)
+    }
+}
+
 macro_rules! impl_query_for_tuple {
     ($($name:ident)*) => {
         #[allow(unused)]
