@@ -2,6 +2,7 @@ use crate::ldtk_json::Level;
 use crate::{Direction, AABB};
 use derive_more::{Add, AddAssign, Deref, DerefMut, Div, Mul, Sub};
 use derive_new::new;
+use slotmap::{new_key_type, SlotMap};
 
 #[derive(new, Clone, Copy, Default, Debug, Add, AddAssign, Sub, Mul, Div, PartialEq, Eq)]
 pub struct Point<T> {
@@ -36,6 +37,13 @@ impl CellPos {
     }
 }
 
+// Maps can be stored and referenced like this?
+new_key_type! { pub struct MapId; }
+#[allow(dead_code)]
+pub struct World {
+    maps: SlotMap<MapId, Map>,
+}
+
 type TileId = u32;
 
 pub struct TileLayer {
@@ -58,16 +66,23 @@ pub enum CellCollisionShape {
     BottomRight,
 }
 
-pub struct Map<'l> {
-    pub level: &'l Level,
+pub struct Map {
     pub width_in_cells: i32,
     pub height_in_cells: i32,
     pub tile_layers: Vec<TileLayer>,
     pub collisions: Vec<Option<CellCollisionShape>>,
+
+    // The LDtk level is only stored here for now for convenience during development.
+    // Game should rely entirely on internal Map representation generated from LDtk json.
+    // I'm thinking a single Map can be made from one or more levels. For example, a small
+    // room will be made of a single level in an "indoors" world, a large floor of a building
+    // could be made of several levels in the "indoors" world, and a very large map such as
+    // the "overworld" or "sewers" could be made of an entire world of many levels.
+    pub level: Level,
 }
 
-impl<'l> Map<'l> {
-    pub fn new(level: &'l Level) -> Self {
+impl Map {
+    pub fn new(level: &Level) -> Self {
         let width_in_cells = (level.px_wid / 16) as i32;
         let height_in_cells = (level.px_hei / 16) as i32;
 
@@ -117,7 +132,13 @@ impl<'l> Map<'l> {
             })
             .collect();
 
-        Self { level, width_in_cells, height_in_cells, tile_layers, collisions: collision_map }
+        Self {
+            width_in_cells,
+            height_in_cells,
+            tile_layers,
+            collisions: collision_map,
+            level: level.clone(),
+        }
     }
 
     pub fn get_cell_collision_aabb(&self, cellpos: CellPos) -> Option<AABB> {

@@ -245,6 +245,8 @@ where
     }
 }
 
+// Are With<C> and Without<C> even necessary?
+
 pub struct With<C>(std::marker::PhantomData<C>)
 where
     C: Component + 'static;
@@ -255,12 +257,12 @@ where
 {
     type Result<'r> = ();
 
-    fn borrow(_: EntityId, _: &AnyMap) -> Self::Result<'_> {
-        ()
-    }
-
     fn filter(id: EntityId, component_maps: &AnyMap) -> bool {
         component_maps.get::<ComponentMap<C>>().map(|cm| cm.contains_key(id)).unwrap_or(false)
+    }
+
+    fn borrow(_: EntityId, _: &AnyMap) -> Self::Result<'_> {
+        ()
     }
 }
 
@@ -274,12 +276,12 @@ where
 {
     type Result<'r> = ();
 
-    fn borrow(_: EntityId, _: &AnyMap) -> Self::Result<'_> {
-        ()
-    }
-
     fn filter(id: EntityId, component_maps: &AnyMap) -> bool {
         !component_maps.get::<ComponentMap<C>>().map(|cm| cm.contains_key(id)).unwrap_or(false)
+    }
+
+    fn borrow(_: EntityId, _: &AnyMap) -> Self::Result<'_> {
+        ()
     }
 }
 
