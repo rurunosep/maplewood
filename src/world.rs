@@ -61,35 +61,31 @@ pub struct TileLayer {
     pub y_offset: f64,
 }
 
-pub enum CellCollisionShape {
-    Full,
-    Top,
-    Bottom,
-    Left,
-    Right,
-    TopLeft,
-    TopRight,
-    BottomLeft,
-    BottomRight,
-}
-
 pub struct Map {
     pub width_in_cells: i32,
     pub height_in_cells: i32,
     pub tile_layers: Vec<TileLayer>,
-    pub collisions: Vec<Option<CellCollisionShape>>,
+    // This holds an Option<()> rather than a bool so that I could maybe have different
+    // types of collisions later. Or maybe it's pointless.
+    pub collisions: Vec<Option<()>>,
 
     // The LDtk level is only stored here for now for convenience during development.
     // Game should rely entirely on internal Map representation generated from LDtk json.
+    pub level: Level,
+}
+
+impl Map {
     // I'm thinking a single Map can be made from one or more levels. For example, a
     // small room will be made of a single level in an "indoors" world, a large floor
     // of a building could be made of several levels in the "indoors" world, and a
     // very large map such as the "overworld" or "sewers" could be made of an entire
     // world of many levels.
-    pub level: Level,
-}
+    //
+    // Create like this?:
+    // pub fn from_ldtk_level(level: &Level) -> Self {...}
+    // pub fn from_multiple_ldtk_levels(levels: &[Level]) -> Self {...}
+    // pub fn from_ldtk_world(world: &World) -> Self {...}
 
-impl Map {
     pub fn new(level: &Level) -> Self {
         let width_in_cells = (level.px_wid / 16) as i32;
         let height_in_cells = (level.px_hei / 16) as i32;
@@ -117,7 +113,7 @@ impl Map {
             })
         }
 
-        let collision_map: Vec<Option<CellCollisionShape>> = level
+        let collisions = level
             .layer_instances
             .as_ref()
             .unwrap()
@@ -127,15 +123,7 @@ impl Map {
             .int_grid_csv
             .iter()
             .map(|v| match v {
-                1 => Some(CellCollisionShape::Full),
-                2 => Some(CellCollisionShape::Top),
-                3 => Some(CellCollisionShape::Bottom),
-                4 => Some(CellCollisionShape::Left),
-                5 => Some(CellCollisionShape::Right),
-                6 => Some(CellCollisionShape::TopLeft),
-                7 => Some(CellCollisionShape::TopRight),
-                8 => Some(CellCollisionShape::BottomLeft),
-                9 => Some(CellCollisionShape::BottomRight),
+                1 => Some(()),
                 _ => None,
             })
             .collect();
@@ -144,72 +132,68 @@ impl Map {
             width_in_cells,
             height_in_cells,
             tile_layers,
-            collisions: collision_map,
+            collisions,
             level: level.clone(),
         }
     }
 
-    pub fn get_cell_collision_aabb(&self, cellpos: CellPos) -> Option<AABB> {
-        self.collisions
-            .get((cellpos.y * self.width_in_cells + cellpos.x) as usize)
-            .and_then(|o| {
-                o.as_ref().map(|shape| match shape {
-                    CellCollisionShape::Full => AABB {
-                        top: cellpos.y as f64,
-                        bottom: cellpos.y as f64 + 1.,
-                        left: cellpos.x as f64,
-                        right: cellpos.x as f64 + 1.,
-                    },
-                    CellCollisionShape::Top => AABB {
-                        top: cellpos.y as f64,
-                        bottom: cellpos.y as f64 + 0.5,
-                        left: cellpos.x as f64,
-                        right: cellpos.x as f64 + 1.,
-                    },
-                    CellCollisionShape::Bottom => AABB {
-                        top: cellpos.y as f64 + 0.5,
-                        bottom: cellpos.y as f64 + 1.,
-                        left: cellpos.x as f64,
-                        right: cellpos.x as f64 + 1.,
-                    },
-                    CellCollisionShape::Left => AABB {
-                        top: cellpos.y as f64,
-                        bottom: cellpos.y as f64 + 1.,
-                        left: cellpos.x as f64,
-                        right: cellpos.x as f64 + 0.5,
-                    },
-                    CellCollisionShape::Right => AABB {
-                        top: cellpos.y as f64,
-                        bottom: cellpos.y as f64 + 1.,
-                        left: cellpos.x as f64 + 0.5,
-                        right: cellpos.x as f64 + 1.,
-                    },
-                    CellCollisionShape::TopLeft => AABB {
-                        top: cellpos.y as f64,
-                        bottom: cellpos.y as f64 + 0.5,
-                        left: cellpos.x as f64,
-                        right: cellpos.x as f64 + 0.5,
-                    },
-                    CellCollisionShape::TopRight => AABB {
-                        top: cellpos.y as f64,
-                        bottom: cellpos.y as f64 + 0.5,
-                        left: cellpos.x as f64 + 0.5,
-                        right: cellpos.x as f64 + 1.,
-                    },
-                    CellCollisionShape::BottomLeft => AABB {
-                        top: cellpos.y as f64 + 0.5,
-                        bottom: cellpos.y as f64 + 1.,
-                        left: cellpos.x as f64,
-                        right: cellpos.x as f64 + 0.5,
-                    },
-                    CellCollisionShape::BottomRight => AABB {
-                        top: cellpos.y as f64 + 0.5,
-                        bottom: cellpos.y as f64 + 1.,
-                        left: cellpos.x as f64 + 0.5,
-                        right: cellpos.x as f64 + 1.,
-                    },
+    pub fn get_collision_aabbs_for_cellpos(&self, cellpos: CellPos) -> [Option<AABB>; 4] {
+        let top_left = self
+            .collisions
+            .get((cellpos.y * 2 * self.width_in_cells * 2 + cellpos.x * 2) as usize)
+            .unwrap()
+            .and_then(|_| {
+                Some(AABB {
+                    top: cellpos.y as f64,
+                    bottom: cellpos.y as f64 + 0.5,
+                    left: cellpos.x as f64,
+                    right: cellpos.x as f64 + 0.5,
                 })
-            })
+            });
+
+        let top_right = self
+            .collisions
+            .get((cellpos.y * 2 * self.width_in_cells * 2 + cellpos.x * 2 + 1) as usize)
+            .unwrap()
+            .and_then(|_| {
+                Some(AABB {
+                    top: cellpos.y as f64,
+                    bottom: cellpos.y as f64 + 0.5,
+                    left: cellpos.x as f64 + 0.5,
+                    right: cellpos.x as f64 + 1.,
+                })
+            });
+
+        let bottom_left = self
+            .collisions
+            .get(((cellpos.y * 2 + 1) * self.width_in_cells * 2 + cellpos.x * 2) as usize)
+            .unwrap()
+            .and_then(|_| {
+                Some(AABB {
+                    top: cellpos.y as f64 + 0.5,
+                    bottom: cellpos.y as f64 + 1.,
+                    left: cellpos.x as f64,
+                    right: cellpos.x as f64 + 0.5,
+                })
+            });
+
+        let bottom_right = self
+            .collisions
+            .get(
+                ((cellpos.y * 2 + 1) * self.width_in_cells * 2 + cellpos.x * 2 + 1)
+                    as usize,
+            )
+            .unwrap()
+            .and_then(|_| {
+                Some(AABB {
+                    top: cellpos.y as f64 + 0.5,
+                    bottom: cellpos.y as f64 + 1.,
+                    left: cellpos.x as f64 + 0.5,
+                    right: cellpos.x as f64 + 1.,
+                })
+            });
+
+        [top_left, top_right, bottom_left, bottom_right]
     }
 }
 

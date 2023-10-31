@@ -515,6 +515,10 @@ fn update_walking_entities(
                     AABB::from_pos_and_hitbox(new_position, collision.hitbox_dimensions);
 
                 // Resolve collisions with the 9 cells centered around new position
+                // (Currently, we get the 9 cells around the position, and then we get
+                // the 4 optional collision AABBs for the 4 corners of each of those
+                // cells. It got this way iteratively and could probably
+                // be reworked much simpler?)
                 let new_cellpos = new_position.as_cellpos();
                 let cellposes_to_check = [
                     CellPos::new(new_cellpos.x - 1, new_cellpos.y - 1),
@@ -527,17 +531,18 @@ fn update_walking_entities(
                     CellPos::new(new_cellpos.x, new_cellpos.y + 1),
                     CellPos::new(new_cellpos.x + 1, new_cellpos.y + 1),
                 ];
-                for cellpos in cellposes_to_check {
-                    if let Some(cell_aabb) = map.get_cell_collision_aabb(cellpos) {
-                        new_aabb.resolve_collision(&old_aabb, &cell_aabb);
-                    }
+                for cell_aabb in cellposes_to_check
+                    .iter()
+                    .flat_map(|cp| map.get_collision_aabbs_for_cellpos(*cp))
+                    .flatten()
+                {
+                    new_aabb.resolve_collision(&old_aabb, &cell_aabb);
                 }
 
                 // We need iter_combinations. Nested queries are impossible with
                 // Mutex<Map<Component>>, which is how the ECS should eventually look.
                 // Nested queries are only possible right now because the individual
-                // components are in RefCells instead in order to support
-                // them
+                // components are in RefCells instead in order to support them
 
                 // Resolve collisions with all solid entities except this one
                 for (other_pos, other_coll, other_scripts) in
