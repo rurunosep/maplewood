@@ -37,7 +37,8 @@ pub struct ScriptInstanceManager {
 
 impl ScriptInstanceManager {
     pub fn start_script(&mut self, script: &ScriptClass) {
-        self.script_instances.insert_with_key(|id| ScriptInstance::new(script.clone(), id));
+        self.script_instances
+            .insert_with_key(|id| ScriptInstance::new(script.clone(), id));
     }
 }
 
@@ -97,7 +98,8 @@ pub struct ScriptClass {
     pub trigger: ScriptTrigger,
     pub start_condition: Option<ScriptCondition>,
     pub abort_condition: Option<ScriptCondition>,
-    pub name: Option<String>, // the source file name and subscript label for debug purposes
+    pub name: Option<String>, /* the source file name and subscript label for debug
+                               * purposes */
 }
 
 pub struct ScriptInstance {
@@ -210,7 +212,9 @@ impl ScriptInstance {
         if match self.wait_condition.clone() {
             Some(WaitCondition::Time(until)) => until > Instant::now(),
             Some(WaitCondition::Message) => message_window.is_some(),
-            Some(WaitCondition::StoryVar(key, val)) => *story_vars.get(&key).unwrap() != val,
+            Some(WaitCondition::StoryVar(key, val)) => {
+                *story_vars.get(&key).unwrap() != val
+            }
             None => false,
         } {
             return;
@@ -218,10 +222,10 @@ impl ScriptInstance {
 
         self.wait_condition = None;
 
-        // Wrap mut refs that are used by multiple callbacks in RefCells to copy into closures.
-        // Illegal borrow panics should never occur since Rust callbacks should never really
-        // need to call back into Lua, let alone call another Rust callback, let alone one that
-        // borrows the same refs.
+        // Wrap mut refs that are used by multiple callbacks in RefCells to copy into
+        // closures. Illegal borrow panics should never occur since Rust callbacks
+        // should never really need to call back into Lua, let alone call another
+        // Rust callback, let alone one that borrows the same refs.
         let story_vars = RefCell::new(story_vars);
         let ecs = RefCell::new(ecs);
         let message_window = RefCell::new(message_window);
@@ -237,17 +241,21 @@ impl ScriptInstance {
                     let wrap_yielding: Function = globals.get("wrap_yielding").unwrap();
                     globals.set("input", self.input)?;
 
-                    // Every function that references Rust data must be recreated in this scope
-                    // each time we execute some of the script, to ensure that the references
-                    // in the closure remain valid
+                    // Every function that references Rust data must be recreated in this
+                    // scope each time we execute some of the script,
+                    // to ensure that the references in the closure
+                    // remain valid
 
-                    // Non-trivial functions are defined elsewhere and called by the closure
-                    // with all closed variables passed as arguments
-                    // Can I automate this with a macro or something?
+                    // Non-trivial functions are defined elsewhere and called by the
+                    // closure with all closed variables passed as
+                    // arguments Can I automate this with a macro or
+                    // something?
 
                     globals.set(
                         "get",
-                        scope.create_function(|_, args| cb_get(args, *story_vars.borrow()))?,
+                        scope.create_function(|_, args| {
+                            cb_get(args, *story_vars.borrow())
+                        })?,
                     )?;
                     globals.set(
                         "set",
@@ -299,8 +307,9 @@ impl ScriptInstance {
                     )?;
                     globals.set(
                         "walk",
-                        scope
-                            .create_function_mut(|_, args| cb_walk(args, *ecs.borrow_mut()))?,
+                        scope.create_function_mut(|_, args| {
+                            cb_walk(args, *ecs.borrow_mut())
+                        })?,
                     )?;
                     globals.set(
                         "walk_to",
@@ -351,11 +360,14 @@ impl ScriptInstance {
                     )?;
                     globals.set(
                         "play_sfx",
-                        scope.create_function(|_, args| cb_play_sfx(args, sound_effects))?,
+                        scope.create_function(|_, args| {
+                            cb_play_sfx(args, sound_effects)
+                        })?,
                     )?;
                     globals.set(
                         "play_music",
-                        scope.create_function_mut(|_, args| cb_play_music(args, musics))?,
+                        scope
+                            .create_function_mut(|_, args| cb_play_music(args, musics))?,
                     )?;
                     globals.set(
                         "stop_music",
@@ -446,9 +458,11 @@ impl ScriptInstance {
                         "wait",
                         wrap_yielding.call::<_, Function>(scope.create_function_mut(
                             |_, duration: f64| {
-                                **wait_condition.borrow_mut() = Some(WaitCondition::Time(
-                                    Instant::now() + Duration::from_secs_f64(duration),
-                                ));
+                                **wait_condition.borrow_mut() =
+                                    Some(WaitCondition::Time(
+                                        Instant::now()
+                                            + Duration::from_secs_f64(duration),
+                                    ));
                                 Ok(())
                             },
                         )?)?,
@@ -465,7 +479,8 @@ impl ScriptInstance {
                         )?)?,
                     )?;
 
-                    // Get saved thread out of globals and execute until script yields or ends
+                    // Get saved thread out of globals and execute until script yields or
+                    // ends
                     let thread = globals.get::<_, Thread>("thread")?;
                     thread.resume::<_, _>(())?;
                     match thread.status() {
@@ -479,8 +494,8 @@ impl ScriptInstance {
                 })
             })
             // Currently panics if any error is ever encountered in a lua script
-            // Eventually we probably want to handle it differently depending on the error and
-            // the circumstances
+            // Eventually we probably want to handle it differently depending on the error
+            // and the circumstances
             .unwrap_or_else(|err| {
                 panic!(
                     "lua error:\n{err}\nsource: {:?}\n",
@@ -524,7 +539,10 @@ fn cb_get(key: String, story_vars: &HashMap<String, i32>) -> LuaResult<i32> {
     Ok(val)
 }
 
-fn cb_set((key, val): (String, i32), story_vars: &mut HashMap<String, i32>) -> LuaResult<()> {
+fn cb_set(
+    (key, val): (String, i32),
+    story_vars: &mut HashMap<String, i32>,
+) -> LuaResult<()> {
     story_vars.insert(key, val);
     Ok(())
 }
@@ -541,8 +559,8 @@ fn cb_get_entity_position(entity: String, ecs: &Ecs) -> LuaResult<(f64, f64)> {
 //     tilemap: &mut Array2D<Cell>,
 // ) -> LuaResult<()> {
 //     let new_tile = if id == -1 { None } else { Some(id as u32) };
-//     if let Some(Cell { tile_1, tile_2, .. }) = tilemap.get_mut(y as usize, x as usize) {
-//         if layer == 1 {
+//     if let Some(Cell { tile_1, tile_2, .. }) = tilemap.get_mut(y as usize, x as usize)
+// {         if layer == 1 {
 //             *tile_1 = new_tile;
 //         } else if layer == 2 {
 //             *tile_2 = new_tile;
@@ -570,13 +588,17 @@ fn cb_lock_player_input(
     *player_movement_locked = true;
     // End current player movement
     // There's no way to tell if it's from input or other
-    // It might be better to set speed to 0 at end of each update (if movement is not being
-    // forced) and then set it again in input processing as long as key is still held
+    // It might be better to set speed to 0 at end of each update (if movement is not
+    // being forced) and then set it again in input processing as long as key is still
+    // held
     ecs.query_one_by_id::<&mut Walking>(player_id).unwrap().speed = 0.;
     Ok(())
 }
 
-fn cb_set_entity_solid((entity, enabled): (String, bool), ecs: &mut Ecs) -> LuaResult<()> {
+fn cb_set_entity_solid(
+    (entity, enabled): (String, bool),
+    ecs: &mut Ecs,
+) -> LuaResult<()> {
     let mut collision = ecs
         .query_one_by_label::<&mut Collision>(&entity)
         .ok_or(ScriptError::InvalidEntity(entity))?;
@@ -641,7 +663,10 @@ fn cb_walk_to(
     Ok(())
 }
 
-fn cb_set_entity_position((entity, x, y): (String, f64, f64), ecs: &mut Ecs) -> LuaResult<()> {
+fn cb_set_entity_position(
+    (entity, x, y): (String, f64, f64),
+    ecs: &mut Ecs,
+) -> LuaResult<()> {
     let mut position = ecs
         .query_one_by_label::<&mut Position>(&entity)
         .ok_or(ScriptError::InvalidEntity(entity))?;
@@ -757,8 +782,10 @@ fn cb_set_forced_sprite(
     let mut sprite_component = ecs
         .query_one_by_label::<&mut SpriteComponent>(&entity)
         .ok_or(ScriptError::InvalidEntity(entity))?;
-    sprite_component.forced_sprite =
-        Some(Sprite { spritesheet_name, rect: Rect::new(rect_x, rect_y, rect_w, rect_h) });
+    sprite_component.forced_sprite = Some(Sprite {
+        spritesheet_name,
+        rect: Rect::new(rect_x, rect_y, rect_w, rect_h),
+    });
     Ok(())
 }
 
@@ -783,8 +810,11 @@ fn cb_message(
     wait_condition: &mut Option<WaitCondition>,
     script_id: ScriptId,
 ) -> LuaResult<()> {
-    *message_window =
-        Some(MessageWindow { message, is_selection: false, waiting_script_id: script_id });
+    *message_window = Some(MessageWindow {
+        message,
+        is_selection: false,
+        waiting_script_id: script_id,
+    });
     *wait_condition = Some(WaitCondition::Message);
     Ok(())
 }

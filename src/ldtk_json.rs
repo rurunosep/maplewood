@@ -7,14 +7,14 @@ use serde::{Deserialize, Serialize};
 /// This file is a JSON schema of files created by LDtk level editor (https://ldtk.io).
 ///
 /// This is the root of any Project JSON file. It contains:  - the project settings, - an
-/// array of levels, - a group of definitions (that can probably be safely ignored for most
-/// users).
+/// array of levels, - a group of definitions (that can probably be safely ignored for
+/// most users).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Project {
-    /// This object is not actually used by LDtk. It ONLY exists to force explicit references
-    /// to all types, to make sure QuickType finds them and integrate all of them.
-    /// Otherwise, Quicktype will drop types that are not explicitely used.
+    /// This object is not actually used by LDtk. It ONLY exists to force explicit
+    /// references to all types, to make sure QuickType finds them and integrate all
+    /// of them. Otherwise, Quicktype will drop types that are not explicitely used.
     #[serde(rename = "__FORCED_REFS")]
     pub forced_refs: Option<ForcedRefs>,
 
@@ -24,8 +24,8 @@ pub struct Project {
     /// A structure containing all the definitions of this project
     pub defs: Definitions,
 
-    /// If TRUE, one file will be saved for the project (incl. all its definitions) and one
-    /// file in a sub-folder for each level.
+    /// If TRUE, one file will be saved for the project (incl. all its definitions) and
+    /// one file in a sub-folder for each level.
     pub external_levels: bool,
 
     /// Unique project identifier
@@ -35,12 +35,12 @@ pub struct Project {
     pub json_version: String,
 
     /// All levels. The order of this array is only relevant in `LinearHorizontal` and
-    /// `linearVertical` world layouts (see `worldLayout` value).<br/>  Otherwise, you should
-    /// refer to the `worldX`,`worldY` coordinates of each Level.
+    /// `linearVertical` world layouts (see `worldLayout` value).<br/>  Otherwise, you
+    /// should refer to the `worldX`,`worldY` coordinates of each Level.
     pub levels: Vec<Level>,
 
-    /// All instances of entities that have their `exportToToc` flag enabled are listed in
-    /// this array.
+    /// All instances of entities that have their `exportToToc` flag enabled are listed
+    /// in this array.
     pub toc: Vec<LdtkTableOfContentEntry>,
 
     /// **WARNING**: this field will move to the `worlds` array after the "multi-worlds"
@@ -59,28 +59,28 @@ pub struct Project {
     /// update. It will then be `null`. You can enable the Multi-worlds advanced project
     /// option to enable the change immediately.<br/><br/>  An enum that describes how
     /// levels are organized in this project (ie. linearly or in a 2D space). Possible
-    /// values: &lt;`null`&gt;, `Free`, `GridVania`, `LinearHorizontal`, `LinearVertical`,
-    /// `null`
+    /// values: &lt;`null`&gt;, `Free`, `GridVania`, `LinearHorizontal`,
+    /// `LinearVertical`, `null`
     pub world_layout: Option<WorldLayout>,
 
-    /// This array will be empty, unless you enable the Multi-Worlds in the project advanced
-    /// settings.<br/><br/> - in current version, a LDtk project file can only contain a
-    /// single world with multiple levels in it. In this case, levels and world layout
-    /// related settings are stored in the root of the JSON.<br/> - with "Multi-worlds"
-    /// enabled, there will be a `worlds` array in root, each world containing levels and
-    /// layout settings. Basically, it's pretty much only about moving the `levels` array
-    /// to the `worlds` array, along with world layout related values (eg.
-    /// `worldGridWidth` etc).<br/><br/>If you want to start supporting this future update
-    /// easily, please refer to this documentation: https://github.com/deepnight/ldtk/issues/231
+    /// This array will be empty, unless you enable the Multi-Worlds in the project
+    /// advanced settings.<br/><br/> - in current version, a LDtk project file can
+    /// only contain a single world with multiple levels in it. In this case, levels
+    /// and world layout related settings are stored in the root of the JSON.<br/> -
+    /// with "Multi-worlds" enabled, there will be a `worlds` array in root, each
+    /// world containing levels and layout settings. Basically, it's pretty much only
+    /// about moving the `levels` array to the `worlds` array, along with world
+    /// layout related values (eg. `worldGridWidth` etc).<br/><br/>If you want to
+    /// start supporting this future update easily, please refer to this documentation: https://github.com/deepnight/ldtk/issues/231
     pub worlds: Vec<World>,
 }
 
-/// If you're writing your own LDtk importer, you should probably just ignore *most* stuff in
-/// the `defs` section, as it contains data that are mostly important to the editor. To keep
-/// you away from the `defs` section and avoid some unnecessary JSON parsing, important data
-/// from definitions is often duplicated in fields prefixed with a double underscore (eg.
-/// `__identifier` or `__type`).  The 2 only definition types you might need here are
-/// **Tilesets** and **Enums**.
+/// If you're writing your own LDtk importer, you should probably just ignore *most* stuff
+/// in the `defs` section, as it contains data that are mostly important to the editor. To
+/// keep you away from the `defs` section and avoid some unnecessary JSON parsing,
+/// important data from definitions is often duplicated in fields prefixed with a double
+/// underscore (eg. `__identifier` or `__type`).  The 2 only definition types you might
+/// need here are **Tilesets** and **Enums**.
 ///
 /// A structure containing all the definitions of this project
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -92,8 +92,8 @@ pub struct Definitions {
     /// All internal enums
     pub enums: Vec<EnumDefinition>,
 
-    /// Note: external enums are exactly the same as `enums`, except they have a `relPath` to
-    /// point to an external source file.
+    /// Note: external enums are exactly the same as `enums`, except they have a
+    /// `relPath` to point to an external source file.
     pub external_enums: Vec<EnumDefinition>,
 
     /// All layer definitions
@@ -118,9 +118,9 @@ pub struct EntityDefinition {
     /// User defined unique identifier
     pub identifier: String,
 
-    /// An array of 4 dimensions for the up/right/down/left borders (in this order) when using
-    /// 9-slice mode for `tileRenderMode`.<br/>  If the tileRenderMode is not NineSlice, then
-    /// this array is empty.<br/>  See: https://en.wikipedia.org/wiki/9-slice_scaling
+    /// An array of 4 dimensions for the up/right/down/left borders (in this order) when
+    /// using 9-slice mode for `tileRenderMode`.<br/>  If the tileRenderMode is not
+    /// NineSlice, then this array is empty.<br/>  See: https://en.wikipedia.org/wiki/9-slice_scaling
     pub nine_slice_borders: Vec<i64>,
 
     /// Pivot X coordinate (from 0 to 1.0)
@@ -170,8 +170,8 @@ pub struct TilesetRectangle {
     pub y: i64,
 }
 
-/// An enum describing how the the Entity tile is rendered inside the Entity bounds. Possible
-/// values: `Cover`, `FitInside`, `Repeat`, `Stretch`, `FullSizeCropped`,
+/// An enum describing how the the Entity tile is rendered inside the Entity bounds.
+/// Possible values: `Cover`, `FitInside`, `Repeat`, `Stretch`, `FullSizeCropped`,
 /// `FullSizeUncropped`, `NineSlice`
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum TileRenderMode {
@@ -247,20 +247,20 @@ pub struct LayerDefinition {
     /// User defined unique identifier
     pub identifier: String,
 
-    /// An array that defines extra optional info for each IntGrid value.<br/>  WARNING: the
-    /// array order is not related to actual IntGrid values! As user can re-order IntGrid
-    /// values freely, you may value "2" before value "1" in this array.
+    /// An array that defines extra optional info for each IntGrid value.<br/>  WARNING:
+    /// the array order is not related to actual IntGrid values! As user can re-order
+    /// IntGrid values freely, you may value "2" before value "1" in this array.
     pub int_grid_values: Vec<IntGridValueDefinition>,
 
     /// Group informations for IntGrid values
     pub int_grid_values_groups: Vec<IntGridValueGroupDefinition>,
 
-    /// Parallax horizontal factor (from -1 to 1, defaults to 0) which affects the scrolling
-    /// speed of this layer, creating a fake 3D (parallax) effect.
+    /// Parallax horizontal factor (from -1 to 1, defaults to 0) which affects the
+    /// scrolling speed of this layer, creating a fake 3D (parallax) effect.
     pub parallax_factor_x: f64,
 
-    /// Parallax vertical factor (from -1 to 1, defaults to 0) which affects the scrolling
-    /// speed of this layer, creating a fake 3D (parallax) effect.
+    /// Parallax vertical factor (from -1 to 1, defaults to 0) which affects the
+    /// scrolling speed of this layer, creating a fake 3D (parallax) effect.
     pub parallax_factor_y: f64,
 
     /// If true (default), a layer with a parallax factor will also be scaled up/down
@@ -323,8 +323,8 @@ pub struct IntGridValueGroupDefinition {
 pub struct FieldDefinition {}
 
 /// The `Tileset` definition is the most important part among project definitions. It
-/// contains some extra informations about each integrated tileset. If you only had to parse
-/// one definition section, that would be the one.
+/// contains some extra informations about each integrated tileset. If you only had to
+/// parse one definition section, that would be the one.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TilesetDefinition {
@@ -339,13 +339,14 @@ pub struct TilesetDefinition {
     /// An array of custom tile metadata
     pub custom_data: Vec<TileCustomMetadata>,
 
-    /// If this value is set, then it means that this atlas uses an internal LDtk atlas image
-    /// instead of a loaded one. Possible values: &lt;`null`&gt;, `LdtkIcons`, `null`
+    /// If this value is set, then it means that this atlas uses an internal LDtk atlas
+    /// image instead of a loaded one. Possible values: &lt;`null`&gt;, `LdtkIcons`,
+    /// `null`
     pub embed_atlas: Option<EmbedAtlas>,
 
-    /// Tileset tags using Enum values specified by `tagsSourceEnumId`. This array contains 1
-    /// element per Enum value, which contains an array of all Tile IDs that are tagged with
-    /// it.
+    /// Tileset tags using Enum values specified by `tagsSourceEnumId`. This array
+    /// contains 1 element per Enum value, which contains an array of all Tile IDs
+    /// that are tagged with it.
     pub enum_tags: Vec<EnumTagValue>,
 
     /// User defined unique identifier
@@ -360,8 +361,8 @@ pub struct TilesetDefinition {
     /// Image width in pixels
     pub px_wid: i64,
 
-    /// Path to the source file, relative to the current project JSON file<br/>  It can be
-    /// null if no image was provided, or when using an embed atlas.
+    /// Path to the source file, relative to the current project JSON file<br/>  It can
+    /// be null if no image was provided, or when using an embed atlas.
     pub rel_path: Option<String>,
 
     /// Space in pixels between all tiles
@@ -403,8 +404,8 @@ pub struct EnumTagValue {
     pub tile_ids: Vec<i64>,
 }
 
-/// This object is not actually used by LDtk. It ONLY exists to force explicit references to
-/// all types, to make sure QuickType finds them and integrate all of them. Otherwise,
+/// This object is not actually used by LDtk. It ONLY exists to force explicit references
+/// to all types, to make sure QuickType finds them and integrate all of them. Otherwise,
 /// Quicktype will drop types that are not explicitely used.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
@@ -556,15 +557,15 @@ pub struct EntityInstance {
     /// An array of all custom fields and their values.
     pub field_instances: Vec<FieldInstance>,
 
-    /// Entity height in pixels. For non-resizable entities, it will be the same as Entity
-    /// definition.
+    /// Entity height in pixels. For non-resizable entities, it will be the same as
+    /// Entity definition.
     pub height: i64,
 
     /// Unique instance identifier
     pub iid: String,
 
-    /// Pixel coordinates (`[x,y]` format) in current level coordinate space. Don't forget
-    /// optional layer offsets, if they exist!
+    /// Pixel coordinates (`[x,y]` format) in current level coordinate space. Don't
+    /// forget optional layer offsets, if they exist!
     pub px: Vec<i64>,
 
     /// Entity width in pixels. For non-resizable entities, it will be the same as Entity
@@ -579,26 +580,29 @@ pub struct FieldInstance {
     #[serde(rename = "__identifier")]
     pub identifier: String,
 
-    /// Optional TilesetRect used to display this field (this can be the field own Tile, or
-    /// some other Tile guessed from the value, like an Enum).
+    /// Optional TilesetRect used to display this field (this can be the field own Tile,
+    /// or some other Tile guessed from the value, like an Enum).
     #[serde(rename = "__tile")]
     pub tile: Option<TilesetRectangle>,
 
-    /// Type of the field, such as `Int`, `Float`, `String`, `Enum(my_enum_name)`, `Bool`,
-    /// etc.<br/>  NOTE: if you enable the advanced option **Use Multilines type**, you will
-    /// have "*Multilines*" instead of "*String*" when relevant.
+    /// Type of the field, such as `Int`, `Float`, `String`, `Enum(my_enum_name)`,
+    /// `Bool`, etc.<br/>  NOTE: if you enable the advanced option **Use Multilines
+    /// type**, you will have "*Multilines*" instead of "*String*" when relevant.
     #[serde(rename = "__type")]
     pub field_instance_type: String,
 
-    /// Actual value of the field instance. The value type varies, depending on `__type`:<br/>
-    /// - For **classic types** (ie. Integer, Float, Boolean, String, Text and FilePath), you
-    /// just get the actual value with the expected type.<br/>   - For **Color**, the value is
-    /// an hexadecimal string using "#rrggbb" format.<br/>   - For **Enum**, the value is
-    /// a String representing the selected enum value.<br/>   - For **Point**, the value
-    /// is a [GridPoint](#ldtk-GridPoint) object.<br/>   - For **Tile**, the value is a
-    /// [TilesetRect](#ldtk-TilesetRect) object.<br/>   - For **EntityRef**, the value is an
-    /// [EntityReferenceInfos](#ldtk-EntityReferenceInfos) object.<br/><br/>  If the field is
-    /// an array, then this `__value` will also be a JSON array.
+    /// Actual value of the field instance. The value type varies, depending on
+    /// `__type`:<br/>
+    /// - For **classic types** (ie. Integer, Float, Boolean, String, Text and FilePath),
+    ///   you
+    /// just get the actual value with the expected type.<br/>   - For **Color**, the
+    /// value is an hexadecimal string using "#rrggbb" format.<br/>   - For **Enum**,
+    /// the value is a String representing the selected enum value.<br/>   - For
+    /// **Point**, the value is a [GridPoint](#ldtk-GridPoint) object.<br/>   - For
+    /// **Tile**, the value is a [TilesetRect](#ldtk-TilesetRect) object.<br/>   -
+    /// For **EntityRef**, the value is an [EntityReferenceInfos](#
+    /// ldtk-EntityReferenceInfos) object.<br/><br/>  If the field is an array, then
+    /// this `__value` will also be a JSON array.
     #[serde(rename = "__value")]
     pub value: Option<serde_json::Value>,
 
@@ -701,9 +705,9 @@ pub struct LayerInstance {
     pub iid: String,
 
     /// A list of all values in the IntGrid layer, stored in CSV format (Comma Separated
-    /// Values).<br/>  Order is from left to right, and top to bottom (ie. first row from left
-    /// to right, followed by second row, etc).<br/>  `0` means "empty cell" and IntGrid
-    /// values start at 1.<br/>  The array size is `__cWid` x `__cHei` cells.
+    /// Values).<br/>  Order is from left to right, and top to bottom (ie. first row from
+    /// left to right, followed by second row, etc).<br/>  `0` means "empty cell" and
+    /// IntGrid values start at 1.<br/>  The array size is `__cWid` x `__cHei` cells.
     pub int_grid_csv: Vec<i64>,
 
     /// Reference the Layer definition UID
@@ -715,14 +719,14 @@ pub struct LayerInstance {
     /// This layer can use another tileset by overriding the tileset UID here.
     pub override_tileset_uid: Option<i64>,
 
-    /// X offset in pixels to render this layer, usually 0 (IMPORTANT: this should be added to
-    /// the `LayerDef` optional offset, so you should probably prefer using `__pxTotalOffsetX`
-    /// which contains the total offset value)
+    /// X offset in pixels to render this layer, usually 0 (IMPORTANT: this should be
+    /// added to the `LayerDef` optional offset, so you should probably prefer using
+    /// `__pxTotalOffsetX` which contains the total offset value)
     pub px_offset_x: i64,
 
-    /// Y offset in pixels to render this layer, usually 0 (IMPORTANT: this should be added to
-    /// the `LayerDef` optional offset, so you should probably prefer using `__pxTotalOffsetX`
-    /// which contains the total offset value)
+    /// Y offset in pixels to render this layer, usually 0 (IMPORTANT: this should be
+    /// added to the `LayerDef` optional offset, so you should probably prefer using
+    /// `__pxTotalOffsetX` which contains the total offset value)
     pub px_offset_y: i64,
 
     /// Layer instance visibility
@@ -737,12 +741,13 @@ pub struct TileInstance {
 
     /// "Flip bits", a 2-bits integer to represent the mirror transformations of the
     /// tile.<br/>
-    /// - Bit 0 = X flip<br/>   - Bit 1 = Y flip<br/>   Examples: f=0 (no flip), f=1 (X flip
+    /// - Bit 0 = X flip<br/>   - Bit 1 = Y flip<br/>   Examples: f=0 (no flip), f=1 (X
+    ///   flip
     /// only), f=2 (Y flip only), f=3 (both flips)
     pub f: i64,
 
-    /// Pixel coordinates of the tile in the **layer** (`[x,y]` format). Don't forget optional
-    /// layer offsets, if they exist!
+    /// Pixel coordinates of the tile in the **layer** (`[x,y]` format). Don't forget
+    /// optional layer offsets, if they exist!
     pub px: Vec<i64>,
 
     /// Pixel coordinates of the tile in the **tileset** (`[x,y]` format)
@@ -752,14 +757,14 @@ pub struct TileInstance {
     pub t: i64,
 }
 
-/// This section contains all the level data. It can be found in 2 distinct forms, depending
-/// on Project current settings:  - If "*Separate level files*" is **disabled** (default):
-/// full level data is *embedded* inside the main Project JSON file, - If "*Separate level
-/// files*" is **enabled**: level data is stored in *separate* standalone `.ldtkl` files (one
-/// per level). In this case, the main Project JSON file will still contain most level data,
-/// except heavy sections, like the `layerInstances` array (which will be null). The
-/// `externalRelPath` string points to the `ldtkl` file.  A `ldtkl` file is just a JSON file
-/// containing exactly what is described below.
+/// This section contains all the level data. It can be found in 2 distinct forms,
+/// depending on Project current settings:  - If "*Separate level files*" is **disabled**
+/// (default): full level data is *embedded* inside the main Project JSON file, - If
+/// "*Separate level files*" is **enabled**: level data is stored in *separate* standalone
+/// `.ldtkl` files (one per level). In this case, the main Project JSON file will still
+/// contain most level data, except heavy sections, like the `layerInstances` array (which
+/// will be null). The `externalRelPath` string points to the `ldtkl` file.  A `ldtkl`
+/// file is just a JSON file containing exactly what is described below.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Level {
@@ -772,19 +777,19 @@ pub struct Level {
     #[serde(rename = "__bgPos")]
     pub bg_pos: Option<LevelBackgroundPosition>,
 
-    /// An array listing all other levels touching this one on the world map. Since 1.4.0,
-    /// this includes levels that overlap in the same world layer, or in nearby world
-    /// layers.<br/> Only relevant for world layouts where level spatial positioning is
-    /// manual (ie. GridVania, Free). For Horizontal and Vertical layouts, this array is
-    /// always empty.
+    /// An array listing all other levels touching this one on the world map. Since
+    /// 1.4.0, this includes levels that overlap in the same world layer, or in
+    /// nearby world layers.<br/> Only relevant for world layouts where level spatial
+    /// positioning is manual (ie. GridVania, Free). For Horizontal and Vertical
+    /// layouts, this array is always empty.
     #[serde(rename = "__neighbours")]
     pub neighbours: Vec<NeighbourLevel>,
 
     /// The *optional* relative path to the level background image.
     pub bg_rel_path: Option<String>,
 
-    /// This value is not null if the project option "*Save levels separately*" is enabled. In
-    /// this case, this **relative** path points to the level Json file.
+    /// This value is not null if the project option "*Save levels separately*" is
+    /// enabled. In this case, this **relative** path points to the level Json file.
     pub external_rel_path: Option<String>,
 
     /// An array containing this level custom field values.
@@ -796,9 +801,10 @@ pub struct Level {
     /// Unique instance identifier
     pub iid: String,
 
-    /// An array containing all Layer instances. **IMPORTANT**: if the project option "*Save
-    /// levels separately*" is enabled, this field will be `null`.<br/>  This array is
-    /// **sorted in display order**: the 1st layer is the top-most and the last is behind.
+    /// An array containing all Layer instances. **IMPORTANT**: if the project option
+    /// "*Save levels separately*" is enabled, this field will be `null`.<br/>  This
+    /// array is **sorted in display order**: the 1st layer is the top-most and the
+    /// last is behind.
     pub layer_instances: Option<Vec<LayerInstance>>,
 
     /// Height of the level in pixels
@@ -810,9 +816,9 @@ pub struct Level {
     /// Unique Int identifier
     pub uid: i64,
 
-    /// Index that represents the "depth" of the level in the world. Default is 0, greater
-    /// means "above", lower means "below".<br/>  This value is mostly used for display
-    /// only and is intended to make stacking of levels easier to manage.
+    /// Index that represents the "depth" of the level in the world. Default is 0,
+    /// greater means "above", lower means "below".<br/>  This value is mostly used
+    /// for display only and is intended to make stacking of levels easier to manage.
     pub world_depth: i64,
 
     /// World X coordinate in pixels.<br/>  Only relevant for world layouts where level
@@ -831,12 +837,12 @@ pub struct Level {
 #[serde(rename_all = "camelCase")]
 pub struct LevelBackgroundPosition {
     /// An array of 4 float values describing the cropped sub-rectangle of the displayed
-    /// background image. This cropping happens when original is larger than the level bounds.
-    /// Array format: `[ cropX, cropY, cropWidth, cropHeight ]`
+    /// background image. This cropping happens when original is larger than the level
+    /// bounds. Array format: `[ cropX, cropY, cropWidth, cropHeight ]`
     pub crop_rect: Vec<f64>,
 
-    /// An array containing the `[scaleX,scaleY]` values of the **cropped** background image,
-    /// depending on `bgPos` option.
+    /// An array containing the `[scaleX,scaleY]` values of the **cropped** background
+    /// image, depending on `bgPos` option.
     pub scale: Vec<f64>,
 
     /// An array containing the `[x,y]` pixel coordinates of the top-left corner of the
@@ -848,10 +854,10 @@ pub struct LevelBackgroundPosition {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NeighbourLevel {
-    /// A single lowercase character tipping on the level location (`n`orth, `s`outh, `w`est,
-    /// `e`ast).<br/>  Since 1.4.0, this character value can also be `<` (neighbour depth is
-    /// lower), `>` (neighbour depth is greater) or `o` (levels overlap and share the same
-    /// world depth).
+    /// A single lowercase character tipping on the level location (`n`orth, `s`outh,
+    /// `w`est, `e`ast).<br/>  Since 1.4.0, this character value can also be `<`
+    /// (neighbour depth is lower), `>` (neighbour depth is greater) or `o` (levels
+    /// overlap and share the same world depth).
     pub dir: String,
 
     /// Neighbour Instance Identifier
@@ -866,8 +872,8 @@ pub struct LdtkTableOfContentEntry {
 }
 
 /// **IMPORTANT**: this type is available as a preview. You can rely on it to update your
-/// importers, for when it will be officially available.  A World contains multiple levels,
-/// and it has its own layout settings.
+/// importers, for when it will be officially available.  A World contains multiple
+/// levels, and it has its own layout settings.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct World {
@@ -888,8 +894,8 @@ pub struct World {
     /// Width of the world grid in pixels.
     pub world_grid_width: i64,
 
-    /// An enum that describes how levels are organized in this project (ie. linearly or in a
-    /// 2D space). Possible values: `Free`, `GridVania`, `LinearHorizontal`,
+    /// An enum that describes how levels are organized in this project (ie. linearly or
+    /// in a 2D space). Possible values: `Free`, `GridVania`, `LinearHorizontal`,
     /// `LinearVertical`, `null`, `null`
     pub world_layout: Option<WorldLayout>,
 }

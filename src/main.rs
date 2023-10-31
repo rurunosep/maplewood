@@ -27,7 +27,7 @@ use sdl2::render::Texture;
 use slotmap::SlotMap;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
-use world::{facing_cell, CellPos, Map, MapPos, Point};
+use world::{facing_cell, CellPos, Map, MapPos, Point, World};
 
 #[derive(Clone, Copy, Debug, Default)]
 pub enum Direction {
@@ -133,13 +133,20 @@ fn main() {
     #[allow(unused)]
     let mut musics: HashMap<String, Music> = HashMap::new();
 
+    // TODO
     // ----------
 
-    let project: ldtk_json::Project =
-        serde_json::from_str(&std::fs::read_to_string("assets/limezu.ldtk").unwrap()).unwrap();
-    let level = project.worlds.get(0).unwrap().levels.get(0).unwrap();
+    let mut world = World::new();
 
-    let map = Map::new(level);
+    let project: ldtk_json::Project =
+        serde_json::from_str(&std::fs::read_to_string("assets/limezu.ldtk").unwrap())
+            .unwrap();
+
+    let level = project.worlds.get(0).unwrap().levels.get(0).unwrap();
+    let map_1 = world.maps.insert(Map::new(level));
+
+    let level = project.worlds.get(0).unwrap().levels.get(1).unwrap();
+    let _map_2 = world.maps.insert(Map::new(level));
 
     // ----------
 
@@ -186,27 +193,7 @@ fn main() {
     let mut map_overlay_color_transition: Option<MapOverlayColorTransition> = None;
 
     // ----- Scratchpad -----
-    {
-        // #[derive(Debug)]
-        // struct Comp1(i32);
-        // impl ecs::Component for Comp1 {}
-        // #[derive(Debug)]
-        // struct Comp2();
-        // impl ecs::Component for Comp2 {}
-
-        // let mut test_ecs = Ecs::new();
-
-        // let e1 = test_ecs.add_entity();
-        // test_ecs.add_component(e1, Comp1(1));
-        // test_ecs.add_component(e1, Comp2 {});
-
-        // let e2 = test_ecs.add_entity();
-        // test_ecs.add_component(e2, Comp1(2));
-
-        // for (c1, _) in test_ecs.query_all::<(&Comp1, ecs::Without<Comp2>)>() {
-        //     println!("{:?}", c1);
-        // }
-    }
+    {}
     // ----- Scratchpad -----
 
     let mut running = true;
@@ -217,12 +204,14 @@ fn main() {
         for event in event_pump.poll_iter() {
             match event {
                 // Close program
-                Event::Quit { .. } | Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
+                Event::Quit { .. }
+                | Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
                     running = false;
                 }
 
                 // Player movement
-                // Can I decouple this with some sort of InputComponent? (prob UI/Input update)
+                // Can I decouple this with some sort of InputComponent? (prob UI/Input
+                // update)
                 Event::KeyDown { keycode: Some(keycode), .. }
                     if keycode == Keycode::Up
                         || keycode == Keycode::Down
@@ -232,8 +221,9 @@ fn main() {
                     // Some conditions (such as a message window open, or movement being
                     // forced) lock player movement
                     // Scripts can also lock/unlock it as necessary
-                    let (mut facing, mut walking_component) =
-                        ecs.query_one_by_id::<(&mut Facing, &mut Walking)>(player_id).unwrap();
+                    let (mut facing, mut walking_component) = ecs
+                        .query_one_by_id::<(&mut Facing, &mut Walking)>(player_id)
+                        .unwrap();
                     if message_window.is_none()
                         && walking_component.destination.is_none()
                         && !player_movement_locked
@@ -249,10 +239,14 @@ fn main() {
                         facing.0 = walking_component.direction;
                     }
                 }
-                // End player movement if directional key matching player direction is released
+                // End player movement if directional key matching player direction is
+                // released
                 Event::KeyUp { keycode: Some(keycode), .. }
                     if keycode
-                        == match ecs.query_one_by_id::<&Walking>(player_id).unwrap().direction
+                        == match ecs
+                            .query_one_by_id::<&Walking>(player_id)
+                            .unwrap()
+                            .direction
                         {
                             Direction::Up => Keycode::Up,
                             Direction::Down => Keycode::Down,
@@ -263,9 +257,9 @@ fn main() {
                     let mut walking_component =
                         ecs.query_one_by_id::<&mut Walking>(player_id).unwrap();
                     // Don't end movement if it's being forced
-                    // I need to rework the way that input vs forced movement work and update
-                    // Or maybe movement should use polling rather than events
-                    // (prob UI/Input update)
+                    // I need to rework the way that input vs forced movement work and
+                    // update Or maybe movement should use polling
+                    // rather than events (prob UI/Input update)
                     if walking_component.destination.is_none() {
                         walking_component.speed = 0.;
                     }
@@ -278,13 +272,14 @@ fn main() {
                         || keycode == Keycode::Num3
                         || keycode == Keycode::Num4 =>
                 {
-                    // if-let-chains would be nice here. But rustfmt doesn't handle them yet...
+                    // if-let-chains would be nice here. But rustfmt doesn't handle them
+                    // yet...
                     let message_window_option = &mut message_window;
                     if let Some(message_window) = message_window_option {
                         if message_window.is_selection {
                             // I want to redo how window<->script communcation works
-                            // How should the window (or UI in general) give the input to the
-                            // correct script?
+                            // How should the window (or UI in general) give the input to
+                            // the correct script?
                             // (prob UI/Input update)
                             if let Some(script) = script_instance_manager
                                 .script_instances
@@ -305,7 +300,8 @@ fn main() {
 
                 // Interact with entity to start script
                 // OR advance message
-                // Delegate to UI system and/or to world/entity system? (prob UI/Input update)
+                // Delegate to UI system and/or to world/entity system? (prob UI/Input
+                // update)
                 Event::KeyDown { keycode: Some(Keycode::Return), .. }
                 | Event::KeyDown { keycode: Some(Keycode::Space), .. } => {
                     // Advance message (if a non-selection message window is open)
@@ -314,11 +310,14 @@ fn main() {
                     // Start script (if no window is open and no script is running)
                     } else {
                         // For entity standing in cell player that is facing...
-                        let (player_pos, player_facing) =
-                            ecs.query_one_by_id::<(&Position, &Facing)>(player_id).unwrap();
-                        let player_facing_cell = facing_cell(&player_pos.0, player_facing.0);
-                        for (_, scripts) in
-                            ecs.query_all::<(&Position, &Scripts)>().filter(|(position, _)| {
+                        let (player_pos, player_facing) = ecs
+                            .query_one_by_id::<(&Position, &Facing)>(player_id)
+                            .unwrap();
+                        let player_facing_cell =
+                            facing_cell(&player_pos.0, player_facing.0);
+                        for (_, scripts) in ecs
+                            .query_all::<(&Position, &Scripts)>()
+                            .filter(|(position, _)| {
                                 position.0.as_cellpos() == player_facing_cell
                             })
                         {
@@ -344,9 +343,9 @@ fn main() {
         // ----------------------------------------
 
         // Start any auto-run scripts
-        // Currently, auto-run scripts must rely on a start condition that must be immediately
-        // unfulfilled at the start of the script in order to avoid starting a new instance on
-        // every single frame
+        // Currently, auto-run scripts must rely on a start condition that must be
+        // immediately unfulfilled at the start of the script in order to avoid
+        // starting a new instance on every single frame
         // FORGETTING THIS IS A VERY EASY MISTAKE TO MAKE!
         // Be careful, and eventually rework
         for scripts in ecs.query_all::<&Scripts>() {
@@ -361,9 +360,9 @@ fn main() {
 
         // Update script execution
         for script in script_instance_manager.script_instances.values_mut() {
-            // The only way to not pass all of this stuff AND MORE through a giant function
-            // signature, is going to be to store this stuff in some sort of struct, or
-            // several, and pass that
+            // The only way to not pass all of this stuff AND MORE through a giant
+            // function signature, is going to be to store this stuff in some
+            // sort of struct, or several, and pass that
             // It's all basically global state anyway. I'm probably going to need some
             // global game state struct
             // Entities, tilemap, and story vars are game data
@@ -375,33 +374,41 @@ fn main() {
                     &mut story_vars, &mut ecs, &mut message_window,
                     &mut player_movement_locked,
                     &mut map_overlay_color_transition, render_data.map_overlay_color,
-                    &mut render_data.show_cutscene_border, &mut render_data.displayed_card_name, &mut running,
-                    &musics, &sound_effects, player_id
+                    &mut render_data.show_cutscene_border, &mut render_data.displayed_card_name,
+                    &mut running, &musics, &sound_effects, player_id
                 );
         }
         // Remove finished or aborted scripts
         script_instance_manager.script_instances.retain(|_, script| !script.finished);
 
         // Move entities and resolve collisions
-        update_walking_entities(&ecs, &map, &mut script_instance_manager, &story_vars);
+        update_walking_entities(
+            &ecs,
+            // TODO
+            &world.maps.get(map_1).unwrap(),
+            &mut script_instance_manager,
+            &story_vars,
+        );
 
         // Start player soft collision scripts
         let player_aabb = {
-            // (player_aabb is defined in a block so that the required pos and coll component
-            // Refs are dropped at the end. Otherwise they have to be dropped manually in order
-            // to borrow the ECS mutably later)
+            // (player_aabb is defined in a block so that the required pos and coll
+            // component Refs are dropped at the end. Otherwise they have to
+            // be dropped manually in order to borrow the ECS mutably later)
             let (pos, coll) =
                 ecs.query_one_by_id::<(&Position, &Collision)>(player_id).unwrap();
             AABB::from_pos_and_hitbox(pos.0, coll.hitbox_dimensions)
         };
         // For each entity colliding with the player...
-        for (_, _, scripts) in ecs.query_all::<(&Position, &Collision, &mut Scripts)>().filter(
-            |(pos, coll, _)| {
+        for (_, _, scripts) in ecs
+            .query_all::<(&Position, &Collision, &mut Scripts)>()
+            .filter(|(pos, coll, _)| {
                 let aabb = AABB::from_pos_and_hitbox(pos.0, coll.hitbox_dimensions);
                 aabb.is_colliding(&player_aabb)
-            },
-        ) {
-            // ...start all scripts that have a collision trigger and fulfill start condition
+            })
+        {
+            // ...start all scripts that have a collision trigger and fulfill start
+            // condition
             for script in script::filter_scripts_by_trigger_and_condition(
                 &scripts.0,
                 ScriptTrigger::SoftCollision,
@@ -446,8 +453,10 @@ fn main() {
         // Camera follows player but stays clamped to map
         let mut camera_position = ecs.query_one_by_id::<&Position>(player_id).unwrap().0;
         let viewport_dimensions = MapPos::new(SCREEN_COLS as f64, SCREEN_ROWS as f64);
+        // TODO
+        let map = &world.maps.get(map_1).unwrap();
         let map_dimensions =
-            MapPos::new((level.px_wid / 16) as f64, (level.px_hei / 16) as f64);
+            MapPos::new(map.width_in_cells as f64, map.height_in_cells as f64);
         camera_position.x = camera_position.x.clamp(
             viewport_dimensions.x / 2.0,
             map_dimensions.x - viewport_dimensions.x / 2.0,
@@ -464,7 +473,8 @@ fn main() {
             &mut render_data,
             // Should camera position be stored in render data???
             camera_position,
-            &map,
+            // TODO
+            &world.maps.get(map_1).unwrap(),
             &message_window,
             &ecs,
         );
@@ -525,8 +535,9 @@ fn update_walking_entities(
 
                 // We need iter_combinations. Nested queries are impossible with
                 // Mutex<Map<Component>>, which is how the ECS should eventually look.
-                // Nested queries are only possible right now because the individual components
-                // are in RefCells instead in order to support them
+                // Nested queries are only possible right now because the individual
+                // components are in RefCells instead in order to support
+                // them
 
                 // Resolve collisions with all solid entities except this one
                 for (other_pos, other_coll, other_scripts) in
@@ -544,19 +555,24 @@ fn update_walking_entities(
                                 // This could definitely use an event system or something,
                                 // cause now we have collision code depending on both
                                 // story_vars and the script instance manager
-                                // Also, there's all sorts of things that could happen as a
-                                // result of a hard collision. Starting a script, but also
+                                // Also, there's all sorts of things that could happen as
+                                // a result of a hard
+                                // collision. Starting a script, but also
                                 // possibly playing a sound or something? Pretty much any
-                                // arbitrary response could be executed by a script, but many
-                                // things just aren't practical that way. For example, what if
-                                // I want to play a sound every time the player bumps into any
-                                // entity? I can't attach a bump sfx script to every single
+                                // arbitrary response could be executed by a script, but
+                                // many things just aren't
+                                // practical that way. For example, what if
+                                // I want to play a sound every time the player bumps into
+                                // any entity? I can't
+                                // attach a bump sfx script to every single
                                 // entity. That's stupid. That needs an event system.
-                                for script in script::filter_scripts_by_trigger_and_condition(
-                                    &scripts.0,
-                                    ScriptTrigger::HardCollision,
-                                    story_vars,
-                                ) {
+                                for script in
+                                    script::filter_scripts_by_trigger_and_condition(
+                                        &scripts.0,
+                                        ScriptTrigger::HardCollision,
+                                        story_vars,
+                                    )
+                                {
                                     script_instance_manager.start_script(script);
                                 }
                             }

@@ -83,7 +83,9 @@ impl Ecs {
     where
         Q: Query + 'static,
     {
-        self.query_all::<(&Label, Q)>().find(|(l, _)| l.0.as_str() == label).map(|(_, q)| q)
+        self.query_all::<(&Label, Q)>()
+            .find(|(l, _)| l.0.as_str() == label)
+            .map(|(_, q)| q)
     }
 
     pub fn add_entity(&mut self) -> EntityId {
@@ -143,9 +145,11 @@ impl Ecs {
     {
         match entity_id.into() {
             RealOrDeferredEntityId::Real(real_id) => {
-                self.deferred_mutations.borrow_mut().push(Box::new(move |ecs: &mut Ecs| {
-                    ecs.add_component(real_id, component);
-                }));
+                self.deferred_mutations.borrow_mut().push(Box::new(
+                    move |ecs: &mut Ecs| {
+                        ecs.add_component(real_id, component);
+                    },
+                ));
             }
             RealOrDeferredEntityId::Deferred(def_id) => {
                 let f = move |ecs: &mut Ecs| {
@@ -207,7 +211,10 @@ where
     }
 
     fn filter(id: EntityId, component_maps: &AnyMap) -> bool {
-        component_maps.get::<ComponentMap<C>>().map(|cm| cm.contains_key(id)).unwrap_or(false)
+        component_maps
+            .get::<ComponentMap<C>>()
+            .map(|cm| cm.contains_key(id))
+            .unwrap_or(false)
     }
 }
 
@@ -222,7 +229,10 @@ where
     }
 
     fn filter(id: EntityId, component_maps: &AnyMap) -> bool {
-        component_maps.get::<ComponentMap<C>>().map(|cm| cm.contains_key(id)).unwrap_or(false)
+        component_maps
+            .get::<ComponentMap<C>>()
+            .map(|cm| cm.contains_key(id))
+            .unwrap_or(false)
     }
 }
 
@@ -258,7 +268,10 @@ where
     type Result<'r> = ();
 
     fn filter(id: EntityId, component_maps: &AnyMap) -> bool {
-        component_maps.get::<ComponentMap<C>>().map(|cm| cm.contains_key(id)).unwrap_or(false)
+        component_maps
+            .get::<ComponentMap<C>>()
+            .map(|cm| cm.contains_key(id))
+            .unwrap_or(false)
     }
 
     fn borrow(_: EntityId, _: &AnyMap) -> Self::Result<'_> {
@@ -277,7 +290,10 @@ where
     type Result<'r> = ();
 
     fn filter(id: EntityId, component_maps: &AnyMap) -> bool {
-        !component_maps.get::<ComponentMap<C>>().map(|cm| cm.contains_key(id)).unwrap_or(false)
+        !component_maps
+            .get::<ComponentMap<C>>()
+            .map(|cm| cm.contains_key(id))
+            .unwrap_or(false)
     }
 
     fn borrow(_: EntityId, _: &AnyMap) -> Self::Result<'_> {

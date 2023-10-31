@@ -77,7 +77,10 @@ pub fn render(
                     layer.tile_ids.get((row * map.width_in_cells + col) as usize).unwrap()
                 {
                     let top_left_in_screen = map_pos_to_screen_top_left(
-                        MapPos::new(col as f64 + layer.x_offset, row as f64 + layer.y_offset),
+                        MapPos::new(
+                            col as f64 + layer.x_offset,
+                            row as f64 + layer.y_offset,
+                        ),
                         None,
                     );
 
@@ -90,8 +93,12 @@ pub fn render(
 
                     let tile_y_in_tileset = (tile_id / tileset_width_in_tiles) * 16;
                     let tile_x_in_tileset = (tile_id % tileset_width_in_tiles) * 16;
-                    let tileset_rect =
-                        Rect::new(tile_x_in_tileset as i32, tile_y_in_tileset as i32, 16, 16);
+                    let tileset_rect = Rect::new(
+                        tile_x_in_tileset as i32,
+                        tile_y_in_tileset as i32,
+                        16,
+                        16,
+                    );
 
                     canvas.copy(tileset, tileset_rect, screen_rect).unwrap();
                 }
@@ -180,7 +187,11 @@ pub fn render(
     // Draw card
     if let Some(displayed_card_name) = displayed_card_name {
         canvas
-            .copy(cards.get(displayed_card_name).unwrap(), None, Rect::new(152, 114, 720, 540))
+            .copy(
+                cards.get(displayed_card_name).unwrap(),
+                None,
+                Rect::new(152, 114, 720, 540),
+            )
             .unwrap();
     }
 

@@ -1,8 +1,8 @@
-comment_width = 95
+comment_width = 90
 format_strings = true
 group_imports = "One"
 imports_granularity = "Module"
-max_width = 95
+max_width = 90
 normalize_comments = true
 use_field_init_shorthand = true
 use_small_heuristics = "Max"

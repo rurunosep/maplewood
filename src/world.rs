@@ -4,7 +4,9 @@ use derive_more::{Add, AddAssign, Deref, DerefMut, Div, Mul, Sub};
 use derive_new::new;
 use slotmap::{new_key_type, SlotMap};
 
-#[derive(new, Clone, Copy, Default, Debug, Add, AddAssign, Sub, Mul, Div, PartialEq, Eq)]
+#[derive(
+    new, Clone, Copy, Default, Debug, Add, AddAssign, Sub, Mul, Div, PartialEq, Eq,
+)]
 pub struct Point<T> {
     pub x: T,
     pub y: T,
@@ -41,7 +43,12 @@ impl CellPos {
 new_key_type! { pub struct MapId; }
 #[allow(dead_code)]
 pub struct World {
-    maps: SlotMap<MapId, Map>,
+    pub maps: SlotMap<MapId, Map>,
+}
+impl World {
+    pub fn new() -> Self {
+        Self { maps: SlotMap::with_key() }
+    }
 }
 
 type TileId = u32;
@@ -74,10 +81,11 @@ pub struct Map {
 
     // The LDtk level is only stored here for now for convenience during development.
     // Game should rely entirely on internal Map representation generated from LDtk json.
-    // I'm thinking a single Map can be made from one or more levels. For example, a small
-    // room will be made of a single level in an "indoors" world, a large floor of a building
-    // could be made of several levels in the "indoors" world, and a very large map such as
-    // the "overworld" or "sewers" could be made of an entire world of many levels.
+    // I'm thinking a single Map can be made from one or more levels. For example, a
+    // small room will be made of a single level in an "indoors" world, a large floor
+    // of a building could be made of several levels in the "indoors" world, and a
+    // very large map such as the "overworld" or "sewers" could be made of an entire
+    // world of many levels.
     pub level: Level,
 }
 
@@ -142,8 +150,9 @@ impl Map {
     }
 
     pub fn get_cell_collision_aabb(&self, cellpos: CellPos) -> Option<AABB> {
-        self.collisions.get((cellpos.y * self.width_in_cells + cellpos.x) as usize).and_then(
-            |o| {
+        self.collisions
+            .get((cellpos.y * self.width_in_cells + cellpos.x) as usize)
+            .and_then(|o| {
                 o.as_ref().map(|shape| match shape {
                     CellCollisionShape::Full => AABB {
                         top: cellpos.y as f64,
@@ -200,8 +209,7 @@ impl Map {
                         right: cellpos.x as f64 + 1.,
                     },
                 })
-            },
-        )
+            })
     }
 }
 
