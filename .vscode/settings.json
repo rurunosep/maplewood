@@ -1,34 +1,3 @@
 {
-	"Lua.diagnostics.globals": [
-		"set",
-		"set_map_overlay_color",
-		"lock_player_input",
-		"set_entity_solid",
-		"set_forced_sprite",
-		"set_cutscene_border",
-		"message",
-		"wait",
-		"anim_quiver",
-		"remove_forced_sprite",
-		"anim_jump",
-		"play_sfx",
-		"walk",
-		"wait_until_not_walking",
-		"unlock_player_input",
-		"remove_cutscene_border",
-		"wait_storyvar",
-		"walk_to",
-		"set_cell_tile",
-		"add_position_component",
-		"play_music",
-		"stop_music",
-		"walk_wait",
-		"remove_position_component",
-		"show_card",
-		"close_game",
-		"get",
-		"get_entity_position",
-		"set_cell_solid"
-	],
-	"rust-analyzer.showUnlinkedFileNotification": false
+	"Lua.diagnostics.globals": ["set_entity_world_pos"]
 }

@@ -1,5 +1,6 @@
 use crate::ecs::Component;
 use crate::script::ScriptClass;
+use crate::world::WorldPos;
 use crate::{Direction, MapPos, Point};
 use sdl2::rect::Rect;
 use std::time::{Duration, Instant};
@@ -8,7 +9,7 @@ pub struct Label(pub String);
 impl Component for Label {}
 
 #[derive(Default)]
-pub struct Position(pub MapPos);
+pub struct Position(pub WorldPos);
 impl Component for Position {}
 
 #[derive(Default)]

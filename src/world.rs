@@ -1,8 +1,7 @@
-use crate::ldtk_json::Level;
-use crate::{Direction, AABB};
+use crate::{ldtk_json, AABB};
 use derive_more::{Add, AddAssign, Deref, DerefMut, Div, Mul, Sub};
 use derive_new::new;
-use slotmap::{new_key_type, SlotMap};
+use std::collections::HashMap;
 
 #[derive(
     new, Clone, Copy, Default, Debug, Add, AddAssign, Sub, Mul, Div, PartialEq, Eq,
@@ -10,6 +9,25 @@ use slotmap::{new_key_type, SlotMap};
 pub struct Point<T> {
     pub x: T,
     pub y: T,
+}
+
+#[derive(Clone, Default, Debug)]
+pub struct WorldPos {
+    // Feels wrong to have a heap-allocated String in a simple position struct like this.
+    // It also prevents me from deriving Copy.
+    // But I don't see how this can be done with &str or similar since we need to get
+    // map_labels from external data sources.
+    // There's a Sized ArrayString in a crate that I could use if I really want, I guess?
+    // Or if I go through with using a SlotMap for Maps intead of a String-keyed HashMap,
+    // then this isn't a problem to being with.
+    pub map_label: String,
+    pub map_pos: MapPos,
+}
+
+impl WorldPos {
+    pub fn new(map_label: &str, x: f64, y: f64) -> Self {
+        Self { map_label: map_label.to_string(), map_pos: MapPos::new(x, y) }
+    }
 }
 
 #[derive(Clone, Copy, Default, Debug, Deref, DerefMut, Add, AddAssign, Sub)]
@@ -39,21 +57,33 @@ impl CellPos {
     }
 }
 
-// Maps can be stored and referenced like this?
-new_key_type! { pub struct MapId; }
-#[allow(dead_code)]
 pub struct World {
-    pub maps: SlotMap<MapId, Map>,
+    // TODO Maps in SlotMap?
+    // I might use a SlotMap instead and just keep the label inside the Map.
+    // SlotMap keys are easier to work with in general. When I need to refer to
+    // Map by label, just iterate through all the Maps, no big deal.
+    // I can always just keep a label->MapId index if I want faster searching, and
+    // I could do the same with entities
+    pub maps: HashMap<String, Map>,
 }
+
 impl World {
     pub fn new() -> Self {
-        Self { maps: SlotMap::with_key() }
+        Self { maps: HashMap::new() }
     }
 }
 
 type TileId = u32;
 
 pub struct TileLayer {
+    // (I'm keeping the terms "label" and "name" distinct.
+    // A "label" is specifically an identifier for referencing things in lua scripts.
+    // Entities and Maps have labels.
+    // A "name" is an identifier just for the purpose of debug output.
+    // TileLayers and ScriptClasses have names.
+    // If I later want to directly trigger scripts from other scripts, then ScriptClasses
+    // will have a "label".
+    // I may change around these specific terms, but in any case, they'll be distinct.)
     pub name: String,
     pub tileset_path: String,
     pub tile_ids: Vec<Option<TileId>>,
@@ -62,6 +92,7 @@ pub struct TileLayer {
 }
 
 pub struct Map {
+    pub label: String,
     pub width_in_cells: i32,
     pub height_in_cells: i32,
     pub tile_layers: Vec<TileLayer>,
@@ -71,7 +102,7 @@ pub struct Map {
 
     // The LDtk level is only stored here for now for convenience during development.
     // Game should rely entirely on internal Map representation generated from LDtk json.
-    pub level: Level,
+    pub level: ldtk_json::Level,
 }
 
 impl Map {
@@ -81,12 +112,10 @@ impl Map {
     // very large map such as the "overworld" or "sewers" could be made of an entire
     // world of many levels.
     //
-    // Create like this?:
-    // pub fn from_ldtk_level(level: &Level) -> Self {...}
-    // pub fn from_multiple_ldtk_levels(levels: &[Level]) -> Self {...}
-    // pub fn from_ldtk_world(world: &World) -> Self {...}
+    // pub fn from_multiple_ldtk_levels(label: &str, levels: &[Level]) -> Self {...}
+    // pub fn from_ldtk_world(label: &str, world: &World) -> Self {...}
 
-    pub fn new(level: &Level) -> Self {
+    pub fn from_ldtk_level(label: &str, level: &ldtk_json::Level) -> Self {
         let width_in_cells = (level.px_wid / 16) as i32;
         let height_in_cells = (level.px_hei / 16) as i32;
 
@@ -129,6 +158,7 @@ impl Map {
             .collect();
 
         Self {
+            label: label.to_string(),
             width_in_cells,
             height_in_cells,
             tile_layers,
@@ -141,6 +171,7 @@ impl Map {
         let top_left = self
             .collisions
             .get((cellpos.y * 2 * self.width_in_cells * 2 + cellpos.x * 2) as usize)
+            // TODO panics when we're checking cellpos that doesn't exist in map
             .unwrap()
             .and_then(|_| {
                 Some(AABB {
@@ -195,15 +226,4 @@ impl Map {
 
         [top_left, top_right, bottom_left, bottom_right]
     }
-}
-
-pub fn facing_cell(position: &MapPos, facing: Direction) -> CellPos {
-    let maximum_distance = 0.6;
-    let facing_cell_position = match facing {
-        Direction::Up => *position + MapPos::new(0.0, -maximum_distance),
-        Direction::Down => *position + MapPos::new(0.0, maximum_distance),
-        Direction::Left => *position + MapPos::new(-maximum_distance, 0.0),
-        Direction::Right => *position + MapPos::new(maximum_distance, 0.0),
-    };
-    facing_cell_position.as_cellpos()
 }

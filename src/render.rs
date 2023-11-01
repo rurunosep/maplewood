@@ -67,6 +67,8 @@ pub fn render(
         };
 
     // Draw tiles
+    // (Possible future optimization: cache rendered tile layers, or chunks of them.
+    // No reason to redraw every single static tile every single frame.)
     for layer in &map.tile_layers {
         let tileset = tilesets.get(&layer.tileset_path).unwrap();
         let tileset_width_in_tiles = tileset.query().width / 16;
@@ -109,8 +111,13 @@ pub fn render(
     // Draw entities
     for (position, sprite_component, facing, sine_offset_animation) in ecs
         .query_all::<(&Position, &SpriteComponent, &Facing, Option<&SineOffsetAnimation>)>()
-        .sorted_by(|(p1, _, _, _), (p2, _, _, _)| p1.0.y.partial_cmp(&p2.0.y).unwrap())
+        .sorted_by(|(p1, _, _, _), (p2, _, _, _)| p1.0.map_pos.y.partial_cmp(&p2.0.map_pos.y).unwrap())
     {
+        // Skip entities not on the current map
+        if position.0.map_label != map.label {
+            continue;
+        }
+
         // Choose sprite to draw
         let sprite = if let Some(forced_sprite) = &sprite_component.forced_sprite {
             forced_sprite
@@ -124,7 +131,7 @@ pub fn render(
         };
 
         // If entity has a SineOffsetAnimation, offset sprite position accordingly
-        let mut position = position.0;
+        let mut position = position.0.map_pos;
         if let Some(soa) = sine_offset_animation {
             let offset = soa.direction
                 * (soa.start_time.elapsed().as_secs_f64() * soa.frequency * (PI * 2.)).sin()

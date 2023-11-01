@@ -16,6 +16,7 @@ use crate::components::{
     Collision, Facing, Position, SineOffsetAnimation, Sprite, SpriteComponent, Walking,
 };
 use crate::ecs::{Ecs, EntityId};
+use crate::world::WorldPos;
 use crate::{Direction, MapOverlayColorTransition, MapPos, MessageWindow, Point};
 use rlua::{Error as LuaError, Function, Lua, Result as LuaResult, Thread, ThreadStatus};
 use sdl2::mixer::{Chunk, Music};
@@ -46,6 +47,7 @@ impl ScriptInstanceManager {
 pub enum ScriptError {
     InvalidStoryVar(String),
     InvalidEntity(String),
+    InvalidMap(String),
 }
 
 impl Error for ScriptError {}
@@ -54,8 +56,11 @@ impl Display for ScriptError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ScriptError::InvalidStoryVar(var) => write!(f, "no story var {var}"),
-            ScriptError::InvalidEntity(name) => {
-                write!(f, "no entity {name} with necessary components")
+            ScriptError::InvalidEntity(label) => {
+                write!(f, "no entity {label} with necessary components")
+            }
+            ScriptError::InvalidMap(label) => {
+                write!(f, "no map {label}")
             }
         }
     }
@@ -98,8 +103,8 @@ pub struct ScriptClass {
     pub trigger: ScriptTrigger,
     pub start_condition: Option<ScriptCondition>,
     pub abort_condition: Option<ScriptCondition>,
-    pub name: Option<String>, /* the source file name and subscript label for debug
-                               * purposes */
+    // The source file name and subscript label for debug purposes
+    pub name: Option<String>,
 }
 
 pub struct ScriptInstance {
@@ -252,15 +257,15 @@ impl ScriptInstance {
                     // something?
 
                     globals.set(
-                        "get",
+                        "get_storyvar",
                         scope.create_function(|_, args| {
-                            cb_get(args, *story_vars.borrow())
+                            cb_get_storyvar(args, *story_vars.borrow())
                         })?,
                     )?;
                     globals.set(
-                        "set",
+                        "set_storyvar",
                         scope.create_function_mut(|_, args| {
-                            cb_set(args, *story_vars.borrow_mut())
+                            cb_set_storyvar(args, *story_vars.borrow_mut())
                         })?,
                     )?;
                     globals.set(
@@ -269,18 +274,6 @@ impl ScriptInstance {
                             cb_get_entity_position(args, *ecs.borrow())
                         })?,
                     )?;
-                    // globals.set(
-                    //     "set_cell_tile",
-                    //     scope.create_function_mut(|_, args| {
-                    //         cb_set_cell_tile(args, *tilemap.borrow_mut())
-                    //     })?,
-                    // )?;
-                    // globals.set(
-                    //     "set_cell_solid",
-                    //     scope.create_function(|_, args| {
-                    //         cb_set_cell_solid(args, *tilemap.borrow_mut())
-                    //     })?,
-                    // )?;
                     globals.set(
                         "lock_player_input",
                         scope.create_function_mut(|_, args| {
@@ -324,9 +317,15 @@ impl ScriptInstance {
                         })?,
                     )?;
                     globals.set(
-                        "set_entity_position",
+                        "set_entity_map_pos",
                         scope.create_function_mut(|_, args| {
-                            cb_set_entity_position(args, *ecs.borrow_mut())
+                            cb_set_entity_map_pos(args, *ecs.borrow_mut())
+                        })?,
+                    )?;
+                    globals.set(
+                        "set_entity_world_pos",
+                        scope.create_function_mut(|_, args| {
+                            cb_set_entity_world_pos(args, *ecs.borrow_mut())
                         })?,
                     )?;
                     globals.set(
@@ -374,15 +373,9 @@ impl ScriptInstance {
                         scope.create_function_mut(|_, args| cb_stop_music(args))?,
                     )?;
                     globals.set(
-                        "add_position_component",
+                        "remove_entity_position",
                         scope.create_function_mut(|_, args| {
-                            cb_add_position_component(args, *ecs.borrow_mut())
-                        })?,
-                    )?;
-                    globals.set(
-                        "remove_position_component",
-                        scope.create_function_mut(|_, args| {
-                            cb_remove_position_component(args, *ecs.borrow_mut())
+                            cb_remove_entity_position(args, *ecs.borrow_mut())
                         })?,
                     )?;
                     globals.set(
@@ -534,12 +527,12 @@ pub fn filter_scripts_by_trigger_and_condition<'a>(
 // Callbacks
 // ----------------------------------------
 
-fn cb_get(key: String, story_vars: &HashMap<String, i32>) -> LuaResult<i32> {
+fn cb_get_storyvar(key: String, story_vars: &HashMap<String, i32>) -> LuaResult<i32> {
     let val = story_vars.get(&key).copied().ok_or(ScriptError::InvalidStoryVar(key))?;
     Ok(val)
 }
 
-fn cb_set(
+fn cb_set_storyvar(
     (key, val): (String, i32),
     story_vars: &mut HashMap<String, i32>,
 ) -> LuaResult<()> {
@@ -551,33 +544,8 @@ fn cb_get_entity_position(entity: String, ecs: &Ecs) -> LuaResult<(f64, f64)> {
     let position = ecs
         .query_one_by_label::<&Position>(&entity)
         .ok_or(ScriptError::InvalidEntity(entity))?;
-    Ok((position.0.x, position.0.y))
+    Ok((position.0.map_pos.x, position.0.map_pos.y))
 }
-
-// fn cb_set_cell_tile(
-//     (x, y, layer, id): (i32, i32, i32, i32),
-//     tilemap: &mut Array2D<Cell>,
-// ) -> LuaResult<()> {
-//     let new_tile = if id == -1 { None } else { Some(id as u32) };
-//     if let Some(Cell { tile_1, tile_2, .. }) = tilemap.get_mut(y as usize, x as usize)
-// {         if layer == 1 {
-//             *tile_1 = new_tile;
-//         } else if layer == 2 {
-//             *tile_2 = new_tile;
-//         }
-//     }
-//     Ok(())
-// }
-
-// fn cb_set_cell_solid(
-//     (x, y, solid): (i32, i32, bool),
-//     tilemap: &mut Array2D<Cell>,
-// ) -> LuaResult<()> {
-//     if let Some(cell) = tilemap.get_mut(y as usize, x as usize) {
-//         cell.solid = solid;
-//     }
-//     Ok(())
-// }
 
 fn cb_lock_player_input(
     _args: (),
@@ -623,7 +591,7 @@ fn cb_walk(
     };
     walking.speed = speed;
     walking.destination = Some(
-        position.0
+        position.0.map_pos
             + match walking.direction {
                 Direction::Up => MapPos::new(0., -distance),
                 Direction::Down => MapPos::new(0., distance),
@@ -654,8 +622,10 @@ fn cb_walk_to(
     };
     walking.speed = speed;
     walking.destination = Some(match walking.direction {
-        Direction::Up | Direction::Down => MapPos::new(position.0.x, destination),
-        Direction::Left | Direction::Right => MapPos::new(destination, position.0.y),
+        Direction::Up | Direction::Down => MapPos::new(position.0.map_pos.x, destination),
+        Direction::Left | Direction::Right => {
+            MapPos::new(destination, position.0.map_pos.y)
+        }
     });
 
     facing.0 = walking.direction;
@@ -663,14 +633,25 @@ fn cb_walk_to(
     Ok(())
 }
 
-fn cb_set_entity_position(
+fn cb_set_entity_map_pos(
     (entity, x, y): (String, f64, f64),
     ecs: &mut Ecs,
 ) -> LuaResult<()> {
     let mut position = ecs
         .query_one_by_label::<&mut Position>(&entity)
         .ok_or(ScriptError::InvalidEntity(entity))?;
-    position.0 = MapPos::new(x, y);
+    position.0.map_pos = MapPos::new(x, y);
+    Ok(())
+}
+
+fn cb_set_entity_world_pos(
+    (entity, map, x, y): (String, String, f64, f64),
+    ecs: &mut Ecs,
+) -> LuaResult<()> {
+    let id = ecs
+        .query_one_by_label::<EntityId>(&entity)
+        .ok_or(ScriptError::InvalidEntity(entity))?;
+    ecs.add_component(id, Position(WorldPos::new(&map, x, y)));
     Ok(())
 }
 
@@ -745,26 +726,11 @@ fn cb_stop_music(fade_out_time: f64) -> LuaResult<()> {
     Ok(())
 }
 
-fn cb_add_position_component(
-    (entity, x, y): (String, f64, f64),
-    ecs: &mut Ecs,
-) -> LuaResult<()> {
+fn cb_remove_entity_position(entity: String, ecs: &mut Ecs) -> LuaResult<()> {
     let id = ecs
         .query_one_by_label::<EntityId>(&entity)
         .ok_or(ScriptError::InvalidEntity(entity))?;
-
-    ecs.add_component(id, Position(MapPos::new(x, y)));
-
-    Ok(())
-}
-
-fn cb_remove_position_component(entity: String, ecs: &mut Ecs) -> LuaResult<()> {
-    let id = ecs
-        .query_one_by_label::<EntityId>(&entity)
-        .ok_or(ScriptError::InvalidEntity(entity))?;
-
     ecs.remove_component::<Position>(id);
-
     Ok(())
 }
 
