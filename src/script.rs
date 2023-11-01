@@ -16,7 +16,7 @@ use crate::components::{
     Collision, Facing, Position, SineOffsetAnimation, Sprite, SpriteComponent, Walking,
 };
 use crate::ecs::{Ecs, EntityId};
-use crate::world::WorldPos;
+use crate::world::{World, WorldPos};
 use crate::{Direction, MapOverlayColorTransition, MapPos, MessageWindow, Point};
 use rlua::{Error as LuaError, Function, Lua, Result as LuaResult, Thread, ThreadStatus};
 use sdl2::mixer::{Chunk, Music};
@@ -194,6 +194,7 @@ impl ScriptInstance {
         &mut self,
         story_vars: &mut HashMap<String, i32>,
         ecs: &mut Ecs,
+        world: &World,
         message_window: &mut Option<MessageWindow>,
         player_movement_locked: &mut bool,
         map_overlay_color_transition: &mut Option<MapOverlayColorTransition>,
@@ -325,7 +326,7 @@ impl ScriptInstance {
                     globals.set(
                         "set_entity_world_pos",
                         scope.create_function_mut(|_, args| {
-                            cb_set_entity_world_pos(args, *ecs.borrow_mut())
+                            cb_set_entity_world_pos(args, *ecs.borrow_mut(), world)
                         })?,
                     )?;
                     globals.set(
@@ -526,6 +527,7 @@ pub fn filter_scripts_by_trigger_and_condition<'a>(
 // ----------------------------------------
 // Callbacks
 // ----------------------------------------
+// TODO more descriptive param names
 
 fn cb_get_storyvar(key: String, story_vars: &HashMap<String, i32>) -> LuaResult<i32> {
     let val = story_vars.get(&key).copied().ok_or(ScriptError::InvalidStoryVar(key))?;
@@ -647,11 +649,23 @@ fn cb_set_entity_map_pos(
 fn cb_set_entity_world_pos(
     (entity, map, x, y): (String, String, f64, f64),
     ecs: &mut Ecs,
+    world: &World,
 ) -> LuaResult<()> {
-    let id = ecs
+    // Get entity id by entity label
+    let entity_id = ecs
         .query_one_by_label::<EntityId>(&entity)
         .ok_or(ScriptError::InvalidEntity(entity))?;
-    ecs.add_component(id, Position(WorldPos::new(&map, x, y)));
+
+    // Get map id by map label
+    let map_id = world
+        .maps
+        .iter()
+        .find(|(_, m)| m.label == map)
+        .map(|(id, _)| id)
+        .ok_or(ScriptError::InvalidMap(map))?;
+
+    // Set world position
+    ecs.add_component(entity_id, Position(WorldPos::new(map_id, x, y)));
     Ok(())
 }
 

@@ -11,7 +11,7 @@
 	"iid": "9f15cbd0-ed50-11ed-8f21-4d63da406901",
 	"jsonVersion": "1.4.1",
 	"appBuildId": 471015,
-	"nextUid": 733,
+	"nextUid": 745,
 	"identifierStyle": "Capitalize",
 	"toc": [],
 	"worldLayout": null,
@@ -2932,42 +2932,7 @@
 			"tilePivotX": 0,
 			"tilePivotY": 0
 		}
-	], "entities": [
-		{
-			"identifier": "Door",
-			"uid": 724,
-			"tags": [],
-			"exportToToc": false,
-			"doc": null,
-			"width": 16,
-			"height": 16,
-			"resizableX": false,
-			"resizableY": false,
-			"minWidth": null,
-			"maxWidth": null,
-			"minHeight": null,
-			"maxHeight": null,
-			"keepAspectRatio": false,
-			"tileOpacity": 1,
-			"fillOpacity": 1,
-			"lineOpacity": 1,
-			"hollow": false,
-			"color": "#BE4A2F",
-			"renderMode": "Rectangle",
-			"showName": true,
-			"tilesetId": null,
-			"tileRenderMode": "FitInside",
-			"tileRect": null,
-			"uiTileRect": null,
-			"nineSliceBorders": [],
-			"maxCount": 0,
-			"limitScope": "PerLevel",
-			"limitBehavior": "MoveLastOne",
-			"pivotX": 0.5,
-			"pivotY": 0.5,
-			"fieldDefs": []
-		}
-	], "tilesets": [
+	], "entities": [], "tilesets": [
 		{
 			"__cWid": 160,
 			"__cHei": 160,
@@ -3147,24 +3112,7 @@
 					"seed": 5676763,
 					"overrideTilesetUid": null,
 					"gridTiles": [],
-					"entityInstances": [
-						{
-							"__identifier": "Door",
-							"__grid": [4,8],
-							"__pivot": [0.5,0.5],
-							"__tags": [],
-							"__tile": null,
-							"__smartColor": "#BE4A2F",
-							"__worldX": 72,
-							"__worldY": 136,
-							"iid": "474cf470-ed50-11ed-8eae-9797332d05bc",
-							"width": 16,
-							"height": 16,
-							"defUid": 724,
-							"px": [72,136],
-							"fieldInstances": []
-						}
-					]
+					"entityInstances": []
 				},
 				{
 					"__identifier": "Collision",

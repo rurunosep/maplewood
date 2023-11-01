@@ -1,7 +1,9 @@
 use crate::{ldtk_json, AABB};
 use derive_more::{Add, AddAssign, Deref, DerefMut, Div, Mul, Sub};
 use derive_new::new;
-use std::collections::HashMap;
+use slotmap::{new_key_type, SlotMap};
+
+new_key_type! { pub struct MapId; }
 
 #[derive(
     new, Clone, Copy, Default, Debug, Add, AddAssign, Sub, Mul, Div, PartialEq, Eq,
@@ -11,22 +13,15 @@ pub struct Point<T> {
     pub y: T,
 }
 
-#[derive(Clone, Default, Debug)]
+#[derive(Clone, Copy, Default, Debug)]
 pub struct WorldPos {
-    // Feels wrong to have a heap-allocated String in a simple position struct like this.
-    // It also prevents me from deriving Copy.
-    // But I don't see how this can be done with &str or similar since we need to get
-    // map_labels from external data sources.
-    // There's a Sized ArrayString in a crate that I could use if I really want, I guess?
-    // Or if I go through with using a SlotMap for Maps intead of a String-keyed HashMap,
-    // then this isn't a problem to being with.
-    pub map_label: String,
+    pub map_id: MapId,
     pub map_pos: MapPos,
 }
 
 impl WorldPos {
-    pub fn new(map_label: &str, x: f64, y: f64) -> Self {
-        Self { map_label: map_label.to_string(), map_pos: MapPos::new(x, y) }
+    pub fn new(map_id: MapId, x: f64, y: f64) -> Self {
+        Self { map_id, map_pos: MapPos::new(x, y) }
     }
 }
 
@@ -58,18 +53,12 @@ impl CellPos {
 }
 
 pub struct World {
-    // TODO Maps in SlotMap?
-    // I might use a SlotMap instead and just keep the label inside the Map.
-    // SlotMap keys are easier to work with in general. When I need to refer to
-    // Map by label, just iterate through all the Maps, no big deal.
-    // I can always just keep a label->MapId index if I want faster searching, and
-    // I could do the same with entities
-    pub maps: HashMap<String, Map>,
+    pub maps: SlotMap<MapId, Map>,
 }
 
 impl World {
     pub fn new() -> Self {
-        Self { maps: HashMap::new() }
+        Self { maps: SlotMap::with_key() }
     }
 }
 
@@ -92,12 +81,12 @@ pub struct TileLayer {
 }
 
 pub struct Map {
+    pub id: MapId,
     pub label: String,
     pub width_in_cells: i32,
     pub height_in_cells: i32,
     pub tile_layers: Vec<TileLayer>,
-    // This holds an Option<()> rather than a bool so that I could maybe have different
-    // types of collisions later. Or maybe it's pointless.
+    // Option<()> rather than bool to allow for different collision types later maybe
     pub collisions: Vec<Option<()>>,
 
     // The LDtk level is only stored here for now for convenience during development.
@@ -112,10 +101,10 @@ impl Map {
     // very large map such as the "overworld" or "sewers" could be made of an entire
     // world of many levels.
     //
-    // pub fn from_multiple_ldtk_levels(label: &str, levels: &[Level]) -> Self {...}
-    // pub fn from_ldtk_world(label: &str, world: &World) -> Self {...}
+    // pub fn from_multiple_ldtk_levels(..., levels: &[Level]) -> Self {...}
+    // pub fn from_ldtk_world(..., world: &World) -> Self {...}
 
-    pub fn from_ldtk_level(label: &str, level: &ldtk_json::Level) -> Self {
+    pub fn from_ldtk_level(id: MapId, label: &str, level: &ldtk_json::Level) -> Self {
         let width_in_cells = (level.px_wid / 16) as i32;
         let height_in_cells = (level.px_hei / 16) as i32;
 
@@ -158,6 +147,7 @@ impl Map {
             .collect();
 
         Self {
+            id,
             label: label.to_string(),
             width_in_cells,
             height_in_cells,
@@ -167,12 +157,13 @@ impl Map {
         }
     }
 
-    pub fn get_collision_aabbs_for_cellpos(&self, cellpos: CellPos) -> [Option<AABB>; 4] {
+    // Get the collision AABBs for each of the 4 quarters of a cell at cellpos
+    pub fn get_collision_aabbs_for_cell(&self, cellpos: CellPos) -> [Option<AABB>; 4] {
         let top_left = self
             .collisions
             .get((cellpos.y * 2 * self.width_in_cells * 2 + cellpos.x * 2) as usize)
-            // TODO panics when we're checking cellpos that doesn't exist in map
-            .unwrap()
+            .cloned()
+            .flatten()
             .and_then(|_| {
                 Some(AABB {
                     top: cellpos.y as f64,
@@ -185,7 +176,8 @@ impl Map {
         let top_right = self
             .collisions
             .get((cellpos.y * 2 * self.width_in_cells * 2 + cellpos.x * 2 + 1) as usize)
-            .unwrap()
+            .cloned()
+            .flatten()
             .and_then(|_| {
                 Some(AABB {
                     top: cellpos.y as f64,
@@ -198,7 +190,8 @@ impl Map {
         let bottom_left = self
             .collisions
             .get(((cellpos.y * 2 + 1) * self.width_in_cells * 2 + cellpos.x * 2) as usize)
-            .unwrap()
+            .cloned()
+            .flatten()
             .and_then(|_| {
                 Some(AABB {
                     top: cellpos.y as f64 + 0.5,
@@ -214,7 +207,8 @@ impl Map {
                 ((cellpos.y * 2 + 1) * self.width_in_cells * 2 + cellpos.x * 2 + 1)
                     as usize,
             )
-            .unwrap()
+            .cloned()
+            .flatten()
             .and_then(|_| {
                 Some(AABB {
                     top: cellpos.y as f64 + 0.5,

@@ -114,7 +114,7 @@ pub fn render(
         .sorted_by(|(p1, _, _, _), (p2, _, _, _)| p1.0.map_pos.y.partial_cmp(&p2.0.map_pos.y).unwrap())
     {
         // Skip entities not on the current map
-        if position.0.map_label != map.label {
+        if position.0.map_id != map.id {
             continue;
         }
 

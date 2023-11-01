@@ -154,21 +154,21 @@ fn main() {
         serde_json::from_str(&std::fs::read_to_string("assets/limezu.ldtk").unwrap())
             .unwrap();
 
-    world.maps.insert(
-        "map_1".to_string(),
+    let map_1 = world.maps.insert_with_key(|k| {
         Map::from_ldtk_level(
+            k,
             "map_1",
             project.worlds.get(0).unwrap().levels.get(0).unwrap(),
-        ),
-    );
+        )
+    });
 
-    world.maps.insert(
-        "map_2".to_string(),
+    let map_2 = world.maps.insert_with_key(|k| {
         Map::from_ldtk_level(
+            k,
             "map_2",
             project.worlds.get(0).unwrap().levels.get(1).unwrap(),
-        ),
-    );
+        )
+    });
 
     // ----------------------------------------
     // Entities
@@ -178,7 +178,7 @@ fn main() {
 
     let player_id = ecs.add_entity();
     ecs.add_component(player_id, Label("player".to_string()));
-    ecs.add_component(player_id, Position(WorldPos::new("map_1", 14.5, 9.5)));
+    ecs.add_component(player_id, Position(WorldPos::new(map_1, 14.5, 9.5)));
     ecs.add_component(player_id, Facing::default());
     ecs.add_component(player_id, Walking::default());
     ecs.add_component(
@@ -211,10 +211,10 @@ fn main() {
 
     let scripts_source = fs::read_to_string("scripts/script.lua").unwrap();
 
-    // Teleport from map 1 to map 2
+    // Teleport Trigger map_1 -> map_2
     {
         let id = ecs.add_entity();
-        ecs.add_component(id, Position(WorldPos::new("map_1", 14.5, 13.5)));
+        ecs.add_component(id, Position(WorldPos::new(map_1, 14.5, 13.5)));
         ecs.add_component(
             id,
             Collision { hitbox_dimensions: Point::new(1., 1.), solid: false },
@@ -234,10 +234,10 @@ fn main() {
         )
     }
 
-    // Teleport from map 2 to map 1
+    // Teleport Trigger map_2 -> map_1
     {
         let id = ecs.add_entity();
-        ecs.add_component(id, Position(WorldPos::new("map_2", 4.5, 1.5)));
+        ecs.add_component(id, Position(WorldPos::new(map_2, 4.5, 1.5)));
         ecs.add_component(
             id,
             Collision { hitbox_dimensions: Point::new(1., 1.), solid: false },
@@ -258,14 +258,10 @@ fn main() {
     }
 
     // ----------------------------------------
-    // Story vars
+    // Misc
     // ----------------------------------------
 
     let mut story_vars: HashMap<String, i32> = HashMap::new();
-
-    // ----------------------------------------
-    // Misc
-    // ----------------------------------------
 
     let mut script_instance_manager =
         ScriptInstanceManager { script_instances: SlotMap::with_key() };
@@ -274,9 +270,10 @@ fn main() {
     let mut player_movement_locked = false;
     let mut map_overlay_color_transition: Option<MapOverlayColorTransition> = None;
 
-    // ----- Scratchpad -----
+    // ----------------------------------------
+    // Scratchpad
+    // ----------------------------------------
     {}
-    // ----- Scratchpad -----
 
     let mut running = true;
     while running {
@@ -466,10 +463,11 @@ fn main() {
             // Music and sound effects are resources and probably counts as app data, too
             #[rustfmt::skip]
                 script.update(
-                    &mut story_vars, &mut ecs, &mut message_window,
-                    &mut player_movement_locked,
+                    &mut story_vars, &mut ecs, &world,
+                    &mut message_window, &mut player_movement_locked,
                     &mut map_overlay_color_transition, render_data.map_overlay_color,
-                    &mut render_data.show_cutscene_border, &mut render_data.displayed_card_name,
+                    &mut render_data.show_cutscene_border,
+                    &mut render_data.displayed_card_name,
                     &mut running, &musics, &sound_effects, player_id
                 );
         }
@@ -540,17 +538,27 @@ fn main() {
             }
         }
 
-        let player_position =
-            ecs.query_one_by_id::<&Position>(player_id).unwrap().0.clone();
+        // ----------------------------------------
+        // Render
+        // ----------------------------------------
 
-        // Camera follows player but stays clamped to map
+        let player_position = ecs.query_one_by_id::<&Position>(player_id).unwrap().0;
+        let map_to_render = world.maps.get(player_position.map_id).unwrap();
+
         let mut camera_position = player_position.map_pos;
-        // TODO panics (because clamp min > clamp max) when map is smaller than viewport
-        if false {
-            let viewport_dimensions = MapPos::new(SCREEN_COLS as f64, SCREEN_ROWS as f64);
-            let map = &world.maps.get(&player_position.map_label).unwrap();
-            let map_dimensions =
-                MapPos::new(map.width_in_cells as f64, map.height_in_cells as f64);
+
+        // Clamp camera to map
+        // (This current implementation assumes that map top-left is [0, 0].
+        // Keep this in mind when that changes.)
+        let viewport_dimensions = Point::new(SCREEN_COLS as f64, SCREEN_ROWS as f64);
+        let map_dimensions = Point::new(
+            map_to_render.width_in_cells as f64,
+            map_to_render.height_in_cells as f64,
+        );
+        // Confirm that map is larger than viewport, or clamp() will panic
+        if map_dimensions.x > viewport_dimensions.x
+            && map_dimensions.y > viewport_dimensions.y
+        {
             camera_position.x = camera_position.x.clamp(
                 viewport_dimensions.x / 2.0,
                 map_dimensions.x - viewport_dimensions.x / 2.0,
@@ -561,14 +569,11 @@ fn main() {
             );
         }
 
-        // ----------------------------------------
-        // Render
-        // ----------------------------------------
         render::render(
             &mut render_data,
             // Should camera position be stored in render data???
             camera_position,
-            &world.maps.get(&player_position.map_label).unwrap(),
+            map_to_render,
             &message_window,
             &ecs,
         );
@@ -590,9 +595,9 @@ fn update_walking_entities(
     for (id, mut position, mut walking, collision) in
         ecs.query_all::<(EntityId, &mut Position, &mut Walking, Option<&Collision>)>()
     {
-        let map_label = position.0.map_label.clone();
-        let map = world.maps.get(&map_label).unwrap();
+        let map_id = position.0.map_id;
         let map_pos = &mut position.0.map_pos;
+        let map = world.maps.get(map_id).unwrap();
 
         // Determine new position before collision resolution
         let mut new_position = *map_pos
@@ -631,7 +636,7 @@ fn update_walking_entities(
                 ];
                 for cell_aabb in cellposes_to_check
                     .iter()
-                    .flat_map(|cp| map.get_collision_aabbs_for_cellpos(*cp))
+                    .flat_map(|cp| map.get_collision_aabbs_for_cell(*cp))
                     .flatten()
                 {
                     new_aabb.resolve_collision(&old_aabb, &cell_aabb);
@@ -647,7 +652,7 @@ fn update_walking_entities(
                     ecs.query_all_except::<(&Position, &Collision, Option<&Scripts>)>(id)
                 {
                     // Skip checking against entities not on the current map or not solid
-                    if other_pos.0.map_label != map_label || !other_coll.solid {
+                    if other_pos.0.map_id != map_id || !other_coll.solid {
                         continue;
                     }
 
