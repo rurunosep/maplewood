@@ -12,7 +12,7 @@
 //      let thread = globals.get::<_, Thread>(script_instance.thread_name);
 //      thread.resume();
 
-use crate::components::{
+use crate::ecs::components::{
     Collision, Facing, Position, SineOffsetAnimation, Sprite, SpriteComponent, Walking,
 };
 use crate::ecs::{Ecs, EntityId};
@@ -45,6 +45,7 @@ impl ScriptInstanceManager {
 
 #[derive(Debug)]
 pub enum ScriptError {
+    Generic(String),
     InvalidStoryVar(String),
     InvalidEntity(String),
     InvalidMap(String),
@@ -55,12 +56,13 @@ impl Error for ScriptError {}
 impl Display for ScriptError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ScriptError::InvalidStoryVar(var) => write!(f, "no story var {var}"),
+            ScriptError::Generic(message) => write!(f, "{message}"),
+            ScriptError::InvalidStoryVar(var) => write!(f, "no story var \"{var}\""),
             ScriptError::InvalidEntity(label) => {
-                write!(f, "no entity {label} with necessary components")
+                write!(f, "no entity \"{label}\" with necessary components")
             }
             ScriptError::InvalidMap(label) => {
-                write!(f, "no map {label}")
+                write!(f, "no map \"{label}\"")
             }
         }
     }
@@ -272,7 +274,7 @@ impl ScriptInstance {
                     globals.set(
                         "get_entity_position",
                         scope.create_function(|_, args| {
-                            cb_get_entity_position(args, *ecs.borrow())
+                            cb_get_entity_map_pos(args, *ecs.borrow())
                         })?,
                     )?;
                     globals.set(
@@ -527,7 +529,6 @@ pub fn filter_scripts_by_trigger_and_condition<'a>(
 // ----------------------------------------
 // Callbacks
 // ----------------------------------------
-// TODO more descriptive param names
 
 fn cb_get_storyvar(key: String, story_vars: &HashMap<String, i32>) -> LuaResult<i32> {
     let val = story_vars.get(&key).copied().ok_or(ScriptError::InvalidStoryVar(key))?;
@@ -542,26 +543,82 @@ fn cb_set_storyvar(
     Ok(())
 }
 
-fn cb_get_entity_position(entity: String, ecs: &Ecs) -> LuaResult<(f64, f64)> {
+fn cb_get_entity_map_pos(entity: String, ecs: &Ecs) -> LuaResult<(f64, f64)> {
     let position = ecs
         .query_one_by_label::<&Position>(&entity)
         .ok_or(ScriptError::InvalidEntity(entity))?;
     Ok((position.0.map_pos.x, position.0.map_pos.y))
 }
 
-fn cb_lock_player_input(
-    _args: (),
-    player_movement_locked: &mut bool,
+// Requires entity to have a position component already, since map is omitted
+fn cb_set_entity_map_pos(
+    (entity, x, y): (String, f64, f64),
     ecs: &mut Ecs,
-    player_id: EntityId,
 ) -> LuaResult<()> {
-    *player_movement_locked = true;
-    // End current player movement
-    // There's no way to tell if it's from input or other
-    // It might be better to set speed to 0 at end of each update (if movement is not
-    // being forced) and then set it again in input processing as long as key is still
-    // held
-    ecs.query_one_by_id::<&mut Walking>(player_id).unwrap().speed = 0.;
+    let mut position = ecs
+        .query_one_by_label::<&mut Position>(&entity)
+        .ok_or(ScriptError::InvalidEntity(entity))?;
+    position.0.map_pos = MapPos::new(x, y);
+    Ok(())
+}
+
+// Will attach a new position component
+fn cb_set_entity_world_pos(
+    (entity, map, x, y): (String, String, f64, f64),
+    ecs: &mut Ecs,
+    world: &World,
+) -> LuaResult<()> {
+    let entity_id = ecs
+        .query_one_by_label::<EntityId>(&entity)
+        .ok_or(ScriptError::InvalidEntity(entity))?;
+
+    let map_id = world
+        .maps
+        .iter()
+        .find(|(_, m)| m.label == map)
+        .map(|(id, _)| id)
+        .ok_or(ScriptError::InvalidMap(map))?;
+
+    ecs.add_component(entity_id, Position(WorldPos::new(map_id, x, y)));
+    Ok(())
+}
+
+fn cb_remove_entity_position(entity: String, ecs: &mut Ecs) -> LuaResult<()> {
+    let id = ecs
+        .query_one_by_label::<EntityId>(&entity)
+        .ok_or(ScriptError::InvalidEntity(entity))?;
+    ecs.remove_component::<Position>(id);
+    Ok(())
+}
+
+fn cb_set_forced_sprite(
+    (entity, spritesheet_name, rect_x, rect_y, rect_w, rect_h): (
+        String,
+        String,
+        i32,
+        i32,
+        u32,
+        u32,
+    ),
+    ecs: &mut Ecs,
+) -> LuaResult<()> {
+    let mut sprite_component = ecs
+        .query_one_by_label::<&mut SpriteComponent>(&entity)
+        .ok_or(ScriptError::InvalidEntity(entity))?;
+
+    sprite_component.forced_sprite = Some(Sprite {
+        spritesheet_name,
+        rect: Rect::new(rect_x, rect_y, rect_w, rect_h),
+    });
+
+    Ok(())
+}
+
+fn cb_remove_forced_sprite(entity: String, ecs: &mut Ecs) -> LuaResult<()> {
+    let mut sprite_component = ecs
+        .query_one_by_label::<&mut SpriteComponent>(&entity)
+        .ok_or(ScriptError::InvalidEntity(entity))?;
+    sprite_component.forced_sprite = None;
     Ok(())
 }
 
@@ -576,6 +633,21 @@ fn cb_set_entity_solid(
     Ok(())
 }
 
+fn cb_lock_player_input(
+    _args: (),
+    player_movement_locked: &mut bool,
+    ecs: &mut Ecs,
+    player_id: EntityId,
+) -> LuaResult<()> {
+    *player_movement_locked = true;
+    // End current player movement
+    // There's no way to tell if it's from input or other
+    // It might be better to set speed to 0 at end of each update (if movement is not
+    // being forced) and set it again in input processing as long as key is still held
+    ecs.query_one_by_id::<&mut Walking>(player_id).unwrap().speed = 0.;
+    Ok(())
+}
+
 fn cb_walk(
     (entity, direction, distance, speed): (String, String, f64, f64),
     ecs: &mut Ecs,
@@ -585,13 +657,15 @@ fn cb_walk(
         .ok_or(ScriptError::InvalidEntity(entity))?;
 
     walking.direction = match direction.as_str() {
-        "up" => Direction::Up,
-        "down" => Direction::Down,
-        "left" => Direction::Left,
-        "right" => Direction::Right,
-        s => panic!("{s} is not a valid direction"),
-    };
+        "up" => Ok(Direction::Up),
+        "down" => Ok(Direction::Down),
+        "left" => Ok(Direction::Left),
+        "right" => Ok(Direction::Right),
+        s => Err(ScriptError::Generic(format!("{s} is not a valid direction"))),
+    }?;
+
     walking.speed = speed;
+
     walking.destination = Some(
         position.0.map_pos
             + match walking.direction {
@@ -616,13 +690,15 @@ fn cb_walk_to(
         .ok_or(ScriptError::InvalidEntity(entity))?;
 
     walking.direction = match direction.as_str() {
-        "up" => Direction::Up,
-        "down" => Direction::Down,
-        "left" => Direction::Left,
-        "right" => Direction::Right,
-        s => panic!("{s} is not a valid direction"),
-    };
+        "up" => Ok(Direction::Up),
+        "down" => Ok(Direction::Down),
+        "left" => Ok(Direction::Left),
+        "right" => Ok(Direction::Right),
+        s => Err(ScriptError::Generic(format!("{s} is not a valid direction"))),
+    }?;
+
     walking.speed = speed;
+
     walking.destination = Some(match walking.direction {
         Direction::Up | Direction::Down => MapPos::new(position.0.map_pos.x, destination),
         Direction::Left | Direction::Right => {
@@ -635,52 +711,11 @@ fn cb_walk_to(
     Ok(())
 }
 
-fn cb_set_entity_map_pos(
-    (entity, x, y): (String, f64, f64),
-    ecs: &mut Ecs,
-) -> LuaResult<()> {
-    let mut position = ecs
-        .query_one_by_label::<&mut Position>(&entity)
+fn cb_is_entity_walking(entity: String, ecs: &Ecs) -> LuaResult<bool> {
+    let walking = ecs
+        .query_one_by_label::<&Walking>(&entity)
         .ok_or(ScriptError::InvalidEntity(entity))?;
-    position.0.map_pos = MapPos::new(x, y);
-    Ok(())
-}
-
-fn cb_set_entity_world_pos(
-    (entity, map, x, y): (String, String, f64, f64),
-    ecs: &mut Ecs,
-    world: &World,
-) -> LuaResult<()> {
-    // Get entity id by entity label
-    let entity_id = ecs
-        .query_one_by_label::<EntityId>(&entity)
-        .ok_or(ScriptError::InvalidEntity(entity))?;
-
-    // Get map id by map label
-    let map_id = world
-        .maps
-        .iter()
-        .find(|(_, m)| m.label == map)
-        .map(|(id, _)| id)
-        .ok_or(ScriptError::InvalidMap(map))?;
-
-    // Set world position
-    ecs.add_component(entity_id, Position(WorldPos::new(map_id, x, y)));
-    Ok(())
-}
-
-fn cb_set_map_overlay_color(
-    (r, g, b, a, duration): (u8, u8, u8, u8, f64),
-    map_overlay_color_transition: &mut Option<MapOverlayColorTransition>,
-    map_overlay_color: Color,
-) -> LuaResult<()> {
-    *map_overlay_color_transition = Some(MapOverlayColorTransition {
-        start_time: Instant::now(),
-        duration: Duration::from_secs_f64(duration),
-        start_color: map_overlay_color,
-        end_color: Color::RGBA(r, g, b, a),
-    });
-    Ok(())
+    Ok(walking.destination.is_some())
 }
 
 fn cb_anim_quiver((entity, duration): (String, f64), ecs: &mut Ecs) -> LuaResult<()> {
@@ -740,48 +775,18 @@ fn cb_stop_music(fade_out_time: f64) -> LuaResult<()> {
     Ok(())
 }
 
-fn cb_remove_entity_position(entity: String, ecs: &mut Ecs) -> LuaResult<()> {
-    let id = ecs
-        .query_one_by_label::<EntityId>(&entity)
-        .ok_or(ScriptError::InvalidEntity(entity))?;
-    ecs.remove_component::<Position>(id);
-    Ok(())
-}
-
-fn cb_set_forced_sprite(
-    (entity, spritesheet_name, rect_x, rect_y, rect_w, rect_h): (
-        String,
-        String,
-        i32,
-        i32,
-        u32,
-        u32,
-    ),
-    ecs: &mut Ecs,
+fn cb_set_map_overlay_color(
+    (r, g, b, a, duration): (u8, u8, u8, u8, f64),
+    map_overlay_color_transition: &mut Option<MapOverlayColorTransition>,
+    map_overlay_color: Color,
 ) -> LuaResult<()> {
-    let mut sprite_component = ecs
-        .query_one_by_label::<&mut SpriteComponent>(&entity)
-        .ok_or(ScriptError::InvalidEntity(entity))?;
-    sprite_component.forced_sprite = Some(Sprite {
-        spritesheet_name,
-        rect: Rect::new(rect_x, rect_y, rect_w, rect_h),
+    *map_overlay_color_transition = Some(MapOverlayColorTransition {
+        start_time: Instant::now(),
+        duration: Duration::from_secs_f64(duration),
+        start_color: map_overlay_color,
+        end_color: Color::RGBA(r, g, b, a),
     });
     Ok(())
-}
-
-fn cb_remove_forced_sprite(entity: String, ecs: &mut Ecs) -> LuaResult<()> {
-    let mut sprite_component = ecs
-        .query_one_by_label::<&mut SpriteComponent>(&entity)
-        .ok_or(ScriptError::InvalidEntity(entity))?;
-    sprite_component.forced_sprite = None;
-    Ok(())
-}
-
-fn cb_is_entity_walking(entity: String, ecs: &Ecs) -> LuaResult<bool> {
-    let walking = ecs
-        .query_one_by_label::<&Walking>(&entity)
-        .ok_or(ScriptError::InvalidEntity(entity))?;
-    Ok(walking.destination.is_some())
 }
 
 fn cb_message(

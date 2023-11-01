@@ -3,14 +3,13 @@
 #![feature(macro_metavar_expr)]
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-mod components;
 mod ecs;
 mod ldtk_json;
 mod render;
 mod script;
 mod world;
 
-use components::{
+use ecs::components::{
     Collision, Facing, Label, Position, Scripts, SineOffsetAnimation, Sprite,
     SpriteComponent, Walking,
 };

@@ -1,4 +1,4 @@
-use crate::ecs::Component;
+use super::Component;
 use crate::script::ScriptClass;
 use crate::world::WorldPos;
 use crate::{Direction, MapPos, Point};

@@ -1,4 +1,4 @@
-use crate::components::{Facing, Position, SineOffsetAnimation, SpriteComponent};
+use crate::ecs::components::{Facing, Position, SineOffsetAnimation, SpriteComponent};
 use crate::ecs::Ecs;
 use crate::world::Map;
 use crate::{Direction, MapPos, MessageWindow, Point};
