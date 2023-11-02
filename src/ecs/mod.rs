@@ -1,5 +1,7 @@
 pub mod components;
-pub mod ecs;
-pub mod query;
 
+mod query;
+
+#[allow(clippy::module_inception)]
+mod ecs;
 pub use ecs::*;

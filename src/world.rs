@@ -65,15 +65,14 @@ impl World {
 type TileId = u32;
 
 pub struct TileLayer {
-    // (I'm keeping the terms "label" and "name" distinct.
-    // A "label" is specifically an identifier for referencing things in lua scripts.
-    // Entities and Maps have labels.
-    // A "name" is an identifier just for the purpose of debug output.
-    // TileLayers and ScriptClasses have names.
+    // (I'm keeping the terms "name" and "label" distinct.
+    // A "name" is specifically an identifier for referencing things in lua scripts.
+    // Names should be unique. Entities and Maps have names.
+    // A "label" is an identifier just for the purpose of debug output.
+    // TileLayers and ScriptClasses have labels.
     // If I later want to directly trigger scripts from other scripts, then ScriptClasses
-    // will have a "label".
-    // I may change around these specific terms, but in any case, they'll be distinct.)
-    pub name: String,
+    // will have names.)
+    pub label: String,
     pub tileset_path: String,
     pub tile_ids: Vec<Option<TileId>>,
     pub x_offset: f64,
@@ -82,7 +81,7 @@ pub struct TileLayer {
 
 pub struct Map {
     pub id: MapId,
-    pub label: String,
+    pub name: String,
     pub width_in_cells: i32,
     pub height_in_cells: i32,
     pub tile_layers: Vec<TileLayer>,
@@ -95,15 +94,6 @@ pub struct Map {
 }
 
 impl Map {
-    // I'm thinking a single Map can be made from one or more levels. For example, a
-    // small room will be made of a single level in an "indoors" world, a large floor
-    // of a building could be made of several levels in the "indoors" world, and a
-    // very large map such as the "overworld" or "sewers" could be made of an entire
-    // world of many levels.
-    //
-    // pub fn from_multiple_ldtk_levels(..., levels: &[Level]) -> Self {...}
-    // pub fn from_ldtk_world(..., world: &World) -> Self {...}
-
     pub fn from_ldtk_level(id: MapId, label: &str, level: &ldtk_json::Level) -> Self {
         let width_in_cells = (level.px_wid / 16) as i32;
         let height_in_cells = (level.px_hei / 16) as i32;
@@ -123,7 +113,7 @@ impl Map {
             }
 
             tile_layers.push(TileLayer {
-                name: layer.identifier.clone(),
+                label: layer.identifier.clone(),
                 tileset_path: layer.tileset_rel_path.as_ref().unwrap().clone(),
                 tile_ids: tiles,
                 x_offset: layer.px_total_offset_x as f64 / 16.,
@@ -148,7 +138,7 @@ impl Map {
 
         Self {
             id,
-            label: label.to_string(),
+            name: label.to_string(),
             width_in_cells,
             height_in_cells,
             tile_layers,
@@ -157,6 +147,24 @@ impl Map {
         }
     }
 
+    // I'm thinking a single Map can be made from one or more levels. For example, a
+    // small room will be made of a single level in an "indoors" world, a large floor
+    // of a building could be made of several levels in the "indoors" world, and a
+    // very large map such as the "overworld" or "sewers" could be made of an entire
+    // world of many levels.
+
+    // pub fn from_multiple_ldtk_levels(
+    //     id: MapId,
+    //     label: &str,
+    //     levels: &[ldtk_json::Level],
+    // ) -> Self {
+    //     todo!()
+    // }
+
+    // pub fn from_ldtk_world(id: MapId, label: &str, world: &World) -> Self {
+    //     todo!()
+    // }
+
     // Get the collision AABBs for each of the 4 quarters of a cell at cellpos
     pub fn get_collision_aabbs_for_cell(&self, cellpos: CellPos) -> [Option<AABB>; 4] {
         let top_left = self
@@ -164,13 +172,11 @@ impl Map {
             .get((cellpos.y * 2 * self.width_in_cells * 2 + cellpos.x * 2) as usize)
             .cloned()
             .flatten()
-            .and_then(|_| {
-                Some(AABB {
-                    top: cellpos.y as f64,
-                    bottom: cellpos.y as f64 + 0.5,
-                    left: cellpos.x as f64,
-                    right: cellpos.x as f64 + 0.5,
-                })
+            .map(|_| AABB {
+                top: cellpos.y as f64,
+                bottom: cellpos.y as f64 + 0.5,
+                left: cellpos.x as f64,
+                right: cellpos.x as f64 + 0.5,
             });
 
         let top_right = self
@@ -178,13 +184,11 @@ impl Map {
             .get((cellpos.y * 2 * self.width_in_cells * 2 + cellpos.x * 2 + 1) as usize)
             .cloned()
             .flatten()
-            .and_then(|_| {
-                Some(AABB {
-                    top: cellpos.y as f64,
-                    bottom: cellpos.y as f64 + 0.5,
-                    left: cellpos.x as f64 + 0.5,
-                    right: cellpos.x as f64 + 1.,
-                })
+            .map(|_| AABB {
+                top: cellpos.y as f64,
+                bottom: cellpos.y as f64 + 0.5,
+                left: cellpos.x as f64 + 0.5,
+                right: cellpos.x as f64 + 1.,
             });
 
         let bottom_left = self
@@ -192,13 +196,11 @@ impl Map {
             .get(((cellpos.y * 2 + 1) * self.width_in_cells * 2 + cellpos.x * 2) as usize)
             .cloned()
             .flatten()
-            .and_then(|_| {
-                Some(AABB {
-                    top: cellpos.y as f64 + 0.5,
-                    bottom: cellpos.y as f64 + 1.,
-                    left: cellpos.x as f64,
-                    right: cellpos.x as f64 + 0.5,
-                })
+            .map(|_| AABB {
+                top: cellpos.y as f64 + 0.5,
+                bottom: cellpos.y as f64 + 1.,
+                left: cellpos.x as f64,
+                right: cellpos.x as f64 + 0.5,
             });
 
         let bottom_right = self
@@ -209,13 +211,11 @@ impl Map {
             )
             .cloned()
             .flatten()
-            .and_then(|_| {
-                Some(AABB {
-                    top: cellpos.y as f64 + 0.5,
-                    bottom: cellpos.y as f64 + 1.,
-                    left: cellpos.x as f64 + 0.5,
-                    right: cellpos.x as f64 + 1.,
-                })
+            .map(|_| AABB {
+                top: cellpos.y as f64 + 0.5,
+                bottom: cellpos.y as f64 + 1.,
+                left: cellpos.x as f64 + 0.5,
+                right: cellpos.x as f64 + 1.,
             });
 
         [top_left, top_right, bottom_left, bottom_right]

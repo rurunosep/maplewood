@@ -95,9 +95,7 @@ where
             .unwrap_or(false)
     }
 
-    fn borrow(_: EntityId, _: &AnyMap) -> Self::Result<'_> {
-        ()
-    }
+    fn borrow(_: EntityId, _: &AnyMap) -> Self::Result<'_> {}
 }
 
 pub struct Without<C>(std::marker::PhantomData<C>)
@@ -117,9 +115,7 @@ where
             .unwrap_or(false)
     }
 
-    fn borrow(_: EntityId, _: &AnyMap) -> Self::Result<'_> {
-        ()
-    }
+    fn borrow(_: EntityId, _: &AnyMap) -> Self::Result<'_> {}
 }
 
 macro_rules! impl_query_for_tuple {

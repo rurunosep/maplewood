@@ -5,8 +5,8 @@ use crate::{Direction, MapPos, Point};
 use sdl2::rect::Rect;
 use std::time::{Duration, Instant};
 
-pub struct Label(pub String);
-impl Component for Label {}
+pub struct Name(pub String);
+impl Component for Name {}
 
 #[derive(Default)]
 pub struct Position(pub WorldPos);

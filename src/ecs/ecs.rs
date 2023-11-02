@@ -1,4 +1,4 @@
-use super::components::Label;
+use super::components::Name;
 use super::query::Query;
 use anymap::AnyMap;
 use slotmap::{new_key_type, Key, SecondaryMap, SlotMap};
@@ -32,6 +32,7 @@ pub type ComponentMap<C> = SecondaryMap<EntityId, RefCell<C>>;
 pub struct Ecs {
     pub entity_ids: SlotMap<EntityId, ()>,
     pub component_maps: AnyMap,
+    #[allow(clippy::type_complexity)]
     pub deferred_mutations: RefCell<Vec<Box<dyn FnOnce(&mut Ecs)>>>,
     pub deferred_entity_ids: RefCell<SlotMap<DeferredEntityId, EntityId>>,
 }
@@ -80,13 +81,11 @@ impl Ecs {
             .map(|id| Q::borrow(id, &self.component_maps))
     }
 
-    pub fn query_one_by_label<Q>(&self, label: &str) -> Option<Q::Result<'_>>
+    pub fn name<Q>(&self, name: &str) -> Option<Q::Result<'_>>
     where
         Q: Query + 'static,
     {
-        self.query_all::<(&Label, Q)>()
-            .find(|(l, _)| l.0.as_str() == label)
-            .map(|(_, q)| q)
+        self.query_all::<(&Name, Q)>().find(|(l, _)| l.0.as_str() == name).map(|(_, q)| q)
     }
 
     pub fn add_entity(&mut self) -> EntityId {
