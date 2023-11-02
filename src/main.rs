@@ -15,7 +15,9 @@ use ecs::components::{
 };
 use ecs::{Ecs, EntityId};
 use render::{RenderData, SCREEN_COLS, SCREEN_ROWS, SCREEN_SCALE, TILE_SIZE};
-use script::{ScriptClass, ScriptId, ScriptInstanceManager, ScriptTrigger};
+use script::{
+    ScriptClass, ScriptCondition, ScriptId, ScriptInstanceManager, ScriptTrigger,
+};
 use sdl2::event::Event;
 use sdl2::image::LoadTexture;
 use sdl2::keyboard::Keycode;
@@ -79,37 +81,29 @@ fn main() {
         .unwrap();
     let canvas = window.into_canvas().build().unwrap();
 
+    let font = ttf_context.load_font("assets/Grand9KPixel.ttf", 8).unwrap();
+
     // ----------------------------------------
     // Graphics
     // ----------------------------------------
 
     let texture_creator = canvas.texture_creator();
-    let font = ttf_context.load_font("assets/Grand9KPixel.ttf", 8).unwrap();
 
-    let mut tilesets: HashMap<String, Texture> = HashMap::new();
-    tilesets.insert(
-        "walls.png".to_string(),
-        texture_creator.load_texture("assets/walls.png").unwrap(),
-    );
-    tilesets.insert(
-        "floors.png".to_string(),
-        texture_creator.load_texture("assets/floors.png").unwrap(),
-    );
-    tilesets.insert(
-        "ceilings.png".to_string(),
-        texture_creator.load_texture("assets/ceilings.png").unwrap(),
-    );
-    tilesets.insert(
-        "room_builder.png".to_string(),
-        texture_creator.load_texture("assets/room_builder.png").unwrap(),
-    );
-    tilesets.insert(
-        "modern_interiors.png".to_string(),
-        texture_creator.load_texture("assets/modern_interiors.png").unwrap(),
-    );
-    tilesets.insert(
-        "modern_exteriors.png".to_string(),
-        texture_creator.load_texture("assets/modern_exteriors.png").unwrap(),
+    let tilesets: HashMap<String, Texture> = HashMap::from(
+        [
+            "walls.png",
+            "floors.png",
+            "ceilings.png",
+            "room_builder.png",
+            "modern_interiors.png",
+            "modern_exteriors.png",
+        ]
+        .map(|name| {
+            (
+                name.to_string(),
+                texture_creator.load_texture(format!("assets/{name}")).unwrap(),
+            )
+        }),
     );
 
     let mut spritesheets: HashMap<String, Texture> = HashMap::new();
@@ -221,14 +215,19 @@ fn main() {
         ecs.add_component(
             id,
             Scripts(vec![ScriptClass {
+                name: "".to_string(),
                 source: script::get_sub_script(
                     &scripts_source,
                     "teleport_map_1_to_map_2",
                 ),
                 trigger: ScriptTrigger::SoftCollision,
-                start_condition: None,
+                start_condition: Some(ScriptCondition {
+                    story_var: "t1to2".to_string(),
+                    value: 1,
+                }),
                 abort_condition: None,
-                name: None,
+                set_on_start: Some(("t1to2".to_string(), 0)),
+                set_on_finish: Some(("t1to2".to_string(), 1)),
             }]),
         )
     }
@@ -244,14 +243,19 @@ fn main() {
         ecs.add_component(
             id,
             Scripts(vec![ScriptClass {
+                name: "".to_string(),
                 source: script::get_sub_script(
                     &scripts_source,
                     "teleport_map_2_to_map_1",
                 ),
                 trigger: ScriptTrigger::SoftCollision,
-                start_condition: None,
+                start_condition: Some(ScriptCondition {
+                    story_var: "t2to1".to_string(),
+                    value: 1,
+                }),
                 abort_condition: None,
-                name: None,
+                set_on_start: Some(("t2to1".to_string(), 0)),
+                set_on_finish: Some(("t2to1".to_string(), 1)),
             }]),
         )
     }
@@ -261,6 +265,8 @@ fn main() {
     // ----------------------------------------
 
     let mut story_vars: HashMap<String, i32> = HashMap::new();
+    story_vars.insert("t1to2".to_string(), 1);
+    story_vars.insert("t2to1".to_string(), 1);
 
     let mut script_instance_manager =
         ScriptInstanceManager { script_instances: SlotMap::with_key() };
@@ -350,30 +356,25 @@ fn main() {
                         || keycode == Keycode::Num3
                         || keycode == Keycode::Num4 =>
                 {
-                    // if-let-chains would be nice here. But rustfmt doesn't handle them
-                    // yet...
-                    let message_window_option = &mut message_window;
-                    if let Some(message_window) = message_window_option {
-                        if message_window.is_selection {
-                            // I want to redo how window<->script communcation works
-                            // How should the window (or UI in general) give the input to
-                            // the correct script?
-                            // (prob UI/Input update)
-                            if let Some(script) = script_instance_manager
-                                .script_instances
-                                .get_mut(message_window.waiting_script_id)
-                            {
-                                script.input = match keycode {
-                                    Keycode::Num1 => 1,
-                                    Keycode::Num2 => 2,
-                                    Keycode::Num3 => 3,
-                                    Keycode::Num4 => 4,
-                                    _ => unreachable!(),
-                                };
-                            }
-                        }
-                        *message_window_option = None;
+                    if let Some(message_window) = &message_window
+                        && message_window.is_selection
+                        && let Some(script) = script_instance_manager
+                            .script_instances
+                            .get_mut(message_window.waiting_script_id)
+                    {
+                        // I want to redo how window<->script communcation works
+                        // How should the window (or UI in general) give the input to
+                        // the correct script?
+                        // (prob UI/Input update)
+                        script.input = match keycode {
+                            Keycode::Num1 => 1,
+                            Keycode::Num2 => 2,
+                            Keycode::Num3 => 3,
+                            Keycode::Num4 => 4,
+                            _ => unreachable!(),
+                        };
                     }
+                    message_window = None;
                 }
 
                 // Interact with entity to start script
@@ -419,7 +420,8 @@ fn main() {
                                 ScriptTrigger::Interaction,
                                 &story_vars,
                             ) {
-                                script_instance_manager.start_script(script);
+                                script_instance_manager
+                                    .start_script(script, &mut story_vars);
                             }
                         }
                     }
@@ -433,19 +435,14 @@ fn main() {
         // Update
         // ----------------------------------------
 
-        // Start any auto-run scripts
-        // Currently, auto-run scripts must rely on a start condition that must be
-        // immediately unfulfilled at the start of the script in order to avoid
-        // starting a new instance on every single frame
-        // FORGETTING THIS IS A VERY EASY MISTAKE TO MAKE!
-        // Be careful, and eventually rework
+        // Start any Auto scripts
         for scripts in ecs.query_all::<&Scripts>() {
             for script in script::filter_scripts_by_trigger_and_condition(
                 &scripts.0,
                 ScriptTrigger::Auto,
                 &story_vars,
             ) {
-                script_instance_manager.start_script(script);
+                script_instance_manager.start_script(script, &mut story_vars);
             }
         }
 
@@ -461,26 +458,35 @@ fn main() {
             // (possibly further divided into UI, renderer, or true app)
             // Music and sound effects are resources and probably counts as app data, too
             #[rustfmt::skip]
-                script.update(
-                    &mut story_vars, &mut ecs, &world,
-                    &mut message_window, &mut player_movement_locked,
-                    &mut map_overlay_color_transition, render_data.map_overlay_color,
-                    &mut render_data.show_cutscene_border,
-                    &mut render_data.displayed_card_name,
-                    &mut running, &musics, &sound_effects, player_id
-                );
+            script.update(
+                &mut story_vars, &mut ecs, &world,
+                &mut message_window, &mut player_movement_locked,
+                &mut map_overlay_color_transition, render_data.map_overlay_color,
+                &mut render_data.show_cutscene_border,
+                &mut render_data.displayed_card_name,
+                &mut running, &musics, &sound_effects, player_id
+            );
+
+            // Set any set_on_finish story vars for finished scripts
+            if script.finished
+                && let Some((var, value)) = &script.script_class.set_on_finish
+            {
+                *story_vars.get_mut(var).unwrap() = *value;
+            }
         }
-        // Remove finished or aborted scripts
+        // Remove finished scripts
         script_instance_manager.script_instances.retain(|_, script| !script.finished);
 
         // Move entities and resolve collisions
-        update_walking_entities(&ecs, &world, &mut script_instance_manager, &story_vars);
+        update_walking_entities(
+            &ecs,
+            &world,
+            &mut script_instance_manager,
+            &mut story_vars,
+        );
 
         // Start player soft collision scripts
         let player_aabb = {
-            // (player_aabb is defined in a block so that the required pos and coll
-            // component Refs are dropped at the end. Otherwise they have to
-            // be dropped manually in order to borrow the ECS mutably later)
             let (pos, coll) =
                 ecs.query_one_by_id::<(&Position, &Collision)>(player_id).unwrap();
             AABB::from_pos_and_hitbox(pos.0.map_pos, coll.hitbox_dimensions)
@@ -494,14 +500,13 @@ fn main() {
                 aabb.is_colliding(&player_aabb)
             })
         {
-            // ...start all scripts that have a collision trigger and fulfill start
-            // condition
+            // ...start scripts that have collision trigger and fulfill start condition
             for script in script::filter_scripts_by_trigger_and_condition(
                 &scripts.0,
                 ScriptTrigger::SoftCollision,
                 &story_vars,
             ) {
-                script_instance_manager.start_script(script);
+                script_instance_manager.start_script(script, &mut story_vars);
             }
         }
 
@@ -570,7 +575,6 @@ fn main() {
 
         render::render(
             &mut render_data,
-            // Should camera position be stored in render data???
             camera_position,
             map_to_render,
             &message_window,
@@ -589,7 +593,7 @@ fn update_walking_entities(
     ecs: &Ecs,
     world: &World,
     script_instance_manager: &mut ScriptInstanceManager,
-    story_vars: &HashMap<String, i32>,
+    story_vars: &mut HashMap<String, i32>,
 ) {
     for (id, mut position, mut walking, collision) in
         ecs.query_all::<(EntityId, &mut Position, &mut Walking, Option<&Collision>)>()
@@ -682,7 +686,7 @@ fn update_walking_entities(
                                 ScriptTrigger::HardCollision,
                                 story_vars,
                             ) {
-                                script_instance_manager.start_script(script);
+                                script_instance_manager.start_script(script, story_vars);
                             }
                         }
                     }

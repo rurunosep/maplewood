@@ -37,9 +37,17 @@ pub struct ScriptInstanceManager {
 }
 
 impl ScriptInstanceManager {
-    pub fn start_script(&mut self, script: &ScriptClass) {
+    pub fn start_script(
+        &mut self,
+        script_class: &ScriptClass,
+        story_vars: &mut HashMap<String, i32>,
+    ) {
         self.script_instances
-            .insert_with_key(|id| ScriptInstance::new(script.clone(), id));
+            .insert_with_key(|id| ScriptInstance::new(script_class.clone(), id));
+
+        if let Some((var, value)) = &script_class.set_on_start {
+            *story_vars.get_mut(var).unwrap() = *value;
+        }
     }
 }
 
@@ -89,6 +97,7 @@ pub enum ScriptTrigger {
 pub struct ScriptCondition {
     pub story_var: String,
     pub value: i32,
+    // This could also have an enum for eq, gt, lt, ne...
 }
 
 #[derive(Clone, Debug)]
@@ -99,14 +108,19 @@ pub enum WaitCondition {
 }
 
 #[derive(Clone, Debug)]
-// Rename this?
 pub struct ScriptClass {
+    pub name: String,
     pub source: String,
     pub trigger: ScriptTrigger,
     pub start_condition: Option<ScriptCondition>,
     pub abort_condition: Option<ScriptCondition>,
-    // The source file name and subscript label for debug purposes
-    pub name: Option<String>,
+    // Story vars to set automatically on script start and finish.
+    // Useful in combination with start_condition to ensure that Auto
+    // and SoftCollision scripts don't start extra instances every frame.
+    // (Remember to set these and start_condition when necessary!
+    // It's a very easy mistake to make!)
+    pub set_on_start: Option<(String, i32)>,
+    pub set_on_finish: Option<(String, i32)>,
 }
 
 pub struct ScriptInstance {
@@ -129,7 +143,7 @@ impl ScriptInstance {
                         "thread = coroutine.create(function () {} end)",
                         script_class.source
                     ))
-                    .set_name(script_class.name.as_deref().unwrap_or("unnamed"))?
+                    .set_name(&script_class.name)?
                     .exec()?;
 
                 // Utility function that will wrap a function that should
@@ -230,10 +244,7 @@ impl ScriptInstance {
 
         self.wait_condition = None;
 
-        // Wrap mut refs that are used by multiple callbacks in RefCells to copy into
-        // closures. Illegal borrow panics should never occur since Rust callbacks
-        // should never really need to call back into Lua, let alone call another
-        // Rust callback, let alone one that borrows the same refs.
+        // Wrap mut refs used by multiple callbacks in RefCells to copy into closures
         let story_vars = RefCell::new(story_vars);
         let ecs = RefCell::new(ecs);
         let message_window = RefCell::new(message_window);
@@ -250,25 +261,23 @@ impl ScriptInstance {
                     globals.set("input", self.input)?;
 
                     // Every function that references Rust data must be recreated in this
-                    // scope each time we execute some of the script,
-                    // to ensure that the references in the closure
-                    // remain valid
+                    // scope each time we execute some of the script, to ensure that the
+                    // references in the closure remain valid
 
                     // Non-trivial functions are defined elsewhere and called by the
-                    // closure with all closed variables passed as
-                    // arguments Can I automate this with a macro or
-                    // something?
+                    // closure with all closed variables passed as arguments Can I
+                    // automate this with a macro or something?
 
                     globals.set(
-                        "get_storyvar",
+                        "get_story_var",
                         scope.create_function(|_, args| {
-                            cb_get_storyvar(args, *story_vars.borrow())
+                            cb_get_story_var(args, *story_vars.borrow())
                         })?,
                     )?;
                     globals.set(
-                        "set_storyvar",
+                        "set_story_var",
                         scope.create_function_mut(|_, args| {
-                            cb_set_storyvar(args, *story_vars.borrow_mut())
+                            cb_set_story_var(args, *story_vars.borrow_mut())
                         })?,
                     )?;
                     globals.set(
@@ -475,8 +484,7 @@ impl ScriptInstance {
                         )?)?,
                     )?;
 
-                    // Get saved thread out of globals and execute until script yields or
-                    // ends
+                    // Get saved thread and execute until script yields or ends
                     let thread = globals.get::<_, Thread>("thread")?;
                     thread.resume::<_, _>(())?;
                     match thread.status() {
@@ -489,7 +497,7 @@ impl ScriptInstance {
                     Ok(())
                 })
             })
-            // Currently panics if any error is ever encountered in a lua script
+            // Currently panics if any error is ever encountered in a lua script.
             // Eventually we probably want to handle it differently depending on the error
             // and the circumstances
             .unwrap_or_else(|err| {
@@ -520,7 +528,10 @@ pub fn filter_scripts_by_trigger_and_condition<'a>(
             script.start_condition.is_none() || {
                 let ScriptCondition { story_var, value } =
                     script.start_condition.as_ref().unwrap();
-                *story_vars.get(story_var).unwrap() == *value
+                *story_vars
+                    .get(story_var)
+                    .expect(&format!("no story var \"{story_var}\""))
+                    == *value
             }
         })
         .collect()
@@ -530,12 +541,12 @@ pub fn filter_scripts_by_trigger_and_condition<'a>(
 // Callbacks
 // ----------------------------------------
 
-fn cb_get_storyvar(key: String, story_vars: &HashMap<String, i32>) -> LuaResult<i32> {
+fn cb_get_story_var(key: String, story_vars: &HashMap<String, i32>) -> LuaResult<i32> {
     let val = story_vars.get(&key).copied().ok_or(ScriptError::InvalidStoryVar(key))?;
     Ok(val)
 }
 
-fn cb_set_storyvar(
+fn cb_set_story_var(
     (key, val): (String, i32),
     story_vars: &mut HashMap<String, i32>,
 ) -> LuaResult<()> {
