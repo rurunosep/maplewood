@@ -70,13 +70,19 @@ pub fn render(
     // (Possible future optimization: cache rendered tile layers, or chunks of them.
     // No reason to redraw every single static tile every single frame.)
     for layer in &map.tile_layers {
+        // TODO
+        // Jank. I gotta improve the handling of multi-level worlds.
+        if tilesets.get(&layer.tileset_path).is_none() {
+            continue;
+        }
+
         let tileset = tilesets.get(&layer.tileset_path).unwrap();
         let tileset_width_in_tiles = tileset.query().width / 16;
 
-        for col in 0..map.width_in_cells {
-            for row in 0..map.height_in_cells {
+        for col in 0..map.width {
+            for row in 0..map.height {
                 if let Some(tile_id) =
-                    layer.tile_ids.get((row * map.width_in_cells + col) as usize).unwrap()
+                    layer.tile_ids.get((row * map.width + col) as usize).unwrap()
                 {
                     let top_left_in_screen = map_pos_to_screen_top_left(
                         MapPos::new(

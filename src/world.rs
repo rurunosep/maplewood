@@ -34,15 +34,15 @@ impl MapPos {
     }
 
     pub fn as_cellpos(self) -> CellPos {
-        CellPos::new(self.0.x.floor() as i32, self.0.y.floor() as i32)
+        CellPos::new(self.0.x.floor() as i64, self.0.y.floor() as i64)
     }
 }
 
 #[derive(Clone, Copy, Default, Debug, Deref, PartialEq)]
-pub struct CellPos(pub Point<i32>);
+pub struct CellPos(pub Point<i64>);
 
 impl CellPos {
-    pub fn new(x: i32, y: i32) -> Self {
+    pub fn new(x: i64, y: i64) -> Self {
         Self(Point::new(x, y))
     }
 
@@ -61,9 +61,12 @@ impl World {
         Self { maps: SlotMap::with_key() }
     }
 
-    // Panics
     pub fn get_map_id_by_name(&self, name: &str) -> MapId {
-        self.maps.iter().find(|(_, map)| map.name == name).map(|(id, _)| id).unwrap()
+        self.maps
+            .iter()
+            .find(|(_, map)| map.name == name)
+            .map(|(id, _)| id)
+            .unwrap_or_else(|| panic!("no map: {name}"))
     }
 }
 
@@ -87,21 +90,18 @@ pub struct TileLayer {
 pub struct Map {
     pub id: MapId,
     pub name: String,
-    pub width_in_cells: i32,
-    pub height_in_cells: i32,
+    pub width: i64,
+    pub height: i64,
     pub tile_layers: Vec<TileLayer>,
     // Option<()> rather than bool to allow for different collision types later maybe
     pub collisions: Vec<Option<()>>,
-
-    // The LDtk level is only stored here for now for convenience during development.
-    // Game should rely entirely on internal Map representation generated from LDtk json.
-    pub level: ldtk_json::Level,
 }
 
 impl Map {
     pub fn from_ldtk_level(id: MapId, name: &str, level: &ldtk_json::Level) -> Self {
-        let width_in_cells = (level.px_wid / 16) as i32;
-        let height_in_cells = (level.px_hei / 16) as i32;
+        let name = name.to_string();
+        let width = level.px_wid / 16;
+        let height = level.px_hei / 16;
 
         let mut tile_layers: Vec<TileLayer> = Vec::new();
         for layer in level.layer_instances.as_ref().unwrap().iter().rev() {
@@ -109,11 +109,9 @@ impl Map {
                 continue;
             }
 
-            let mut tiles: Vec<Option<TileId>> =
-                vec![None; (width_in_cells * height_in_cells) as usize];
+            let mut tiles: Vec<Option<TileId>> = vec![None; (width * height) as usize];
             for tile in layer.grid_tiles.iter().chain(layer.auto_layer_tiles.iter()) {
-                let vec_index =
-                    (tile.px[0] / 16) as i32 + (tile.px[1] / 16) as i32 * width_in_cells;
+                let vec_index = (tile.px[0] / 16) + (tile.px[1] / 16) * width;
                 *tiles.get_mut(vec_index as usize).unwrap() = Some(tile.t as u32);
             }
 
@@ -141,15 +139,104 @@ impl Map {
             })
             .collect();
 
-        Self {
-            id,
-            name: name.to_string(),
-            width_in_cells,
-            height_in_cells,
-            tile_layers,
-            collisions,
-            level: level.clone(),
+        Self { id, name, width, height, tile_layers, collisions }
+    }
+
+    // TODO
+    pub fn from_ldtk_world(id: MapId, name: &str, world: &ldtk_json::World) -> Self {
+        let name = name.to_string();
+
+        let top = world.levels.iter().map(|l| l.world_y).min().unwrap() / 16;
+        let bottom =
+            world.levels.iter().map(|l| l.world_y + l.px_wid).max().unwrap() / 16;
+        let left = world.levels.iter().map(|l| l.world_x).min().unwrap() / 16;
+        let right = world.levels.iter().map(|l| l.world_x + l.px_hei).max().unwrap() / 16;
+
+        let width = right - left;
+        let height = bottom - top;
+
+        let mut tile_layers = world
+            .levels
+            .first()
+            .unwrap()
+            .layer_instances
+            .as_ref()
+            .unwrap()
+            .iter()
+            .rev()
+            .filter(|layer| {
+                layer.layer_instance_type == "Tiles"
+                    || layer.layer_instance_type == "AutoLayer"
+                    || (layer.layer_instance_type == "IntGrid"
+                        && layer.tileset_rel_path.is_some())
+            })
+            .map(|layer| TileLayer {
+                label: layer.identifier.clone(),
+                tileset_path: layer.tileset_rel_path.as_ref().unwrap().clone(),
+                tile_ids: vec![None; (width * height) as usize],
+                x_offset: layer.px_total_offset_x as f64 / 16.,
+                y_offset: layer.px_total_offset_y as f64 / 16.,
+            })
+            .collect::<Vec<_>>();
+
+        let mut collisions = vec![None; (width * 2 * height * 2) as usize];
+
+        for level in &world.levels {
+            // Tile layers
+            for (i, layer) in level
+                .layer_instances
+                .as_ref()
+                .unwrap()
+                .iter()
+                .rev()
+                .filter(|layer| {
+                    layer.layer_instance_type == "Tiles"
+                        || layer.layer_instance_type == "AutoLayer"
+                        || (layer.layer_instance_type == "IntGrid"
+                            && layer.tileset_rel_path.is_some())
+                })
+                .enumerate()
+            {
+                for tile in layer.grid_tiles.iter().chain(layer.auto_layer_tiles.iter()) {
+                    let tile_x_in_world = (tile.px[0] + level.world_x) / 16;
+                    let tile_y_in_world = (tile.px[1] + level.world_y) / 16;
+
+                    let tile_index_in_world = tile_y_in_world * width + tile_x_in_world;
+                    *tile_layers
+                        .get_mut(i)
+                        .unwrap()
+                        .tile_ids
+                        .get_mut(tile_index_in_world as usize)
+                        .unwrap() = Some(tile.t as u32);
+                }
+            }
+
+            // Collisions layer
+            for (i, v) in level
+                .layer_instances
+                .as_ref()
+                .unwrap()
+                .iter()
+                .find(|l| l.identifier == "collision")
+                .unwrap()
+                .int_grid_csv
+                .iter()
+                .enumerate()
+            {
+                let x_in_level = i as i64 % ((level.px_wid / 16) * 2);
+                let y_in_level = i as i64 / ((level.px_wid / 16) * 2);
+                let x_in_world = x_in_level + (level.world_x / 16) * 2;
+                let y_in_world = y_in_level + (level.world_y / 16) * 2;
+                *collisions
+                    .get_mut((y_in_world * width * 2 + x_in_world) as usize)
+                    .unwrap() = match v {
+                    1 => Some(()),
+                    _ => None,
+                };
+            }
         }
+
+        Self { id, name, width, height, tile_layers, collisions }
     }
 
     // I'm not sure if loading a single map from multiple levels (but not a full world)
@@ -160,23 +247,11 @@ impl Map {
     // out. Maybe each level just has a value referencing the name of the map it's part
     // of.
 
-    // pub fn from_ldtk_world(id: MapId, label: &str, world: &World) -> Self {
-    //     todo!()
-    // }
-
-    // pub fn from_multiple_ldtk_levels(
-    //     id: MapId,
-    //     label: &str,
-    //     levels: &[ldtk_json::Level],
-    // ) -> Self {
-    //     todo!()
-    // }
-
     // Get the collision AABBs for each of the 4 quarters of a cell at cellpos
     pub fn get_collision_aabbs_for_cell(&self, cellpos: CellPos) -> [Option<AABB>; 4] {
         let top_left = self
             .collisions
-            .get((cellpos.y * 2 * self.width_in_cells * 2 + cellpos.x * 2) as usize)
+            .get((cellpos.y * 2 * self.width * 2 + cellpos.x * 2) as usize)
             .cloned()
             .flatten()
             .map(|_| AABB {
@@ -188,7 +263,7 @@ impl Map {
 
         let top_right = self
             .collisions
-            .get((cellpos.y * 2 * self.width_in_cells * 2 + cellpos.x * 2 + 1) as usize)
+            .get((cellpos.y * 2 * self.width * 2 + cellpos.x * 2 + 1) as usize)
             .cloned()
             .flatten()
             .map(|_| AABB {
@@ -200,7 +275,7 @@ impl Map {
 
         let bottom_left = self
             .collisions
-            .get(((cellpos.y * 2 + 1) * self.width_in_cells * 2 + cellpos.x * 2) as usize)
+            .get(((cellpos.y * 2 + 1) * self.width * 2 + cellpos.x * 2) as usize)
             .cloned()
             .flatten()
             .map(|_| AABB {
@@ -212,10 +287,7 @@ impl Map {
 
         let bottom_right = self
             .collisions
-            .get(
-                ((cellpos.y * 2 + 1) * self.width_in_cells * 2 + cellpos.x * 2 + 1)
-                    as usize,
-            )
+            .get(((cellpos.y * 2 + 1) * self.width * 2 + cellpos.x * 2 + 1) as usize)
             .cloned()
             .flatten()
             .map(|_| AABB {

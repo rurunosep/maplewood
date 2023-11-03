@@ -13,67 +13,73 @@ pub fn load_entities_from_ldtk(
     project: &ldtk_json::Project,
     world: &World,
 ) {
-    for level in
-        &project.worlds.iter().find(|w| w.identifier == "indoors").unwrap().levels
-    {
-        for entity in level
-            .layer_instances
-            .as_ref()
-            .unwrap()
-            .iter()
-            .flat_map(|layer| &layer.entity_instances)
-        {
-            #[allow(clippy::single_match)]
-            match entity.identifier.as_str() {
-                "soft_collision_script" => {
-                    let id = ecs.add_entity();
+    for ldtk_world in &project.worlds {
+        for level in &ldtk_world.levels {
+            for entity in level
+                .layer_instances
+                .as_ref()
+                .unwrap()
+                .iter()
+                .flat_map(|layer| &layer.entity_instances)
+            {
+                #[allow(clippy::single_match)]
+                match entity.identifier.as_str() {
+                    "soft_collision_script" => {
+                        let id = ecs.add_entity();
 
-                    // Position
-                    ecs.add_component(
-                        id,
-                        Position(WorldPos::new(
-                            world.get_map_id_by_name(&level.identifier),
-                            entity.px[0] as f64 / 16.,
-                            entity.px[1] as f64 / 16.,
-                        )),
-                    );
+                        // Position
+                        let position = match ldtk_world.identifier.as_str() {
+                            "overworld" => Position(WorldPos::new(
+                                world.get_map_id_by_name(&ldtk_world.identifier),
+                                (entity.px[0] + level.world_x) as f64 / 16.,
+                                (entity.px[1] + level.world_y) as f64 / 16.,
+                            )),
+                            _ => Position(WorldPos::new(
+                                world.get_map_id_by_name(&level.identifier),
+                                entity.px[0] as f64 / 16.,
+                                entity.px[1] as f64 / 16.,
+                            )),
+                        };
+                        ecs.add_component(id, position);
 
-                    // Collision
-                    ecs.add_component(
-                        id,
-                        Collision {
-                            hitbox_dimensions: Point::new(
-                                entity.width as f64 / 16.,
-                                entity.height as f64 / 16.,
-                            ),
-                            solid: false,
-                        },
-                    );
+                        // Collision
+                        ecs.add_component(
+                            id,
+                            Collision {
+                                hitbox_dimensions: Point::new(
+                                    entity.width as f64 / 16.,
+                                    entity.height as f64 / 16.,
+                                ),
+                                solid: false,
+                            },
+                        );
 
-                    // Name
-                    if let Some(name) = parse_enity_field("name", entity) {
-                        ecs.add_component(id, Name(name));
+                        // Name
+                        if let Some(name) = parse_enity_field("name", entity) {
+                            ecs.add_component(id, Name(name));
+                        }
+
+                        // Script
+                        let script_source = parse_enity_field("script", entity).unwrap();
+                        let start_condition =
+                            parse_entity_field("start_condition", entity);
+                        let set_on_start = parse_entity_field("set_on_start", entity);
+                        let set_on_finish = parse_entity_field("set_on_finish", entity);
+                        ecs.add_component(
+                            id,
+                            Scripts(vec![ScriptClass {
+                                source: script_source,
+                                trigger: ScriptTrigger::SoftCollision,
+                                start_condition,
+                                set_on_start,
+                                set_on_finish,
+                                ..ScriptClass::default()
+                            }]),
+                        );
                     }
 
-                    // Script
-                    let script_source = parse_enity_field("script", entity).unwrap();
-                    let start_condition = parse_entity_field("start_condition", entity);
-                    let set_on_start = parse_entity_field("set_on_start", entity);
-                    let set_on_finish = parse_entity_field("set_on_finish", entity);
-                    ecs.add_component(
-                        id,
-                        Scripts(vec![ScriptClass {
-                            source: script_source,
-                            trigger: ScriptTrigger::SoftCollision,
-                            start_condition,
-                            set_on_start,
-                            set_on_finish,
-                            ..ScriptClass::default()
-                        }]),
-                    );
+                    _ => {}
                 }
-
-                _ => {}
             }
         }
     }

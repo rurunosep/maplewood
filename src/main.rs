@@ -139,28 +139,29 @@ fn main() {
     // World
     // --------------------------------------------------------------
 
-    let mut world = World::new();
-
     let project: ldtk_json::Project =
         serde_json::from_str(&std::fs::read_to_string("assets/limezu.ldtk").unwrap())
             .unwrap();
 
-    for name in ["bathroom", "bakery", "gym", "strange", "hallway"] {
-        world.maps.insert_with_key(|k| {
-            Map::from_ldtk_level(
-                k,
-                name,
-                project
-                    .worlds
-                    .iter()
-                    .find(|w| w.identifier == "indoors")
-                    .unwrap()
-                    .levels
-                    .iter()
-                    .find(|l| l.identifier == name)
-                    .unwrap(),
-            )
-        });
+    let mut world = World::new();
+
+    for ldtk_world in &project.worlds {
+        // For now, this method of determining world-map or level-map works fine.
+        // deepnight might add custom world fields later
+        match ldtk_world.identifier.as_str() {
+            "overworld" => {
+                world.maps.insert_with_key(|id| {
+                    Map::from_ldtk_world(id, &ldtk_world.identifier, ldtk_world)
+                });
+            }
+            _ => {
+                for level in &ldtk_world.levels {
+                    world.maps.insert_with_key(|id| {
+                        Map::from_ldtk_level(id, &level.identifier, level)
+                    });
+                }
+            }
+        };
     }
 
     // --------------------------------------------------------------
@@ -449,10 +450,8 @@ fn main() {
         // (This current implementation assumes that map top-left is [0, 0].
         // Keep this in mind when that changes.)
         let viewport_dimensions = Point::new(SCREEN_COLS as f64, SCREEN_ROWS as f64);
-        let map_dimensions = Point::new(
-            map_to_render.width_in_cells as f64,
-            map_to_render.height_in_cells as f64,
-        );
+        let map_dimensions =
+            Point::new(map_to_render.width as f64, map_to_render.height as f64);
         // Confirm that map is larger than viewport, or clamp() will panic
         if map_dimensions.x > viewport_dimensions.x
             && map_dimensions.y > viewport_dimensions.y
