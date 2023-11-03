@@ -1,8 +1,9 @@
 use crate::ecs::components::{Facing, Position, SineOffsetAnimation, SpriteComponent};
 use crate::ecs::Ecs;
+use crate::utils::{CellPos, Direction, MapPos, Pixels};
 use crate::world::Map;
-use crate::{Direction, MapPos, MessageWindow, Point};
-use derive_more::{Deref, Sub};
+use crate::MessageWindow;
+use euclid::{Point2D, Size2D, Vector2D};
 use itertools::Itertools;
 use sdl2::pixels::Color;
 use sdl2::rect::Rect;
@@ -15,9 +16,6 @@ pub const TILE_SIZE: u32 = 16;
 pub const SCREEN_COLS: u32 = 16;
 pub const SCREEN_ROWS: u32 = 12;
 pub const SCREEN_SCALE: u32 = 4;
-
-#[derive(Deref, Sub)]
-struct ScreenPos(Point<i32>);
 
 pub struct RenderData<'r> {
     pub canvas: WindowCanvas,
@@ -51,27 +49,27 @@ pub fn render(
     canvas.set_draw_color(Color::RGB(0, 0, 0));
     canvas.clear();
 
-    let viewport_dimensions = Point::new(SCREEN_COLS as f64, SCREEN_ROWS as f64);
-    let viewport_top_left = camera_position - MapPos(viewport_dimensions / 2.0);
+    let viewport_size_in_map = Size2D::new(SCREEN_COLS as f64, SCREEN_ROWS as f64);
+    let viewport_map_offset = (camera_position - viewport_size_in_map / 2.0).to_vector();
 
-    let map_pos_to_screen_top_left =
-        |position_in_map: MapPos, sprite_offset: Option<Point<i32>>| {
-            let position_in_viewport = position_in_map - viewport_top_left;
-            let world_units_to_screen_units = (TILE_SIZE * SCREEN_SCALE) as f64;
-            let position_on_screen = ScreenPos(Point {
-                x: (position_in_viewport.x * world_units_to_screen_units) as i32,
-                y: (position_in_viewport.y * world_units_to_screen_units) as i32,
-            });
-
-            position_on_screen - ScreenPos(sprite_offset.unwrap_or_default())
-        };
+    let map_pos_to_screen_top_left = {
+        |map_pos: MapPos,
+         pixel_offset: Option<Vector2D<i32, Pixels>>|
+         -> Point2D<i32, Pixels> {
+            let position_in_viewport = map_pos - viewport_map_offset;
+            let position_on_screen = (position_in_viewport
+                * (TILE_SIZE * SCREEN_SCALE) as f64)
+                .cast()
+                .cast_unit();
+            position_on_screen + pixel_offset.unwrap_or_default().cast_unit()
+        }
+    };
 
     // Draw tiles
     // (Possible future optimization: cache rendered tile layers, or chunks of them.
     // No reason to redraw every single static tile every single frame.)
     for layer in &map.tile_layers {
-        // TODO
-        // Jank. I gotta improve the handling of multi-level worlds.
+        // TODO improve multi-level world loading/handling
         if tilesets.get(&layer.tileset_path).is_none() {
             continue;
         }
@@ -81,15 +79,15 @@ pub fn render(
 
         for col in 0..map.width {
             for row in 0..map.height {
+                // TODO does not support negative map coords yet
+                let cell_pos = CellPos::new(col, row);
+
                 if let Some(tile_id) =
                     layer.tile_ids.get((row * map.width + col) as usize).unwrap()
                 {
                     let top_left_in_screen = map_pos_to_screen_top_left(
-                        MapPos::new(
-                            col as f64 + layer.x_offset,
-                            row as f64 + layer.y_offset,
-                        ),
-                        None,
+                        cell_pos.cast().cast_unit(),
+                        Some(layer.offset * SCREEN_SCALE as i32),
                     );
 
                     let screen_rect = Rect::new(
@@ -142,7 +140,7 @@ pub fn render(
             let offset = soa.direction
                 * (soa.start_time.elapsed().as_secs_f64() * soa.frequency * (PI * 2.)).sin()
                 * soa.amplitude;
-            position += MapPos(offset);
+            position += offset;
         }
 
         let top_left_in_screen = map_pos_to_screen_top_left(

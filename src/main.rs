@@ -6,6 +6,7 @@ mod ecs;
 mod ldtk_json;
 mod render;
 mod script;
+mod utils;
 mod world;
 
 use ecs::components::{
@@ -13,6 +14,7 @@ use ecs::components::{
     SpriteComponent, Walking,
 };
 use ecs::{Ecs, EntityId};
+use euclid::{Point2D, Size2D, Vector2D};
 use render::{RenderData, SCREEN_COLS, SCREEN_ROWS, SCREEN_SCALE, TILE_SIZE};
 use script::{ScriptId, ScriptInstanceManager, ScriptTrigger};
 use sdl2::event::Event;
@@ -25,24 +27,17 @@ use sdl2::render::Texture;
 use slotmap::SlotMap;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
-use world::{CellPos, Map, MapPos, Point, World, WorldPos};
+use utils::{CellPos, Direction, MapPos, MapUnits};
+use world::{Map, World, WorldPos};
 
-#[derive(Clone, Copy, Debug, Default)]
-pub enum Direction {
-    Up,
-    #[default]
-    Down,
-    Left,
-    Right,
-}
-
+// UI
 pub struct MessageWindow {
     message: String,
     is_selection: bool,
     waiting_script_id: ScriptId,
 }
 
-// should this go in RenderData?
+// Where does this go? RenderData?
 pub struct MapOverlayColorTransition {
     start_time: Instant,
     duration: Duration,
@@ -181,7 +176,7 @@ fn main() {
     ecs.add_component(player_id, Walking::default());
     ecs.add_component(
         player_id,
-        Collision { hitbox_dimensions: Point::new(8. / 16., 6. / 16.), solid: true },
+        Collision { hitbox_dimensions: Size2D::new(8. / 16., 6. / 16.), solid: true },
     );
     ecs.add_component(
         player_id,
@@ -203,7 +198,7 @@ fn main() {
                 spritesheet_name: "characters".to_string(),
                 rect: Rect::new(7 * 16, 2 * 16, 16, 16),
             },
-            sprite_offset: Point::new(8, 13),
+            sprite_offset: Vector2D::new(-8, -13),
             forced_sprite: None,
         },
     );
@@ -449,20 +444,21 @@ fn main() {
         // Clamp camera to map
         // (This current implementation assumes that map top-left is [0, 0].
         // Keep this in mind when that changes.)
-        let viewport_dimensions = Point::new(SCREEN_COLS as f64, SCREEN_ROWS as f64);
-        let map_dimensions =
-            Point::new(map_to_render.width as f64, map_to_render.height as f64);
+        let viewport_dimensions: Size2D<f64, MapUnits> =
+            Size2D::new(SCREEN_COLS as f64, SCREEN_ROWS as f64);
+        let map_dimensions: Size2D<f64, MapUnits> =
+            Size2D::new(map_to_render.width as f64, map_to_render.height as f64);
         // Confirm that map is larger than viewport, or clamp() will panic
-        if map_dimensions.x > viewport_dimensions.x
-            && map_dimensions.y > viewport_dimensions.y
+        if map_dimensions.width > viewport_dimensions.width
+            && map_dimensions.height > viewport_dimensions.height
         {
             camera_position.x = camera_position.x.clamp(
-                viewport_dimensions.x / 2.0,
-                map_dimensions.x - viewport_dimensions.x / 2.0,
+                viewport_dimensions.width / 2.0,
+                map_dimensions.width - viewport_dimensions.width / 2.0,
             );
             camera_position.y = camera_position.y.clamp(
-                viewport_dimensions.y / 2.0,
-                map_dimensions.y - viewport_dimensions.y / 2.0,
+                viewport_dimensions.height / 2.0,
+                map_dimensions.height - viewport_dimensions.height / 2.0,
             );
         }
 
@@ -484,6 +480,7 @@ fn main() {
 
 mod input {
     use super::*;
+    use crate::utils::CellPos;
 
     pub fn move_player(
         ecs: &Ecs,
@@ -544,17 +541,19 @@ mod input {
     ) {
         let (player_pos, player_facing) =
             ecs.query_one_by_id::<(&Position, &Facing)>(player_id).unwrap();
-        let player_facing_cell = match player_facing.0 {
-            Direction::Up => player_pos.0.map_pos + MapPos::new(0.0, -0.6),
-            Direction::Down => player_pos.0.map_pos + MapPos::new(0.0, 0.6),
-            Direction::Left => player_pos.0.map_pos + MapPos::new(-0.6, 0.0),
-            Direction::Right => player_pos.0.map_pos + MapPos::new(0.6, 0.0),
-        }
-        .as_cellpos();
+        let player_facing_cell: CellPos = (match player_facing.0 {
+            Direction::Up => player_pos.0.map_pos + Vector2D::new(0.0, -0.6),
+            Direction::Down => player_pos.0.map_pos + Vector2D::new(0.0, 0.6),
+            Direction::Left => player_pos.0.map_pos + Vector2D::new(-0.6, 0.0),
+            Direction::Right => player_pos.0.map_pos + Vector2D::new(0.6, 0.0),
+        })
+        .cast()
+        .cast_unit();
         // For each entity in the cell the player is facing...
-        for (_, scripts) in ecs
-            .query_all::<(&Position, &Scripts)>()
-            .filter(|(position, _)| position.0.map_pos.as_cellpos() == player_facing_cell)
+        for (_, scripts) in
+            ecs.query_all::<(&Position, &Scripts)>().filter(|(position, _)| {
+                position.0.map_pos.cast().cast_unit() == player_facing_cell
+            })
         {
             // ...start scripts with interaction trigger and fulfilled start condition
             for script in scripts
@@ -590,10 +589,10 @@ fn update_walking_entities(
         // Determine new position before collision resolution
         let mut new_position = *map_pos
             + match walking.direction {
-                Direction::Up => MapPos::new(0.0, -walking.speed),
-                Direction::Down => MapPos::new(0.0, walking.speed),
-                Direction::Left => MapPos::new(-walking.speed, 0.0),
-                Direction::Right => MapPos::new(walking.speed, 0.0),
+                Direction::Up => Vector2D::new(0.0, -walking.speed),
+                Direction::Down => Vector2D::new(0.0, walking.speed),
+                Direction::Left => Vector2D::new(-walking.speed, 0.0),
+                Direction::Right => Vector2D::new(walking.speed, 0.0),
             };
 
         // Resolve collisions and update new position
@@ -611,17 +610,17 @@ fn update_walking_entities(
             // the 4 optional collision AABBs for the 4 corners of each of those
             // cells. It got this way iteratively and could probably
             // be reworked much simpler?)
-            let new_cellpos = new_position.as_cellpos();
-            let cellposes_to_check = [
-                CellPos::new(new_cellpos.x - 1, new_cellpos.y - 1),
-                CellPos::new(new_cellpos.x, new_cellpos.y - 1),
-                CellPos::new(new_cellpos.x + 1, new_cellpos.y - 1),
-                CellPos::new(new_cellpos.x - 1, new_cellpos.y),
-                CellPos::new(new_cellpos.x, new_cellpos.y),
-                CellPos::new(new_cellpos.x + 1, new_cellpos.y),
-                CellPos::new(new_cellpos.x - 1, new_cellpos.y + 1),
-                CellPos::new(new_cellpos.x, new_cellpos.y + 1),
-                CellPos::new(new_cellpos.x + 1, new_cellpos.y + 1),
+            let new_cellpos: CellPos = new_position.cast().cast_unit();
+            let cellposes_to_check: [CellPos; 9] = [
+                Point2D::new(new_cellpos.x - 1, new_cellpos.y - 1),
+                Point2D::new(new_cellpos.x, new_cellpos.y - 1),
+                Point2D::new(new_cellpos.x + 1, new_cellpos.y - 1),
+                Point2D::new(new_cellpos.x - 1, new_cellpos.y),
+                Point2D::new(new_cellpos.x, new_cellpos.y),
+                Point2D::new(new_cellpos.x + 1, new_cellpos.y),
+                Point2D::new(new_cellpos.x - 1, new_cellpos.y + 1),
+                Point2D::new(new_cellpos.x, new_cellpos.y + 1),
+                Point2D::new(new_cellpos.x + 1, new_cellpos.y + 1),
             ];
             for cell_aabb in cellposes_to_check
                 .iter()
@@ -678,10 +677,10 @@ fn update_walking_entities(
         // End forced walking if destination reached
         if let Some(destination) = walking.destination {
             let passed_destination = match walking.direction {
-                Direction::Up => map_pos.0.y < destination.y,
-                Direction::Down => map_pos.0.y > destination.y,
-                Direction::Left => map_pos.0.x < destination.x,
-                Direction::Right => map_pos.0.x > destination.x,
+                Direction::Up => map_pos.y < destination.y,
+                Direction::Down => map_pos.y > destination.y,
+                Direction::Left => map_pos.x < destination.x,
+                Direction::Right => map_pos.x > destination.x,
             };
             if passed_destination {
                 *map_pos = destination;
@@ -701,12 +700,15 @@ pub struct AABB {
 }
 
 impl AABB {
-    pub fn from_pos_and_hitbox(position: MapPos, hitbox_dimensions: Point<f64>) -> Self {
+    pub fn from_pos_and_hitbox(
+        position: MapPos,
+        hitbox_dimensions: Size2D<f64, MapUnits>,
+    ) -> Self {
         Self {
-            top: position.y - hitbox_dimensions.y / 2.0,
-            bottom: position.y + hitbox_dimensions.y / 2.0,
-            left: position.x - hitbox_dimensions.x / 2.0,
-            right: position.x + hitbox_dimensions.x / 2.0,
+            top: position.y - hitbox_dimensions.height / 2.0,
+            bottom: position.y + hitbox_dimensions.height / 2.0,
+            left: position.x - hitbox_dimensions.width / 2.0,
+            right: position.x + hitbox_dimensions.width / 2.0,
         }
     }
 
@@ -750,7 +752,7 @@ impl AABB {
     }
 
     pub fn get_center(&self) -> MapPos {
-        MapPos::new((self.left + self.right) / 2., (self.top + self.bottom) / 2.)
+        Point2D::new((self.left + self.right) / 2., (self.top + self.bottom) / 2.)
     }
 }
 

@@ -4,7 +4,8 @@ use crate::ecs::components::{
 };
 use crate::ecs::{Ecs, EntityId};
 use crate::world::{World, WorldPos};
-use crate::{Direction, MapOverlayColorTransition, MapPos, MessageWindow, Point};
+use crate::{Direction, MapOverlayColorTransition, MessageWindow};
+use euclid::{Point2D, Vector2D};
 use rlua::Result as LuaResult;
 use sdl2::mixer::{Chunk, Music};
 use sdl2::pixels::Color;
@@ -40,7 +41,7 @@ pub fn set_entity_map_pos(
     let mut position = ecs
         .query_one_by_name::<&mut Position>(&entity)
         .ok_or(ScriptError::InvalidEntity(entity))?;
-    position.0.map_pos = MapPos::new(x, y);
+    position.0.map_pos = Point2D::new(x, y);
     Ok(())
 }
 
@@ -145,10 +146,10 @@ pub fn walk(
     walking.destination = Some(
         position.0.map_pos
             + match walking.direction {
-                Direction::Up => MapPos::new(0., -distance),
-                Direction::Down => MapPos::new(0., distance),
-                Direction::Left => MapPos::new(-distance, 0.),
-                Direction::Right => MapPos::new(distance, 0.),
+                Direction::Up => Vector2D::new(0., -distance),
+                Direction::Down => Vector2D::new(0., distance),
+                Direction::Left => Vector2D::new(-distance, 0.),
+                Direction::Right => Vector2D::new(distance, 0.),
             },
     );
 
@@ -176,9 +177,11 @@ pub fn walk_to(
     walking.speed = speed;
 
     walking.destination = Some(match walking.direction {
-        Direction::Up | Direction::Down => MapPos::new(position.0.map_pos.x, destination),
+        Direction::Up | Direction::Down => {
+            Point2D::new(position.0.map_pos.x, destination)
+        }
         Direction::Left | Direction::Right => {
-            MapPos::new(destination, position.0.map_pos.y)
+            Point2D::new(destination, position.0.map_pos.y)
         }
     });
 
@@ -206,7 +209,7 @@ pub fn anim_quiver((entity, duration): (String, f64), ecs: &mut Ecs) -> LuaResul
             duration: Duration::from_secs_f64(duration),
             amplitude: 0.03,
             frequency: 10.,
-            direction: Point::new(1., 0.),
+            direction: Vector2D::new(1., 0.),
         },
     );
 
@@ -225,7 +228,7 @@ pub fn anim_jump(entity: String, ecs: &mut Ecs) -> LuaResult<()> {
             duration: Duration::from_secs_f64(0.3),
             amplitude: 0.5,
             frequency: 1. / 2. / 0.3,
-            direction: Point::new(0., -1.),
+            direction: Vector2D::new(0., -1.),
         },
     );
 

@@ -5,7 +5,8 @@ use crate::ecs::components::{Collision, Name, Position, Scripts};
 use crate::ecs::Ecs;
 use crate::ldtk_json::{self};
 use crate::script::{ScriptClass, ScriptTrigger};
-use crate::world::{Point, World, WorldPos};
+use crate::world::{World, WorldPos};
+use euclid::Size2D;
 use serde::de::DeserializeOwned;
 
 pub fn load_entities_from_ldtk(
@@ -46,7 +47,7 @@ pub fn load_entities_from_ldtk(
                         ecs.add_component(
                             id,
                             Collision {
-                                hitbox_dimensions: Point::new(
+                                hitbox_dimensions: Size2D::new(
                                     entity.width as f64 / 16.,
                                     entity.height as f64 / 16.,
                                 ),

@@ -1,17 +1,9 @@
+use crate::utils::{CellPos, MapPos, Pixels};
 use crate::{ldtk_json, AABB};
-use derive_more::{Add, AddAssign, Deref, DerefMut, Div, Mul, Sub};
-use derive_new::new;
+use euclid::{Point2D, Vector2D};
 use slotmap::{new_key_type, SlotMap};
 
 new_key_type! { pub struct MapId; }
-
-#[derive(
-    new, Clone, Copy, Default, Debug, Add, AddAssign, Sub, Mul, Div, PartialEq, Eq,
-)]
-pub struct Point<T> {
-    pub x: T,
-    pub y: T,
-}
 
 #[derive(Clone, Copy, Default, Debug)]
 pub struct WorldPos {
@@ -21,34 +13,7 @@ pub struct WorldPos {
 
 impl WorldPos {
     pub fn new(map_id: MapId, x: f64, y: f64) -> Self {
-        Self { map_id, map_pos: MapPos::new(x, y) }
-    }
-}
-
-#[derive(Clone, Copy, Default, Debug, Deref, DerefMut, Add, AddAssign, Sub)]
-pub struct MapPos(pub Point<f64>);
-
-impl MapPos {
-    pub fn new(x: f64, y: f64) -> Self {
-        Self(Point::new(x, y))
-    }
-
-    pub fn as_cellpos(self) -> CellPos {
-        CellPos::new(self.0.x.floor() as i64, self.0.y.floor() as i64)
-    }
-}
-
-#[derive(Clone, Copy, Default, Debug, Deref, PartialEq)]
-pub struct CellPos(pub Point<i64>);
-
-impl CellPos {
-    pub fn new(x: i64, y: i64) -> Self {
-        Self(Point::new(x, y))
-    }
-
-    // Resulting MapPos will be centered on the tile
-    pub fn as_mappos(self) -> MapPos {
-        MapPos::new(self.0.x as f64 + 0.5, self.0.y as f64 + 0.5)
+        Self { map_id, map_pos: Point2D::new(x, y) }
     }
 }
 
@@ -83,8 +48,7 @@ pub struct TileLayer {
     pub label: String,
     pub tileset_path: String,
     pub tile_ids: Vec<Option<TileId>>,
-    pub x_offset: f64,
-    pub y_offset: f64,
+    pub offset: Vector2D<i32, Pixels>,
 }
 
 pub struct Map {
@@ -119,8 +83,12 @@ impl Map {
                 label: layer.identifier.clone(),
                 tileset_path: layer.tileset_rel_path.as_ref().unwrap().clone(),
                 tile_ids: tiles,
-                x_offset: layer.px_total_offset_x as f64 / 16.,
-                y_offset: layer.px_total_offset_y as f64 / 16.,
+                // x_offset: layer.px_total_offset_x as f64 / 16.,
+                // y_offset: layer.px_total_offset_y as f64 / 16.,
+                offset: Vector2D::new(
+                    layer.px_total_offset_x as i32,
+                    layer.px_total_offset_y as i32,
+                ),
             })
         }
 
@@ -142,7 +110,7 @@ impl Map {
         Self { id, name, width, height, tile_layers, collisions }
     }
 
-    // TODO
+    // TODO improve multi-level world loading/handling
     pub fn from_ldtk_world(id: MapId, name: &str, world: &ldtk_json::World) -> Self {
         let name = name.to_string();
 
@@ -174,8 +142,12 @@ impl Map {
                 label: layer.identifier.clone(),
                 tileset_path: layer.tileset_rel_path.as_ref().unwrap().clone(),
                 tile_ids: vec![None; (width * height) as usize],
-                x_offset: layer.px_total_offset_x as f64 / 16.,
-                y_offset: layer.px_total_offset_y as f64 / 16.,
+                // x_offset: layer.px_total_offset_x as f64 / 16.,
+                // y_offset: layer.px_total_offset_y as f64 / 16.,
+                offset: Vector2D::new(
+                    layer.px_total_offset_x as i32,
+                    layer.px_total_offset_y as i32,
+                ),
             })
             .collect::<Vec<_>>();
 

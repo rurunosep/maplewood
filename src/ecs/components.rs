@@ -1,7 +1,8 @@
 use super::Component;
 use crate::script::ScriptClass;
+use crate::utils::{Direction, MapPos, MapUnits, Pixels};
 use crate::world::WorldPos;
-use crate::{Direction, MapPos, Point};
+use euclid::{Size2D, Vector2D};
 use sdl2::rect::Rect;
 use std::time::{Duration, Instant};
 
@@ -25,7 +26,7 @@ pub struct SpriteComponent {
     pub left_sprite: Sprite,
     pub right_sprite: Sprite,
     pub forced_sprite: Option<Sprite>,
-    pub sprite_offset: Point<i32>,
+    pub sprite_offset: Vector2D<i32, Pixels>,
 }
 impl Component for SpriteComponent {}
 
@@ -39,7 +40,7 @@ pub struct SineOffsetAnimation {
     pub duration: Duration,
     pub amplitude: f64,
     pub frequency: f64,
-    pub direction: Point<f64>,
+    pub direction: Vector2D<f64, MapUnits>,
 }
 impl Component for SineOffsetAnimation {}
 
@@ -53,7 +54,7 @@ impl Component for Walking {}
 
 #[derive(Default)]
 pub struct Collision {
-    pub hitbox_dimensions: Point<f64>,
+    pub hitbox_dimensions: Size2D<f64, MapUnits>,
     pub solid: bool,
 }
 impl Component for Collision {}
