@@ -14,9 +14,7 @@ use ecs::components::{
 };
 use ecs::{Ecs, EntityId};
 use render::{RenderData, SCREEN_COLS, SCREEN_ROWS, SCREEN_SCALE, TILE_SIZE};
-use script::{
-    ScriptClass, ScriptCondition, ScriptId, ScriptInstanceManager, ScriptTrigger,
-};
+use script::{ScriptClass, ScriptId, ScriptInstanceManager, ScriptTrigger};
 use sdl2::event::Event;
 use sdl2::image::LoadTexture;
 use sdl2::keyboard::Keycode;
@@ -58,7 +56,7 @@ fn main() {
     // App Init
     // --------------------------------------------------------------
 
-    std::env::set_var("RUST_BACKTRACE", "0");
+    std::env::set_var("RUST_BACKTRACE", "1");
 
     // Prevent high DPI scaling on Windows
     #[cfg(target_os = "windows")]
@@ -148,23 +146,23 @@ fn main() {
         serde_json::from_str(&std::fs::read_to_string("assets/limezu.ldtk").unwrap())
             .unwrap();
 
-    let map_1 = world.maps.insert_with_key(|k| {
-        Map::from_ldtk_level(
-            k,
-            "map_1",
-            #[allow(clippy::get_first)]
-            project.worlds.get(0).unwrap().levels.get(0).unwrap(),
-        )
-    });
-
-    let map_2 = world.maps.insert_with_key(|k| {
-        Map::from_ldtk_level(
-            k,
-            "map_2",
-            #[allow(clippy::get_first)]
-            project.worlds.get(0).unwrap().levels.get(1).unwrap(),
-        )
-    });
+    for name in ["bathroom", "bakery", "gym", "strange", "hallway"] {
+        world.maps.insert_with_key(|k| {
+            Map::from_ldtk_level(
+                k,
+                name,
+                project
+                    .worlds
+                    .iter()
+                    .find(|w| w.identifier == "indoors")
+                    .unwrap()
+                    .levels
+                    .iter()
+                    .find(|l| l.identifier == name)
+                    .unwrap(),
+            )
+        });
+    }
 
     // --------------------------------------------------------------
     // Entities
@@ -175,12 +173,15 @@ fn main() {
     // Player
     let player_id = ecs.add_entity();
     ecs.add_component(player_id, Name("player".to_string()));
-    ecs.add_component(player_id, Position(WorldPos::new(map_1, 14.5, 9.5)));
+    ecs.add_component(
+        player_id,
+        Position(WorldPos::new(world.get_map_id_by_name("bathroom"), 14.5, 9.5)),
+    );
     ecs.add_component(player_id, Facing::default());
     ecs.add_component(player_id, Walking::default());
     ecs.add_component(
         player_id,
-        Collision { hitbox_dimensions: Point::new(8.0 / 16.0, 6.0 / 16.0), solid: true },
+        Collision { hitbox_dimensions: Point::new(8. / 16., 6. / 16.), solid: true },
     );
     ecs.add_component(
         player_id,
@@ -209,51 +210,54 @@ fn main() {
 
     let scripts_source = fs::read_to_string("assets/script.lua").unwrap();
 
-    // map_1 -> map_2 teleport trigger
-    let id = ecs.add_entity();
-    ecs.add_component(id, Position(WorldPos::new(map_1, 14.5, 13.5)));
-    ecs.add_component(
-        id,
-        Collision { hitbox_dimensions: Point::new(1., 1.), solid: false },
-    );
-    ecs.add_component(
-        id,
-        Scripts(vec![ScriptClass {
-            label: "".to_string(),
-            source: script::get_sub_script(&scripts_source, "teleport_map_1_to_map_2"),
-            trigger: ScriptTrigger::SoftCollision,
-            start_condition: Some(ScriptCondition {
-                story_var: "t1to2".to_string(),
-                value: 1,
-            }),
-            abort_condition: None,
-            set_on_start: Some(("t1to2".to_string(), 0)),
-            set_on_finish: Some(("t1to2".to_string(), 1)),
-        }]),
-    );
+    for (room, rx, ry, hx, hy) in [
+        ("bathroom", 14.5, 13.5, 3.5, 2.5),
+        ("bakery", 7.5, 14.5, 6.5, 2.5),
+        ("gym", 13.5, 16.5, 9.5, 2.5),
+        ("strange", 4.5, 1.5, 3.5, 7.5),
+    ] {
+        let id = ecs.add_entity();
+        ecs.add_component(
+            id,
+            Position(WorldPos::new(world.get_map_id_by_name(room), rx, ry)),
+        );
+        ecs.add_component(
+            id,
+            Collision { hitbox_dimensions: Point::new(1., 1.), solid: false },
+        );
+        ecs.add_component(
+            id,
+            Scripts(vec![ScriptClass {
+                source: script::get_sub_script(
+                    &scripts_source,
+                    &format!("teleport_{room}_to_hallway"),
+                ),
+                trigger: ScriptTrigger::SoftCollision,
+                ..ScriptClass::default()
+            }]),
+        );
 
-    // map_2 -> map_1 teleport trigger
-    let id = ecs.add_entity();
-    ecs.add_component(id, Position(WorldPos::new(map_2, 4.5, 1.5)));
-    ecs.add_component(
-        id,
-        Collision { hitbox_dimensions: Point::new(1., 1.), solid: false },
-    );
-    ecs.add_component(
-        id,
-        Scripts(vec![ScriptClass {
-            label: "".to_string(),
-            source: script::get_sub_script(&scripts_source, "teleport_map_2_to_map_1"),
-            trigger: ScriptTrigger::SoftCollision,
-            start_condition: Some(ScriptCondition {
-                story_var: "t2to1".to_string(),
-                value: 1,
-            }),
-            abort_condition: None,
-            set_on_start: Some(("t2to1".to_string(), 0)),
-            set_on_finish: Some(("t2to1".to_string(), 1)),
-        }]),
-    );
+        let id = ecs.add_entity();
+        ecs.add_component(
+            id,
+            Position(WorldPos::new(world.get_map_id_by_name("hallway"), hx, hy)),
+        );
+        ecs.add_component(
+            id,
+            Collision { hitbox_dimensions: Point::new(1., 1.), solid: false },
+        );
+        ecs.add_component(
+            id,
+            Scripts(vec![ScriptClass {
+                source: script::get_sub_script(
+                    &scripts_source,
+                    &format!("teleport_hallway_to_{room}"),
+                ),
+                trigger: ScriptTrigger::SoftCollision,
+                ..ScriptClass::default()
+            }]),
+        );
+    }
 
     // --------------------------------------------------------------
     // Misc
@@ -409,14 +413,19 @@ fn main() {
         );
 
         // Start player soft collision scripts
-        let player_aabb = {
+        // (Query in block so we can query again later)
+        let (player_aabb, player_map_id) = {
             let (pos, coll) =
                 ecs.query_one_by_id::<(&Position, &Collision)>(player_id).unwrap();
-            AABB::from_pos_and_hitbox(pos.0.map_pos, coll.hitbox_dimensions)
+            (
+                AABB::from_pos_and_hitbox(pos.0.map_pos, coll.hitbox_dimensions),
+                pos.0.map_id,
+            )
         };
         // For each entity colliding with the player...
         for (_, _, scripts) in ecs
             .query_all::<(&Position, &Collision, &Scripts)>()
+            .filter(|(pos, _, _)| pos.0.map_id == player_map_id)
             .filter(|(pos, coll, _)| {
                 AABB::from_pos_and_hitbox(pos.0.map_pos, coll.hitbox_dimensions)
                     .is_colliding(&player_aabb)

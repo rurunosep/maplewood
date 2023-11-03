@@ -50,13 +50,7 @@ pub fn set_entity_world_pos(
 ) -> LuaResult<()> {
     let entity_id =
         ecs.name::<EntityId>(&entity).ok_or(ScriptError::InvalidEntity(entity))?;
-
-    let map_id = world
-        .maps
-        .iter()
-        .find(|(_, m)| m.name == map)
-        .map(|(id, _)| id)
-        .ok_or(ScriptError::InvalidMap(map))?;
+    let map_id = world.get_map_id_by_name(&map);
 
     ecs.add_component(entity_id, Position(WorldPos::new(map_id, x, y)));
     Ok(())

@@ -79,7 +79,7 @@ impl From<ScriptError> for LuaError {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Default)]
 #[allow(dead_code)]
 pub enum ScriptTrigger {
     Interaction,
@@ -87,6 +87,7 @@ pub enum ScriptTrigger {
     SoftCollision, // player is "colliding" AFTER movement update
     HardCollision, // player collided DURING movement update
     Auto,
+    #[default]
     None,
 }
 
@@ -104,7 +105,7 @@ pub enum WaitCondition {
     StoryVar(String, i32),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct ScriptClass {
     pub source: String,
     pub label: String,

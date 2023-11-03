@@ -60,6 +60,11 @@ impl World {
     pub fn new() -> Self {
         Self { maps: SlotMap::with_key() }
     }
+
+    // Panics
+    pub fn get_map_id_by_name(&self, name: &str) -> MapId {
+        self.maps.iter().find(|(_, map)| map.name == name).map(|(id, _)| id).unwrap()
+    }
 }
 
 type TileId = u32;
@@ -94,7 +99,7 @@ pub struct Map {
 }
 
 impl Map {
-    pub fn from_ldtk_level(id: MapId, label: &str, level: &ldtk_json::Level) -> Self {
+    pub fn from_ldtk_level(id: MapId, name: &str, level: &ldtk_json::Level) -> Self {
         let width_in_cells = (level.px_wid / 16) as i32;
         let height_in_cells = (level.px_hei / 16) as i32;
 
@@ -126,7 +131,7 @@ impl Map {
             .as_ref()
             .unwrap()
             .iter()
-            .find(|l| l.identifier == "Collision")
+            .find(|l| l.identifier == "collision")
             .unwrap()
             .int_grid_csv
             .iter()
@@ -138,7 +143,7 @@ impl Map {
 
         Self {
             id,
-            name: label.to_string(),
+            name: name.to_string(),
             width_in_cells,
             height_in_cells,
             tile_layers,
@@ -153,15 +158,15 @@ impl Map {
     // very large map such as the "overworld" or "sewers" could be made of an entire
     // world of many levels.
 
+    // pub fn from_ldtk_world(id: MapId, label: &str, world: &World) -> Self {
+    //     todo!()
+    // }
+
     // pub fn from_multiple_ldtk_levels(
     //     id: MapId,
     //     label: &str,
     //     levels: &[ldtk_json::Level],
     // ) -> Self {
-    //     todo!()
-    // }
-
-    // pub fn from_ldtk_world(id: MapId, label: &str, world: &World) -> Self {
     //     todo!()
     // }
 
