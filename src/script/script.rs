@@ -19,6 +19,7 @@ use crate::{MapOverlayColorTransition, MessageWindow};
 use rlua::{Error as LuaError, Function, Lua, Result as LuaResult, Thread, ThreadStatus};
 use sdl2::mixer::{Chunk, Music};
 use sdl2::pixels::Color;
+use serde::Deserialize;
 use slotmap::{new_key_type, SlotMap};
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -91,7 +92,7 @@ pub enum ScriptTrigger {
     None,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct ScriptCondition {
     pub story_var: String,
     pub value: i32,
@@ -111,6 +112,8 @@ pub struct ScriptClass {
     pub label: String,
     pub trigger: ScriptTrigger,
     pub start_condition: Option<ScriptCondition>,
+    // When we have an operator on ScriptCondition, we probably won't
+    // need an abort_condition. Just test for the inverse of start_condition
     pub abort_condition: Option<ScriptCondition>,
     // Story vars to set automatically on script start and finish.
     // Useful in combination with start_condition to ensure that Auto
@@ -119,6 +122,10 @@ pub struct ScriptClass {
     // It's a very easy mistake to make!)
     pub set_on_start: Option<(String, i32)>,
     pub set_on_finish: Option<(String, i32)>,
+    // (We need a way to make a soft collision script that can be triggered on
+    // repeated collisions. Like every time you step on the entity *again*.
+    // There currently no way to track when the player has *stopped* colliding
+    // and to then reset the start_condition.)
 }
 
 impl ScriptClass {

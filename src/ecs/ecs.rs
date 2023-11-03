@@ -81,7 +81,7 @@ impl Ecs {
             .map(|id| Q::borrow(id, &self.component_maps))
     }
 
-    pub fn name<Q>(&self, name: &str) -> Option<Q::Result<'_>>
+    pub fn query_one_by_name<Q>(&self, name: &str) -> Option<Q::Result<'_>>
     where
         Q: Query + 'static,
     {

@@ -14,7 +14,7 @@ use ecs::components::{
 };
 use ecs::{Ecs, EntityId};
 use render::{RenderData, SCREEN_COLS, SCREEN_ROWS, SCREEN_SCALE, TILE_SIZE};
-use script::{ScriptClass, ScriptId, ScriptInstanceManager, ScriptTrigger};
+use script::{ScriptId, ScriptInstanceManager, ScriptTrigger};
 use sdl2::event::Event;
 use sdl2::image::LoadTexture;
 use sdl2::keyboard::Keycode;
@@ -24,7 +24,6 @@ use sdl2::rect::Rect;
 use sdl2::render::Texture;
 use slotmap::SlotMap;
 use std::collections::HashMap;
-use std::fs;
 use std::time::{Duration, Instant};
 use world::{CellPos, Map, MapPos, Point, World, WorldPos};
 
@@ -208,64 +207,15 @@ fn main() {
         },
     );
 
-    let scripts_source = fs::read_to_string("assets/script.lua").unwrap();
-
-    for (room, rx, ry, hx, hy) in [
-        ("bathroom", 14.5, 13.5, 3.5, 2.5),
-        ("bakery", 7.5, 14.5, 6.5, 2.5),
-        ("gym", 13.5, 16.5, 9.5, 2.5),
-        ("strange", 4.5, 1.5, 3.5, 7.5),
-    ] {
-        let id = ecs.add_entity();
-        ecs.add_component(
-            id,
-            Position(WorldPos::new(world.get_map_id_by_name(room), rx, ry)),
-        );
-        ecs.add_component(
-            id,
-            Collision { hitbox_dimensions: Point::new(1., 1.), solid: false },
-        );
-        ecs.add_component(
-            id,
-            Scripts(vec![ScriptClass {
-                source: script::get_sub_script(
-                    &scripts_source,
-                    &format!("teleport_{room}_to_hallway"),
-                ),
-                trigger: ScriptTrigger::SoftCollision,
-                ..ScriptClass::default()
-            }]),
-        );
-
-        let id = ecs.add_entity();
-        ecs.add_component(
-            id,
-            Position(WorldPos::new(world.get_map_id_by_name("hallway"), hx, hy)),
-        );
-        ecs.add_component(
-            id,
-            Collision { hitbox_dimensions: Point::new(1., 1.), solid: false },
-        );
-        ecs.add_component(
-            id,
-            Scripts(vec![ScriptClass {
-                source: script::get_sub_script(
-                    &scripts_source,
-                    &format!("teleport_hallway_to_{room}"),
-                ),
-                trigger: ScriptTrigger::SoftCollision,
-                ..ScriptClass::default()
-            }]),
-        );
-    }
+    // Entities from ldtk
+    ecs::loader::load_entities_from_ldtk(&mut ecs, &project, &world);
 
     // --------------------------------------------------------------
     // Misc
     // --------------------------------------------------------------
 
     let mut story_vars: HashMap<String, i32> = HashMap::new();
-    story_vars.insert("t1to2".to_string(), 1);
-    story_vars.insert("t2to1".to_string(), 1);
+    story_vars.insert("test".to_string(), 1);
 
     let mut script_instance_manager =
         ScriptInstanceManager { script_instances: SlotMap::with_key() };
@@ -403,6 +353,17 @@ fn main() {
         }
         // Remove finished scripts
         script_instance_manager.script_instances.retain(|_, script| !script.finished);
+
+        // Stop player if message window is open (and the movement is coming from
+        // input rather than forced)
+        // I really have to rework this already...
+        if message_window.is_some()
+            && let Some(mut walking_component) =
+                ecs.query_one_by_id::<&mut Walking>(player_id)
+            && walking_component.destination.is_none()
+        {
+            walking_component.speed = 0.;
+        }
 
         // Move entities and resolve collisions
         update_walking_entities(

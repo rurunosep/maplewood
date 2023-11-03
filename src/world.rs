@@ -152,11 +152,13 @@ impl Map {
         }
     }
 
-    // I'm thinking a single Map can be made from one or more levels. For example, a
-    // small room will be made of a single level in an "indoors" world, a large floor
-    // of a building could be made of several levels in the "indoors" world, and a
-    // very large map such as the "overworld" or "sewers" could be made of an entire
-    // world of many levels.
+    // I'm not sure if loading a single map from multiple levels (but not a full world)
+    // is even necessary. For now, if a map is just made from either a single level or a
+    // whole world, it's pretty easy to handle: just keep a single value in the world that
+    // determines whether the whole world is a map, or its levels are separate maps.
+    // If I do later want a map made of a subset of levels of a world, I can figure it
+    // out. Maybe each level just has a value referencing the name of the map it's part
+    // of.
 
     // pub fn from_ldtk_world(id: MapId, label: &str, world: &World) -> Self {
     //     todo!()
