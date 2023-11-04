@@ -40,8 +40,7 @@ impl ScriptInstanceManager {
         script_class: &ScriptClass,
         story_vars: &mut HashMap<String, i32>,
     ) {
-        self.script_instances
-            .insert_with_key(|id| ScriptInstance::new(script_class.clone(), id));
+        self.script_instances.insert_with_key(|id| ScriptInstance::new(script_class.clone(), id));
 
         if let Some((var, value)) = &script_class.set_on_start {
             *story_vars.get_mut(var).unwrap() = *value;
@@ -129,15 +128,10 @@ pub struct ScriptClass {
 }
 
 impl ScriptClass {
-    pub fn is_start_condition_fulfilled(
-        &self,
-        story_vars: &HashMap<String, i32>,
-    ) -> bool {
+    pub fn is_start_condition_fulfilled(&self, story_vars: &HashMap<String, i32>) -> bool {
         match &self.start_condition {
             Some(ScriptCondition { story_var, value }) => {
-                story_vars
-                    .get(story_var)
-                    .unwrap_or_else(|| panic!("no story var \"{story_var}\""))
+                story_vars.get(story_var).unwrap_or_else(|| panic!("no story var \"{story_var}\""))
                     == value
             }
             None => true,
@@ -211,20 +205,10 @@ impl ScriptInstance {
                 Ok(())
             })
             .unwrap_or_else(|err| {
-                panic!(
-                    "lua error:\n{err}\nsource: {:?}\n",
-                    err.source().map(|e| e.to_string())
-                )
+                panic!("lua error:\n{err}\nsource: {:?}\n", err.source().map(|e| e.to_string()))
             });
 
-        Self {
-            lua_instance,
-            script_class,
-            id,
-            finished: false,
-            wait_condition: None,
-            input: 0,
-        }
+        Self { lua_instance, script_class, id, finished: false, wait_condition: None, input: 0 }
     }
 
     // The only way to not pass all of this stuff AND MORE through a giant function
@@ -263,9 +247,7 @@ impl ScriptInstance {
         if match self.wait_condition.clone() {
             Some(WaitCondition::Time(until)) => until > Instant::now(),
             Some(WaitCondition::Message) => message_window.is_some(),
-            Some(WaitCondition::StoryVar(key, val)) => {
-                *story_vars.get(&key).unwrap() != val
-            }
+            Some(WaitCondition::StoryVar(key, val)) => *story_vars.get(&key).unwrap() != val,
             None => false,
         } {
             return;
@@ -400,20 +382,15 @@ impl ScriptInstance {
                     )?;
                     globals.set(
                         "play_sfx",
-                        scope.create_function(|_, args| {
-                            callback::play_sfx(args, sound_effects)
-                        })?,
+                        scope.create_function(|_, args| callback::play_sfx(args, sound_effects))?,
                     )?;
                     globals.set(
                         "play_music",
-                        scope.create_function_mut(|_, args| {
-                            callback::play_music(args, musics)
-                        })?,
+                        scope.create_function_mut(|_, args| callback::play_music(args, musics))?,
                     )?;
                     globals.set(
                         "stop_music",
-                        scope
-                            .create_function_mut(|_, args| callback::stop_music(args))?,
+                        scope.create_function_mut(|_, args| callback::stop_music(args))?,
                     )?;
                     globals.set(
                         "remove_entity_position",
@@ -494,11 +471,9 @@ impl ScriptInstance {
                         "wait",
                         wrap_yielding.call::<_, Function>(scope.create_function_mut(
                             |_, duration: f64| {
-                                **wait_condition.borrow_mut() =
-                                    Some(WaitCondition::Time(
-                                        Instant::now()
-                                            + Duration::from_secs_f64(duration),
-                                    ));
+                                **wait_condition.borrow_mut() = Some(WaitCondition::Time(
+                                    Instant::now() + Duration::from_secs_f64(duration),
+                                ));
                                 Ok(())
                             },
                         )?)?,
@@ -519,9 +494,7 @@ impl ScriptInstance {
                     let thread = globals.get::<_, Thread>("thread")?;
                     thread.resume::<_, _>(())?;
                     match thread.status() {
-                        ThreadStatus::Unresumable | ThreadStatus::Error => {
-                            self.finished = true
-                        }
+                        ThreadStatus::Unresumable | ThreadStatus::Error => self.finished = true,
                         _ => {}
                     }
 
@@ -532,10 +505,7 @@ impl ScriptInstance {
             // Eventually we probably want to handle it differently depending on the error
             // and the circumstances
             .unwrap_or_else(|err| {
-                panic!(
-                    "lua error:\n{err}\nsource: {:?}\n",
-                    err.source().map(|e| e.to_string())
-                );
+                panic!("lua error:\n{err}\nsource: {:?}\n", err.source().map(|e| e.to_string()));
             });
     }
 }

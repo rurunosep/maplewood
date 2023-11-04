@@ -145,11 +145,9 @@ impl Ecs {
     {
         match entity_id.into() {
             RealOrDeferredEntityId::Real(real_id) => {
-                self.deferred_mutations.borrow_mut().push(Box::new(
-                    move |ecs: &mut Ecs| {
-                        ecs.add_component(real_id, component);
-                    },
-                ));
+                self.deferred_mutations.borrow_mut().push(Box::new(move |ecs: &mut Ecs| {
+                    ecs.add_component(real_id, component);
+                }));
             }
             RealOrDeferredEntityId::Deferred(def_id) => {
                 let f = move |ecs: &mut Ecs| {

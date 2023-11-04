@@ -9,11 +9,7 @@ use crate::world::{World, WorldPos};
 use euclid::Size2D;
 use serde::de::DeserializeOwned;
 
-pub fn load_entities_from_ldtk(
-    ecs: &mut Ecs,
-    project: &ldtk_json::Project,
-    world: &World,
-) {
+pub fn load_entities_from_ldtk(ecs: &mut Ecs, project: &ldtk_json::Project, world: &World) {
     for ldtk_world in &project.worlds {
         for level in &ldtk_world.levels {
             for entity in level
@@ -62,8 +58,7 @@ pub fn load_entities_from_ldtk(
 
                         // Script
                         let script_source = parse_enity_field("script", entity).unwrap();
-                        let start_condition =
-                            parse_entity_field("start_condition", entity);
+                        let start_condition = parse_entity_field("start_condition", entity);
                         let set_on_start = parse_entity_field("set_on_start", entity);
                         let set_on_finish = parse_entity_field("set_on_finish", entity);
                         ecs.add_component(

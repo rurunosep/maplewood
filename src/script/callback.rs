@@ -27,17 +27,13 @@ pub fn set_story_var(
 }
 
 pub fn get_entity_map_pos(entity: String, ecs: &Ecs) -> LuaResult<(f64, f64)> {
-    let position = ecs
-        .query_one_by_name::<&Position>(&entity)
-        .ok_or(ScriptError::InvalidEntity(entity))?;
+    let position =
+        ecs.query_one_by_name::<&Position>(&entity).ok_or(ScriptError::InvalidEntity(entity))?;
     Ok((position.0.map_pos.x, position.0.map_pos.y))
 }
 
 // Requires entity to have a position component already, since map is omitted
-pub fn set_entity_map_pos(
-    (entity, x, y): (String, f64, f64),
-    ecs: &mut Ecs,
-) -> LuaResult<()> {
+pub fn set_entity_map_pos((entity, x, y): (String, f64, f64), ecs: &mut Ecs) -> LuaResult<()> {
     let mut position = ecs
         .query_one_by_name::<&mut Position>(&entity)
         .ok_or(ScriptError::InvalidEntity(entity))?;
@@ -51,9 +47,8 @@ pub fn set_entity_world_pos(
     ecs: &mut Ecs,
     world: &World,
 ) -> LuaResult<()> {
-    let entity_id = ecs
-        .query_one_by_name::<EntityId>(&entity)
-        .ok_or(ScriptError::InvalidEntity(entity))?;
+    let entity_id =
+        ecs.query_one_by_name::<EntityId>(&entity).ok_or(ScriptError::InvalidEntity(entity))?;
     let map_id = world.get_map_id_by_name(&map);
 
     ecs.add_component(entity_id, Position(WorldPos::new(map_id, x, y)));
@@ -61,9 +56,8 @@ pub fn set_entity_world_pos(
 }
 
 pub fn remove_entity_position(entity: String, ecs: &mut Ecs) -> LuaResult<()> {
-    let id = ecs
-        .query_one_by_name::<EntityId>(&entity)
-        .ok_or(ScriptError::InvalidEntity(entity))?;
+    let id =
+        ecs.query_one_by_name::<EntityId>(&entity).ok_or(ScriptError::InvalidEntity(entity))?;
     ecs.remove_component::<Position>(id);
     Ok(())
 }
@@ -83,10 +77,8 @@ pub fn set_forced_sprite(
         .query_one_by_name::<&mut SpriteComponent>(&entity)
         .ok_or(ScriptError::InvalidEntity(entity))?;
 
-    sprite_component.forced_sprite = Some(Sprite {
-        spritesheet_name,
-        rect: Rect::new(rect_x, rect_y, rect_w, rect_h),
-    });
+    sprite_component.forced_sprite =
+        Some(Sprite { spritesheet_name, rect: Rect::new(rect_x, rect_y, rect_w, rect_h) });
 
     Ok(())
 }
@@ -99,10 +91,7 @@ pub fn remove_forced_sprite(entity: String, ecs: &mut Ecs) -> LuaResult<()> {
     Ok(())
 }
 
-pub fn set_entity_solid(
-    (entity, enabled): (String, bool),
-    ecs: &mut Ecs,
-) -> LuaResult<()> {
+pub fn set_entity_solid((entity, enabled): (String, bool), ecs: &mut Ecs) -> LuaResult<()> {
     let mut collision = ecs
         .query_one_by_name::<&mut Collision>(&entity)
         .ok_or(ScriptError::InvalidEntity(entity))?;
@@ -177,12 +166,8 @@ pub fn walk_to(
     walking.speed = speed;
 
     walking.destination = Some(match walking.direction {
-        Direction::Up | Direction::Down => {
-            Point2D::new(position.0.map_pos.x, destination)
-        }
-        Direction::Left | Direction::Right => {
-            Point2D::new(destination, position.0.map_pos.y)
-        }
+        Direction::Up | Direction::Down => Point2D::new(position.0.map_pos.x, destination),
+        Direction::Left | Direction::Right => Point2D::new(destination, position.0.map_pos.y),
     });
 
     facing.0 = walking.direction;
@@ -191,16 +176,14 @@ pub fn walk_to(
 }
 
 pub fn is_entity_walking(entity: String, ecs: &Ecs) -> LuaResult<bool> {
-    let walking = ecs
-        .query_one_by_name::<&Walking>(&entity)
-        .ok_or(ScriptError::InvalidEntity(entity))?;
+    let walking =
+        ecs.query_one_by_name::<&Walking>(&entity).ok_or(ScriptError::InvalidEntity(entity))?;
     Ok(walking.destination.is_some())
 }
 
 pub fn anim_quiver((entity, duration): (String, f64), ecs: &mut Ecs) -> LuaResult<()> {
-    let id = ecs
-        .query_one_by_name::<EntityId>(&entity)
-        .ok_or(ScriptError::InvalidEntity(entity))?;
+    let id =
+        ecs.query_one_by_name::<EntityId>(&entity).ok_or(ScriptError::InvalidEntity(entity))?;
 
     ecs.add_component(
         id,
@@ -217,9 +200,8 @@ pub fn anim_quiver((entity, duration): (String, f64), ecs: &mut Ecs) -> LuaResul
 }
 
 pub fn anim_jump(entity: String, ecs: &mut Ecs) -> LuaResult<()> {
-    let id = ecs
-        .query_one_by_name::<EntityId>(&entity)
-        .ok_or(ScriptError::InvalidEntity(entity))?;
+    let id =
+        ecs.query_one_by_name::<EntityId>(&entity).ok_or(ScriptError::InvalidEntity(entity))?;
 
     ecs.add_component(
         id,
@@ -274,11 +256,8 @@ pub fn message(
     wait_condition: &mut Option<WaitCondition>,
     script_id: ScriptId,
 ) -> LuaResult<()> {
-    *message_window = Some(MessageWindow {
-        message,
-        is_selection: false,
-        waiting_script_id: script_id,
-    });
+    *message_window =
+        Some(MessageWindow { message, is_selection: false, waiting_script_id: script_id });
     *wait_condition = Some(WaitCondition::Message);
     Ok(())
 }

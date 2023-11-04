@@ -41,18 +41,15 @@ impl Renderer<'_> {
         self.canvas.clear();
 
         let viewport_size_in_map = Size2D::new(SCREEN_COLS as f64, SCREEN_ROWS as f64);
-        let viewport_map_offset =
-            (camera_position - viewport_size_in_map / 2.0).to_vector();
+        let viewport_map_offset = (camera_position - viewport_size_in_map / 2.0).to_vector();
 
         let map_pos_to_screen_top_left = {
             move |map_pos: MapPos,
                   pixel_offset: Option<Vector2D<i32, PixelUnits>>|
                   -> Point2D<i32, PixelUnits> {
                 let position_in_viewport = map_pos - viewport_map_offset;
-                let position_on_screen = (position_in_viewport
-                    * (TILE_SIZE * SCREEN_SCALE) as f64)
-                    .cast()
-                    .cast_unit();
+                let position_on_screen =
+                    (position_in_viewport * (TILE_SIZE * SCREEN_SCALE) as f64).cast().cast_unit();
                 position_on_screen + pixel_offset.unwrap_or_default().cast_unit()
             }
         };
@@ -62,9 +59,7 @@ impl Renderer<'_> {
 
         // TODO Is take/skip till specific layer the best way to do this? Works for now.
         // Draw tile layers below entities
-        for layer in
-            map.tile_layers.iter().take_while_inclusive(|l| l.name != "interiors_3")
-        {
+        for layer in map.tile_layers.iter().take_while_inclusive(|l| l.name != "interiors_3") {
             self.draw_tile_layer(layer, map, map_pos_to_screen_top_left);
         }
 
@@ -145,12 +140,8 @@ impl Renderer<'_> {
 
                     let tile_y_in_tileset = (tile_id / tileset_width_in_tiles) * 16;
                     let tile_x_in_tileset = (tile_id % tileset_width_in_tiles) * 16;
-                    let tileset_rect = SdlRect::new(
-                        tile_x_in_tileset as i32,
-                        tile_y_in_tileset as i32,
-                        16,
-                        16,
-                    );
+                    let tileset_rect =
+                        SdlRect::new(tile_x_in_tileset as i32, tile_y_in_tileset as i32, 16, 16);
 
                     self.canvas.copy(tileset, tileset_rect, screen_rect).unwrap();
                 }
@@ -168,12 +159,8 @@ impl Renderer<'_> {
         ) -> Point2D<i32, PixelUnits>,
     ) {
         // (Long for-in-query-sorted line breaks rustfmt. So this is just to split it up.)
-        let query = ecs.query_all::<(
-            &Position,
-            &SpriteComponent,
-            &Facing,
-            Option<&SineOffsetAnimation>,
-        )>();
+        let query =
+            ecs.query_all::<(&Position, &SpriteComponent, &Facing, Option<&SineOffsetAnimation>)>();
         let sorted = query.sorted_by(|(p1, _, _, _), (p2, _, _, _)| {
             p1.0.map_pos.y.partial_cmp(&p2.0.map_pos.y).unwrap()
         });
@@ -199,10 +186,7 @@ impl Renderer<'_> {
             let mut position = position.0.map_pos;
             if let Some(soa) = sine_offset_animation {
                 let offset = soa.direction
-                    * (soa.start_time.elapsed().as_secs_f64()
-                        * soa.frequency
-                        * (PI * 2.))
-                        .sin()
+                    * (soa.start_time.elapsed().as_secs_f64() * soa.frequency * (PI * 2.)).sin()
                     * soa.amplitude;
                 position += offset;
             }
@@ -244,10 +228,8 @@ impl Renderer<'_> {
                 let cell_pos = CellPos::new(col, row);
 
                 for aabb in map.get_collision_aabbs_for_cell(cell_pos).iter().flatten() {
-                    let top_left = map_pos_to_screen_top_left(
-                        Point2D::new(aabb.left, aabb.top),
-                        None,
-                    );
+                    let top_left =
+                        map_pos_to_screen_top_left(Point2D::new(aabb.left, aabb.top), None);
 
                     self.canvas
                         .fill_rect(SdlRect::new(
@@ -288,8 +270,7 @@ impl Renderer<'_> {
         // Draw the text
         let texture_creator = self.canvas.texture_creator();
         for (i, line) in message_window.message.split('\n').enumerate() {
-            let surface =
-                self.font.render(line).solid(Color::RGB(255, 255, 255)).unwrap();
+            let surface = self.font.render(line).solid(Color::RGB(255, 255, 255)).unwrap();
             let texture = texture_creator.create_texture_from_surface(&surface).unwrap();
             let TextureQuery { width, height, .. } = texture.query();
             self.canvas

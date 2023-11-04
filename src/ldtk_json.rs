@@ -593,8 +593,7 @@ pub struct FieldInstance {
 
     /// Actual value of the field instance. The value type varies, depending on
     /// `__type`:<br/>
-    /// - For **classic types** (ie. Integer, Float, Boolean, String, Text and FilePath),
-    ///   you
+    /// - For **classic types** (ie. Integer, Float, Boolean, String, Text and FilePath), you
     /// just get the actual value with the expected type.<br/>   - For **Color**, the
     /// value is an hexadecimal string using "#rrggbb" format.<br/>   - For **Enum**,
     /// the value is a String representing the selected enum value.<br/>   - For
@@ -741,8 +740,7 @@ pub struct TileInstance {
 
     /// "Flip bits", a 2-bits integer to represent the mirror transformations of the
     /// tile.<br/>
-    /// - Bit 0 = X flip<br/>   - Bit 1 = Y flip<br/>   Examples: f=0 (no flip), f=1 (X
-    ///   flip
+    /// - Bit 0 = X flip<br/>   - Bit 1 = Y flip<br/>   Examples: f=0 (no flip), f=1 (X flip
     /// only), f=2 (Y flip only), f=3 (both flips)
     pub f: i64,
 

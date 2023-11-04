@@ -9,8 +9,8 @@ mod script;
 mod world;
 
 use ecs::component::{
-    Collision, Facing, Name, Position, Scripts, SineOffsetAnimation, Sprite,
-    SpriteComponent, Walking,
+    Collision, Facing, Name, Position, Scripts, SineOffsetAnimation, Sprite, SpriteComponent,
+    Walking,
 };
 use ecs::{Ecs, EntityId};
 use euclid::{Point2D, Rect, Size2D, Vector2D};
@@ -92,19 +92,10 @@ fn main() {
     // --------------------------------------------------------------
 
     let tilesets: HashMap<String, Texture> = HashMap::from(
-        [
-            "walls.png",
-            "floors.png",
-            "ceilings.png",
-            "modern_interiors.png",
-            "modern_exteriors.png",
-        ]
-        .map(|name| {
-            (
-                name.to_string(),
-                texture_creator.load_texture(format!("assets/{name}")).unwrap(),
-            )
-        }),
+        ["walls.png", "floors.png", "ceilings.png", "modern_interiors.png", "modern_exteriors.png"]
+            .map(|name| {
+                (name.to_string(), texture_creator.load_texture(format!("assets/{name}")).unwrap())
+            }),
     );
 
     let mut spritesheets: HashMap<String, Texture> = HashMap::new();
@@ -143,8 +134,7 @@ fn main() {
     // --------------------------------------------------------------
 
     let project: ldtk_json::Project =
-        serde_json::from_str(&std::fs::read_to_string("assets/limezu.ldtk").unwrap())
-            .unwrap();
+        serde_json::from_str(&std::fs::read_to_string("assets/limezu.ldtk").unwrap()).unwrap();
 
     let mut world = World::new();
 
@@ -159,9 +149,9 @@ fn main() {
             }
             _ => {
                 for level in &ldtk_world.levels {
-                    world.maps.insert_with_key(|id| {
-                        Map::from_ldtk_level(id, &level.identifier, level)
-                    });
+                    world
+                        .maps
+                        .insert_with_key(|id| Map::from_ldtk_level(id, &level.identifier, level));
                 }
             }
         };
@@ -241,8 +231,7 @@ fn main() {
         for event in event_pump.poll_iter() {
             match event {
                 // Close program
-                Event::Quit { .. }
-                | Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
+                Event::Quit { .. } | Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
                     running = false;
                 }
 
@@ -265,11 +254,7 @@ fn main() {
                 // End player movement if key matching player direction is released
                 Event::KeyUp { keycode: Some(keycode), .. }
                     if keycode
-                        == match ecs
-                            .query_one_by_id::<&Walking>(player_id)
-                            .unwrap()
-                            .direction
-                        {
+                        == match ecs.query_one_by_id::<&Walking>(player_id).unwrap().direction {
                             Direction::Up => Keycode::Up,
                             Direction::Down => Keycode::Down,
                             Direction::Left => Keycode::Left,
@@ -362,30 +347,20 @@ fn main() {
         // input rather than forced)
         // I really have to rework this already...
         if message_window.is_some()
-            && let Some(mut walking_component) =
-                ecs.query_one_by_id::<&mut Walking>(player_id)
+            && let Some(mut walking_component) = ecs.query_one_by_id::<&mut Walking>(player_id)
             && walking_component.destination.is_none()
         {
             walking_component.speed = 0.;
         }
 
         // Move entities and resolve collisions
-        update_walking_entities(
-            &ecs,
-            &world,
-            &mut script_instance_manager,
-            &mut story_vars,
-        );
+        update_walking_entities(&ecs, &world, &mut script_instance_manager, &mut story_vars);
 
         // Start player soft collision scripts
         // (Query in block so we can query again later)
         let (player_aabb, player_map_id) = {
-            let (pos, coll) =
-                ecs.query_one_by_id::<(&Position, &Collision)>(player_id).unwrap();
-            (
-                AABB::from_pos_and_hitbox(pos.0.map_pos, coll.hitbox_dimensions),
-                pos.0.map_id,
-            )
+            let (pos, coll) = ecs.query_one_by_id::<(&Position, &Collision)>(player_id).unwrap();
+            (AABB::from_pos_and_hitbox(pos.0.map_pos, coll.hitbox_dimensions), pos.0.map_id)
         };
         // For each entity colliding with the player...
         for (_, _, scripts) in ecs
@@ -417,22 +392,14 @@ fn main() {
         ecs.flush_deferred_mutations();
 
         // Update map overlay color
-        if let Some(MapOverlayColorTransition {
-            start_time,
-            duration,
-            start_color,
-            end_color,
-        }) = &map_overlay_color_transition
+        if let Some(MapOverlayColorTransition { start_time, duration, start_color, end_color }) =
+            &map_overlay_color_transition
         {
             let interp = start_time.elapsed().div_duration_f64(*duration).min(1.0);
-            let r = ((end_color.r as f64 - start_color.r as f64) * interp
-                + start_color.r as f64) as u8;
-            let g = ((end_color.g as f64 - start_color.g as f64) * interp
-                + start_color.g as f64) as u8;
-            let b = ((end_color.b as f64 - start_color.b as f64) * interp
-                + start_color.b as f64) as u8;
-            let a = ((end_color.a as f64 - start_color.a as f64) * interp
-                + start_color.a as f64) as u8;
+            let r = ((end_color.r - start_color.r) as f64 * interp + start_color.r as f64) as u8;
+            let g = ((end_color.g - start_color.g) as f64 * interp + start_color.g as f64) as u8;
+            let b = ((end_color.b - start_color.b) as f64 * interp + start_color.b as f64) as u8;
+            let a = ((end_color.a - start_color.a) as f64 * interp + start_color.a as f64) as u8;
             renderer.map_overlay_color = Color::RGBA(r, g, b, a);
 
             if start_time.elapsed() > *duration {
@@ -453,9 +420,7 @@ fn main() {
         // Clamp camera to map
         let viewport_dimensions = Size2D::new(SCREEN_COLS as f64, SCREEN_ROWS as f64);
         let map_bounds: Rect<f64, MapUnits> =
-            Rect::new(map_to_render.offset.to_point(), map_to_render.dimensions)
-                .cast()
-                .cast_unit();
+            Rect::new(map_to_render.offset.to_point(), map_to_render.dimensions).cast().cast_unit();
         // If map is smaller than viewport, skip clamping, or clamp() will panic
         // (Could be done separately by dimension)
         if map_bounds.size.contains(viewport_dimensions) {
@@ -517,9 +482,8 @@ mod input {
     ) {
         if let Some(message_window) = &*message_window
             && message_window.is_selection
-            && let Some(script) = script_instance_manager
-                .script_instances
-                .get_mut(message_window.waiting_script_id)
+            && let Some(script) =
+                script_instance_manager.script_instances.get_mut(message_window.waiting_script_id)
         {
             // I want to redo how window<->script communcation works
             script.input = match keycode {
@@ -550,10 +514,9 @@ mod input {
         .cast()
         .cast_unit();
         // For each entity in the cell the player is facing...
-        for (_, scripts) in
-            ecs.query_all::<(&Position, &Scripts)>().filter(|(position, _)| {
-                position.0.map_pos.cast().cast_unit() == player_facing_cell
-            })
+        for (_, scripts) in ecs
+            .query_all::<(&Position, &Scripts)>()
+            .filter(|(position, _)| position.0.map_pos.cast().cast_unit() == player_facing_cell)
         {
             // ...start scripts with interaction trigger and fulfilled start condition
             for script in scripts
@@ -599,11 +562,9 @@ fn update_walking_entities(
         if let Some(collision) = collision
             && collision.solid
         {
-            let old_aabb =
-                AABB::from_pos_and_hitbox(*map_pos, collision.hitbox_dimensions);
+            let old_aabb = AABB::from_pos_and_hitbox(*map_pos, collision.hitbox_dimensions);
 
-            let mut new_aabb =
-                AABB::from_pos_and_hitbox(new_position, collision.hitbox_dimensions);
+            let mut new_aabb = AABB::from_pos_and_hitbox(new_position, collision.hitbox_dimensions);
 
             // Resolve collisions with the 9 cells centered around new position
             // (Currently, we get the 9 cells around the position, and then we get
@@ -644,10 +605,8 @@ fn update_walking_entities(
                     continue;
                 }
 
-                let other_aabb = AABB::from_pos_and_hitbox(
-                    other_pos.0.map_pos,
-                    other_coll.hitbox_dimensions,
-                );
+                let other_aabb =
+                    AABB::from_pos_and_hitbox(other_pos.0.map_pos, other_coll.hitbox_dimensions);
 
                 // Trigger HardCollision scripts
                 // (* bottom comment about event system)
@@ -701,10 +660,7 @@ pub struct AABB {
 }
 
 impl AABB {
-    pub fn from_pos_and_hitbox(
-        position: MapPos,
-        hitbox_dimensions: Size2D<f64, MapUnits>,
-    ) -> Self {
+    pub fn from_pos_and_hitbox(position: MapPos, hitbox_dimensions: Size2D<f64, MapUnits>) -> Self {
         Self {
             top: position.y - hitbox_dimensions.height / 2.0,
             bottom: position.y + hitbox_dimensions.height / 2.0,

@@ -79,8 +79,8 @@ impl Map {
         {
             let mut tiles: Vec<Option<TileId>> = vec![None; dimensions.area() as usize];
             for tile in layer.grid_tiles.iter().chain(layer.auto_layer_tiles.iter()) {
-                let vec_index = (tile.px[0] as i32 / 16)
-                    + (tile.px[1] as i32 / 16) * dimensions.width;
+                let vec_index =
+                    (tile.px[0] as i32 / 16) + (tile.px[1] as i32 / 16) * dimensions.width;
                 *tiles.get_mut(vec_index as usize).unwrap() = Some(tile.t as u32);
             }
 
@@ -118,18 +118,15 @@ impl Map {
 
         let top = world.levels.iter().map(|l| l.world_y).min().unwrap() as i32 / 16;
         let left = world.levels.iter().map(|l| l.world_x).min().unwrap() as i32 / 16;
-        let bottom =
-            world.levels.iter().map(|l| l.world_y + l.px_wid).max().unwrap() as i32 / 16;
-        let right =
-            world.levels.iter().map(|l| l.world_x + l.px_hei).max().unwrap() as i32 / 16;
+        let bottom = world.levels.iter().map(|l| l.world_y + l.px_wid).max().unwrap() as i32 / 16;
+        let right = world.levels.iter().map(|l| l.world_x + l.px_hei).max().unwrap() as i32 / 16;
 
         let dimensions = Size2D::new(right - left, bottom - top);
         let offset = Vector2D::new(left, top);
 
         // Create all the empty combined tile layers based on those of the first level.
         // It's assumed that all instances of the same definition have the same tileset
-        let first_level_layers =
-            world.levels.first().unwrap().layer_instances.as_ref().unwrap();
+        let first_level_layers = world.levels.first().unwrap().layer_instances.as_ref().unwrap();
         let mut tile_layers = first_level_layers
             .iter()
             .rev()
@@ -161,8 +158,7 @@ impl Map {
                 .enumerate()
             {
                 for tile in layer.grid_tiles.iter().chain(layer.auto_layer_tiles.iter()) {
-                    let pos_in_level =
-                        Vector2D::new(tile.px[0] as i32, tile.px[1] as i32) / 16;
+                    let pos_in_level = Vector2D::new(tile.px[0] as i32, tile.px[1] as i32) / 16;
                     let pos_in_world = pos_in_level
                         + Vector2D::new(level.world_x as i32, level.world_y as i32) / 16;
                     let vec_coords = pos_in_world - offset;
@@ -218,44 +214,36 @@ impl Map {
         let bottom_right_index = (tlc.y + 1) * self.dimensions.width * 2 + (tlc.x + 1);
 
         let top_left =
-            self.collision_map.get(top_left_index as usize).cloned().flatten().map(
-                |_| AABB {
-                    top: cell_pos.y as f64,
-                    bottom: cell_pos.y as f64 + 0.5,
-                    left: cell_pos.x as f64,
-                    right: cell_pos.x as f64 + 0.5,
-                },
-            );
+            self.collision_map.get(top_left_index as usize).cloned().flatten().map(|_| AABB {
+                top: cell_pos.y as f64,
+                bottom: cell_pos.y as f64 + 0.5,
+                left: cell_pos.x as f64,
+                right: cell_pos.x as f64 + 0.5,
+            });
 
         let top_right =
-            self.collision_map.get(top_right_index as usize).cloned().flatten().map(
-                |_| AABB {
-                    top: cell_pos.y as f64,
-                    bottom: cell_pos.y as f64 + 0.5,
-                    left: cell_pos.x as f64 + 0.5,
-                    right: cell_pos.x as f64 + 1.,
-                },
-            );
+            self.collision_map.get(top_right_index as usize).cloned().flatten().map(|_| AABB {
+                top: cell_pos.y as f64,
+                bottom: cell_pos.y as f64 + 0.5,
+                left: cell_pos.x as f64 + 0.5,
+                right: cell_pos.x as f64 + 1.,
+            });
 
         let bottom_left =
-            self.collision_map.get(bottom_left_index as usize).cloned().flatten().map(
-                |_| AABB {
-                    top: cell_pos.y as f64 + 0.5,
-                    bottom: cell_pos.y as f64 + 1.,
-                    left: cell_pos.x as f64,
-                    right: cell_pos.x as f64 + 0.5,
-                },
-            );
+            self.collision_map.get(bottom_left_index as usize).cloned().flatten().map(|_| AABB {
+                top: cell_pos.y as f64 + 0.5,
+                bottom: cell_pos.y as f64 + 1.,
+                left: cell_pos.x as f64,
+                right: cell_pos.x as f64 + 0.5,
+            });
 
         let bottom_right =
-            self.collision_map.get(bottom_right_index as usize).cloned().flatten().map(
-                |_| AABB {
-                    top: cell_pos.y as f64 + 0.5,
-                    bottom: cell_pos.y as f64 + 1.,
-                    left: cell_pos.x as f64 + 0.5,
-                    right: cell_pos.x as f64 + 1.,
-                },
-            );
+            self.collision_map.get(bottom_right_index as usize).cloned().flatten().map(|_| AABB {
+                top: cell_pos.y as f64 + 0.5,
+                bottom: cell_pos.y as f64 + 1.,
+                left: cell_pos.x as f64 + 0.5,
+                right: cell_pos.x as f64 + 1.,
+            });
 
         [top_left, top_right, bottom_left, bottom_right]
     }
