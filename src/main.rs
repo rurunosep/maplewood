@@ -14,7 +14,7 @@ use ecs::component::{
 };
 use ecs::{Ecs, EntityId};
 use euclid::{Point2D, Rect, Size2D, Vector2D};
-use render::{RenderData, SCREEN_COLS, SCREEN_ROWS, SCREEN_SCALE, TILE_SIZE};
+use render::{Renderer, SCREEN_COLS, SCREEN_ROWS, SCREEN_SCALE, TILE_SIZE};
 use script::{ScriptId, ScriptInstanceManager, ScriptTrigger};
 use sdl2::event::Event;
 use sdl2::image::LoadTexture;
@@ -116,7 +116,7 @@ fn main() {
     #[allow(unused)]
     let mut cards: HashMap<String, Texture> = HashMap::new();
 
-    let mut render_data = RenderData {
+    let mut renderer = Renderer {
         canvas,
         tilesets,
         spritesheets,
@@ -342,9 +342,9 @@ fn main() {
             script.update(
                 &mut story_vars, &mut ecs, &world,
                 &mut message_window, &mut player_movement_locked,
-                &mut map_overlay_color_transition, render_data.map_overlay_color,
-                &mut render_data.show_cutscene_border,
-                &mut render_data.displayed_card_name,
+                &mut map_overlay_color_transition, renderer.map_overlay_color,
+                &mut renderer.show_cutscene_border,
+                &mut renderer.displayed_card_name,
                 &mut running, &musics, &sound_effects, player_id
             );
 
@@ -433,7 +433,7 @@ fn main() {
                 + start_color.b as f64) as u8;
             let a = ((end_color.a as f64 - start_color.a as f64) * interp
                 + start_color.a as f64) as u8;
-            render_data.map_overlay_color = Color::RGBA(r, g, b, a);
+            renderer.map_overlay_color = Color::RGBA(r, g, b, a);
 
             if start_time.elapsed() > *duration {
                 map_overlay_color_transition = None;
@@ -469,13 +469,7 @@ fn main() {
             );
         }
 
-        render::render(
-            &mut render_data,
-            camera_position,
-            map_to_render,
-            &message_window,
-            &ecs,
-        );
+        renderer.render(camera_position, map_to_render, &message_window, &ecs);
 
         std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
     }
