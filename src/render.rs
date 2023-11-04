@@ -1,12 +1,11 @@
-use crate::ecs::components::{Facing, Position, SineOffsetAnimation, SpriteComponent};
+use crate::ecs::component::{Facing, Position, SineOffsetAnimation, SpriteComponent};
 use crate::ecs::Ecs;
-use crate::utils::{CellPos, Direction, MapPos, Pixels};
-use crate::world::Map;
-use crate::MessageWindow;
-use euclid::{Point2D, Size2D, Vector2D};
+use crate::world::{CellPos, Map, MapPos};
+use crate::{Direction, MessageWindow};
+use euclid::{Point2D, Rect, Size2D, Vector2D};
 use itertools::Itertools;
 use sdl2::pixels::Color;
-use sdl2::rect::Rect;
+use sdl2::rect::Rect as SdlRect;
 use sdl2::render::{Texture, TextureQuery, WindowCanvas};
 use sdl2::ttf::Font;
 use std::collections::HashMap;
@@ -16,6 +15,8 @@ pub const TILE_SIZE: u32 = 16;
 pub const SCREEN_COLS: u32 = 16;
 pub const SCREEN_ROWS: u32 = 12;
 pub const SCREEN_SCALE: u32 = 4;
+
+pub struct PixelUnits;
 
 pub struct RenderData<'r> {
     pub canvas: WindowCanvas,
@@ -54,8 +55,8 @@ pub fn render(
 
     let map_pos_to_screen_top_left = {
         |map_pos: MapPos,
-         pixel_offset: Option<Vector2D<i32, Pixels>>|
-         -> Point2D<i32, Pixels> {
+         pixel_offset: Option<Vector2D<i32, PixelUnits>>|
+         -> Point2D<i32, PixelUnits> {
             let position_in_viewport = map_pos - viewport_map_offset;
             let position_on_screen = (position_in_viewport
                 * (TILE_SIZE * SCREEN_SCALE) as f64)
@@ -69,28 +70,23 @@ pub fn render(
     // (Possible future optimization: cache rendered tile layers, or chunks of them.
     // No reason to redraw every single static tile every single frame.)
     for layer in &map.tile_layers {
-        // TODO improve multi-level world loading/handling
-        if tilesets.get(&layer.tileset_path).is_none() {
-            continue;
-        }
-
         let tileset = tilesets.get(&layer.tileset_path).unwrap();
         let tileset_width_in_tiles = tileset.query().width / 16;
 
-        for col in 0..map.width {
-            for row in 0..map.height {
-                // TODO does not support negative map coords yet
+        let map_bounds = Rect::new(map.offset.to_point(), map.dimensions);
+        for col in map_bounds.min_x()..map_bounds.max_x() {
+            for row in map_bounds.min_y()..map_bounds.max_y() {
                 let cell_pos = CellPos::new(col, row);
+                let vec_coords = cell_pos - map.offset;
+                let vec_index = vec_coords.y * map.dimensions.width + vec_coords.x;
 
-                if let Some(tile_id) =
-                    layer.tile_ids.get((row * map.width + col) as usize).unwrap()
-                {
+                if let Some(tile_id) = layer.tile_ids.get(vec_index as usize).unwrap() {
                     let top_left_in_screen = map_pos_to_screen_top_left(
                         cell_pos.cast().cast_unit(),
                         Some(layer.offset * SCREEN_SCALE as i32),
                     );
 
-                    let screen_rect = Rect::new(
+                    let screen_rect = SdlRect::new(
                         top_left_in_screen.x,
                         top_left_in_screen.y,
                         TILE_SIZE * SCREEN_SCALE + 1,
@@ -99,7 +95,7 @@ pub fn render(
 
                     let tile_y_in_tileset = (tile_id / tileset_width_in_tiles) * 16;
                     let tile_x_in_tileset = (tile_id % tileset_width_in_tiles) * 16;
-                    let tileset_rect = Rect::new(
+                    let tileset_rect = SdlRect::new(
                         tile_x_in_tileset as i32,
                         tile_y_in_tileset as i32,
                         16,
@@ -107,6 +103,33 @@ pub fn render(
                     );
 
                     canvas.copy(tileset, tileset_rect, screen_rect).unwrap();
+                }
+            }
+        }
+    }
+
+    // Draw collision map
+    if false {
+        canvas.set_draw_color(Color::RGBA(255, 0, 0, (255. * 0.7) as u8));
+        let map_bounds = Rect::new(map.offset.to_point(), map.dimensions);
+        for col in map_bounds.min_x()..map_bounds.max_x() {
+            for row in map_bounds.min_y()..map_bounds.max_y() {
+                let cell_pos = CellPos::new(col, row);
+
+                for aabb in map.get_collision_aabbs_for_cell(cell_pos).iter().flatten() {
+                    let top_left = map_pos_to_screen_top_left(
+                        Point2D::new(aabb.left, aabb.top),
+                        None,
+                    );
+
+                    canvas
+                        .fill_rect(SdlRect::new(
+                            top_left.x as i32,
+                            top_left.y as i32,
+                            8 * SCREEN_SCALE as u32,
+                            8 * SCREEN_SCALE as u32,
+                        ))
+                        .unwrap();
                 }
             }
         }
@@ -148,7 +171,7 @@ pub fn render(
             Some(sprite_component.sprite_offset * SCREEN_SCALE as i32),
         );
 
-        let screen_rect = Rect::new(
+        let screen_rect = SdlRect::new(
             top_left_in_screen.x,
             top_left_in_screen.y,
             16 * SCREEN_SCALE,
@@ -168,25 +191,25 @@ pub fn render(
     canvas.set_draw_color(*map_overlay_color);
     canvas.set_blend_mode(sdl2::render::BlendMode::Blend);
     let (w, h) = canvas.output_size().unwrap();
-    canvas.fill_rect(Rect::new(0, 0, w, h)).unwrap();
+    canvas.fill_rect(SdlRect::new(0, 0, w, h)).unwrap();
 
     // Draw cutscene border
     if *show_cutscene_border {
         const BORDER_THICKNESS: u32 = 6;
         canvas.set_draw_color(Color::RGB(0, 0, 0));
         let (w, h) = canvas.output_size().unwrap();
-        canvas.fill_rect(Rect::new(0, 0, w, BORDER_THICKNESS * SCREEN_SCALE)).unwrap();
+        canvas.fill_rect(SdlRect::new(0, 0, w, BORDER_THICKNESS * SCREEN_SCALE)).unwrap();
         canvas
-            .fill_rect(Rect::new(
+            .fill_rect(SdlRect::new(
                 0,
                 (h - BORDER_THICKNESS * SCREEN_SCALE) as i32,
                 w,
                 BORDER_THICKNESS * SCREEN_SCALE,
             ))
             .unwrap();
-        canvas.fill_rect(Rect::new(0, 0, BORDER_THICKNESS * SCREEN_SCALE, h)).unwrap();
+        canvas.fill_rect(SdlRect::new(0, 0, BORDER_THICKNESS * SCREEN_SCALE, h)).unwrap();
         canvas
-            .fill_rect(Rect::new(
+            .fill_rect(SdlRect::new(
                 (w - BORDER_THICKNESS * SCREEN_SCALE) as i32,
                 0,
                 BORDER_THICKNESS * SCREEN_SCALE,
@@ -201,7 +224,7 @@ pub fn render(
             .copy(
                 cards.get(displayed_card_name).unwrap(),
                 None,
-                Rect::new(152, 114, 720, 540),
+                SdlRect::new(152, 114, 720, 540),
             )
             .unwrap();
     }
@@ -211,7 +234,7 @@ pub fn render(
         // Draw the window itself
         canvas.set_draw_color(Color::RGB(0, 0, 0));
         canvas
-            .fill_rect(Rect::new(
+            .fill_rect(SdlRect::new(
                 10 * SCREEN_SCALE as i32,
                 (16 * 12 - 60) * SCREEN_SCALE as i32,
                 (16 * 16 - 20) * SCREEN_SCALE,
@@ -229,7 +252,7 @@ pub fn render(
                 .copy(
                     &texture,
                     None,
-                    Rect::new(
+                    SdlRect::new(
                         20 * SCREEN_SCALE as i32,
                         // 16 * 12 is screen height, -56 for top of text, 10 per line
                         ((16 * 12 - 56) + (i as i32 * 10)) * SCREEN_SCALE as i32,

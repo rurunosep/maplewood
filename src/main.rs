@@ -6,15 +6,14 @@ mod ecs;
 mod ldtk_json;
 mod render;
 mod script;
-mod utils;
 mod world;
 
-use ecs::components::{
+use ecs::component::{
     Collision, Facing, Name, Position, Scripts, SineOffsetAnimation, Sprite,
     SpriteComponent, Walking,
 };
 use ecs::{Ecs, EntityId};
-use euclid::{Point2D, Size2D, Vector2D};
+use euclid::{Point2D, Rect, Size2D, Vector2D};
 use render::{RenderData, SCREEN_COLS, SCREEN_ROWS, SCREEN_SCALE, TILE_SIZE};
 use script::{ScriptId, ScriptInstanceManager, ScriptTrigger};
 use sdl2::event::Event;
@@ -22,13 +21,22 @@ use sdl2::image::LoadTexture;
 use sdl2::keyboard::Keycode;
 use sdl2::mixer::{Chunk, Music, AUDIO_S16SYS, DEFAULT_CHANNELS};
 use sdl2::pixels::Color;
-use sdl2::rect::Rect;
+use sdl2::rect::Rect as SdlRect;
 use sdl2::render::Texture;
 use slotmap::SlotMap;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
-use utils::{CellPos, Direction, MapPos, MapUnits};
-use world::{Map, World, WorldPos};
+use world::{CellPos, Map, MapPos, MapUnits, World, WorldPos};
+
+// Where do I keep this?
+#[derive(Clone, Copy, Debug, Default)]
+pub enum Direction {
+    Up,
+    #[default]
+    Down,
+    Left,
+    Right,
+}
 
 // UI
 pub struct MessageWindow {
@@ -184,19 +192,19 @@ fn main() {
         SpriteComponent {
             up_sprite: Sprite {
                 spritesheet_name: "characters".to_string(),
-                rect: Rect::new(7 * 16, 3 * 16, 16, 16),
+                rect: SdlRect::new(7 * 16, 3 * 16, 16, 16),
             },
             down_sprite: Sprite {
                 spritesheet_name: "characters".to_string(),
-                rect: Rect::new(7 * 16, 0 * 16, 16, 16),
+                rect: SdlRect::new(7 * 16, 0 * 16, 16, 16),
             },
             left_sprite: Sprite {
                 spritesheet_name: "characters".to_string(),
-                rect: Rect::new(7 * 16, 1 * 16, 16, 16),
+                rect: SdlRect::new(7 * 16, 1 * 16, 16, 16),
             },
             right_sprite: Sprite {
                 spritesheet_name: "characters".to_string(),
-                rect: Rect::new(7 * 16, 2 * 16, 16, 16),
+                rect: SdlRect::new(7 * 16, 2 * 16, 16, 16),
             },
             sprite_offset: Vector2D::new(-8, -13),
             forced_sprite: None,
@@ -436,29 +444,28 @@ fn main() {
         // Render
         // ----------------------------------------------------------
 
+        // (Camera could be an entity with a position component
+        // map_to_render is camera's world pos' map)
         let player_position = ecs.query_one_by_id::<&Position>(player_id).unwrap().0;
         let map_to_render = world.maps.get(player_position.map_id).unwrap();
-
         let mut camera_position = player_position.map_pos;
 
         // Clamp camera to map
-        // (This current implementation assumes that map top-left is [0, 0].
-        // Keep this in mind when that changes.)
-        let viewport_dimensions: Size2D<f64, MapUnits> =
-            Size2D::new(SCREEN_COLS as f64, SCREEN_ROWS as f64);
-        let map_dimensions: Size2D<f64, MapUnits> =
-            Size2D::new(map_to_render.width as f64, map_to_render.height as f64);
-        // Confirm that map is larger than viewport, or clamp() will panic
-        if map_dimensions.width > viewport_dimensions.width
-            && map_dimensions.height > viewport_dimensions.height
-        {
+        let viewport_dimensions = Size2D::new(SCREEN_COLS as f64, SCREEN_ROWS as f64);
+        let map_bounds: Rect<f64, MapUnits> =
+            Rect::new(map_to_render.offset.to_point(), map_to_render.dimensions)
+                .cast()
+                .cast_unit();
+        // If map is smaller than viewport, skip clamping, or clamp() will panic
+        // (Could be done separately by dimension)
+        if map_bounds.size.contains(viewport_dimensions) {
             camera_position.x = camera_position.x.clamp(
-                viewport_dimensions.width / 2.0,
-                map_dimensions.width - viewport_dimensions.width / 2.0,
+                map_bounds.min_x() + viewport_dimensions.width / 2.,
+                map_bounds.max_x() - viewport_dimensions.width / 2.,
             );
             camera_position.y = camera_position.y.clamp(
-                viewport_dimensions.height / 2.0,
-                map_dimensions.height - viewport_dimensions.height / 2.0,
+                map_bounds.min_y() + viewport_dimensions.height / 2.,
+                map_bounds.max_y() - viewport_dimensions.height / 2.,
             );
         }
 
@@ -480,7 +487,6 @@ fn main() {
 
 mod input {
     use super::*;
-    use crate::utils::CellPos;
 
     pub fn move_player(
         ecs: &Ecs,

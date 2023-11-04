@@ -1,7 +1,7 @@
 // This might want to be in a module with ldtk_json.rs and other resource loading files
 // some day, rather than here with the entity files
 
-use crate::ecs::components::{Collision, Name, Position, Scripts};
+use crate::ecs::component::{Collision, Name, Position, Scripts};
 use crate::ecs::Ecs;
 use crate::ldtk_json::{self};
 use crate::script::{ScriptClass, ScriptTrigger};

@@ -1,4 +1,4 @@
-use super::components::Name;
+use super::component::Name;
 use super::query::Query;
 use anymap::AnyMap;
 use slotmap::{new_key_type, Key, SecondaryMap, SlotMap};

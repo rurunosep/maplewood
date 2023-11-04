@@ -12,7 +12,7 @@
 //      let thread = globals.get::<_, Thread>(script_instance.thread_name);
 //      thread.resume();
 
-use super::callbacks;
+use super::callback;
 use crate::ecs::{Ecs, EntityId};
 use crate::world::World;
 use crate::{MapOverlayColorTransition, MessageWindow};
@@ -300,25 +300,25 @@ impl ScriptInstance {
                     globals.set(
                         "get_story_var",
                         scope.create_function(|_, args| {
-                            callbacks::get_story_var(args, *story_vars.borrow())
+                            callback::get_story_var(args, *story_vars.borrow())
                         })?,
                     )?;
                     globals.set(
                         "set_story_var",
                         scope.create_function_mut(|_, args| {
-                            callbacks::set_story_var(args, *story_vars.borrow_mut())
+                            callback::set_story_var(args, *story_vars.borrow_mut())
                         })?,
                     )?;
                     globals.set(
                         "get_entity_position",
                         scope.create_function(|_, args| {
-                            callbacks::get_entity_map_pos(args, *ecs.borrow())
+                            callback::get_entity_map_pos(args, *ecs.borrow())
                         })?,
                     )?;
                     globals.set(
                         "lock_player_input",
                         scope.create_function_mut(|_, args| {
-                            callbacks::lock_player_input(
+                            callback::lock_player_input(
                                 args,
                                 *player_movement_locked.borrow_mut(),
                                 *ecs.borrow_mut(),
@@ -336,47 +336,43 @@ impl ScriptInstance {
                     globals.set(
                         "set_entity_solid",
                         scope.create_function_mut(|_, args| {
-                            callbacks::set_entity_solid(args, *ecs.borrow_mut())
+                            callback::set_entity_solid(args, *ecs.borrow_mut())
                         })?,
                     )?;
                     globals.set(
                         "walk",
                         scope.create_function_mut(|_, args| {
-                            callbacks::walk(args, *ecs.borrow_mut())
+                            callback::walk(args, *ecs.borrow_mut())
                         })?,
                     )?;
                     globals.set(
                         "walk_to",
                         scope.create_function_mut(|_, args| {
-                            callbacks::walk_to(args, *ecs.borrow_mut())
+                            callback::walk_to(args, *ecs.borrow_mut())
                         })?,
                     )?;
                     globals.set(
                         "is_entity_walking",
                         scope.create_function(|_, args| {
-                            callbacks::is_entity_walking(args, *ecs.borrow())
+                            callback::is_entity_walking(args, *ecs.borrow())
                         })?,
                     )?;
                     globals.set(
                         "set_entity_map_pos",
                         scope.create_function_mut(|_, args| {
-                            callbacks::set_entity_map_pos(args, *ecs.borrow_mut())
+                            callback::set_entity_map_pos(args, *ecs.borrow_mut())
                         })?,
                     )?;
                     globals.set(
                         "set_entity_world_pos",
                         scope.create_function_mut(|_, args| {
-                            callbacks::set_entity_world_pos(
-                                args,
-                                *ecs.borrow_mut(),
-                                world,
-                            )
+                            callback::set_entity_world_pos(args, *ecs.borrow_mut(), world)
                         })?,
                     )?;
                     globals.set(
                         "set_map_overlay_color",
                         scope.create_function_mut(|_, args| {
-                            callbacks::set_map_overlay_color(
+                            callback::set_map_overlay_color(
                                 args,
                                 map_overlay_color_transition,
                                 map_overlay_color,
@@ -386,13 +382,13 @@ impl ScriptInstance {
                     globals.set(
                         "anim_quiver",
                         scope.create_function_mut(|_, args| {
-                            callbacks::anim_quiver(args, *ecs.borrow_mut())
+                            callback::anim_quiver(args, *ecs.borrow_mut())
                         })?,
                     )?;
                     globals.set(
                         "anim_jump",
                         scope.create_function_mut(|_, args| {
-                            callbacks::anim_jump(args, *ecs.borrow_mut())
+                            callback::anim_jump(args, *ecs.borrow_mut())
                         })?,
                     )?;
                     globals.set(
@@ -405,36 +401,36 @@ impl ScriptInstance {
                     globals.set(
                         "play_sfx",
                         scope.create_function(|_, args| {
-                            callbacks::play_sfx(args, sound_effects)
+                            callback::play_sfx(args, sound_effects)
                         })?,
                     )?;
                     globals.set(
                         "play_music",
                         scope.create_function_mut(|_, args| {
-                            callbacks::play_music(args, musics)
+                            callback::play_music(args, musics)
                         })?,
                     )?;
                     globals.set(
                         "stop_music",
                         scope
-                            .create_function_mut(|_, args| callbacks::stop_music(args))?,
+                            .create_function_mut(|_, args| callback::stop_music(args))?,
                     )?;
                     globals.set(
                         "remove_entity_position",
                         scope.create_function_mut(|_, args| {
-                            callbacks::remove_entity_position(args, *ecs.borrow_mut())
+                            callback::remove_entity_position(args, *ecs.borrow_mut())
                         })?,
                     )?;
                     globals.set(
                         "set_forced_sprite",
                         scope.create_function_mut(|_, args| {
-                            callbacks::set_forced_sprite(args, *ecs.borrow_mut())
+                            callback::set_forced_sprite(args, *ecs.borrow_mut())
                         })?,
                     )?;
                     globals.set(
                         "remove_forced_sprite",
                         scope.create_function_mut(|_, args| {
-                            callbacks::remove_forced_sprite(args, *ecs.borrow_mut())
+                            callback::remove_forced_sprite(args, *ecs.borrow_mut())
                         })?,
                     )?;
                     globals.set(
@@ -470,7 +466,7 @@ impl ScriptInstance {
                         "message",
                         wrap_yielding.call::<_, Function>(scope.create_function_mut(
                             |_, args| {
-                                callbacks::message(
+                                callback::message(
                                     args,
                                     *message_window.borrow_mut(),
                                     *wait_condition.borrow_mut(),
@@ -484,7 +480,7 @@ impl ScriptInstance {
                         "selection",
                         wrap_yielding.call::<_, Function>(scope.create_function_mut(
                             |_, args| {
-                                callbacks::selection(
+                                callback::selection(
                                     args,
                                     *message_window.borrow_mut(),
                                     *wait_condition.borrow_mut(),

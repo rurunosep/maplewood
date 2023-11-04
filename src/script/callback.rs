@@ -1,5 +1,5 @@
 use super::{ScriptError, ScriptId, WaitCondition};
-use crate::ecs::components::{
+use crate::ecs::component::{
     Collision, Facing, Position, SineOffsetAnimation, Sprite, SpriteComponent, Walking,
 };
 use crate::ecs::{Ecs, EntityId};

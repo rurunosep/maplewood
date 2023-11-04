@@ -1,7 +1,8 @@
 use super::Component;
+use crate::render::PixelUnits;
 use crate::script::ScriptClass;
-use crate::utils::{Direction, MapPos, MapUnits, Pixels};
-use crate::world::WorldPos;
+use crate::world::{MapPos, MapUnits, WorldPos};
+use crate::Direction;
 use euclid::{Size2D, Vector2D};
 use sdl2::rect::Rect;
 use std::time::{Duration, Instant};
@@ -26,7 +27,7 @@ pub struct SpriteComponent {
     pub left_sprite: Sprite,
     pub right_sprite: Sprite,
     pub forced_sprite: Option<Sprite>,
-    pub sprite_offset: Vector2D<i32, Pixels>,
+    pub sprite_offset: Vector2D<i32, PixelUnits>,
 }
 impl Component for SpriteComponent {}
 
