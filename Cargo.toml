@@ -6,11 +6,8 @@ version = "0.2.1"
 
 [dependencies]
 anymap = "0.12.1"
-derivative = "2.2.0"
-derive-new = "0.5.9"
-derive_more = "0.99.17"
 euclid = "0.22.9"
-itertools = "0.10.5"
+itertools = "0.11.0"
 rlua = "0.19.4"
 sdl2 = {version = "0.35.2", features = ["image", "ttf", "mixer"]}
 serde = {version = "1.0.163", features = ["derive"]}

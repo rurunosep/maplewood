@@ -44,7 +44,7 @@ impl World {
 type TileId = u32;
 
 pub struct TileLayer {
-    pub label: String,
+    pub name: String,
     pub tileset_path: String,
     pub tile_ids: Vec<Option<TileId>>,
     pub offset: Vector2D<i32, PixelUnits>,
@@ -55,7 +55,9 @@ pub struct Map {
     pub name: String,
     pub dimensions: Size2D<i32, CellUnits>,
     pub offset: Vector2D<i32, CellUnits>,
+    // Vec of Layer enum with TileLayer(TileLayer) variants?
     pub tile_layers: Vec<TileLayer>,
+    // Maybe make this bool for now. Use Option *when* I need option
     pub collision_map: Vec<Option<()>>,
 }
 
@@ -83,7 +85,7 @@ impl Map {
             }
 
             tile_layers.push(TileLayer {
-                label: layer.identifier.clone(),
+                name: layer.identifier.clone(),
                 tileset_path: layer.tileset_rel_path.as_ref().unwrap().clone(),
                 tile_ids: tiles,
                 offset: Vector2D::new(
@@ -133,7 +135,7 @@ impl Map {
             .rev()
             .filter(|layer| is_tile_layer(layer))
             .map(|layer| TileLayer {
-                label: layer.identifier.clone(),
+                name: layer.identifier.clone(),
                 tileset_path: layer.tileset_rel_path.as_ref().unwrap().clone(),
                 tile_ids: vec![None; dimensions.area() as usize],
                 offset: Vector2D::new(

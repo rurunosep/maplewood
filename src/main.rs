@@ -697,6 +697,7 @@ fn update_walking_entities(
     }
 }
 
+// Use euclid::Box2D instead?
 #[derive(Clone, Copy, Default, Debug)]
 pub struct AABB {
     pub top: f64,

@@ -1,6 +1,6 @@
 use crate::ecs::component::{Facing, Position, SineOffsetAnimation, SpriteComponent};
 use crate::ecs::Ecs;
-use crate::world::{CellPos, Map, MapPos};
+use crate::world::{CellPos, Map, MapPos, MapUnits, TileLayer};
 use crate::{Direction, MessageWindow};
 use euclid::{Point2D, Rect, Size2D, Vector2D};
 use itertools::Itertools;
@@ -66,46 +66,22 @@ pub fn render(
         }
     };
 
-    // Draw tiles
     // (Possible future optimization: cache rendered tile layers, or chunks of them.
     // No reason to redraw every single static tile every single frame.)
-    for layer in &map.tile_layers {
-        let tileset = tilesets.get(&layer.tileset_path).unwrap();
-        let tileset_width_in_tiles = tileset.query().width / 16;
 
-        let map_bounds = Rect::new(map.offset.to_point(), map.dimensions);
-        for col in map_bounds.min_x()..map_bounds.max_x() {
-            for row in map_bounds.min_y()..map_bounds.max_y() {
-                let cell_pos = CellPos::new(col, row);
-                let vec_coords = cell_pos - map.offset;
-                let vec_index = vec_coords.y * map.dimensions.width + vec_coords.x;
+    // Draw tile layers below entities
+    // TODO Is take/skip till specific layer the best way to do this? Works for now.
+    for layer in map.tile_layers.iter().take_while_inclusive(|l| l.name != "interiors_3")
+    {
+        draw_tile_layer(layer, tilesets, map, map_pos_to_screen_top_left, canvas);
+    }
 
-                if let Some(tile_id) = layer.tile_ids.get(vec_index as usize).unwrap() {
-                    let top_left_in_screen = map_pos_to_screen_top_left(
-                        cell_pos.cast().cast_unit(),
-                        Some(layer.offset * SCREEN_SCALE as i32),
-                    );
+    // Draw entities
+    draw_entities(ecs, map, map_pos_to_screen_top_left, canvas, spritesheets);
 
-                    let screen_rect = SdlRect::new(
-                        top_left_in_screen.x,
-                        top_left_in_screen.y,
-                        TILE_SIZE * SCREEN_SCALE + 1,
-                        TILE_SIZE * SCREEN_SCALE + 1,
-                    );
-
-                    let tile_y_in_tileset = (tile_id / tileset_width_in_tiles) * 16;
-                    let tile_x_in_tileset = (tile_id % tileset_width_in_tiles) * 16;
-                    let tileset_rect = SdlRect::new(
-                        tile_x_in_tileset as i32,
-                        tile_y_in_tileset as i32,
-                        16,
-                        16,
-                    );
-
-                    canvas.copy(tileset, tileset_rect, screen_rect).unwrap();
-                }
-            }
-        }
+    // Draw tile layers above entities
+    for layer in map.tile_layers.iter().skip_while(|l| l.name != "exteriors_4") {
+        draw_tile_layer(layer, tilesets, map, map_pos_to_screen_top_left, canvas);
     }
 
     // Draw collision map
@@ -133,58 +109,6 @@ pub fn render(
                 }
             }
         }
-    }
-
-    // Draw entities
-    for (position, sprite_component, facing, sine_offset_animation) in ecs
-        .query_all::<(&Position, &SpriteComponent, &Facing, Option<&SineOffsetAnimation>)>()
-        .sorted_by(|(p1, _, _, _), (p2, _, _, _)| p1.0.map_pos.y.partial_cmp(&p2.0.map_pos.y).unwrap())
-    {
-        // Skip entities not on the current map
-        if position.0.map_id != map.id {
-            continue;
-        }
-
-        // Choose sprite to draw
-        let sprite = if let Some(forced_sprite) = &sprite_component.forced_sprite {
-            forced_sprite
-        } else {
-            match facing.0 {
-                Direction::Up => &sprite_component.up_sprite,
-                Direction::Down => &sprite_component.down_sprite,
-                Direction::Left => &sprite_component.left_sprite,
-                Direction::Right => &sprite_component.right_sprite,
-            }
-        };
-
-        // If entity has a SineOffsetAnimation, offset sprite position accordingly
-        let mut position = position.0.map_pos;
-        if let Some(soa) = sine_offset_animation {
-            let offset = soa.direction
-                * (soa.start_time.elapsed().as_secs_f64() * soa.frequency * (PI * 2.)).sin()
-                * soa.amplitude;
-            position += offset;
-        }
-
-        let top_left_in_screen = map_pos_to_screen_top_left(
-            position,
-            Some(sprite_component.sprite_offset * SCREEN_SCALE as i32),
-        );
-
-        let screen_rect = SdlRect::new(
-            top_left_in_screen.x,
-            top_left_in_screen.y,
-            16 * SCREEN_SCALE,
-            16 * SCREEN_SCALE,
-        );
-
-        canvas
-            .copy(
-                spritesheets.get(&sprite.spritesheet_name).unwrap(),
-                sprite.rect,
-                screen_rect,
-            )
-            .unwrap();
     }
 
     // Draw map overlay after map/entities/etc and before UI
@@ -265,4 +189,116 @@ pub fn render(
     }
 
     canvas.present();
+}
+
+// TODO Clean these functions up...
+// (I can start by passing RenderData)
+fn draw_tile_layer(
+    layer: &TileLayer,
+    tilesets: &mut HashMap<String, Texture<'_>>,
+    map: &Map,
+    map_pos_to_screen_top_left: impl Fn(
+        Point2D<f64, MapUnits>,
+        Option<Vector2D<i32, PixelUnits>>,
+    ) -> Point2D<i32, PixelUnits>,
+    canvas: &mut WindowCanvas,
+) {
+    let tileset = tilesets.get(&layer.tileset_path).unwrap();
+    let tileset_width_in_tiles = tileset.query().width / 16;
+
+    let map_bounds = Rect::new(map.offset.to_point(), map.dimensions);
+    for col in map_bounds.min_x()..map_bounds.max_x() {
+        for row in map_bounds.min_y()..map_bounds.max_y() {
+            let cell_pos = CellPos::new(col, row);
+            let vec_coords = cell_pos - map.offset;
+            let vec_index = vec_coords.y * map.dimensions.width + vec_coords.x;
+
+            if let Some(tile_id) = layer.tile_ids.get(vec_index as usize).unwrap() {
+                let top_left_in_screen = map_pos_to_screen_top_left(
+                    cell_pos.cast().cast_unit(),
+                    Some(layer.offset * SCREEN_SCALE as i32),
+                );
+
+                let screen_rect = SdlRect::new(
+                    top_left_in_screen.x,
+                    top_left_in_screen.y,
+                    TILE_SIZE * SCREEN_SCALE + 1,
+                    TILE_SIZE * SCREEN_SCALE + 1,
+                );
+
+                let tile_y_in_tileset = (tile_id / tileset_width_in_tiles) * 16;
+                let tile_x_in_tileset = (tile_id % tileset_width_in_tiles) * 16;
+                let tileset_rect = SdlRect::new(
+                    tile_x_in_tileset as i32,
+                    tile_y_in_tileset as i32,
+                    16,
+                    16,
+                );
+
+                canvas.copy(tileset, tileset_rect, screen_rect).unwrap();
+            }
+        }
+    }
+}
+
+fn draw_entities(
+    ecs: &Ecs,
+    map: &Map,
+    map_pos_to_screen_top_left: impl Fn(
+        Point2D<f64, MapUnits>,
+        Option<Vector2D<i32, PixelUnits>>,
+    ) -> Point2D<i32, PixelUnits>,
+    canvas: &mut WindowCanvas,
+    spritesheets: &mut HashMap<String, Texture<'_>>,
+) {
+    for (position, sprite_component, facing, sine_offset_animation) in ecs
+        .query_all::<(&Position, &SpriteComponent, &Facing, Option<&SineOffsetAnimation>)>()
+        .sorted_by(|(p1, _, _, _), (p2, _, _, _)| p1.0.map_pos.y.partial_cmp(&p2.0.map_pos.y).unwrap())
+    {
+        // Skip entities not on the current map
+        if position.0.map_id != map.id {
+            continue;
+        }
+
+        // Choose sprite to draw
+        let sprite = if let Some(forced_sprite) = &sprite_component.forced_sprite {
+            forced_sprite
+        } else {
+            match facing.0 {
+                Direction::Up => &sprite_component.up_sprite,
+                Direction::Down => &sprite_component.down_sprite,
+                Direction::Left => &sprite_component.left_sprite,
+                Direction::Right => &sprite_component.right_sprite,
+            }
+        };
+
+        // If entity has a SineOffsetAnimation, offset sprite position accordingly
+        let mut position = position.0.map_pos;
+        if let Some(soa) = sine_offset_animation {
+            let offset = soa.direction
+                * (soa.start_time.elapsed().as_secs_f64() * soa.frequency * (PI * 2.)).sin()
+                * soa.amplitude;
+            position += offset;
+        }
+
+        let top_left_in_screen = map_pos_to_screen_top_left(
+            position,
+            Some(sprite_component.sprite_offset * SCREEN_SCALE as i32),
+        );
+
+        let screen_rect = SdlRect::new(
+            top_left_in_screen.x,
+            top_left_in_screen.y,
+            16 * SCREEN_SCALE,
+            16 * SCREEN_SCALE,
+        );
+
+        canvas
+            .copy(
+                spritesheets.get(&sprite.spritesheet_name).unwrap(),
+                sprite.rect,
+                screen_rect,
+            )
+            .unwrap();
+    }
 }
