@@ -11,7 +11,7 @@
 	"iid": "9f15cbd0-ed50-11ed-8f21-4d63da406901",
 	"jsonVersion": "1.4.1",
 	"appBuildId": 471015,
-	"nextUid": 780,
+	"nextUid": 791,
 	"identifierStyle": "Lowercase",
 	"toc": [],
 	"worldLayout": null,
@@ -51,7 +51,7 @@
 			"gridSize": 16,
 			"guideGridWid": 0,
 			"guideGridHei": 0,
-			"displayOpacity": 1,
+			"displayOpacity": 0.8,
 			"inactiveOpacity": 0.6,
 			"hideInList": false,
 			"hideFieldsWhenInactive": true,
@@ -3368,15 +3368,15 @@
 		}
 	], "entities": [
 		{
-			"identifier": "soft_collision_script",
+			"identifier": "script",
 			"uid": 752,
 			"tags": [],
 			"exportToToc": false,
 			"doc": null,
 			"width": 16,
 			"height": 16,
-			"resizableX": false,
-			"resizableY": false,
+			"resizableX": true,
+			"resizableY": true,
 			"minWidth": null,
 			"maxWidth": null,
 			"minHeight": null,
@@ -3386,13 +3386,13 @@
 			"fillOpacity": 1,
 			"lineOpacity": 1,
 			"hollow": false,
-			"color": "#BE4A2F",
+			"color": "#181425",
 			"renderMode": "Rectangle",
 			"showName": false,
 			"tilesetId": null,
 			"tileRenderMode": "FitInside",
 			"tileRect": null,
-			"uiTileRect": null,
+			"uiTileRect": { "tilesetUid": 714, "x": 576, "y": 160, "w": 32, "h": 32 },
 			"nineSliceBorders": [],
 			"maxCount": 0,
 			"limitScope": "PerLevel",
@@ -3436,7 +3436,7 @@
 					"tilesetUid": null
 				},
 				{
-					"identifier": "script",
+					"identifier": "source",
 					"doc": null,
 					"__type": "String",
 					"uid": 753,
@@ -3471,10 +3471,115 @@
 					"tilesetUid": null
 				},
 				{
+					"identifier": "external_source",
+					"doc": null,
+					"__type": "String",
+					"uid": 790,
+					"type": "F_String",
+					"isArray": false,
+					"canBeNull": true,
+					"arrayMinLength": null,
+					"arrayMaxLength": null,
+					"editorDisplayMode": "Hidden",
+					"editorDisplayScale": 1,
+					"editorDisplayPos": "Above",
+					"editorLinkStyle": "StraightArrow",
+					"editorDisplayColor": null,
+					"editorAlwaysShow": false,
+					"editorShowInWorld": true,
+					"editorCutLongValues": true,
+					"editorTextSuffix": null,
+					"editorTextPrefix": null,
+					"useForSmartColor": false,
+					"min": null,
+					"max": null,
+					"regex": null,
+					"acceptFileTypes": null,
+					"defaultOverride": null,
+					"textLanguageMode": null,
+					"symmetricalRef": false,
+					"autoChainRef": true,
+					"allowOutOfLevelRef": true,
+					"allowedRefs": "OnlySame",
+					"allowedRefsEntityUid": null,
+					"allowedRefTags": [],
+					"tilesetUid": null
+				},
+				{
+					"identifier": "trigger",
+					"doc": null,
+					"__type": "LocalEnum.script_trigger",
+					"uid": 788,
+					"type": "F_Enum(787)",
+					"isArray": false,
+					"canBeNull": true,
+					"arrayMinLength": null,
+					"arrayMaxLength": null,
+					"editorDisplayMode": "Hidden",
+					"editorDisplayScale": 1,
+					"editorDisplayPos": "Above",
+					"editorLinkStyle": "StraightArrow",
+					"editorDisplayColor": null,
+					"editorAlwaysShow": false,
+					"editorShowInWorld": true,
+					"editorCutLongValues": true,
+					"editorTextSuffix": null,
+					"editorTextPrefix": null,
+					"useForSmartColor": true,
+					"min": null,
+					"max": null,
+					"regex": null,
+					"acceptFileTypes": null,
+					"defaultOverride": null,
+					"textLanguageMode": null,
+					"symmetricalRef": false,
+					"autoChainRef": true,
+					"allowOutOfLevelRef": true,
+					"allowedRefs": "OnlySame",
+					"allowedRefsEntityUid": null,
+					"allowedRefTags": [],
+					"tilesetUid": null
+				},
+				{
 					"identifier": "start_condition",
 					"doc": null,
 					"__type": "String",
 					"uid": 757,
+					"type": "F_Text",
+					"isArray": false,
+					"canBeNull": true,
+					"arrayMinLength": null,
+					"arrayMaxLength": null,
+					"editorDisplayMode": "Hidden",
+					"editorDisplayScale": 1,
+					"editorDisplayPos": "Above",
+					"editorLinkStyle": "StraightArrow",
+					"editorDisplayColor": null,
+					"editorAlwaysShow": false,
+					"editorShowInWorld": true,
+					"editorCutLongValues": true,
+					"editorTextSuffix": null,
+					"editorTextPrefix": null,
+					"useForSmartColor": false,
+					"min": null,
+					"max": null,
+					"regex": null,
+					"acceptFileTypes": null,
+					"defaultOverride": null,
+					"textLanguageMode": "LangJson",
+					"symmetricalRef": false,
+					"autoChainRef": true,
+					"allowOutOfLevelRef": true,
+					"allowedRefs": "OnlySame",
+					"allowedRefsEntityUid": null,
+					"allowedRefTags": [],
+					"tilesetUid": null
+				},
+				{
+					"identifier": "abort_condition",
+					"doc": null,
+					"__type": "String",
+					"uid": 789,
 					"type": "F_Text",
 					"isArray": false,
 					"canBeNull": true,
@@ -3688,7 +3793,7 @@
 				"averageColors": "fcccfa87f987f777f966f877fbbbfbbbfeddf898fca9faccf875f89afbbbfbbafdddf977fa87f777f866f776fdcafa64fdcbf999fba8faaaf875f88afcb9f888fccbfa88fa87f652f866f766fb95f964fcbaf998fa87f777fcb9f669f987f888fedafdbafcbbfbcdf866f877f986fa65fba8f988fa87f79bfcb9fbbcfdccfccdfa98fdddf999fcddfa98faaafbbbfbbb"
 			}
 		}
-	], "enums": [], "externalEnums": [], "levelFields": [] },
+	], "enums": [{ "identifier": "script_trigger", "uid": 787, "values": [ { "id": "interaction", "tileRect": null, "color": 4098376 }, { "id": "soft_collision", "tileRect": null, "color": 12470831 } ], "iconTilesetUid": null, "externalRelPath": null, "externalFileChecksum": null, "tags": [] }], "externalEnums": [], "levelFields": [] },
 	"levels": [],
 	"worlds": [
 		{ "iid": "9f15cbd1-ed50-11ed-8f21-a380600f9e08", "identifier": "indoors", "defaultLevelWidth": 256, "defaultLevelHeight": 256, "worldGridWidth": 256, "worldGridHeight": 256, "worldLayout": "Free", "levels": [
@@ -3719,7 +3824,7 @@
 						"__cWid": 25,
 						"__cHei": 15,
 						"__gridSize": 16,
-						"__opacity": 1,
+						"__opacity": 0.8,
 						"__pxTotalOffsetX": 0,
 						"__pxTotalOffsetY": 0,
 						"__tilesetDefUid": null,
@@ -3738,7 +3843,7 @@
 						"gridTiles": [],
 						"entityInstances": [
 							{
-								"__identifier": "soft_collision_script",
+								"__identifier": "script",
 								"__grid": [14,13],
 								"__pivot": [0.5,0.5],
 								"__tags": [],
@@ -3752,21 +3857,24 @@
 								"defUid": 752,
 								"px": [232,216],
 								"fieldInstances": [
-									{ "__identifier": "name", "__type": "String", "__value": "bathroom_to_hallway", "__tile": null, "defUid": 756, "realEditorValues": [{
-										"id": "V_String",
-										"params": ["bathroom_to_hallway"]
-									}] },
-									{ "__identifier": "script", "__type": "String", "__value": "set_entity_world_pos(\"player\", \"hallway\", 3.5, 3.5)", "__tile": null, "defUid": 753, "realEditorValues": [{
+									{ "__identifier": "name", "__type": "String", "__value": null, "__tile": null, "defUid": 756, "realEditorValues": [null] },
+									{ "__identifier": "source", "__type": "String", "__value": "set_entity_world_pos(\"player\", \"hallway\", 3.5, 3.5)", "__tile": null, "defUid": 753, "realEditorValues": [{
 										"id": "V_String",
 										"params": ["set_entity_world_pos(\"player\", \"hallway\", 3.5, 3.5)"]
 									}] },
+									{ "__identifier": "external_source", "__type": "String", "__value": null, "__tile": null, "defUid": 790, "realEditorValues": [] },
+									{ "__identifier": "trigger", "__type": "LocalEnum.script_trigger", "__value": "soft_collision", "__tile": null, "defUid": 788, "realEditorValues": [{
+										"id": "V_String",
+										"params": ["soft_collision"]
+									}] },
 									{ "__identifier": "start_condition", "__type": "String", "__value": null, "__tile": null, "defUid": 757, "realEditorValues": [] },
+									{ "__identifier": "abort_condition", "__type": "String", "__value": null, "__tile": null, "defUid": 789, "realEditorValues": [] },
 									{ "__identifier": "set_on_start", "__type": "String", "__value": null, "__tile": null, "defUid": 758, "realEditorValues": [] },
 									{ "__identifier": "set_on_finish", "__type": "String", "__value": null, "__tile": null, "defUid": 759, "realEditorValues": [] }
 								]
 							},
 							{
-								"__identifier": "soft_collision_script",
+								"__identifier": "script",
 								"__grid": [4,7],
 								"__pivot": [0.5,0.5],
 								"__tags": [],
@@ -3780,22 +3888,56 @@
 								"defUid": 752,
 								"px": [72,120],
 								"fieldInstances": [
-									{ "__identifier": "name", "__type": "String", "__value": "test", "__tile": null, "defUid": 756, "realEditorValues": [{
-										"id": "V_String",
-										"params": ["test"]
-									}] },
-									{ "__identifier": "script", "__type": "String", "__value": "message(\"Turn back...\")", "__tile": null, "defUid": 753, "realEditorValues": [{
+									{ "__identifier": "name", "__type": "String", "__value": null, "__tile": null, "defUid": 756, "realEditorValues": [null] },
+									{ "__identifier": "source", "__type": "String", "__value": "message(\"Turn back...\")", "__tile": null, "defUid": 753, "realEditorValues": [{
 										"id": "V_String",
 										"params": ["message(\"Turn back...\")"]
+									}] },
+									{ "__identifier": "external_source", "__type": "String", "__value": null, "__tile": null, "defUid": 790, "realEditorValues": [] },
+									{ "__identifier": "trigger", "__type": "LocalEnum.script_trigger", "__value": "soft_collision", "__tile": null, "defUid": 788, "realEditorValues": [{
+										"id": "V_String",
+										"params": ["soft_collision"]
 									}] },
 									{ "__identifier": "start_condition", "__type": "String", "__value": "{\n  \"story_var\": \"test\",\n  \"value\": 1\n}", "__tile": null, "defUid": 757, "realEditorValues": [{
 										"id": "V_String",
 										"params": ["{\\n  \"story_var\": \"test\",\\n  \"value\": 1\\n}"]
 									}] },
+									{ "__identifier": "abort_condition", "__type": "String", "__value": null, "__tile": null, "defUid": 789, "realEditorValues": [] },
 									{ "__identifier": "set_on_start", "__type": "String", "__value": "[\"test\", 0]", "__tile": null, "defUid": 758, "realEditorValues": [{
 										"id": "V_String",
 										"params": ["[\"test\", 0]"]
 									}] },
+									{ "__identifier": "set_on_finish", "__type": "String", "__value": null, "__tile": null, "defUid": 759, "realEditorValues": [] }
+								]
+							},
+							{
+								"__identifier": "script",
+								"__grid": [12,8],
+								"__pivot": [0.5,0.5],
+								"__tags": [],
+								"__tile": null,
+								"__smartColor": "#3E8948",
+								"__worldX": 200,
+								"__worldY": 136,
+								"iid": "1f0f82b0-6280-11ee-adbe-47a3d217ce9d",
+								"width": 16,
+								"height": 16,
+								"defUid": 752,
+								"px": [200,136],
+								"fieldInstances": [
+									{ "__identifier": "name", "__type": "String", "__value": null, "__tile": null, "defUid": 756, "realEditorValues": [] },
+									{ "__identifier": "source", "__type": "String", "__value": "message(\"It's a plunger.\")", "__tile": null, "defUid": 753, "realEditorValues": [{
+										"id": "V_String",
+										"params": ["message(\"It's a plunger.\")"]
+									}] },
+									{ "__identifier": "external_source", "__type": "String", "__value": null, "__tile": null, "defUid": 790, "realEditorValues": [] },
+									{ "__identifier": "trigger", "__type": "LocalEnum.script_trigger", "__value": "interaction", "__tile": null, "defUid": 788, "realEditorValues": [{
+										"id": "V_String",
+										"params": ["interaction"]
+									}] },
+									{ "__identifier": "start_condition", "__type": "String", "__value": null, "__tile": null, "defUid": 757, "realEditorValues": [] },
+									{ "__identifier": "abort_condition", "__type": "String", "__value": null, "__tile": null, "defUid": 789, "realEditorValues": [] },
+									{ "__identifier": "set_on_start", "__type": "String", "__value": null, "__tile": null, "defUid": 758, "realEditorValues": [] },
 									{ "__identifier": "set_on_finish", "__type": "String", "__value": null, "__tile": null, "defUid": 759, "realEditorValues": [] }
 								]
 							}
@@ -4973,7 +5115,7 @@
 						"__cWid": 9,
 						"__cHei": 12,
 						"__gridSize": 16,
-						"__opacity": 1,
+						"__opacity": 0.8,
 						"__pxTotalOffsetX": 0,
 						"__pxTotalOffsetY": 0,
 						"__tilesetDefUid": null,
@@ -4992,7 +5134,7 @@
 						"gridTiles": [],
 						"entityInstances": [
 							{
-								"__identifier": "soft_collision_script",
+								"__identifier": "script",
 								"__grid": [4,1],
 								"__pivot": [0.5,0.5],
 								"__tags": [],
@@ -5007,11 +5149,17 @@
 								"px": [72,24],
 								"fieldInstances": [
 									{ "__identifier": "name", "__type": "String", "__value": null, "__tile": null, "defUid": 756, "realEditorValues": [] },
-									{ "__identifier": "script", "__type": "String", "__value": "set_entity_world_pos(\"player\", \"hallway\", 3.5, 6.5)", "__tile": null, "defUid": 753, "realEditorValues": [{
+									{ "__identifier": "source", "__type": "String", "__value": "set_entity_world_pos(\"player\", \"hallway\", 3.5, 6.5)", "__tile": null, "defUid": 753, "realEditorValues": [{
 										"id": "V_String",
 										"params": ["set_entity_world_pos(\"player\", \"hallway\", 3.5, 6.5)"]
 									}] },
+									{ "__identifier": "external_source", "__type": "String", "__value": null, "__tile": null, "defUid": 790, "realEditorValues": [] },
+									{ "__identifier": "trigger", "__type": "LocalEnum.script_trigger", "__value": "soft_collision", "__tile": null, "defUid": 788, "realEditorValues": [{
+										"id": "V_String",
+										"params": ["soft_collision"]
+									}] },
 									{ "__identifier": "start_condition", "__type": "String", "__value": null, "__tile": null, "defUid": 757, "realEditorValues": [] },
+									{ "__identifier": "abort_condition", "__type": "String", "__value": null, "__tile": null, "defUid": 789, "realEditorValues": [] },
 									{ "__identifier": "set_on_start", "__type": "String", "__value": null, "__tile": null, "defUid": 758, "realEditorValues": [] },
 									{ "__identifier": "set_on_finish", "__type": "String", "__value": null, "__tile": null, "defUid": 759, "realEditorValues": [] }
 								]
@@ -5759,7 +5907,7 @@
 						"__cWid": 13,
 						"__cHei": 16,
 						"__gridSize": 16,
-						"__opacity": 1,
+						"__opacity": 0.8,
 						"__pxTotalOffsetX": 0,
 						"__pxTotalOffsetY": 0,
 						"__tilesetDefUid": null,
@@ -5778,7 +5926,7 @@
 						"gridTiles": [],
 						"entityInstances": [
 							{
-								"__identifier": "soft_collision_script",
+								"__identifier": "script",
 								"__grid": [7,14],
 								"__pivot": [0.5,0.5],
 								"__tags": [],
@@ -5793,11 +5941,110 @@
 								"px": [120,232],
 								"fieldInstances": [
 									{ "__identifier": "name", "__type": "String", "__value": null, "__tile": null, "defUid": 756, "realEditorValues": [] },
-									{ "__identifier": "script", "__type": "String", "__value": "set_entity_world_pos(\"player\", \"hallway\", 6.5, 3.5)", "__tile": null, "defUid": 753, "realEditorValues": [{
+									{ "__identifier": "source", "__type": "String", "__value": "set_entity_world_pos(\"player\", \"hallway\", 6.5, 3.5)", "__tile": null, "defUid": 753, "realEditorValues": [{
 										"id": "V_String",
 										"params": ["set_entity_world_pos(\"player\", \"hallway\", 6.5, 3.5)"]
 									}] },
+									{ "__identifier": "external_source", "__type": "String", "__value": null, "__tile": null, "defUid": 790, "realEditorValues": [] },
+									{ "__identifier": "trigger", "__type": "LocalEnum.script_trigger", "__value": "soft_collision", "__tile": null, "defUid": 788, "realEditorValues": [{
+										"id": "V_String",
+										"params": ["soft_collision"]
+									}] },
 									{ "__identifier": "start_condition", "__type": "String", "__value": null, "__tile": null, "defUid": 757, "realEditorValues": [] },
+									{ "__identifier": "abort_condition", "__type": "String", "__value": null, "__tile": null, "defUid": 789, "realEditorValues": [] },
+									{ "__identifier": "set_on_start", "__type": "String", "__value": null, "__tile": null, "defUid": 758, "realEditorValues": [] },
+									{ "__identifier": "set_on_finish", "__type": "String", "__value": null, "__tile": null, "defUid": 759, "realEditorValues": [] }
+								]
+							},
+							{
+								"__identifier": "script",
+								"__grid": [10,10],
+								"__pivot": [0.5,0.5],
+								"__tags": [],
+								"__tile": null,
+								"__smartColor": "#3E8948",
+								"__worldX": 168,
+								"__worldY": 424,
+								"iid": "db4eae10-6280-11ee-adbe-0ba1526e2dbc",
+								"width": 16,
+								"height": 16,
+								"defUid": 752,
+								"px": [168,168],
+								"fieldInstances": [
+									{ "__identifier": "name", "__type": "String", "__value": null, "__tile": null, "defUid": 756, "realEditorValues": [] },
+									{ "__identifier": "source", "__type": "String", "__value": "", "__tile": null, "defUid": 753, "realEditorValues": [null] },
+									{ "__identifier": "external_source", "__type": "String", "__value": "scripts:grab_a_bun", "__tile": null, "defUid": 790, "realEditorValues": [{
+										"id": "V_String",
+										"params": ["scripts:grab_a_bun"]
+									}] },
+									{ "__identifier": "trigger", "__type": "LocalEnum.script_trigger", "__value": "interaction", "__tile": null, "defUid": 788, "realEditorValues": [{
+										"id": "V_String",
+										"params": ["interaction"]
+									}] },
+									{ "__identifier": "start_condition", "__type": "String", "__value": null, "__tile": null, "defUid": 757, "realEditorValues": [] },
+									{ "__identifier": "abort_condition", "__type": "String", "__value": null, "__tile": null, "defUid": 789, "realEditorValues": [] },
+									{ "__identifier": "set_on_start", "__type": "String", "__value": null, "__tile": null, "defUid": 758, "realEditorValues": [] },
+									{ "__identifier": "set_on_finish", "__type": "String", "__value": null, "__tile": null, "defUid": 759, "realEditorValues": [] }
+								]
+							},
+							{
+								"__identifier": "script",
+								"__grid": [4,10],
+								"__pivot": [0.5,0.5],
+								"__tags": [],
+								"__tile": null,
+								"__smartColor": "#3E8948",
+								"__worldX": 72,
+								"__worldY": 424,
+								"iid": "934d2b10-6280-11ee-adbe-e1b2c318cd4d",
+								"width": 16,
+								"height": 16,
+								"defUid": 752,
+								"px": [72,168],
+								"fieldInstances": [
+									{ "__identifier": "name", "__type": "String", "__value": null, "__tile": null, "defUid": 756, "realEditorValues": [] },
+									{ "__identifier": "source", "__type": "String", "__value": "set_entity_map_pos(\"player\", 4.5, 9.2)", "__tile": null, "defUid": 753, "realEditorValues": [{
+										"id": "V_String",
+										"params": ["set_entity_map_pos(\"player\", 4.5, 9.2)"]
+									}] },
+									{ "__identifier": "external_source", "__type": "String", "__value": null, "__tile": null, "defUid": 790, "realEditorValues": [] },
+									{ "__identifier": "trigger", "__type": "LocalEnum.script_trigger", "__value": "interaction", "__tile": null, "defUid": 788, "realEditorValues": [{
+										"id": "V_String",
+										"params": ["interaction"]
+									}] },
+									{ "__identifier": "start_condition", "__type": "String", "__value": null, "__tile": null, "defUid": 757, "realEditorValues": [] },
+									{ "__identifier": "abort_condition", "__type": "String", "__value": null, "__tile": null, "defUid": 789, "realEditorValues": [] },
+									{ "__identifier": "set_on_start", "__type": "String", "__value": null, "__tile": null, "defUid": 758, "realEditorValues": [] },
+									{ "__identifier": "set_on_finish", "__type": "String", "__value": null, "__tile": null, "defUid": 759, "realEditorValues": [] }
+								]
+							},
+							{
+								"__identifier": "script",
+								"__grid": [4,9],
+								"__pivot": [0.5,0.5],
+								"__tags": [],
+								"__tile": null,
+								"__smartColor": "#3E8948",
+								"__worldX": 72,
+								"__worldY": 408,
+								"iid": "b941a8f0-6280-11ee-adbe-0301fecc1d73",
+								"width": 16,
+								"height": 16,
+								"defUid": 752,
+								"px": [72,152],
+								"fieldInstances": [
+									{ "__identifier": "name", "__type": "String", "__value": null, "__tile": null, "defUid": 756, "realEditorValues": [] },
+									{ "__identifier": "source", "__type": "String", "__value": "set_entity_map_pos(\"player\", 4.5, 11.2)", "__tile": null, "defUid": 753, "realEditorValues": [{
+										"id": "V_String",
+										"params": ["set_entity_map_pos(\"player\", 4.5, 11.2)"]
+									}] },
+									{ "__identifier": "external_source", "__type": "String", "__value": null, "__tile": null, "defUid": 790, "realEditorValues": [] },
+									{ "__identifier": "trigger", "__type": "LocalEnum.script_trigger", "__value": "interaction", "__tile": null, "defUid": 788, "realEditorValues": [{
+										"id": "V_String",
+										"params": ["interaction"]
+									}] },
+									{ "__identifier": "start_condition", "__type": "String", "__value": null, "__tile": null, "defUid": 757, "realEditorValues": [] },
+									{ "__identifier": "abort_condition", "__type": "String", "__value": null, "__tile": null, "defUid": 789, "realEditorValues": [] },
 									{ "__identifier": "set_on_start", "__type": "String", "__value": null, "__tile": null, "defUid": 758, "realEditorValues": [] },
 									{ "__identifier": "set_on_finish", "__type": "String", "__value": null, "__tile": null, "defUid": 759, "realEditorValues": [] }
 								]
@@ -5829,7 +6076,7 @@
 							0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,1,1,1,1,1,1,1,
 							1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
 							1,1,1,1,0,0,0,0,0,0,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,0,0,0,0,0,
-							0,1,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,1,0,0,0,0,1,1,1,
+							0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,1,0,0,0,0,1,1,1,
 							1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,1,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
 							1,1,1,0,0,0,0,0,0,1,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,
 							1,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,1,0,0,1,1,1,1,1,1,
@@ -5993,7 +6240,20 @@
 						"autoLayerTiles": [],
 						"seed": 6540451,
 						"overrideTilesetUid": null,
-						"gridTiles": [],
+						"gridTiles": [
+							{ "px": [64,144], "src": [1488,560], "f": 0, "t": 5693, "d": [121], "a": 1 },
+							{ "px": [80,144], "src": [1504,560], "f": 0, "t": 5694, "d": [122], "a": 1 },
+							{ "px": [96,144], "src": [1536,560], "f": 0, "t": 5696, "d": [123], "a": 1 },
+							{ "px": [112,144], "src": [1536,560], "f": 0, "t": 5696, "d": [124], "a": 1 },
+							{ "px": [128,144], "src": [1536,560], "f": 0, "t": 5696, "d": [125], "a": 1 },
+							{ "px": [144,144], "src": [1520,560], "f": 0, "t": 5695, "d": [126], "a": 1 },
+							{ "px": [64,160], "src": [1488,576], "f": 0, "t": 5853, "d": [134], "a": 1 },
+							{ "px": [80,160], "src": [1504,576], "f": 0, "t": 5854, "d": [135], "a": 1 },
+							{ "px": [96,160], "src": [1536,576], "f": 0, "t": 5856, "d": [136], "a": 1 },
+							{ "px": [112,160], "src": [1536,576], "f": 0, "t": 5856, "d": [137], "a": 1 },
+							{ "px": [128,160], "src": [1536,576], "f": 0, "t": 5856, "d": [138], "a": 1 },
+							{ "px": [144,160], "src": [1520,576], "f": 0, "t": 5855, "d": [139], "a": 1 }
+						],
 						"entityInstances": []
 					},
 					{
@@ -6043,7 +6303,14 @@
 						"autoLayerTiles": [],
 						"seed": 7945284,
 						"overrideTilesetUid": null,
-						"gridTiles": [],
+						"gridTiles": [
+							{ "px": [80,144], "src": [1552,432], "f": 0, "t": 4417, "d": [122], "a": 1 },
+							{ "px": [96,144], "src": [1568,432], "f": 0, "t": 4418, "d": [123], "a": 1 },
+							{ "px": [112,144], "src": [1584,432], "f": 0, "t": 4419, "d": [124], "a": 1 },
+							{ "px": [128,144], "src": [1552,448], "f": 0, "t": 4577, "d": [125], "a": 1 },
+							{ "px": [144,144], "src": [1648,528], "f": 0, "t": 5383, "d": [126], "a": 1 },
+							{ "px": [160,144], "src": [1664,528], "f": 0, "t": 5384, "d": [127], "a": 1 }
+						],
 						"entityInstances": []
 					},
 					{
@@ -6093,7 +6360,21 @@
 						"autoLayerTiles": [],
 						"seed": 3747680,
 						"overrideTilesetUid": null,
-						"gridTiles": [],
+						"gridTiles": [
+							{ "px": [64,64], "src": [1632,624], "f": 0, "t": 6342, "d": [56], "a": 1 },
+							{ "px": [80,64], "src": [1648,624], "f": 0, "t": 6343, "d": [57], "a": 1 },
+							{ "px": [96,64], "src": [1584,608], "f": 0, "t": 6179, "d": [58], "a": 1 },
+							{ "px": [112,64], "src": [1600,608], "f": 0, "t": 6180, "d": [59], "a": 1 },
+							{ "px": [128,64], "src": [1584,608], "f": 0, "t": 6179, "d": [60], "a": 1 },
+							{ "px": [144,64], "src": [1600,608], "f": 0, "t": 6180, "d": [61], "a": 1 },
+							{ "px": [64,144], "src": [1472,528], "f": 0, "t": 5372, "d": [121], "a": 1 },
+							{ "px": [80,144], "src": [1472,528], "f": 0, "t": 5372, "d": [122], "a": 1 },
+							{ "px": [96,144], "src": [1472,528], "f": 0, "t": 5372, "d": [123], "a": 1 },
+							{ "px": [112,144], "src": [1472,528], "f": 0, "t": 5372, "d": [124], "a": 1 },
+							{ "px": [128,144], "src": [1472,528], "f": 0, "t": 5372, "d": [125], "a": 1 },
+							{ "px": [144,144], "src": [1472,528], "f": 0, "t": 5372, "d": [126], "a": 1 },
+							{ "px": [160,144], "src": [1472,528], "f": 0, "t": 5372, "d": [127], "a": 1 }
+						],
 						"entityInstances": []
 					},
 					{
@@ -6170,19 +6451,7 @@
 						"overrideTilesetUid": null,
 						"gridTiles": [
 							{ "px": [160,112], "src": [1472,592], "f": 0, "t": 6012, "d": [101], "a": 1 },
-							{ "px": [160,128], "src": [1472,608], "f": 0, "t": 6172, "d": [114], "a": 1 },
-							{ "px": [64,144], "src": [1488,560], "f": 0, "t": 5693, "d": [121], "a": 1 },
-							{ "px": [80,144], "src": [1504,560], "f": 0, "t": 5694, "d": [122], "a": 1 },
-							{ "px": [96,144], "src": [1536,560], "f": 0, "t": 5696, "d": [123], "a": 1 },
-							{ "px": [112,144], "src": [1536,560], "f": 0, "t": 5696, "d": [124], "a": 1 },
-							{ "px": [128,144], "src": [1536,560], "f": 0, "t": 5696, "d": [125], "a": 1 },
-							{ "px": [144,144], "src": [1520,560], "f": 0, "t": 5695, "d": [126], "a": 1 },
-							{ "px": [64,160], "src": [1488,576], "f": 0, "t": 5853, "d": [134], "a": 1 },
-							{ "px": [80,160], "src": [1504,576], "f": 0, "t": 5854, "d": [135], "a": 1 },
-							{ "px": [96,160], "src": [1536,576], "f": 0, "t": 5856, "d": [136], "a": 1 },
-							{ "px": [112,160], "src": [1536,576], "f": 0, "t": 5856, "d": [137], "a": 1 },
-							{ "px": [128,160], "src": [1536,576], "f": 0, "t": 5856, "d": [138], "a": 1 },
-							{ "px": [144,160], "src": [1520,576], "f": 0, "t": 5855, "d": [139], "a": 1 }
+							{ "px": [160,128], "src": [1472,608], "f": 0, "t": 6172, "d": [114], "a": 1 }
 						],
 						"entityInstances": []
 					},
@@ -6316,12 +6585,6 @@
 						"gridTiles": [
 							{ "px": [96,32], "src": [1664,592], "f": 0, "t": 6024, "d": [32], "a": 1 },
 							{ "px": [112,32], "src": [1680,592], "f": 0, "t": 6025, "d": [33], "a": 1 },
-							{ "px": [64,64], "src": [1632,624], "f": 0, "t": 6342, "d": [56], "a": 1 },
-							{ "px": [80,64], "src": [1648,624], "f": 0, "t": 6343, "d": [57], "a": 1 },
-							{ "px": [96,64], "src": [1584,608], "f": 0, "t": 6179, "d": [58], "a": 1 },
-							{ "px": [112,64], "src": [1600,608], "f": 0, "t": 6180, "d": [59], "a": 1 },
-							{ "px": [128,64], "src": [1584,608], "f": 0, "t": 6179, "d": [60], "a": 1 },
-							{ "px": [144,64], "src": [1600,608], "f": 0, "t": 6180, "d": [61], "a": 1 },
 							{ "px": [80,80], "src": [1664,464], "f": 0, "t": 4744, "d": [70], "a": 1 },
 							{ "px": [48,96], "src": [1536,592], "f": 0, "t": 6016, "d": [81], "a": 1 },
 							{ "px": [64,96], "src": [1584,448], "f": 0, "t": 4579, "d": [82], "a": 1 },
@@ -6336,12 +6599,6 @@
 							{ "px": [112,112], "src": [1536,464], "f": 0, "t": 4736, "d": [98], "a": 1 },
 							{ "px": [128,112], "src": [1552,464], "f": 0, "t": 4737, "d": [99], "a": 1 },
 							{ "px": [160,112], "src": [1520,496], "f": 0, "t": 5055, "d": [101], "a": 1 },
-							{ "px": [80,144], "src": [1552,432], "f": 0, "t": 4417, "d": [122], "a": 1 },
-							{ "px": [96,144], "src": [1568,432], "f": 0, "t": 4418, "d": [123], "a": 1 },
-							{ "px": [112,144], "src": [1584,432], "f": 0, "t": 4419, "d": [124], "a": 1 },
-							{ "px": [128,144], "src": [1552,448], "f": 0, "t": 4577, "d": [125], "a": 1 },
-							{ "px": [144,144], "src": [1648,528], "f": 0, "t": 5383, "d": [126], "a": 1 },
-							{ "px": [160,144], "src": [1664,528], "f": 0, "t": 5384, "d": [127], "a": 1 },
 							{ "px": [64,160], "src": [1472,544], "f": 0, "t": 5532, "d": [134], "a": 1 },
 							{ "px": [80,160], "src": [1472,544], "f": 0, "t": 5532, "d": [135], "a": 1 },
 							{ "px": [96,160], "src": [1472,544], "f": 0, "t": 5532, "d": [136], "a": 1 },
@@ -6521,13 +6778,6 @@
 							{ "px": [128,112], "src": [1616,512], "f": 0, "t": 5221, "d": [99], "a": 1 },
 							{ "px": [144,112], "src": [1680,512], "f": 0, "t": 5225, "d": [100], "a": 1 },
 							{ "px": [160,112], "src": [1584,528], "f": 0, "t": 5379, "d": [101], "a": 1 },
-							{ "px": [64,144], "src": [1472,528], "f": 0, "t": 5372, "d": [121], "a": 1 },
-							{ "px": [80,144], "src": [1472,528], "f": 0, "t": 5372, "d": [122], "a": 1 },
-							{ "px": [96,144], "src": [1472,528], "f": 0, "t": 5372, "d": [123], "a": 1 },
-							{ "px": [112,144], "src": [1472,528], "f": 0, "t": 5372, "d": [124], "a": 1 },
-							{ "px": [128,144], "src": [1472,528], "f": 0, "t": 5372, "d": [125], "a": 1 },
-							{ "px": [144,144], "src": [1472,528], "f": 0, "t": 5372, "d": [126], "a": 1 },
-							{ "px": [160,144], "src": [1472,528], "f": 0, "t": 5372, "d": [127], "a": 1 },
 							{ "px": [64,160], "src": [1488,448], "f": 0, "t": 4573, "d": [134], "a": 1 },
 							{ "px": [80,160], "src": [1488,448], "f": 0, "t": 4573, "d": [135], "a": 1 },
 							{ "px": [96,160], "src": [1488,448], "f": 0, "t": 4573, "d": [136], "a": 1 },
@@ -6747,7 +6997,7 @@
 						"__cWid": 21,
 						"__cHei": 18,
 						"__gridSize": 16,
-						"__opacity": 1,
+						"__opacity": 0.8,
 						"__pxTotalOffsetX": 0,
 						"__pxTotalOffsetY": 0,
 						"__tilesetDefUid": null,
@@ -6766,7 +7016,7 @@
 						"gridTiles": [],
 						"entityInstances": [
 							{
-								"__identifier": "soft_collision_script",
+								"__identifier": "script",
 								"__grid": [13,16],
 								"__pivot": [0.5,0.5],
 								"__tags": [],
@@ -6781,11 +7031,17 @@
 								"px": [216,264],
 								"fieldInstances": [
 									{ "__identifier": "name", "__type": "String", "__value": null, "__tile": null, "defUid": 756, "realEditorValues": [] },
-									{ "__identifier": "script", "__type": "String", "__value": "set_entity_world_pos(\"player\", \"hallway\", 9.5, 3.5)", "__tile": null, "defUid": 753, "realEditorValues": [{
+									{ "__identifier": "source", "__type": "String", "__value": "set_entity_world_pos(\"player\", \"hallway\", 9.5, 3.5)", "__tile": null, "defUid": 753, "realEditorValues": [{
 										"id": "V_String",
 										"params": ["set_entity_world_pos(\"player\", \"hallway\", 9.5, 3.5)"]
 									}] },
+									{ "__identifier": "external_source", "__type": "String", "__value": null, "__tile": null, "defUid": 790, "realEditorValues": [] },
+									{ "__identifier": "trigger", "__type": "LocalEnum.script_trigger", "__value": "soft_collision", "__tile": null, "defUid": 788, "realEditorValues": [{
+										"id": "V_String",
+										"params": ["soft_collision"]
+									}] },
 									{ "__identifier": "start_condition", "__type": "String", "__value": null, "__tile": null, "defUid": 757, "realEditorValues": [] },
+									{ "__identifier": "abort_condition", "__type": "String", "__value": null, "__tile": null, "defUid": 789, "realEditorValues": [] },
 									{ "__identifier": "set_on_start", "__type": "String", "__value": null, "__tile": null, "defUid": 758, "realEditorValues": [] },
 									{ "__identifier": "set_on_finish", "__type": "String", "__value": null, "__tile": null, "defUid": 759, "realEditorValues": [] }
 								]
@@ -7965,7 +8221,7 @@
 						"__cWid": 13,
 						"__cHei": 9,
 						"__gridSize": 16,
-						"__opacity": 1,
+						"__opacity": 0.8,
 						"__pxTotalOffsetX": 0,
 						"__pxTotalOffsetY": 0,
 						"__tilesetDefUid": null,
@@ -7984,7 +8240,7 @@
 						"gridTiles": [],
 						"entityInstances": [
 							{
-								"__identifier": "soft_collision_script",
+								"__identifier": "script",
 								"__grid": [3,2],
 								"__pivot": [0.5,0.5],
 								"__tags": [],
@@ -7999,17 +8255,23 @@
 								"px": [56,40],
 								"fieldInstances": [
 									{ "__identifier": "name", "__type": "String", "__value": null, "__tile": null, "defUid": 756, "realEditorValues": [] },
-									{ "__identifier": "script", "__type": "String", "__value": "set_entity_world_pos(\"player\", \"bathroom\", 14.5, 12.5)", "__tile": null, "defUid": 753, "realEditorValues": [{
+									{ "__identifier": "source", "__type": "String", "__value": "set_entity_world_pos(\"player\", \"bathroom\", 14.5, 12.5)", "__tile": null, "defUid": 753, "realEditorValues": [{
 										"id": "V_String",
 										"params": ["set_entity_world_pos(\"player\", \"bathroom\", 14.5, 12.5)"]
 									}] },
+									{ "__identifier": "external_source", "__type": "String", "__value": null, "__tile": null, "defUid": 790, "realEditorValues": [] },
+									{ "__identifier": "trigger", "__type": "LocalEnum.script_trigger", "__value": "soft_collision", "__tile": null, "defUid": 788, "realEditorValues": [{
+										"id": "V_String",
+										"params": ["soft_collision"]
+									}] },
 									{ "__identifier": "start_condition", "__type": "String", "__value": null, "__tile": null, "defUid": 757, "realEditorValues": [] },
+									{ "__identifier": "abort_condition", "__type": "String", "__value": null, "__tile": null, "defUid": 789, "realEditorValues": [] },
 									{ "__identifier": "set_on_start", "__type": "String", "__value": null, "__tile": null, "defUid": 758, "realEditorValues": [] },
 									{ "__identifier": "set_on_finish", "__type": "String", "__value": null, "__tile": null, "defUid": 759, "realEditorValues": [] }
 								]
 							},
 							{
-								"__identifier": "soft_collision_script",
+								"__identifier": "script",
 								"__grid": [6,2],
 								"__pivot": [0.5,0.5],
 								"__tags": [],
@@ -8024,17 +8286,23 @@
 								"px": [104,40],
 								"fieldInstances": [
 									{ "__identifier": "name", "__type": "String", "__value": null, "__tile": null, "defUid": 756, "realEditorValues": [] },
-									{ "__identifier": "script", "__type": "String", "__value": "set_entity_world_pos(\"player\", \"bakery\", 7.5, 13.5)", "__tile": null, "defUid": 753, "realEditorValues": [{
+									{ "__identifier": "source", "__type": "String", "__value": "set_entity_world_pos(\"player\", \"bakery\", 7.5, 13.5)", "__tile": null, "defUid": 753, "realEditorValues": [{
 										"id": "V_String",
 										"params": ["set_entity_world_pos(\"player\", \"bakery\", 7.5, 13.5)"]
 									}] },
+									{ "__identifier": "external_source", "__type": "String", "__value": null, "__tile": null, "defUid": 790, "realEditorValues": [] },
+									{ "__identifier": "trigger", "__type": "LocalEnum.script_trigger", "__value": "soft_collision", "__tile": null, "defUid": 788, "realEditorValues": [{
+										"id": "V_String",
+										"params": ["soft_collision"]
+									}] },
 									{ "__identifier": "start_condition", "__type": "String", "__value": null, "__tile": null, "defUid": 757, "realEditorValues": [] },
+									{ "__identifier": "abort_condition", "__type": "String", "__value": null, "__tile": null, "defUid": 789, "realEditorValues": [] },
 									{ "__identifier": "set_on_start", "__type": "String", "__value": null, "__tile": null, "defUid": 758, "realEditorValues": [] },
 									{ "__identifier": "set_on_finish", "__type": "String", "__value": null, "__tile": null, "defUid": 759, "realEditorValues": [] }
 								]
 							},
 							{
-								"__identifier": "soft_collision_script",
+								"__identifier": "script",
 								"__grid": [9,2],
 								"__pivot": [0.5,0.5],
 								"__tags": [],
@@ -8049,17 +8317,23 @@
 								"px": [152,40],
 								"fieldInstances": [
 									{ "__identifier": "name", "__type": "String", "__value": null, "__tile": null, "defUid": 756, "realEditorValues": [] },
-									{ "__identifier": "script", "__type": "String", "__value": "set_entity_world_pos(\"player\", \"gym\", 13.5, 15.5)", "__tile": null, "defUid": 753, "realEditorValues": [{
+									{ "__identifier": "source", "__type": "String", "__value": "set_entity_world_pos(\"player\", \"gym\", 13.5, 15.5)", "__tile": null, "defUid": 753, "realEditorValues": [{
 										"id": "V_String",
 										"params": ["set_entity_world_pos(\"player\", \"gym\", 13.5, 15.5)"]
 									}] },
+									{ "__identifier": "external_source", "__type": "String", "__value": null, "__tile": null, "defUid": 790, "realEditorValues": [] },
+									{ "__identifier": "trigger", "__type": "LocalEnum.script_trigger", "__value": "soft_collision", "__tile": null, "defUid": 788, "realEditorValues": [{
+										"id": "V_String",
+										"params": ["soft_collision"]
+									}] },
 									{ "__identifier": "start_condition", "__type": "String", "__value": null, "__tile": null, "defUid": 757, "realEditorValues": [] },
+									{ "__identifier": "abort_condition", "__type": "String", "__value": null, "__tile": null, "defUid": 789, "realEditorValues": [] },
 									{ "__identifier": "set_on_start", "__type": "String", "__value": null, "__tile": null, "defUid": 758, "realEditorValues": [] },
 									{ "__identifier": "set_on_finish", "__type": "String", "__value": null, "__tile": null, "defUid": 759, "realEditorValues": [] }
 								]
 							},
 							{
-								"__identifier": "soft_collision_script",
+								"__identifier": "script",
 								"__grid": [3,7],
 								"__pivot": [0.5,0.5],
 								"__tags": [],
@@ -8074,17 +8348,23 @@
 								"px": [56,120],
 								"fieldInstances": [
 									{ "__identifier": "name", "__type": "String", "__value": null, "__tile": null, "defUid": 756, "realEditorValues": [] },
-									{ "__identifier": "script", "__type": "String", "__value": "set_entity_world_pos(\"player\", \"strange\", 4.5, 2.5)", "__tile": null, "defUid": 753, "realEditorValues": [{
+									{ "__identifier": "source", "__type": "String", "__value": "set_entity_world_pos(\"player\", \"strange\", 4.5, 2.5)", "__tile": null, "defUid": 753, "realEditorValues": [{
 										"id": "V_String",
 										"params": ["set_entity_world_pos(\"player\", \"strange\", 4.5, 2.5)"]
 									}] },
+									{ "__identifier": "external_source", "__type": "String", "__value": null, "__tile": null, "defUid": 790, "realEditorValues": [] },
+									{ "__identifier": "trigger", "__type": "LocalEnum.script_trigger", "__value": "soft_collision", "__tile": null, "defUid": 788, "realEditorValues": [{
+										"id": "V_String",
+										"params": ["soft_collision"]
+									}] },
 									{ "__identifier": "start_condition", "__type": "String", "__value": null, "__tile": null, "defUid": 757, "realEditorValues": [] },
+									{ "__identifier": "abort_condition", "__type": "String", "__value": null, "__tile": null, "defUid": 789, "realEditorValues": [] },
 									{ "__identifier": "set_on_start", "__type": "String", "__value": null, "__tile": null, "defUid": 758, "realEditorValues": [] },
 									{ "__identifier": "set_on_finish", "__type": "String", "__value": null, "__tile": null, "defUid": 759, "realEditorValues": [] }
 								]
 							},
 							{
-								"__identifier": "soft_collision_script",
+								"__identifier": "script",
 								"__grid": [6,7],
 								"__pivot": [0.5,0.5],
 								"__tags": [],
@@ -8099,11 +8379,17 @@
 								"px": [104,120],
 								"fieldInstances": [
 									{ "__identifier": "name", "__type": "String", "__value": null, "__tile": null, "defUid": 756, "realEditorValues": [] },
-									{ "__identifier": "script", "__type": "String", "__value": "set_entity_world_pos(\"player\", \"overworld\", 7.5, 4.5)", "__tile": null, "defUid": 753, "realEditorValues": [{
+									{ "__identifier": "source", "__type": "String", "__value": "set_entity_world_pos(\"player\", \"overworld\", 7.5, 4.5)", "__tile": null, "defUid": 753, "realEditorValues": [{
 										"id": "V_String",
 										"params": ["set_entity_world_pos(\"player\", \"overworld\", 7.5, 4.5)"]
 									}] },
+									{ "__identifier": "external_source", "__type": "String", "__value": null, "__tile": null, "defUid": 790, "realEditorValues": [] },
+									{ "__identifier": "trigger", "__type": "LocalEnum.script_trigger", "__value": "soft_collision", "__tile": null, "defUid": 788, "realEditorValues": [{
+										"id": "V_String",
+										"params": ["soft_collision"]
+									}] },
 									{ "__identifier": "start_condition", "__type": "String", "__value": null, "__tile": null, "defUid": 757, "realEditorValues": [] },
+									{ "__identifier": "abort_condition", "__type": "String", "__value": null, "__tile": null, "defUid": 789, "realEditorValues": [] },
 									{ "__identifier": "set_on_start", "__type": "String", "__value": null, "__tile": null, "defUid": 758, "realEditorValues": [] },
 									{ "__identifier": "set_on_finish", "__type": "String", "__value": null, "__tile": null, "defUid": 759, "realEditorValues": [] }
 								]
@@ -8830,7 +9116,7 @@
 						"__cWid": 10,
 						"__cHei": 10,
 						"__gridSize": 16,
-						"__opacity": 1,
+						"__opacity": 0.8,
 						"__pxTotalOffsetX": 0,
 						"__pxTotalOffsetY": 0,
 						"__tilesetDefUid": null,
@@ -9597,7 +9883,7 @@
 						"__cWid": 10,
 						"__cHei": 10,
 						"__gridSize": 16,
-						"__opacity": 1,
+						"__opacity": 0.8,
 						"__pxTotalOffsetX": 0,
 						"__pxTotalOffsetY": 0,
 						"__tilesetDefUid": null,
@@ -10364,7 +10650,7 @@
 						"__cWid": 10,
 						"__cHei": 10,
 						"__gridSize": 16,
-						"__opacity": 1,
+						"__opacity": 0.8,
 						"__pxTotalOffsetX": 0,
 						"__pxTotalOffsetY": 0,
 						"__tilesetDefUid": null,
@@ -11131,7 +11417,7 @@
 						"__cWid": 10,
 						"__cHei": 10,
 						"__gridSize": 16,
-						"__opacity": 1,
+						"__opacity": 0.8,
 						"__pxTotalOffsetX": 0,
 						"__pxTotalOffsetY": 0,
 						"__tilesetDefUid": null,
@@ -11150,7 +11436,7 @@
 						"gridTiles": [],
 						"entityInstances": [
 							{
-								"__identifier": "soft_collision_script",
+								"__identifier": "script",
 								"__grid": [7,2],
 								"__pivot": [0.5,0.5],
 								"__tags": [],
@@ -11165,11 +11451,17 @@
 								"px": [120,40],
 								"fieldInstances": [
 									{ "__identifier": "name", "__type": "String", "__value": null, "__tile": null, "defUid": 756, "realEditorValues": [] },
-									{ "__identifier": "script", "__type": "String", "__value": "set_entity_world_pos(\"player\", \"hallway\", 6.5, 6.5)", "__tile": null, "defUid": 753, "realEditorValues": [{
+									{ "__identifier": "source", "__type": "String", "__value": "set_entity_world_pos(\"player\", \"hallway\", 6.5, 6.5)", "__tile": null, "defUid": 753, "realEditorValues": [{
 										"id": "V_String",
 										"params": ["set_entity_world_pos(\"player\", \"hallway\", 6.5, 6.5)"]
 									}] },
+									{ "__identifier": "external_source", "__type": "String", "__value": null, "__tile": null, "defUid": 790, "realEditorValues": [] },
+									{ "__identifier": "trigger", "__type": "LocalEnum.script_trigger", "__value": "soft_collision", "__tile": null, "defUid": 788, "realEditorValues": [{
+										"id": "V_String",
+										"params": ["soft_collision"]
+									}] },
 									{ "__identifier": "start_condition", "__type": "String", "__value": null, "__tile": null, "defUid": 757, "realEditorValues": [] },
+									{ "__identifier": "abort_condition", "__type": "String", "__value": null, "__tile": null, "defUid": 789, "realEditorValues": [] },
 									{ "__identifier": "set_on_start", "__type": "String", "__value": null, "__tile": null, "defUid": 758, "realEditorValues": [] },
 									{ "__identifier": "set_on_finish", "__type": "String", "__value": null, "__tile": null, "defUid": 759, "realEditorValues": [] }
 								]

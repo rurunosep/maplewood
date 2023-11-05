@@ -57,7 +57,6 @@ impl Renderer<'_> {
         // (Possible future optimization: cache rendered tile layers, or chunks of them.
         // No reason to redraw every single static tile every single frame.)
 
-        // TODO Is take/skip till specific layer the best way to do this? Works for now.
         // Draw tile layers below entities
         for layer in map.tile_layers.iter().take_while_inclusive(|l| l.name != "interiors_3") {
             self.draw_tile_layer(layer, map, map_pos_to_screen_top_left);

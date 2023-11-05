@@ -1,17 +1,3 @@
-// Rework eventually with the new architecture I've been thinking of:
-// ScriptClass references a function rather than holding a source string
-// ScriptInstance references a thread created from the function
-//      let thread = context.create_thread(globals.get::<_,Function>(function_name));
-//      globals.set(thread_name, thread);
-//      let script_instance = ScriptInstance::new(thread_name, ...);
-// All the scripts run in a single Lua state in a single context call per frame
-// Callbacks only have to be bound once per frame for all scripts
-// ScriptInstances hold a local context/env that is loaded before resuming the thread
-// This local context/env can hold stuff like the owning entity, script id, UI input, etc
-//      globals.set("SCRIPT_CONTEXT", script_instance.context_table);
-//      let thread = globals.get::<_, Thread>(script_instance.thread_name);
-//      thread.resume();
-
 use super::callback;
 use crate::ecs::{Ecs, EntityId};
 use crate::world::World;
@@ -79,7 +65,7 @@ impl From<ScriptError> for LuaError {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 #[allow(dead_code)]
 pub enum ScriptTrigger {
     Interaction,
@@ -87,32 +73,28 @@ pub enum ScriptTrigger {
     SoftCollision, // player is "colliding" AFTER movement update
     HardCollision, // player collided DURING movement update
     Auto,
-    #[default]
-    None,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct ScriptCondition {
     pub story_var: String,
     pub value: i32,
     // This could also have an enum for eq, gt, lt, ne...
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug, Clone)]
 pub enum WaitCondition {
     Time(Instant),
     Message,
     StoryVar(String, i32),
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct ScriptClass {
     pub source: String,
-    pub label: String,
-    pub trigger: ScriptTrigger,
+    pub label: Option<String>,
+    pub trigger: Option<ScriptTrigger>,
     pub start_condition: Option<ScriptCondition>,
-    // When we have an operator on ScriptCondition, we probably won't
-    // need an abort_condition. Just test for the inverse of start_condition
     pub abort_condition: Option<ScriptCondition>,
     // Story vars to set automatically on script start and finish.
     // Useful in combination with start_condition to ensure that Auto
@@ -159,7 +141,7 @@ impl ScriptInstance {
                         "thread = coroutine.create(function () {} end)",
                         script_class.source
                     ))
-                    .set_name(&script_class.label)?
+                    .set_name(script_class.label.as_ref().unwrap_or(&"unnamed".to_string()))?
                     .exec()?;
 
                 // Utility function that will wrap a function that should
@@ -510,9 +492,22 @@ impl ScriptInstance {
     }
 }
 
-#[allow(unused)]
 pub fn get_sub_script(full_source: &str, label: &str) -> String {
     let (_, after_label) = full_source.split_once(&format!("--# {label}")).unwrap();
     let (between_label_and_end, _) = after_label.split_once("--#").unwrap();
     between_label_and_end.to_string()
 }
+
+// Rework eventually with the new architecture I've been thinking of:
+// ScriptClass references a function rather than holding a source string
+// ScriptInstance references a thread created from the function
+//      let thread = context.create_thread(globals.get::<_,Function>(function_name));
+//      globals.set(thread_name, thread);
+//      let script_instance = ScriptInstance::new(thread_name, ...);
+// All the scripts run in a single Lua state in a single context call per frame
+// Callbacks only have to be bound once per frame for all scripts
+// ScriptInstances hold a local context/env that is loaded before resuming the thread
+// This local context/env can hold stuff like the owning entity, script id, UI input, etc
+//      globals.set("SCRIPT_CONTEXT", script_instance.context_table);
+//      let thread = globals.get::<_, Thread>(script_instance.thread_name);
+//      thread.resume();

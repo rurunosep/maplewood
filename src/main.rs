@@ -29,7 +29,7 @@ use std::time::{Duration, Instant};
 use world::{CellPos, Map, MapPos, MapUnits, World, WorldPos};
 
 // Where do I keep this?
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Debug, Clone, Copy, Default)]
 pub enum Direction {
     Up,
     #[default]
@@ -57,8 +57,7 @@ fn main() {
     // --------------------------------------------------------------
     // App Init
     // --------------------------------------------------------------
-
-    std::env::set_var("RUST_BACKTRACE", "1");
+    std::env::set_var("RUST_BACKTRACE", "0");
 
     // Prevent high DPI scaling on Windows
     #[cfg(target_os = "windows")]
@@ -313,7 +312,7 @@ fn main() {
             for script in scripts
                 .0
                 .iter()
-                .filter(|script| script.trigger == ScriptTrigger::Auto)
+                .filter(|script| script.trigger == Some(ScriptTrigger::Auto))
                 .filter(|script| script.is_start_condition_fulfilled(&story_vars))
                 .collect::<Vec<_>>()
             {
@@ -375,7 +374,7 @@ fn main() {
             for script in scripts
                 .0
                 .iter()
-                .filter(|script| script.trigger == ScriptTrigger::SoftCollision)
+                .filter(|script| script.trigger == Some(ScriptTrigger::SoftCollision))
                 .filter(|script| script.is_start_condition_fulfilled(&story_vars))
                 .collect::<Vec<_>>()
             {
@@ -522,7 +521,7 @@ mod input {
             for script in scripts
                 .0
                 .iter()
-                .filter(|script| script.trigger == ScriptTrigger::Interaction)
+                .filter(|script| script.trigger == Some(ScriptTrigger::Interaction))
                 .filter(|script| script.is_start_condition_fulfilled(&*story_vars))
                 .collect::<Vec<_>>()
             {
@@ -616,7 +615,7 @@ fn update_walking_entities(
                     for script in scripts
                         .0
                         .iter()
-                        .filter(|script| script.trigger == ScriptTrigger::Auto)
+                        .filter(|script| script.trigger == Some(ScriptTrigger::Auto))
                         .filter(|script| script.is_start_condition_fulfilled(story_vars))
                         .collect::<Vec<_>>()
                     {

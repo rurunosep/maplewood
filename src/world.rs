@@ -11,7 +11,7 @@ pub type CellPos = Point2D<i32, CellUnits>;
 
 new_key_type! { pub struct MapId; }
 
-#[derive(Clone, Copy, Default, Debug)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct WorldPos {
     pub map_id: MapId,
     pub map_pos: MapPos,
