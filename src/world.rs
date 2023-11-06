@@ -24,6 +24,17 @@ impl WorldPos {
 }
 
 pub struct World {
+    // TODO
+    // Since Maps are generated from external data and always have unique names,
+    // string IDs make more sense. SlotMap IDs make more sense for objects that
+    // are generated in code like Entities (some) and ScriptInstances.
+    // Maps, ScriptClasses, Tilesets, Spritesheets, etc, should have string IDs.
+    // The benefit of using SlotMap IDs is that they are Copy.
+    // The benefit of String is no lookup to get ID from name + Maps don't have
+    // to carry their own IDs in addition to their names. Just names.
+    // But maybe I can look into alternative string types, like statically-sized
+    // string? Or just stick with normal String and accept having to clone().
+    // Honestly, I think just heap String with clone() is the best here...
     pub maps: SlotMap<MapId, Map>,
 }
 
@@ -55,15 +66,14 @@ pub struct Map {
     pub name: String,
     pub dimensions: Size2D<i32, CellUnits>,
     pub offset: Vector2D<i32, CellUnits>,
-    // Vec of Layer enum with TileLayer(TileLayer) variants?
     pub tile_layers: Vec<TileLayer>,
-    // Maybe make this bool for now. Use Option *when* I need option
+    // Option<()> so I can maybe later use an enum for different values
     pub collision_map: Vec<Option<()>>,
 }
 
 impl Map {
-    pub fn from_ldtk_level(id: MapId, name: &str, level: &ldtk_json::Level) -> Self {
-        let name = name.to_string();
+    pub fn from_ldtk_level(id: MapId, level: &ldtk_json::Level) -> Self {
+        let name = level.identifier.clone();
 
         let dimensions = Size2D::new(level.px_wid as i32 / 16, level.px_hei as i32 / 16);
         let offset = Vector2D::new(0, 0);
@@ -113,8 +123,8 @@ impl Map {
         Self { id, name, dimensions, offset, tile_layers, collision_map }
     }
 
-    pub fn from_ldtk_world(id: MapId, name: &str, world: &ldtk_json::World) -> Self {
-        let name = name.to_string();
+    pub fn from_ldtk_world(id: MapId, world: &ldtk_json::World) -> Self {
+        let name = world.identifier.clone();
 
         let top = world.levels.iter().map(|l| l.world_y).min().unwrap() as i32 / 16;
         let left = world.levels.iter().map(|l| l.world_x).min().unwrap() as i32 / 16;
@@ -142,12 +152,10 @@ impl Map {
             })
             .collect::<Vec<_>>();
 
-        // Create the empty combined collision map
         let mut collision_map = vec![None; (dimensions.area() * 2 * 2) as usize];
 
-        // Populate all the tile layers and collision map
         for level in &world.levels {
-            // Tile layers
+            // Populate tile layers
             for (i, layer) in level
                 .layer_instances
                 .as_ref()
@@ -173,7 +181,7 @@ impl Map {
                 }
             }
 
-            // Collision map
+            // Populate collision map
             for (i, v) in level
                 .layer_instances
                 .as_ref()
@@ -206,8 +214,7 @@ impl Map {
 
     // Get the collision AABBs for each of the 4 quarters of a cell at cellpos
     pub fn get_collision_aabbs_for_cell(&self, cell_pos: CellPos) -> [Option<AABB>; 4] {
-        // top left coords
-        let tlc = (cell_pos - self.offset) * 2;
+        let tlc = (cell_pos - self.offset) * 2; // "top-left coords"
         let top_left_index = tlc.y * self.dimensions.width * 2 + tlc.x;
         let top_right_index = tlc.y * self.dimensions.width * 2 + (tlc.x + 1);
         let bottom_left_index = (tlc.y + 1) * self.dimensions.width * 2 + tlc.x;

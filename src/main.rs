@@ -81,14 +81,15 @@ fn main() {
         .position_centered()
         .build()
         .unwrap();
-    let canvas = window.into_canvas().build().unwrap();
-    let texture_creator = canvas.texture_creator();
 
     let font = ttf_context.load_font("assets/Grand9KPixel.ttf", 8).unwrap();
 
     // --------------------------------------------------------------
     // Graphics
     // --------------------------------------------------------------
+
+    let canvas = window.into_canvas().build().unwrap();
+    let texture_creator = canvas.texture_creator();
 
     let tilesets: HashMap<String, Texture> = HashMap::from(
         ["walls.png", "floors.png", "ceilings.png", "modern_interiors.png", "modern_exteriors.png"]
@@ -107,10 +108,13 @@ fn main() {
     let mut cards: HashMap<String, Texture> = HashMap::new();
 
     let mut renderer = Renderer {
+        // Textures belong to a canvas and cannot be used with any other,
+        // so canvas and textures should all be owned together by the same thing
         canvas,
         tilesets,
         spritesheets,
         cards,
+        // These don't necessarily have to be bound to the Renderer
         font,
         show_cutscene_border: false,
         displayed_card_name: None,
@@ -138,20 +142,14 @@ fn main() {
     let mut world = World::new();
 
     for ldtk_world in &project.worlds {
-        // For now, this method of determining world-map or level-map works fine.
-        // deepnight might add custom world fields later
-        match ldtk_world.identifier.as_str() {
-            "overworld" => {
-                world.maps.insert_with_key(|id| {
-                    Map::from_ldtk_world(id, &ldtk_world.identifier, ldtk_world)
-                });
-            }
-            _ => {
-                for level in &ldtk_world.levels {
-                    world
-                        .maps
-                        .insert_with_key(|id| Map::from_ldtk_level(id, &level.identifier, level));
-                }
+        // If the world has a level called "_world_map", then the entire world is a single
+        // map, and the fields in that level apply to the whole world-map.
+        // If there is no such level, then each level in the world is an individual map.
+        if ldtk_world.levels.iter().any(|l| l.identifier == "_world_map") {
+            world.maps.insert_with_key(|id| Map::from_ldtk_world(id, ldtk_world));
+        } else {
+            for level in &ldtk_world.levels {
+                world.maps.insert_with_key(|id| Map::from_ldtk_level(id, level));
             }
         };
     }

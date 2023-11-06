@@ -70,8 +70,7 @@ where
     }
 }
 
-// Are With<C> and Without<C> even necessary?
-
+// With<C> and Without<C> are not necessary yet, but I like em.
 pub struct With<C>(std::marker::PhantomData<C>)
 where
     C: Component + 'static;

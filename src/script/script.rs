@@ -165,6 +165,9 @@ impl ScriptInstance {
                 context
                     .load(
                         r#"
+                        -- Because LDtk doesn't handle "\n" properly
+                        nl = "\n"
+
                         function walk_wait(entity, direction, distance, speed)
                             walk(entity, direction, distance, speed)
                             wait_until_not_walking(entity)

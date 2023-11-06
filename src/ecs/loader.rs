@@ -73,7 +73,7 @@ fn load_script_entity(
     // Script
     let source = read_entity_field_string("external_source", entity)
         .map(|s| {
-            let (file_name, subscript_label) = s.split_once(":").unwrap();
+            let (file_name, subscript_label) = s.split_once(':').unwrap();
             script::get_sub_script(
                 &std::fs::read_to_string(format!("assets/{file_name}.lua")).unwrap(),
                 subscript_label,
