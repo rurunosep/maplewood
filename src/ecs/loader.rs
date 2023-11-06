@@ -5,11 +5,11 @@ use crate::ecs::component::{Collision, Name, Position, Scripts};
 use crate::ecs::Ecs;
 use crate::ldtk_json::{self};
 use crate::script::{self, ScriptClass, ScriptTrigger};
-use crate::world::{World, WorldPos};
+use crate::world::WorldPos;
 use euclid::Size2D;
 use serde::de::DeserializeOwned;
 
-pub fn load_entities_from_ldtk(ecs: &mut Ecs, project: &ldtk_json::Project, world: &World) {
+pub fn load_entities_from_ldtk(ecs: &mut Ecs, project: &ldtk_json::Project) {
     for ldtk_world in &project.worlds {
         for level in &ldtk_world.levels {
             for entity in level
@@ -22,7 +22,7 @@ pub fn load_entities_from_ldtk(ecs: &mut Ecs, project: &ldtk_json::Project, worl
                 #[allow(clippy::single_match)]
                 match entity.identifier.as_str() {
                     "script" => {
-                        load_script_entity(entity, ecs, ldtk_world, level, world);
+                        load_script_entity(ecs, entity, ldtk_world, level);
                     }
 
                     _ => {}
@@ -33,26 +33,26 @@ pub fn load_entities_from_ldtk(ecs: &mut Ecs, project: &ldtk_json::Project, worl
 }
 
 fn load_script_entity(
-    entity: &ldtk_json::EntityInstance,
     ecs: &mut Ecs,
+    entity: &ldtk_json::EntityInstance,
     ldtk_world: &ldtk_json::World,
     level: &ldtk_json::Level,
-    world: &World,
 ) {
     let id = ecs.add_entity();
 
     // Position
-    let position = match ldtk_world.identifier.as_str() {
-        "overworld" => Position(WorldPos::new(
-            world.get_map_id_by_name(&ldtk_world.identifier),
+    let position = if ldtk_world.levels.iter().any(|l| l.identifier == "_world_map") {
+        Position(WorldPos::new(
+            &ldtk_world.identifier,
             (entity.px[0] + level.world_x) as f64 / 16.,
             (entity.px[1] + level.world_y) as f64 / 16.,
-        )),
-        _ => Position(WorldPos::new(
-            world.get_map_id_by_name(&level.identifier),
+        ))
+    } else {
+        Position(WorldPos::new(
+            &level.identifier,
             entity.px[0] as f64 / 16.,
             entity.px[1] as f64 / 16.,
-        )),
+        ))
     };
     ecs.add_component(id, position);
 

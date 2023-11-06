@@ -32,10 +32,10 @@ pub struct Renderer<'r> {
 impl Renderer<'_> {
     pub fn render(
         &mut self,
-        camera_position: MapPos,
         map: &Map,
-        message_window: &Option<MessageWindow>,
+        camera_position: MapPos,
         ecs: &Ecs,
+        message_window: &Option<MessageWindow>,
     ) {
         self.canvas.set_draw_color(Color::RGB(0, 0, 0));
         self.canvas.clear();
@@ -65,7 +65,7 @@ impl Renderer<'_> {
         // Draw entities
         self.draw_entities(ecs, map, map_pos_to_screen_top_left);
 
-        // // Draw tile layers above entities
+        // Draw tile layers above entities
         for layer in map.tile_layers.iter().skip_while(|l| l.name != "exteriors_4") {
             self.draw_tile_layer(layer, map, map_pos_to_screen_top_left);
         }
@@ -165,7 +165,7 @@ impl Renderer<'_> {
         });
         for (position, sprite_component, facing, sine_offset_animation) in sorted {
             // Skip entities not on the current map
-            if position.0.map_id != map.id {
+            if position.0.map_name != map.name {
                 continue;
             }
 

@@ -1,7 +1,7 @@
 use crate::render::PixelUnits;
 use crate::{ldtk_json, AABB};
 use euclid::{Point2D, Size2D, Vector2D};
-use slotmap::{new_key_type, SlotMap};
+use std::collections::HashMap;
 
 pub struct MapUnits;
 pub struct CellUnits;
@@ -9,46 +9,25 @@ pub struct CellUnits;
 pub type MapPos = Point2D<f64, MapUnits>;
 pub type CellPos = Point2D<i32, CellUnits>;
 
-new_key_type! { pub struct MapId; }
-
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct WorldPos {
-    pub map_id: MapId,
+    pub map_name: String,
     pub map_pos: MapPos,
 }
 
 impl WorldPos {
-    pub fn new(map_id: MapId, x: f64, y: f64) -> Self {
-        Self { map_id, map_pos: Point2D::new(x, y) }
+    pub fn new(map_name: &str, x: f64, y: f64) -> Self {
+        Self { map_name: map_name.to_string(), map_pos: Point2D::new(x, y) }
     }
 }
 
 pub struct World {
-    // TODO
-    // Since Maps are generated from external data and always have unique names,
-    // string IDs make more sense. SlotMap IDs make more sense for objects that
-    // are generated in code like Entities (some) and ScriptInstances.
-    // Maps, ScriptClasses, Tilesets, Spritesheets, etc, should have string IDs.
-    // The benefit of using SlotMap IDs is that they are Copy.
-    // The benefit of String is no lookup to get ID from name + Maps don't have
-    // to carry their own IDs in addition to their names. Just names.
-    // But maybe I can look into alternative string types, like statically-sized
-    // string? Or just stick with normal String and accept having to clone().
-    // Honestly, I think just heap String with clone() is the best here...
-    pub maps: SlotMap<MapId, Map>,
+    pub maps: HashMap<String, Map>,
 }
 
 impl World {
     pub fn new() -> Self {
-        Self { maps: SlotMap::with_key() }
-    }
-
-    pub fn get_map_id_by_name(&self, name: &str) -> MapId {
-        self.maps
-            .iter()
-            .find(|(_, map)| map.name == name)
-            .map(|(id, _)| id)
-            .unwrap_or_else(|| panic!("no map: {name}"))
+        Self { maps: HashMap::new() }
     }
 }
 
@@ -62,7 +41,6 @@ pub struct TileLayer {
 }
 
 pub struct Map {
-    pub id: MapId,
     pub name: String,
     pub dimensions: Size2D<i32, CellUnits>,
     pub offset: Vector2D<i32, CellUnits>,
@@ -72,7 +50,7 @@ pub struct Map {
 }
 
 impl Map {
-    pub fn from_ldtk_level(id: MapId, level: &ldtk_json::Level) -> Self {
+    pub fn from_ldtk_level(level: &ldtk_json::Level) -> Self {
         let name = level.identifier.clone();
 
         let dimensions = Size2D::new(level.px_wid as i32 / 16, level.px_hei as i32 / 16);
@@ -120,10 +98,10 @@ impl Map {
             })
             .collect();
 
-        Self { id, name, dimensions, offset, tile_layers, collision_map }
+        Self { name, dimensions, offset, tile_layers, collision_map }
     }
 
-    pub fn from_ldtk_world(id: MapId, world: &ldtk_json::World) -> Self {
+    pub fn from_ldtk_world(world: &ldtk_json::World) -> Self {
         let name = world.identifier.clone();
 
         let top = world.levels.iter().map(|l| l.world_y).min().unwrap() as i32 / 16;
@@ -209,7 +187,7 @@ impl Map {
             }
         }
 
-        Self { id, name, dimensions, offset, tile_layers, collision_map }
+        Self { name, dimensions, offset, tile_layers, collision_map }
     }
 
     // Get the collision AABBs for each of the 4 quarters of a cell at cellpos

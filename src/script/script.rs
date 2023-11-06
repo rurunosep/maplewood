@@ -1,6 +1,5 @@
 use super::callback;
 use crate::ecs::{Ecs, EntityId};
-use crate::world::World;
 use crate::{MapOverlayColorTransition, MessageWindow};
 use rlua::{Error as LuaError, Function, Lua, Result as LuaResult, Thread, ThreadStatus};
 use sdl2::mixer::{Chunk, Music};
@@ -34,12 +33,12 @@ impl ScriptInstanceManager {
     }
 }
 
+// TODO thiserror?
 #[derive(Debug)]
 pub enum ScriptError {
     Generic(String),
     InvalidStoryVar(String),
     InvalidEntity(String),
-    InvalidMap(String),
 }
 
 impl Error for ScriptError {}
@@ -51,9 +50,6 @@ impl Display for ScriptError {
             ScriptError::InvalidStoryVar(var) => write!(f, "no story var \"{var}\""),
             ScriptError::InvalidEntity(name) => {
                 write!(f, "no entity \"{name}\" with necessary components")
-            }
-            ScriptError::InvalidMap(name) => {
-                write!(f, "no map \"{name}\"")
             }
         }
     }
@@ -208,7 +204,6 @@ impl ScriptInstance {
         &mut self,
         story_vars: &mut HashMap<String, i32>,
         ecs: &mut Ecs,
-        world: &World,
         message_window: &mut Option<MessageWindow>,
         player_movement_locked: &mut bool,
         map_overlay_color_transition: &mut Option<MapOverlayColorTransition>,
@@ -333,7 +328,7 @@ impl ScriptInstance {
                     globals.set(
                         "set_entity_world_pos",
                         scope.create_function_mut(|_, args| {
-                            callback::set_entity_world_pos(args, *ecs.borrow_mut(), world)
+                            callback::set_entity_world_pos(args, *ecs.borrow_mut())
                         })?,
                     )?;
                     globals.set(

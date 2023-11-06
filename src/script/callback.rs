@@ -3,7 +3,7 @@ use crate::ecs::component::{
     Collision, Facing, Position, SineOffsetAnimation, Sprite, SpriteComponent, Walking,
 };
 use crate::ecs::{Ecs, EntityId};
-use crate::world::{World, WorldPos};
+use crate::world::WorldPos;
 use crate::{Direction, MapOverlayColorTransition, MessageWindow};
 use euclid::{Point2D, Vector2D};
 use rlua::Result as LuaResult;
@@ -45,13 +45,10 @@ pub fn set_entity_map_pos((entity, x, y): (String, f64, f64), ecs: &mut Ecs) -> 
 pub fn set_entity_world_pos(
     (entity, map, x, y): (String, String, f64, f64),
     ecs: &mut Ecs,
-    world: &World,
 ) -> LuaResult<()> {
     let entity_id =
         ecs.query_one_by_name::<EntityId>(&entity).ok_or(ScriptError::InvalidEntity(entity))?;
-    let map_id = world.get_map_id_by_name(&map);
-
-    ecs.add_component(entity_id, Position(WorldPos::new(map_id, x, y)));
+    ecs.add_component(entity_id, Position(WorldPos::new(&map, x, y)));
     Ok(())
 }
 

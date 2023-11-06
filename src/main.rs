@@ -146,10 +146,10 @@ fn main() {
         // map, and the fields in that level apply to the whole world-map.
         // If there is no such level, then each level in the world is an individual map.
         if ldtk_world.levels.iter().any(|l| l.identifier == "_world_map") {
-            world.maps.insert_with_key(|id| Map::from_ldtk_world(id, ldtk_world));
+            world.maps.insert(ldtk_world.identifier.clone(), Map::from_ldtk_world(ldtk_world));
         } else {
             for level in &ldtk_world.levels {
-                world.maps.insert_with_key(|id| Map::from_ldtk_level(id, level));
+                world.maps.insert(level.identifier.clone(), Map::from_ldtk_level(level));
             }
         };
     }
@@ -163,10 +163,7 @@ fn main() {
     // Player
     let player_id = ecs.add_entity();
     ecs.add_component(player_id, Name("player".to_string()));
-    ecs.add_component(
-        player_id,
-        Position(WorldPos::new(world.get_map_id_by_name("bathroom"), 14.5, 9.5)),
-    );
+    ecs.add_component(player_id, Position(WorldPos::new("bathroom", 14.5, 9.5)));
     ecs.add_component(player_id, Facing::default());
     ecs.add_component(player_id, Walking::default());
     ecs.add_component(
@@ -199,7 +196,7 @@ fn main() {
     );
 
     // Entities from ldtk
-    ecs::loader::load_entities_from_ldtk(&mut ecs, &project, &world);
+    ecs::loader::load_entities_from_ldtk(&mut ecs, &project);
 
     // --------------------------------------------------------------
     // Misc
@@ -322,7 +319,7 @@ fn main() {
         for script in script_instance_manager.script_instances.values_mut() {
             #[rustfmt::skip]
             script.update(
-                &mut story_vars, &mut ecs, &world,
+                &mut story_vars, &mut ecs,
                 &mut message_window, &mut player_movement_locked,
                 &mut map_overlay_color_transition, renderer.map_overlay_color,
                 &mut renderer.show_cutscene_border,
@@ -355,14 +352,17 @@ fn main() {
 
         // Start player soft collision scripts
         // (Query in block so we can query again later)
-        let (player_aabb, player_map_id) = {
+        let (player_aabb, player_map_name) = {
             let (pos, coll) = ecs.query_one_by_id::<(&Position, &Collision)>(player_id).unwrap();
-            (AABB::from_pos_and_hitbox(pos.0.map_pos, coll.hitbox_dimensions), pos.0.map_id)
+            (
+                AABB::from_pos_and_hitbox(pos.0.map_pos, coll.hitbox_dimensions),
+                pos.0.map_name.clone(),
+            )
         };
         // For each entity colliding with the player...
         for (_, _, scripts) in ecs
             .query_all::<(&Position, &Collision, &Scripts)>()
-            .filter(|(pos, _, _)| pos.0.map_id == player_map_id)
+            .filter(|(pos, _, _)| pos.0.map_name == player_map_name)
             .filter(|(pos, coll, _)| {
                 AABB::from_pos_and_hitbox(pos.0.map_pos, coll.hitbox_dimensions)
                     .is_colliding(&player_aabb)
@@ -410,8 +410,8 @@ fn main() {
 
         // (Camera could be an entity with a position component
         // map_to_render is camera's world pos' map)
-        let player_position = ecs.query_one_by_id::<&Position>(player_id).unwrap().0;
-        let map_to_render = world.maps.get(player_position.map_id).unwrap();
+        let player_position = &ecs.query_one_by_id::<&Position>(player_id).unwrap().0;
+        let map_to_render = world.maps.get(&player_position.map_name).unwrap();
         let mut camera_position = player_position.map_pos;
 
         // Clamp camera to map
@@ -431,7 +431,7 @@ fn main() {
             );
         }
 
-        renderer.render(camera_position, map_to_render, &message_window, &ecs);
+        renderer.render(map_to_render, camera_position, &ecs, &message_window);
 
         std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
     }
@@ -542,12 +542,10 @@ fn update_walking_entities(
     for (id, mut position, mut walking, collision) in
         ecs.query_all::<(EntityId, &mut Position, &mut Walking, Option<&Collision>)>()
     {
-        let map_id = position.0.map_id;
-        let map_pos = &mut position.0.map_pos;
-        let map = world.maps.get(map_id).unwrap();
+        let map_pos = position.0.map_pos;
 
         // Determine new position before collision resolution
-        let mut new_position = *map_pos
+        let mut new_position = map_pos
             + match walking.direction {
                 Direction::Up => Vector2D::new(0.0, -walking.speed),
                 Direction::Down => Vector2D::new(0.0, walking.speed),
@@ -559,7 +557,7 @@ fn update_walking_entities(
         if let Some(collision) = collision
             && collision.solid
         {
-            let old_aabb = AABB::from_pos_and_hitbox(*map_pos, collision.hitbox_dimensions);
+            let old_aabb = AABB::from_pos_and_hitbox(map_pos, collision.hitbox_dimensions);
 
             let mut new_aabb = AABB::from_pos_and_hitbox(new_position, collision.hitbox_dimensions);
 
@@ -582,7 +580,9 @@ fn update_walking_entities(
             ];
             for cell_aabb in cellposes_to_check
                 .iter()
-                .flat_map(|cp| map.get_collision_aabbs_for_cell(*cp))
+                .flat_map(|cp| {
+                    world.maps.get(&position.0.map_name).unwrap().get_collision_aabbs_for_cell(*cp)
+                })
                 .flatten()
             {
                 new_aabb.resolve_collision(&old_aabb, &cell_aabb);
@@ -598,7 +598,7 @@ fn update_walking_entities(
                 ecs.query_all_except::<(&Position, &Collision, Option<&Scripts>)>(id)
             {
                 // Skip checking against entities not on the current map or not solid
-                if other_pos.0.map_id != map_id || !other_coll.solid {
+                if other_pos.0.map_name != position.0.map_name || !other_coll.solid {
                     continue;
                 }
 
@@ -628,7 +628,7 @@ fn update_walking_entities(
         }
 
         // Update position after collision resolution
-        *map_pos = new_position;
+        position.0.map_pos = new_position;
 
         // End forced walking if destination reached
         if let Some(destination) = walking.destination {
@@ -639,7 +639,7 @@ fn update_walking_entities(
                 Direction::Right => map_pos.x > destination.x,
             };
             if passed_destination {
-                *map_pos = destination;
+                position.0.map_pos = destination;
                 walking.speed = 0.;
                 walking.destination = None;
             }
