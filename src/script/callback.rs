@@ -60,13 +60,15 @@ pub fn remove_entity_position(entity: String, ecs: &mut Ecs) -> LuaResult<()> {
 }
 
 pub fn set_forced_sprite(
-    (entity, spritesheet_name, rect_x, rect_y, rect_w, rect_h): (
+    (entity, spritesheet_name, rect_x, rect_y, rect_w, rect_h, offset_x, offset_y): (
         String,
         String,
         i32,
         i32,
         u32,
         u32,
+        i32,
+        i32,
     ),
     ecs: &Ecs,
 ) -> LuaResult<()> {
@@ -74,8 +76,11 @@ pub fn set_forced_sprite(
         .query_one_with_name::<&mut SpriteComponent>(&entity)
         .ok_or(ScriptError::InvalidEntity(entity))?;
 
-    sprite_component.forced_sprite =
-        Some(Sprite { spritesheet_name, rect: Rect::new(rect_x, rect_y, rect_w, rect_h) });
+    sprite_component.forced_sprite = Some(Sprite {
+        spritesheet_name,
+        rect_in_spritesheet: Rect::new(rect_x, rect_y, rect_w, rect_h),
+        offset: Vector2D::new(offset_x, offset_y),
+    });
 
     Ok(())
 }

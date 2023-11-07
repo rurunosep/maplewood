@@ -4,7 +4,7 @@ use crate::script::ScriptClass;
 use crate::world::{MapPos, MapUnits, WorldPos};
 use crate::Direction;
 use euclid::{Size2D, Vector2D};
-use sdl2::rect::Rect;
+use sdl2::rect::Rect as SdlRect;
 use std::time::{Duration, Instant};
 
 pub struct Name(pub String);
@@ -22,18 +22,31 @@ pub struct Scripts(pub Vec<ScriptClass>);
 impl Component for Scripts {}
 
 pub struct SpriteComponent {
-    pub up_sprite: Sprite,
-    pub down_sprite: Sprite,
-    pub left_sprite: Sprite,
-    pub right_sprite: Sprite,
+    pub sprite: Sprite,
     pub forced_sprite: Option<Sprite>,
-    pub sprite_offset: Vector2D<i32, PixelUnits>,
 }
 impl Component for SpriteComponent {}
 
+#[derive(Clone)]
 pub struct Sprite {
     pub spritesheet_name: String,
-    pub rect: Rect,
+    pub rect_in_spritesheet: SdlRect,
+    pub offset: Vector2D<i32, PixelUnits>,
+}
+
+pub struct WalkAnimComponent {
+    pub up: AnimationClip,
+    pub down: AnimationClip,
+    pub left: AnimationClip,
+    pub right: AnimationClip,
+    pub elapsed_time: Duration,
+    pub playing: bool,
+}
+impl Component for WalkAnimComponent {}
+
+pub struct AnimationClip {
+    pub frames: Vec<Sprite>,
+    pub seconds_per_frame: f64,
 }
 
 pub struct SineOffsetAnimation {

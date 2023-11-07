@@ -1,7 +1,7 @@
-use crate::ecs::component::{Facing, Position, SineOffsetAnimation, SpriteComponent};
+use crate::ecs::component::{Position, SineOffsetAnimation, SpriteComponent};
 use crate::ecs::Ecs;
 use crate::world::{CellPos, Map, MapPos, MapUnits, TileLayer};
-use crate::{Direction, MessageWindow};
+use crate::MessageWindow;
 use euclid::{Point2D, Rect, Size2D, Vector2D};
 use itertools::Itertools;
 use sdl2::pixels::Color;
@@ -161,28 +161,18 @@ impl Renderer<'_, '_> {
         ) -> Point2D<i32, PixelUnits>,
     ) {
         // (Long for-in-query-sorted line breaks rustfmt. So this is just to split it up.)
-        let query =
-            ecs.query::<(&Position, &SpriteComponent, &Facing, Option<&SineOffsetAnimation>)>();
-        let sorted = query.sorted_by(|(p1, _, _, _), (p2, _, _, _)| {
-            p1.0.map_pos.y.partial_cmp(&p2.0.map_pos.y).unwrap()
-        });
-        for (position, sprite_component, facing, sine_offset_animation) in sorted {
+        let query = ecs.query::<(&Position, &SpriteComponent, Option<&SineOffsetAnimation>)>();
+        let sorted = query
+            .sorted_by(|(p1, ..), (p2, ..)| p1.0.map_pos.y.partial_cmp(&p2.0.map_pos.y).unwrap());
+        for (position, sprite_component, sine_offset_animation) in sorted {
             // Skip entities not on the current map
             if position.0.map_name != map.name {
                 continue;
             }
 
             // Choose sprite to draw
-            let sprite = if let Some(forced_sprite) = &sprite_component.forced_sprite {
-                forced_sprite
-            } else {
-                match facing.0 {
-                    Direction::Up => &sprite_component.up_sprite,
-                    Direction::Down => &sprite_component.down_sprite,
-                    Direction::Left => &sprite_component.left_sprite,
-                    Direction::Right => &sprite_component.right_sprite,
-                }
-            };
+            let sprite =
+                sprite_component.forced_sprite.as_ref().unwrap_or(&sprite_component.sprite);
 
             // If entity has a SineOffsetAnimation, offset sprite position accordingly
             let mut position = position.0.map_pos;
@@ -193,10 +183,8 @@ impl Renderer<'_, '_> {
                 position += offset;
             }
 
-            let top_left_in_screen = map_pos_to_screen_top_left(
-                position,
-                Some(sprite_component.sprite_offset * SCREEN_SCALE as i32),
-            );
+            let top_left_in_screen =
+                map_pos_to_screen_top_left(position, Some(sprite.offset * SCREEN_SCALE as i32));
 
             let screen_rect = SdlRect::new(
                 top_left_in_screen.x,
@@ -208,7 +196,7 @@ impl Renderer<'_, '_> {
             self.canvas
                 .copy(
                     self.spritesheets.get(&sprite.spritesheet_name).unwrap(),
-                    sprite.rect,
+                    sprite.rect_in_spritesheet,
                     screen_rect,
                 )
                 .unwrap();

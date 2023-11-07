@@ -9,8 +9,8 @@ mod script;
 mod world;
 
 use ecs::component::{
-    Collision, Facing, Name, Position, Scripts, SineOffsetAnimation, Sprite, SpriteComponent,
-    Walking,
+    AnimationClip, Collision, Facing, Name, Position, Scripts, SineOffsetAnimation, Sprite,
+    SpriteComponent, WalkAnimComponent, Walking,
 };
 use ecs::{Ecs, EntityId};
 use euclid::{Point2D, Rect, Size2D, Vector2D};
@@ -171,26 +171,41 @@ fn main() {
         player_id,
         #[allow(clippy::erasing_op, clippy::identity_op)]
         SpriteComponent {
-            up_sprite: Sprite {
+            sprite: Sprite {
                 spritesheet_name: "characters".to_string(),
-                rect: SdlRect::new(7 * 16, 3 * 16, 16, 16),
+                rect_in_spritesheet: SdlRect::new(7 * 16, 0 * 16, 16, 16),
+                offset: Vector2D::new(-8, -13),
             },
-            down_sprite: Sprite {
-                spritesheet_name: "characters".to_string(),
-                rect: SdlRect::new(7 * 16, 0 * 16, 16, 16),
-            },
-            left_sprite: Sprite {
-                spritesheet_name: "characters".to_string(),
-                rect: SdlRect::new(7 * 16, 1 * 16, 16, 16),
-            },
-            right_sprite: Sprite {
-                spritesheet_name: "characters".to_string(),
-                rect: SdlRect::new(7 * 16, 2 * 16, 16, 16),
-            },
-            sprite_offset: Vector2D::new(-8, -13),
             forced_sprite: None,
         },
     );
+
+    // Animation component
+    {
+        let clip_from_row = |row| AnimationClip {
+            frames: [7, 8, 7, 6]
+                .into_iter()
+                .map(|col| Sprite {
+                    spritesheet_name: "characters".to_string(),
+                    rect_in_spritesheet: SdlRect::new(col * 16, row * 16, 16, 16),
+                    offset: Vector2D::new(-8, -13),
+                })
+                .collect(),
+            seconds_per_frame: 0.15,
+        };
+
+        ecs.add_component(
+            player_id,
+            WalkAnimComponent {
+                up: clip_from_row(3),
+                down: clip_from_row(0),
+                left: clip_from_row(1),
+                right: clip_from_row(2),
+                elapsed_time: Duration::from_secs(0),
+                playing: false,
+            },
+        );
+    }
 
     // Entities from ldtk
     ecs::loader::load_entities_from_ldtk(&mut ecs, &project);
@@ -214,8 +229,11 @@ fn main() {
     // --------------------------------------------------------------
     {}
 
+    let mut last_time = Instant::now();
     let mut running = true;
     while running {
+        let delta_time = last_time.elapsed();
+        last_time = Instant::now();
         // ----------------------------------------------------------
         // Process Input
         // ----------------------------------------------------------
@@ -333,8 +351,7 @@ fn main() {
         // Remove finished scripts
         script_instance_manager.script_instances.retain(|_, script| !script.finished);
 
-        // Stop player if message window is open (and the movement is coming from
-        // input rather than forced)
+        // Stop player if message window is open (and movement is from input rather than forced)
         // I really have to rework this already...
         if message_window.is_some()
             && let Some(mut walking_component) = ecs.query_one_with_id::<&mut Walking>(player_id)
@@ -347,7 +364,6 @@ fn main() {
         update_walking_entities(&ecs, &world, &mut script_instance_manager, &mut story_vars);
 
         // Start player soft collision scripts
-        // (Query in block so we can query again later)
         let (player_aabb, player_map_name) = {
             let (pos, coll) = ecs.query_one_with_id::<(&Position, &Collision)>(player_id).unwrap();
             (AABB::from_pos_and_hitbox(pos.0.map_pos, coll.hitbox), pos.0.map_name.clone())
@@ -394,6 +410,38 @@ fn main() {
             if start_time.elapsed() > *duration {
                 map_overlay_color_transition = None;
             }
+        }
+
+        // Update walking animation and sprite
+        for (mut walk_anim, mut sprite_comp, facing, walk_comp) in
+            ecs.query::<(&mut WalkAnimComponent, &mut SpriteComponent, &Facing, &Walking)>()
+        {
+            if walk_comp.speed > 0. {
+                walk_anim.playing = true;
+            } else {
+                walk_anim.playing = false;
+                walk_anim.elapsed_time = Duration::from_secs(0);
+            }
+
+            if walk_anim.playing {
+                walk_anim.elapsed_time += delta_time;
+            }
+
+            let clip = match facing.0 {
+                Direction::Up => &walk_anim.up,
+                Direction::Down => &walk_anim.down,
+                Direction::Left => &walk_anim.left,
+                Direction::Right => &walk_anim.right,
+            };
+
+            let clip_duration = clip.seconds_per_frame * clip.frames.len() as f64;
+            let seek_time = walk_anim.elapsed_time.as_secs_f64() % clip_duration;
+            // ceil() rather than floor() so that any elapsed time > 0 results in the first non-idle
+            // frame, and the animation feels instantly responsive
+            let frame_index =
+                (seek_time / clip.seconds_per_frame).ceil() as usize % clip.frames.len();
+            let current_sprite = clip.frames.get(frame_index).unwrap();
+            sprite_comp.forced_sprite = Some(current_sprite.clone());
         }
 
         // ----------------------------------------------------------
