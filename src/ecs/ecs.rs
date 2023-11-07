@@ -16,13 +16,13 @@ pub enum RealOrDeferredEntityId {
 
 impl From<EntityId> for RealOrDeferredEntityId {
     fn from(id: EntityId) -> Self {
-        RealOrDeferredEntityId::Real(id)
+        Self::Real(id)
     }
 }
 
 impl From<DeferredEntityId> for RealOrDeferredEntityId {
     fn from(id: DeferredEntityId) -> Self {
-        RealOrDeferredEntityId::Deferred(id)
+        Self::Deferred(id)
     }
 }
 
@@ -47,21 +47,21 @@ impl Ecs {
         }
     }
 
-    pub fn filter<Q>(&self) -> Box<dyn Iterator<Item = EntityId> + '_>
+    fn filter<Q>(&self) -> Box<dyn Iterator<Item = EntityId> + '_>
     where
         Q: Query,
     {
         Box::new(self.entity_ids.keys().filter(|id| Q::filter(*id, &self.component_maps)))
     }
 
-    pub fn query_all<Q>(&self) -> QueryResultIter<Q>
+    pub fn query<Q>(&self) -> QueryResultIter<Q>
     where
         Q: Query,
     {
         Box::new(self.filter::<Q>().map(|id| Q::borrow(id, &self.component_maps)))
     }
 
-    pub fn query_all_except<Q>(&self, except: EntityId) -> QueryResultIter<Q>
+    pub fn query_except_id<Q>(&self, except: EntityId) -> QueryResultIter<Q>
     where
         Q: Query,
     {
@@ -72,7 +72,7 @@ impl Ecs {
         )
     }
 
-    pub fn query_one_by_id<Q>(&self, id: EntityId) -> Option<Q::Result<'_>>
+    pub fn query_one_with_id<Q>(&self, id: EntityId) -> Option<Q::Result<'_>>
     where
         Q: Query,
     {
@@ -81,11 +81,11 @@ impl Ecs {
             .map(|id| Q::borrow(id, &self.component_maps))
     }
 
-    pub fn query_one_by_name<Q>(&self, name: &str) -> Option<Q::Result<'_>>
+    pub fn query_one_with_name<Q>(&self, name: &str) -> Option<Q::Result<'_>>
     where
         Q: Query + 'static,
     {
-        self.query_all::<(&Name, Q)>().find(|(l, _)| l.0.as_str() == name).map(|(_, q)| q)
+        self.query::<(&Name, Q)>().find(|(l, _)| l.0.as_str() == name).map(|(_, q)| q)
     }
 
     pub fn add_entity(&mut self) -> EntityId {
@@ -100,15 +100,12 @@ impl Ecs {
     where
         C: Component + 'static,
     {
-        match self.component_maps.get_mut::<ComponentMap<C>>() {
-            Some(cm) => {
-                cm.insert(entity_id, RefCell::new(component));
-            }
-            None => {
-                let mut cm = SecondaryMap::<EntityId, RefCell<C>>::new();
-                cm.insert(entity_id, RefCell::new(component));
-                self.component_maps.insert(cm);
-            }
+        if let Some(cm) = self.component_maps.get_mut::<ComponentMap<C>>() {
+            cm.insert(entity_id, RefCell::new(component));
+        } else {
+            let mut cm = SecondaryMap::<EntityId, RefCell<C>>::new();
+            cm.insert(entity_id, RefCell::new(component));
+            self.component_maps.insert(cm);
         }
     }
 

@@ -18,18 +18,21 @@ pub const SCREEN_SCALE: u32 = 4;
 
 pub struct PixelUnits;
 
-pub struct Renderer<'r> {
+pub struct Renderer<'c, 'f> {
+    // Textures belong to a canvas and cannot be used with any other,
+    // so canvas and textures should all be owned together by the same thing
     pub canvas: WindowCanvas,
-    pub tilesets: HashMap<String, Texture<'r>>,
-    pub spritesheets: HashMap<String, Texture<'r>>,
-    pub cards: HashMap<String, Texture<'r>>,
-    pub font: Font<'r, 'r>,
+    pub tilesets: HashMap<String, Texture<'c>>,
+    pub spritesheets: HashMap<String, Texture<'c>>,
+    pub cards: HashMap<String, Texture<'c>>,
+    // These don't necessarily have to be bound to the Renderer
+    pub font: Font<'f, 'f>,
     pub show_cutscene_border: bool,
     pub displayed_card_name: Option<String>,
     pub map_overlay_color: Color,
 }
 
-impl Renderer<'_> {
+impl Renderer<'_, '_> {
     pub fn render(
         &mut self,
         map: &Map,
@@ -159,7 +162,7 @@ impl Renderer<'_> {
     ) {
         // (Long for-in-query-sorted line breaks rustfmt. So this is just to split it up.)
         let query =
-            ecs.query_all::<(&Position, &SpriteComponent, &Facing, Option<&SineOffsetAnimation>)>();
+            ecs.query::<(&Position, &SpriteComponent, &Facing, Option<&SineOffsetAnimation>)>();
         let sorted = query.sorted_by(|(p1, _, _, _), (p2, _, _, _)| {
             p1.0.map_pos.y.partial_cmp(&p2.0.map_pos.y).unwrap()
         });

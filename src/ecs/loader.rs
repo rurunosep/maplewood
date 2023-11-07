@@ -60,7 +60,7 @@ fn load_script_entity(
     ecs.add_component(
         id,
         Collision {
-            hitbox_dimensions: Size2D::new(entity.width as f64 / 16., entity.height as f64 / 16.),
+            hitbox: Size2D::new(entity.width as f64 / 16., entity.height as f64 / 16.),
             solid: false,
         },
     );

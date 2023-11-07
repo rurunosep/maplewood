@@ -55,7 +55,7 @@ impl Component for Walking {}
 
 #[derive(Default)]
 pub struct Collision {
-    pub hitbox_dimensions: Size2D<f64, MapUnits>,
+    pub hitbox: Size2D<f64, MapUnits>,
     pub solid: bool,
 }
 impl Component for Collision {}

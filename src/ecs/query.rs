@@ -32,7 +32,7 @@ where
     }
 
     fn filter(id: EntityId, component_maps: &AnyMap) -> bool {
-        component_maps.get::<ComponentMap<C>>().map(|cm| cm.contains_key(id)).unwrap_or(false)
+        component_maps.get::<ComponentMap<C>>().is_some_and(|cm| cm.contains_key(id))
     }
 }
 
@@ -47,7 +47,7 @@ where
     }
 
     fn filter(id: EntityId, component_maps: &AnyMap) -> bool {
-        component_maps.get::<ComponentMap<C>>().map(|cm| cm.contains_key(id)).unwrap_or(false)
+        component_maps.get::<ComponentMap<C>>().is_some_and(|cm| cm.contains_key(id))
     }
 }
 
@@ -82,7 +82,7 @@ where
     type Result<'r> = ();
 
     fn filter(id: EntityId, component_maps: &AnyMap) -> bool {
-        component_maps.get::<ComponentMap<C>>().map(|cm| cm.contains_key(id)).unwrap_or(false)
+        component_maps.get::<ComponentMap<C>>().is_some_and(|cm| cm.contains_key(id))
     }
 
     fn borrow(_: EntityId, _: &AnyMap) -> Self::Result<'_> {}
@@ -99,7 +99,7 @@ where
     type Result<'r> = ();
 
     fn filter(id: EntityId, component_maps: &AnyMap) -> bool {
-        !component_maps.get::<ComponentMap<C>>().map(|cm| cm.contains_key(id)).unwrap_or(false)
+        !component_maps.get::<ComponentMap<C>>().is_some_and(|cm| cm.contains_key(id))
     }
 
     fn borrow(_: EntityId, _: &AnyMap) -> Self::Result<'_> {}

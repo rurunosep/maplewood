@@ -108,13 +108,10 @@ fn main() {
     let mut cards: HashMap<String, Texture> = HashMap::new();
 
     let mut renderer = Renderer {
-        // Textures belong to a canvas and cannot be used with any other,
-        // so canvas and textures should all be owned together by the same thing
         canvas,
         tilesets,
         spritesheets,
         cards,
-        // These don't necessarily have to be bound to the Renderer
         font,
         show_cutscene_border: false,
         displayed_card_name: None,
@@ -168,7 +165,7 @@ fn main() {
     ecs.add_component(player_id, Walking::default());
     ecs.add_component(
         player_id,
-        Collision { hitbox_dimensions: Size2D::new(8. / 16., 6. / 16.), solid: true },
+        Collision { hitbox: Size2D::new(8. / 16., 6. / 16.), solid: true },
     );
     ecs.add_component(
         player_id,
@@ -248,7 +245,7 @@ fn main() {
                 // End player movement if key matching player direction is released
                 Event::KeyUp { keycode: Some(keycode), .. }
                     if keycode
-                        == match ecs.query_one_by_id::<&Walking>(player_id).unwrap().direction {
+                        == match ecs.query_one_with_id::<&Walking>(player_id).unwrap().direction {
                             Direction::Up => Keycode::Up,
                             Direction::Down => Keycode::Down,
                             Direction::Left => Keycode::Left,
@@ -256,7 +253,7 @@ fn main() {
                         } =>
                 {
                     let mut walking_component =
-                        ecs.query_one_by_id::<&mut Walking>(player_id).unwrap();
+                        ecs.query_one_with_id::<&mut Walking>(player_id).unwrap();
                     // Don't end movement if it's being forced
                     // (I need to rework the way that input vs forced movement work)
                     if walking_component.destination.is_none() {
@@ -279,17 +276,16 @@ fn main() {
                 }
 
                 // Interact with entity to start script OR advance message
-                Event::KeyDown { keycode: Some(Keycode::Return), .. }
-                | Event::KeyDown { keycode: Some(Keycode::Space), .. } => {
+                Event::KeyDown { keycode: Some(Keycode::Return | Keycode::Space), .. } => {
                     // Delegate to UI system then to world/entity system?
                     if message_window.is_some() {
                         message_window = None;
                     } else {
                         input::trigger_interaction_scripts(
+                            &mut script_instance_manager,
+                            &mut story_vars,
                             &ecs,
                             player_id,
-                            &mut story_vars,
-                            &mut script_instance_manager,
                         );
                     }
                 }
@@ -303,7 +299,7 @@ fn main() {
         // ----------------------------------------------------------
 
         // Start Auto scripts
-        for scripts in ecs.query_all::<&Scripts>() {
+        for scripts in ecs.query::<&Scripts>() {
             for script in scripts
                 .0
                 .iter()
@@ -341,7 +337,7 @@ fn main() {
         // input rather than forced)
         // I really have to rework this already...
         if message_window.is_some()
-            && let Some(mut walking_component) = ecs.query_one_by_id::<&mut Walking>(player_id)
+            && let Some(mut walking_component) = ecs.query_one_with_id::<&mut Walking>(player_id)
             && walking_component.destination.is_none()
         {
             walking_component.speed = 0.;
@@ -353,19 +349,15 @@ fn main() {
         // Start player soft collision scripts
         // (Query in block so we can query again later)
         let (player_aabb, player_map_name) = {
-            let (pos, coll) = ecs.query_one_by_id::<(&Position, &Collision)>(player_id).unwrap();
-            (
-                AABB::from_pos_and_hitbox(pos.0.map_pos, coll.hitbox_dimensions),
-                pos.0.map_name.clone(),
-            )
+            let (pos, coll) = ecs.query_one_with_id::<(&Position, &Collision)>(player_id).unwrap();
+            (AABB::from_pos_and_hitbox(pos.0.map_pos, coll.hitbox), pos.0.map_name.clone())
         };
         // For each entity colliding with the player...
         for (_, _, scripts) in ecs
-            .query_all::<(&Position, &Collision, &Scripts)>()
+            .query::<(&Position, &Collision, &Scripts)>()
             .filter(|(pos, _, _)| pos.0.map_name == player_map_name)
             .filter(|(pos, coll, _)| {
-                AABB::from_pos_and_hitbox(pos.0.map_pos, coll.hitbox_dimensions)
-                    .is_colliding(&player_aabb)
+                AABB::from_pos_and_hitbox(pos.0.map_pos, coll.hitbox).is_colliding(&player_aabb)
             })
         {
             // ...start scripts that have collision trigger and fulfill start condition
@@ -381,7 +373,7 @@ fn main() {
         }
 
         // End entity SineOffsetAnimations that have exceeded their duration
-        for (id, soa) in ecs.query_all::<(EntityId, &SineOffsetAnimation)>() {
+        for (id, soa) in ecs.query::<(EntityId, &SineOffsetAnimation)>() {
             if soa.start_time.elapsed() > soa.duration {
                 ecs.remove_component_deferred::<SineOffsetAnimation>(id);
             }
@@ -408,9 +400,9 @@ fn main() {
         // Render
         // ----------------------------------------------------------
 
-        // (Camera could be an entity with a position component
-        // map_to_render is camera's world pos' map)
-        let player_position = &ecs.query_one_by_id::<&Position>(player_id).unwrap().0;
+        // Camera could be an entity with a position component
+        // map_to_render is camera's world pos' map
+        let player_position = &ecs.query_one_with_id::<&Position>(player_id).unwrap().0;
         let map_to_render = world.maps.get(&player_position.map_name).unwrap();
         let mut camera_position = player_position.map_pos;
 
@@ -452,7 +444,7 @@ mod input {
         keycode: Keycode,
     ) {
         let (mut facing, mut walking_component) =
-            ecs.query_one_by_id::<(&mut Facing, &mut Walking)>(player_id).unwrap();
+            ecs.query_one_with_id::<(&mut Facing, &mut Walking)>(player_id).unwrap();
 
         // Some conditions (such as a message window open, or movement being forced) lock
         // player movement. Scripts can also lock/unlock it as necessary.
@@ -495,13 +487,13 @@ mod input {
     }
 
     pub fn trigger_interaction_scripts(
+        script_instance_manager: &mut ScriptInstanceManager,
+        story_vars: &mut HashMap<String, i32>,
         ecs: &Ecs,
         player_id: EntityId,
-        story_vars: &mut HashMap<String, i32>,
-        script_instance_manager: &mut ScriptInstanceManager,
     ) {
         let (player_pos, player_facing) =
-            ecs.query_one_by_id::<(&Position, &Facing)>(player_id).unwrap();
+            ecs.query_one_with_id::<(&Position, &Facing)>(player_id).unwrap();
         let player_facing_cell: CellPos = (match player_facing.0 {
             Direction::Up => player_pos.0.map_pos + Vector2D::new(0.0, -0.6),
             Direction::Down => player_pos.0.map_pos + Vector2D::new(0.0, 0.6),
@@ -512,7 +504,7 @@ mod input {
         .cast_unit();
         // For each entity in the cell the player is facing...
         for (_, scripts) in ecs
-            .query_all::<(&Position, &Scripts)>()
+            .query::<(&Position, &Scripts)>()
             .filter(|(position, _)| position.0.map_pos.cast().cast_unit() == player_facing_cell)
         {
             // ...start scripts with interaction trigger and fulfilled start condition
@@ -540,7 +532,7 @@ fn update_walking_entities(
     story_vars: &mut HashMap<String, i32>,
 ) {
     for (id, mut position, mut walking, collision) in
-        ecs.query_all::<(EntityId, &mut Position, &mut Walking, Option<&Collision>)>()
+        ecs.query::<(EntityId, &mut Position, &mut Walking, Option<&Collision>)>()
     {
         let map_pos = position.0.map_pos;
 
@@ -557,9 +549,9 @@ fn update_walking_entities(
         if let Some(collision) = collision
             && collision.solid
         {
-            let old_aabb = AABB::from_pos_and_hitbox(map_pos, collision.hitbox_dimensions);
+            let old_aabb = AABB::from_pos_and_hitbox(map_pos, collision.hitbox);
 
-            let mut new_aabb = AABB::from_pos_and_hitbox(new_position, collision.hitbox_dimensions);
+            let mut new_aabb = AABB::from_pos_and_hitbox(new_position, collision.hitbox);
 
             // Resolve collisions with the 9 cells centered around new position
             // (Currently, we get the 9 cells around the position, and then we get
@@ -595,15 +587,14 @@ fn update_walking_entities(
 
             // Resolve collisions with all solid entities except this one
             for (other_pos, other_coll, other_scripts) in
-                ecs.query_all_except::<(&Position, &Collision, Option<&Scripts>)>(id)
+                ecs.query_except_id::<(&Position, &Collision, Option<&Scripts>)>(id)
             {
                 // Skip checking against entities not on the current map or not solid
                 if other_pos.0.map_name != position.0.map_name || !other_coll.solid {
                     continue;
                 }
 
-                let other_aabb =
-                    AABB::from_pos_and_hitbox(other_pos.0.map_pos, other_coll.hitbox_dimensions);
+                let other_aabb = AABB::from_pos_and_hitbox(other_pos.0.map_pos, other_coll.hitbox);
 
                 // Trigger HardCollision scripts
                 // (* bottom comment about event system)
@@ -719,3 +710,15 @@ impl AABB {
 // example, what if I want to play a sound every time the player bumps into any entity? I
 // can't attach a bump sfx script to every single entity. That's stupid. That needs an
 // event system.
+
+// #![warn(clippy::nursery)]
+// #![warn(clippy::pedantic)]
+// #![allow(clippy::too_many_lines)]
+// #![allow(clippy::cast_possible_truncation)]
+// #![allow(clippy::cast_sign_loss)]
+// #![allow(clippy::cast_precision_loss)]
+// #![allow(clippy::cast_lossless)]
+// #![allow(clippy::wildcard_imports)]
+// #![allow(clippy::must_use_candidate)]
+// #![allow(clippy::cast_possible_wrap)]
+// #![allow(clippy::unnecessary_wraps)]

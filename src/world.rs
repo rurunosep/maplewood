@@ -80,7 +80,7 @@ impl Map {
                     layer.px_total_offset_x as i32,
                     layer.px_total_offset_y as i32,
                 ),
-            })
+            });
         }
 
         let collision_map = level
@@ -199,7 +199,7 @@ impl Map {
         let bottom_right_index = (tlc.y + 1) * self.dimensions.width * 2 + (tlc.x + 1);
 
         let top_left =
-            self.collision_map.get(top_left_index as usize).cloned().flatten().map(|_| AABB {
+            self.collision_map.get(top_left_index as usize).copied().flatten().map(|()| AABB {
                 top: cell_pos.y as f64,
                 bottom: cell_pos.y as f64 + 0.5,
                 left: cell_pos.x as f64,
@@ -207,7 +207,7 @@ impl Map {
             });
 
         let top_right =
-            self.collision_map.get(top_right_index as usize).cloned().flatten().map(|_| AABB {
+            self.collision_map.get(top_right_index as usize).copied().flatten().map(|()| AABB {
                 top: cell_pos.y as f64,
                 bottom: cell_pos.y as f64 + 0.5,
                 left: cell_pos.x as f64 + 0.5,
@@ -215,7 +215,7 @@ impl Map {
             });
 
         let bottom_left =
-            self.collision_map.get(bottom_left_index as usize).cloned().flatten().map(|_| AABB {
+            self.collision_map.get(bottom_left_index as usize).copied().flatten().map(|()| AABB {
                 top: cell_pos.y as f64 + 0.5,
                 bottom: cell_pos.y as f64 + 1.,
                 left: cell_pos.x as f64,
@@ -223,7 +223,7 @@ impl Map {
             });
 
         let bottom_right =
-            self.collision_map.get(bottom_right_index as usize).cloned().flatten().map(|_| AABB {
+            self.collision_map.get(bottom_right_index as usize).copied().flatten().map(|()| AABB {
                 top: cell_pos.y as f64 + 0.5,
                 bottom: cell_pos.y as f64 + 1.,
                 left: cell_pos.x as f64 + 0.5,

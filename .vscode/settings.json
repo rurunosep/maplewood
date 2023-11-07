@@ -1,15 +1,15 @@
 {
-	"Lua.diagnostics.globals": [
-		"set_entity_world_pos",
-		"set_story_var",
-		"message",
-		"lock_player_input",
-		"set_cutscene_border",
-		"set_entity_solid",
-		"set_entity_map_pos",
-		"wait",
-		"walk_to_wait",
-		"remove_cutscene_border",
-		"unlock_player_input"
-	]
+  "Lua.diagnostics.globals": [
+    "set_entity_world_pos",
+    "set_story_var",
+    "message",
+    "lock_player_input",
+    "set_cutscene_border",
+    "set_entity_solid",
+    "set_entity_map_pos",
+    "wait",
+    "walk_to_wait",
+    "remove_cutscene_border",
+    "unlock_player_input"
+  ]
 }

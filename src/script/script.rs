@@ -33,7 +33,6 @@ impl ScriptInstanceManager {
     }
 }
 
-// TODO thiserror?
 #[derive(Debug)]
 pub enum ScriptError {
     Generic(String),
@@ -61,7 +60,7 @@ impl From<ScriptError> for LuaError {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[allow(dead_code)]
 pub enum ScriptTrigger {
     Interaction,
@@ -145,13 +144,13 @@ impl ScriptInstance {
                 // (Because you can't yield from within a rust callback)
                 context
                     .load(
-                        r#"
+                        r"
                         wrap_yielding = function(f)
                             return function(...)
                                 f(...)
                                 coroutine.yield()
                             end
-                        end"#,
+                        end",
                     )
                     .exec()?;
 
@@ -283,7 +282,7 @@ impl ScriptInstance {
                             callback::lock_player_input(
                                 args,
                                 *player_movement_locked.borrow_mut(),
-                                *ecs.borrow_mut(),
+                                *ecs.borrow(),
                                 player_id,
                             )
                         })?,
@@ -298,19 +297,17 @@ impl ScriptInstance {
                     globals.set(
                         "set_entity_solid",
                         scope.create_function_mut(|_, args| {
-                            callback::set_entity_solid(args, *ecs.borrow_mut())
+                            callback::set_entity_solid(args, *ecs.borrow())
                         })?,
                     )?;
                     globals.set(
                         "walk",
-                        scope.create_function_mut(|_, args| {
-                            callback::walk(args, *ecs.borrow_mut())
-                        })?,
+                        scope.create_function_mut(|_, args| callback::walk(args, *ecs.borrow()))?,
                     )?;
                     globals.set(
                         "walk_to",
                         scope.create_function_mut(|_, args| {
-                            callback::walk_to(args, *ecs.borrow_mut())
+                            callback::walk_to(args, *ecs.borrow())
                         })?,
                     )?;
                     globals.set(
@@ -322,7 +319,7 @@ impl ScriptInstance {
                     globals.set(
                         "set_entity_map_pos",
                         scope.create_function_mut(|_, args| {
-                            callback::set_entity_map_pos(args, *ecs.borrow_mut())
+                            callback::set_entity_map_pos(args, *ecs.borrow())
                         })?,
                     )?;
                     globals.set(
@@ -381,13 +378,13 @@ impl ScriptInstance {
                     globals.set(
                         "set_forced_sprite",
                         scope.create_function_mut(|_, args| {
-                            callback::set_forced_sprite(args, *ecs.borrow_mut())
+                            callback::set_forced_sprite(args, *ecs.borrow())
                         })?,
                     )?;
                     globals.set(
                         "remove_forced_sprite",
                         scope.create_function_mut(|_, args| {
-                            callback::remove_forced_sprite(args, *ecs.borrow_mut())
+                            callback::remove_forced_sprite(args, *ecs.borrow())
                         })?,
                     )?;
                     globals.set(
@@ -482,8 +479,7 @@ impl ScriptInstance {
                 })
             })
             // Currently panics if any error is ever encountered in a lua script.
-            // Eventually we probably want to handle it differently depending on the error
-            // and the circumstances
+            // Later, just abort script and log error
             .unwrap_or_else(|err| {
                 panic!("lua error:\n{err}\nsource: {:?}\n", err.source().map(|e| e.to_string()));
             });
