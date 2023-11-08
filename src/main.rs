@@ -92,16 +92,32 @@ fn main() {
     let texture_creator = canvas.texture_creator();
 
     let tilesets: HashMap<String, Texture> = HashMap::from(
-        ["walls.png", "floors.png", "ceilings.png", "modern_interiors.png", "modern_exteriors.png"]
-            .map(|name| {
-                (name.to_string(), texture_creator.load_texture(format!("assets/{name}")).unwrap())
-            }),
+        ["walls", "floors", "ceilings", "modern_interiors", "modern_exteriors"].map(|name| {
+            (
+                // Keyed like this because this is how ldtk layers reference them
+                format!("tilesets/{name}.png"),
+                texture_creator.load_texture(format!("assets/tilesets/{name}.png")).unwrap(),
+            )
+        }),
     );
 
-    let spritesheets: HashMap<String, Texture> =
-        HashMap::from(["characters", "bathroom_sink", "bathroom_sink_2"].map(|name| {
-            (name.to_string(), texture_creator.load_texture(format!("assets/{name}.png")).unwrap())
-        }));
+    let spritesheets: HashMap<String, Texture> = HashMap::from(
+        [
+            "characters",
+            "bathroom_sink",
+            "bathroom_sink_2",
+            "bathtub",
+            "bathtub_2",
+            "cabinet",
+            "toilet_door",
+        ]
+        .map(|name| {
+            (
+                name.to_string(),
+                texture_creator.load_texture(format!("assets/spritesheets/{name}.png")).unwrap(),
+            )
+        }),
+    );
 
     #[allow(unused)]
     let mut cards: HashMap<String, Texture> = HashMap::new();

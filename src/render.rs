@@ -195,7 +195,7 @@ impl Renderer<'_, '_> {
                 top_left_in_screen.x,
                 top_left_in_screen.y,
                 sprite.rect.width() * SCREEN_SCALE,
-                sprite.rect.width() * SCREEN_SCALE,
+                sprite.rect.height() * SCREEN_SCALE,
             );
 
             self.canvas

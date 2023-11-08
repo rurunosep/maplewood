@@ -64,6 +64,10 @@ impl Map {
             .iter()
             .rev()
             .filter(|layer| is_tile_layer(layer))
+            .filter(|layer| {
+                layer.identifier != "interiors_objects_guide"
+                    && layer.identifier != "exteriors_objects_guide"
+            })
         {
             let mut tiles: Vec<Option<TileId>> = vec![None; dimensions.area() as usize];
             for tile in layer.grid_tiles.iter().chain(layer.auto_layer_tiles.iter()) {
@@ -141,6 +145,10 @@ impl Map {
                 .iter()
                 .rev()
                 .filter(|layer| is_tile_layer(layer))
+                .filter(|layer| {
+                    layer.identifier != "interiors_objects_guide"
+                        && layer.identifier != "exteriors_objects_guide"
+                })
                 .enumerate()
             {
                 for tile in layer.grid_tiles.iter().chain(layer.auto_layer_tiles.iter()) {

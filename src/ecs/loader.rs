@@ -141,7 +141,8 @@ fn load_animated_object_entity(
 
     // Animation
     let spritesheet = read_entity_field_string("spritesheet", entity).unwrap();
-    let num_frames = read_entity_field_i32("num_frames", entity).unwrap();
+    let first_frame = read_entity_field_i32("first_frame", entity).unwrap();
+    let last_frame = read_entity_field_i32("last_frame", entity).unwrap();
     let seconds_per_frame = read_entity_field_f64("seconds_per_frame", entity).unwrap();
 
     let w = entity.width;
@@ -151,7 +152,7 @@ fn load_animated_object_entity(
         id,
         AnimationComponent {
             anim_set: AnimationSet::Single(AnimationClip {
-                frames: (0..num_frames)
+                frames: (first_frame..=last_frame)
                     .map(|col| Sprite {
                         spritesheet: spritesheet.clone(),
                         rect: SdlRect::new(col * w as i32, 0, w as u32, h as u32),
