@@ -271,9 +271,45 @@ impl ScriptInstance {
                         })?,
                     )?;
                     globals.set(
-                        "get_entity_position",
+                        "get_entity_map_pos",
                         scope.create_function(|_, args| {
                             callback::get_entity_map_pos(args, *ecs.borrow())
+                        })?,
+                    )?;
+                    globals.set(
+                        "set_entity_map_pos",
+                        scope.create_function_mut(|_, args| {
+                            callback::set_entity_map_pos(args, *ecs.borrow())
+                        })?,
+                    )?;
+                    globals.set(
+                        "set_entity_world_pos",
+                        scope.create_function_mut(|_, args| {
+                            callback::set_entity_world_pos(args, *ecs.borrow_mut())
+                        })?,
+                    )?;
+                    globals.set(
+                        "remove_entity_position",
+                        scope.create_function_mut(|_, args| {
+                            callback::remove_entity_position(args, *ecs.borrow_mut())
+                        })?,
+                    )?;
+                    globals.set(
+                        "set_forced_sprite",
+                        scope.create_function_mut(|_, args| {
+                            callback::set_forced_sprite(args, *ecs.borrow())
+                        })?,
+                    )?;
+                    globals.set(
+                        "remove_forced_sprite",
+                        scope.create_function_mut(|_, args| {
+                            callback::remove_forced_sprite(args, *ecs.borrow())
+                        })?,
+                    )?;
+                    globals.set(
+                        "set_entity_solid",
+                        scope.create_function_mut(|_, args| {
+                            callback::set_entity_solid(args, *ecs.borrow())
                         })?,
                     )?;
                     globals.set(
@@ -295,12 +331,6 @@ impl ScriptInstance {
                         })?,
                     )?;
                     globals.set(
-                        "set_entity_solid",
-                        scope.create_function_mut(|_, args| {
-                            callback::set_entity_solid(args, *ecs.borrow())
-                        })?,
-                    )?;
-                    globals.set(
                         "walk",
                         scope.create_function_mut(|_, args| callback::walk(args, *ecs.borrow()))?,
                     )?;
@@ -317,25 +347,15 @@ impl ScriptInstance {
                         })?,
                     )?;
                     globals.set(
-                        "set_entity_map_pos",
+                        "play_object_animation",
                         scope.create_function_mut(|_, args| {
-                            callback::set_entity_map_pos(args, *ecs.borrow())
+                            callback::play_object_animation(args, *ecs.borrow_mut())
                         })?,
                     )?;
                     globals.set(
-                        "set_entity_world_pos",
+                        "stop_object_animation",
                         scope.create_function_mut(|_, args| {
-                            callback::set_entity_world_pos(args, *ecs.borrow_mut())
-                        })?,
-                    )?;
-                    globals.set(
-                        "set_map_overlay_color",
-                        scope.create_function_mut(|_, args| {
-                            callback::set_map_overlay_color(
-                                args,
-                                map_overlay_color_transition,
-                                map_overlay_color,
-                            )
+                            callback::stop_object_animation(args, *ecs.borrow_mut())
                         })?,
                     )?;
                     globals.set(
@@ -351,13 +371,6 @@ impl ScriptInstance {
                         })?,
                     )?;
                     globals.set(
-                        "close_game",
-                        scope.create_function_mut(|_, ()| {
-                            *running = false;
-                            Ok(())
-                        })?,
-                    )?;
-                    globals.set(
                         "play_sfx",
                         scope.create_function(|_, args| callback::play_sfx(args, sound_effects))?,
                     )?;
@@ -370,21 +383,20 @@ impl ScriptInstance {
                         scope.create_function_mut(|_, args| callback::stop_music(args))?,
                     )?;
                     globals.set(
-                        "remove_entity_position",
+                        "set_map_overlay_color",
                         scope.create_function_mut(|_, args| {
-                            callback::remove_entity_position(args, *ecs.borrow_mut())
+                            callback::set_map_overlay_color(
+                                args,
+                                map_overlay_color_transition,
+                                map_overlay_color,
+                            )
                         })?,
                     )?;
                     globals.set(
-                        "set_forced_sprite",
-                        scope.create_function_mut(|_, args| {
-                            callback::set_forced_sprite(args, *ecs.borrow())
-                        })?,
-                    )?;
-                    globals.set(
-                        "remove_forced_sprite",
-                        scope.create_function_mut(|_, args| {
-                            callback::remove_forced_sprite(args, *ecs.borrow())
+                        "close_game",
+                        scope.create_function_mut(|_, ()| {
+                            *running = false;
+                            Ok(())
                         })?,
                     )?;
                     globals.set(

@@ -38,7 +38,9 @@ pub struct Sprite {
 pub struct AnimationComponent {
     pub anim_set: AnimationSet,
     pub elapsed_time: Duration,
+    // TODO playback enum
     pub playing: bool,
+    pub repeat: bool,
 }
 impl Component for AnimationComponent {}
 
@@ -51,9 +53,9 @@ pub enum AnimationSet {
         right: AnimationClip,
     },
     Single(AnimationClip),
+    // TODO "the door problem"
 }
 
-// Repeat enum?
 pub struct AnimationClip {
     pub frames: Vec<Sprite>,
     pub seconds_per_frame: f64,

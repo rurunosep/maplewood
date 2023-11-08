@@ -1,6 +1,7 @@
 use super::{ScriptError, ScriptId, WaitCondition};
 use crate::ecs::component::{
-    Collision, Facing, Position, SineOffsetAnimation, Sprite, SpriteComponent, Walking,
+    AnimationComponent, Collision, Facing, Position, SineOffsetAnimation, Sprite, SpriteComponent,
+    Walking,
 };
 use crate::ecs::{Ecs, EntityId};
 use crate::world::WorldPos;
@@ -184,6 +185,29 @@ pub fn is_entity_walking(entity: String, ecs: &Ecs) -> LuaResult<bool> {
     let walking =
         ecs.query_one_with_name::<&Walking>(&entity).ok_or(ScriptError::InvalidEntity(entity))?;
     Ok(walking.destination.is_some())
+}
+
+// Doesn't test if the entity actually has a single animation clip vs a character animation set
+pub fn play_object_animation((entity, repeat): (String, bool), ecs: &Ecs) -> LuaResult<()> {
+    let mut anim_comp = ecs
+        .query_one_with_name::<&mut AnimationComponent>(&entity)
+        .ok_or(ScriptError::InvalidEntity(entity))?;
+
+    anim_comp.playing = true;
+    anim_comp.repeat = repeat;
+
+    Ok(())
+}
+
+pub fn stop_object_animation(entity: String, ecs: &Ecs) -> LuaResult<()> {
+    let mut anim_comp = ecs
+        .query_one_with_name::<&mut AnimationComponent>(&entity)
+        .ok_or(ScriptError::InvalidEntity(entity))?;
+
+    anim_comp.playing = false;
+    anim_comp.repeat = false;
+
+    Ok(())
 }
 
 pub fn anim_quiver((entity, duration): (String, f64), ecs: &mut Ecs) -> LuaResult<()> {

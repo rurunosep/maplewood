@@ -136,14 +136,24 @@ fn load_animated_object_entity(
     };
     ecs.add_component(id, position);
 
+    // Name
+    if let Some(name) = read_entity_field_string("name", entity) {
+        ecs.add_component(id, Name(name));
+    }
+
     // Sprite
     ecs.add_component(id, SpriteComponent::default());
 
     // Animation
     let spritesheet = read_entity_field_string("spritesheet", entity).unwrap();
+    // TODO for reverse, just manually check last > first and apply .rev() to range
     let first_frame = read_entity_field_i32("first_frame", entity).unwrap();
     let last_frame = read_entity_field_i32("last_frame", entity).unwrap();
     let seconds_per_frame = read_entity_field_f64("seconds_per_frame", entity).unwrap();
+    let (playing, repeat) = match read_entity_field_bool("repeating", entity).unwrap() {
+        true => (true, true),
+        false => (false, false),
+    };
 
     let w = entity.width;
     let h = entity.height;
@@ -162,7 +172,8 @@ fn load_animated_object_entity(
                 seconds_per_frame,
             }),
             elapsed_time: Duration::from_secs(0),
-            playing: true,
+            playing,
+            repeat,
         },
     );
 }
@@ -191,6 +202,19 @@ fn read_entity_field_string(field: &str, entity: &ldtk_json::EntityInstance) -> 
         .and_then(|f| f.value.as_ref())
         .and_then(|v| match v {
             serde_json::Value::String(s) => Some(s),
+            _ => None,
+        })
+        .cloned()
+}
+
+fn read_entity_field_bool(field: &str, entity: &ldtk_json::EntityInstance) -> Option<bool> {
+    entity
+        .field_instances
+        .iter()
+        .find(|f| f.identifier == field)
+        .and_then(|f| f.value.as_ref())
+        .and_then(|v| match v {
+            serde_json::Value::Bool(b) => Some(b),
             _ => None,
         })
         .cloned()

@@ -208,6 +208,7 @@ fn main() {
             },
             elapsed_time: Duration::from_secs(0),
             playing: false,
+            repeat: false,
         },
     );
 
@@ -219,7 +220,8 @@ fn main() {
     // --------------------------------------------------------------
 
     let mut story_vars: HashMap<String, i32> = HashMap::new();
-    story_vars.insert("test".to_string(), 1);
+    story_vars.insert("sink_1::running".to_string(), 0);
+    story_vars.insert("sink_2::running".to_string(), 0);
 
     let mut script_instance_manager =
         ScriptInstanceManager { script_instances: SlotMap::with_key() };
@@ -407,7 +409,13 @@ fn main() {
                 Direction::Right => CharacterAnimationState::WalkRight,
             };
 
-            anim_comp.playing = walk_comp.speed > 0.;
+            if walk_comp.speed > 0. {
+                anim_comp.playing = true;
+                anim_comp.repeat = true;
+            } else {
+                anim_comp.playing = false;
+                anim_comp.repeat = false;
+            }
         }
 
         // Update entity animations and sprites
@@ -432,11 +440,23 @@ fn main() {
             };
 
             let clip_duration = clip.seconds_per_frame * clip.frames.len() as f64;
-            let seek_time = anim_comp.elapsed_time.as_secs_f64() % clip_duration;
+
+            let clip_playback_finished =
+                anim_comp.elapsed_time.as_secs_f64() > clip_duration && !anim_comp.repeat;
+
+            let seek_time = match clip_playback_finished {
+                false => anim_comp.elapsed_time.as_secs_f64() % clip_duration,
+                true => 0.,
+            };
+
             let frame_index =
                 (seek_time / clip.seconds_per_frame).ceil() as usize % clip.frames.len();
             let current_sprite = clip.frames.get(frame_index).unwrap();
             sprite_comp.sprite = Some(current_sprite.clone());
+
+            if clip_playback_finished {
+                anim_comp.playing = false;
+            }
         }
 
         // End entity SineOffsetAnimations that have exceeded their duration
@@ -553,6 +573,7 @@ mod input {
         *message_window = None;
     }
 
+    // TODO interaction script triggering based on script entity hitbox rather than cell
     pub fn trigger_interaction_scripts(
         script_instance_manager: &mut ScriptInstanceManager,
         story_vars: &mut HashMap<String, i32>,
