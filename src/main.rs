@@ -9,8 +9,8 @@ mod script;
 mod world;
 
 use ecs::component::{
-    AnimationClip, Collision, Facing, Name, Position, Scripts, SineOffsetAnimation, Sprite,
-    SpriteComponent, WalkAnimComponent, Walking,
+    AnimationClip, CharacterAnimation, CharacterAnimationState, Collision, Facing, Name,
+    ObjectAnimation, Position, Scripts, SineOffsetAnimation, Sprite, SpriteComponent, Walking,
 };
 use ecs::{Ecs, EntityId};
 use euclid::{Point2D, Rect, Size2D, Vector2D};
@@ -103,6 +103,10 @@ fn main() {
         "characters".to_string(),
         texture_creator.load_texture("assets/characters.png").unwrap(),
     );
+    spritesheets.insert(
+        "bathroom_sink".to_string(),
+        texture_creator.load_texture("assets/bathroom_sink.png").unwrap(),
+    );
 
     #[allow(unused)]
     let mut cards: HashMap<String, Texture> = HashMap::new();
@@ -171,16 +175,16 @@ fn main() {
         player_id,
         #[allow(clippy::erasing_op, clippy::identity_op)]
         SpriteComponent {
-            sprite: Sprite {
+            sprite: Some(Sprite {
                 spritesheet_name: "characters".to_string(),
                 rect_in_spritesheet: SdlRect::new(7 * 16, 0 * 16, 16, 16),
                 offset: Vector2D::new(-8, -13),
-            },
+            }),
             forced_sprite: None,
         },
     );
 
-    // Animation component
+    // Player animation component
     {
         let clip_from_row = |row| AnimationClip {
             frames: [7, 8, 7, 6]
@@ -196,16 +200,48 @@ fn main() {
 
         ecs.add_component(
             player_id,
-            WalkAnimComponent {
+            CharacterAnimation {
+                state: CharacterAnimationState::WalkDown,
+                //
                 up: clip_from_row(3),
                 down: clip_from_row(0),
                 left: clip_from_row(1),
                 right: clip_from_row(2),
+                //
+                clips: HashMap::from([
+                    (CharacterAnimationState::WalkUp, clip_from_row(3)),
+                    (CharacterAnimationState::WalkDown, clip_from_row(0)),
+                    (CharacterAnimationState::WalkLeft, clip_from_row(1)),
+                    (CharacterAnimationState::WalkRight, clip_from_row(2)),
+                ]),
+                //
                 elapsed_time: Duration::from_secs(0),
                 playing: false,
             },
         );
     }
+
+    // Animated sink
+    let id = ecs.add_entity();
+    ecs.add_component::<Position>(id, Position(WorldPos::new("bathroom", 13.0, 3.0)));
+    ecs.add_component::<SpriteComponent>(id, SpriteComponent { sprite: None, forced_sprite: None });
+    ecs.add_component::<ObjectAnimation>(
+        id,
+        ObjectAnimation {
+            clip: AnimationClip {
+                frames: (0..14)
+                    .map(|col| Sprite {
+                        spritesheet_name: "bathroom_sink".to_string(),
+                        rect_in_spritesheet: SdlRect::new(col * 32, 0, 32, 32),
+                        offset: Vector2D::new(-16, -16),
+                    })
+                    .collect(),
+                seconds_per_frame: 0.1,
+            },
+            elapsed_time: Duration::from_secs(0),
+            playing: true,
+        },
+    );
 
     // Entities from ldtk
     ecs::loader::load_entities_from_ldtk(&mut ecs, &project);
@@ -412,36 +448,67 @@ fn main() {
             }
         }
 
-        // Update walking animation and sprite
-        for (mut walk_anim, mut sprite_comp, facing, walk_comp) in
-            ecs.query::<(&mut WalkAnimComponent, &mut SpriteComponent, &Facing, &Walking)>()
+        // Animation ------------------------------------------------
+
+        // Update character animation state
+        for (mut char_anim, facing, walk_comp) in
+            ecs.query::<(&mut CharacterAnimation, &Facing, &Walking)>()
         {
-            if walk_comp.speed > 0. {
-                walk_anim.playing = true;
-            } else {
-                walk_anim.playing = false;
-                walk_anim.elapsed_time = Duration::from_secs(0);
-            }
+            char_anim.playing = walk_comp.speed > 0.;
 
-            if walk_anim.playing {
-                walk_anim.elapsed_time += delta_time;
-            }
-
-            let clip = match facing.0 {
-                Direction::Up => &walk_anim.up,
-                Direction::Down => &walk_anim.down,
-                Direction::Left => &walk_anim.left,
-                Direction::Right => &walk_anim.right,
+            char_anim.state = match facing.0 {
+                Direction::Up => CharacterAnimationState::WalkUp,
+                Direction::Down => CharacterAnimationState::WalkDown,
+                Direction::Left => CharacterAnimationState::WalkLeft,
+                Direction::Right => CharacterAnimationState::WalkRight,
             };
+        }
+
+        // CharAnim and ObjectAnim updates differ only in the one clip selection line
+        // and in the ECS query.
+        // How do I generalize this effectively? If I just make them a single component,
+        // then I can't query the CharAnim specifically above to set its state
+
+        // Update character animation and sprite
+        for (mut char_anim, mut sprite_comp) in
+            ecs.query::<(&mut CharacterAnimation, &mut SpriteComponent)>()
+        {
+            if char_anim.playing {
+                char_anim.elapsed_time += delta_time;
+            } else {
+                char_anim.elapsed_time = Duration::from_secs(0);
+            }
+
+            // CharAnim and ObjectAnim differ here:
+            let clip = char_anim.clips.get(&char_anim.state).unwrap();
 
             let clip_duration = clip.seconds_per_frame * clip.frames.len() as f64;
-            let seek_time = walk_anim.elapsed_time.as_secs_f64() % clip_duration;
-            // ceil() rather than floor() so that any elapsed time > 0 results in the first non-idle
-            // frame, and the animation feels instantly responsive
+            let seek_time = char_anim.elapsed_time.as_secs_f64() % clip_duration;
             let frame_index =
                 (seek_time / clip.seconds_per_frame).ceil() as usize % clip.frames.len();
             let current_sprite = clip.frames.get(frame_index).unwrap();
-            sprite_comp.forced_sprite = Some(current_sprite.clone());
+            sprite_comp.sprite = Some(current_sprite.clone());
+        }
+
+        // Update object animation and sprite
+        for (mut object_anim, mut sprite_comp) in
+            ecs.query::<(&mut ObjectAnimation, &mut SpriteComponent)>()
+        {
+            if object_anim.playing {
+                object_anim.elapsed_time += delta_time;
+            } else {
+                object_anim.elapsed_time = Duration::from_secs(0);
+            }
+
+            // CharAnim and ObjectAnim differ here:
+            let clip = &object_anim.clip;
+
+            let clip_duration = clip.seconds_per_frame * clip.frames.len() as f64;
+            let seek_time = object_anim.elapsed_time.as_secs_f64() % clip_duration;
+            let frame_index =
+                (seek_time / clip.seconds_per_frame).ceil() as usize % clip.frames.len();
+            let current_sprite = clip.frames.get(frame_index).unwrap();
+            sprite_comp.sprite = Some(current_sprite.clone());
         }
 
         // ----------------------------------------------------------

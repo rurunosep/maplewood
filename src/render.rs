@@ -171,8 +171,11 @@ impl Renderer<'_, '_> {
             }
 
             // Choose sprite to draw
-            let sprite =
-                sprite_component.forced_sprite.as_ref().unwrap_or(&sprite_component.sprite);
+            let Some(sprite) =
+                sprite_component.forced_sprite.as_ref().or(sprite_component.sprite.as_ref())
+            else {
+                continue;
+            };
 
             // If entity has a SineOffsetAnimation, offset sprite position accordingly
             let mut position = position.0.map_pos;
@@ -189,8 +192,8 @@ impl Renderer<'_, '_> {
             let screen_rect = SdlRect::new(
                 top_left_in_screen.x,
                 top_left_in_screen.y,
-                16 * SCREEN_SCALE,
-                16 * SCREEN_SCALE,
+                sprite.rect_in_spritesheet.width() * SCREEN_SCALE,
+                sprite.rect_in_spritesheet.width() * SCREEN_SCALE,
             );
 
             self.canvas

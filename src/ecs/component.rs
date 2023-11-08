@@ -5,6 +5,7 @@ use crate::world::{MapPos, MapUnits, WorldPos};
 use crate::Direction;
 use euclid::{Size2D, Vector2D};
 use sdl2::rect::Rect as SdlRect;
+use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
 pub struct Name(pub String);
@@ -22,7 +23,7 @@ pub struct Scripts(pub Vec<ScriptClass>);
 impl Component for Scripts {}
 
 pub struct SpriteComponent {
-    pub sprite: Sprite,
+    pub sprite: Option<Sprite>,
     pub forced_sprite: Option<Sprite>,
 }
 impl Component for SpriteComponent {}
@@ -34,15 +35,35 @@ pub struct Sprite {
     pub offset: Vector2D<i32, PixelUnits>,
 }
 
-pub struct WalkAnimComponent {
+pub struct CharacterAnimation {
+    pub state: CharacterAnimationState,
+    //
     pub up: AnimationClip,
     pub down: AnimationClip,
     pub left: AnimationClip,
     pub right: AnimationClip,
+    //
+    pub clips: HashMap<CharacterAnimationState, AnimationClip>,
+    //
     pub elapsed_time: Duration,
     pub playing: bool,
 }
-impl Component for WalkAnimComponent {}
+impl Component for CharacterAnimation {}
+
+#[derive(PartialEq, Eq, Hash)]
+pub enum CharacterAnimationState {
+    WalkLeft,
+    WalkRight,
+    WalkUp,
+    WalkDown,
+}
+
+pub struct ObjectAnimation {
+    pub clip: AnimationClip,
+    pub elapsed_time: Duration,
+    pub playing: bool,
+}
+impl Component for ObjectAnimation {}
 
 pub struct AnimationClip {
     pub frames: Vec<Sprite>,
