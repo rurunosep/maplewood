@@ -60,7 +60,7 @@ pub fn remove_entity_position(entity: String, ecs: &mut Ecs) -> LuaResult<()> {
 }
 
 pub fn set_forced_sprite(
-    (entity, spritesheet_name, rect_x, rect_y, rect_w, rect_h, offset_x, offset_y): (
+    (entity, spritesheet_name, rect_x, rect_y, rect_w, rect_h, anchor_x, anchor_y): (
         String,
         String,
         i32,
@@ -77,9 +77,9 @@ pub fn set_forced_sprite(
         .ok_or(ScriptError::InvalidEntity(entity))?;
 
     sprite_component.forced_sprite = Some(Sprite {
-        spritesheet_name,
-        rect_in_spritesheet: Rect::new(rect_x, rect_y, rect_w, rect_h),
-        offset: Vector2D::new(offset_x, offset_y),
+        spritesheet: spritesheet_name,
+        rect: Rect::new(rect_x, rect_y, rect_w, rect_h),
+        anchor: Point2D::new(anchor_x, anchor_y),
     });
 
     Ok(())
@@ -112,7 +112,10 @@ pub fn lock_player_input(
     // There's no way to tell if it's from input or other
     // It might be better to set speed to 0 at end of each update (if movement is not
     // being forced) and set it again in input processing as long as key is still held
-    ecs.query_one_with_id::<&mut Walking>(player_id).map(|mut w| w.speed = 0.);
+    if let Some(mut walking) = ecs.query_one_with_id::<&mut Walking>(player_id) {
+        walking.speed = 0.;
+    }
+
     Ok(())
 }
 
@@ -234,7 +237,7 @@ pub fn play_music(
 }
 
 pub fn stop_music(fade_out_time: f64) -> LuaResult<()> {
-    Music::fade_out((fade_out_time * 1000.) as i32).map_err(|e| ScriptError::Generic(e))?;
+    Music::fade_out((fade_out_time * 1000.) as i32).map_err(ScriptError::Generic)?;
     Ok(())
 }
 

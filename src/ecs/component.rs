@@ -3,9 +3,8 @@ use crate::render::PixelUnits;
 use crate::script::ScriptClass;
 use crate::world::{MapPos, MapUnits, WorldPos};
 use crate::Direction;
-use euclid::{Size2D, Vector2D};
+use euclid::{Point2D, Size2D, Vector2D};
 use sdl2::rect::Rect as SdlRect;
-use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
 pub struct Name(pub String);
@@ -22,6 +21,7 @@ impl Component for Facing {}
 pub struct Scripts(pub Vec<ScriptClass>);
 impl Component for Scripts {}
 
+#[derive(Default)]
 pub struct SpriteComponent {
     pub sprite: Option<Sprite>,
     pub forced_sprite: Option<Sprite>,
@@ -30,44 +30,41 @@ impl Component for SpriteComponent {}
 
 #[derive(Clone)]
 pub struct Sprite {
-    pub spritesheet_name: String,
-    pub rect_in_spritesheet: SdlRect,
-    pub offset: Vector2D<i32, PixelUnits>,
+    pub spritesheet: String,
+    pub rect: SdlRect,
+    pub anchor: Point2D<i32, PixelUnits>,
 }
 
-pub struct CharacterAnimation {
-    pub state: CharacterAnimationState,
-    //
-    pub up: AnimationClip,
-    pub down: AnimationClip,
-    pub left: AnimationClip,
-    pub right: AnimationClip,
-    //
-    pub clips: HashMap<CharacterAnimationState, AnimationClip>,
-    //
+pub struct AnimationComponent {
+    pub anim_set: AnimationSet,
     pub elapsed_time: Duration,
     pub playing: bool,
 }
-impl Component for CharacterAnimation {}
+impl Component for AnimationComponent {}
 
-#[derive(PartialEq, Eq, Hash)]
+pub enum AnimationSet {
+    Character {
+        state: CharacterAnimationState,
+        up: AnimationClip,
+        down: AnimationClip,
+        left: AnimationClip,
+        right: AnimationClip,
+    },
+    Single(AnimationClip),
+}
+
+// Repeat enum?
+pub struct AnimationClip {
+    pub frames: Vec<Sprite>,
+    pub seconds_per_frame: f64,
+}
+
+#[allow(clippy::enum_variant_names)]
 pub enum CharacterAnimationState {
     WalkLeft,
     WalkRight,
     WalkUp,
     WalkDown,
-}
-
-pub struct ObjectAnimation {
-    pub clip: AnimationClip,
-    pub elapsed_time: Duration,
-    pub playing: bool,
-}
-impl Component for ObjectAnimation {}
-
-pub struct AnimationClip {
-    pub frames: Vec<Sprite>,
-    pub seconds_per_frame: f64,
 }
 
 pub struct SineOffsetAnimation {

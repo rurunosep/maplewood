@@ -186,22 +186,20 @@ impl Renderer<'_, '_> {
                 position += offset;
             }
 
-            let top_left_in_screen =
-                map_pos_to_screen_top_left(position, Some(sprite.offset * SCREEN_SCALE as i32));
+            let top_left_in_screen = map_pos_to_screen_top_left(
+                position,
+                Some(sprite.anchor.to_vector() * -1 * SCREEN_SCALE as i32),
+            );
 
             let screen_rect = SdlRect::new(
                 top_left_in_screen.x,
                 top_left_in_screen.y,
-                sprite.rect_in_spritesheet.width() * SCREEN_SCALE,
-                sprite.rect_in_spritesheet.width() * SCREEN_SCALE,
+                sprite.rect.width() * SCREEN_SCALE,
+                sprite.rect.width() * SCREEN_SCALE,
             );
 
             self.canvas
-                .copy(
-                    self.spritesheets.get(&sprite.spritesheet_name).unwrap(),
-                    sprite.rect_in_spritesheet,
-                    screen_rect,
-                )
+                .copy(self.spritesheets.get(&sprite.spritesheet).unwrap(), sprite.rect, screen_rect)
                 .unwrap();
         }
     }
