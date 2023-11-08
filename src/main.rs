@@ -98,15 +98,10 @@ fn main() {
             }),
     );
 
-    let mut spritesheets: HashMap<String, Texture> = HashMap::new();
-    spritesheets.insert(
-        "characters".to_string(),
-        texture_creator.load_texture("assets/characters.png").unwrap(),
-    );
-    spritesheets.insert(
-        "bathroom_sink".to_string(),
-        texture_creator.load_texture("assets/bathroom_sink.png").unwrap(),
-    );
+    let spritesheets: HashMap<String, Texture> =
+        HashMap::from(["characters", "bathroom_sink", "bathroom_sink_2"].map(|name| {
+            (name.to_string(), texture_creator.load_texture(format!("assets/{name}.png")).unwrap())
+        }));
 
     #[allow(unused)]
     let mut cards: HashMap<String, Texture> = HashMap::new();
@@ -197,29 +192,6 @@ fn main() {
             },
             elapsed_time: Duration::from_secs(0),
             playing: false,
-        },
-    );
-
-    // Animated sink
-    let id = ecs.add_entity();
-    ecs.add_component(id, Position(WorldPos::new("bathroom", 13.0, 3.0)));
-    ecs.add_component(id, SpriteComponent { sprite: None, forced_sprite: None });
-
-    ecs.add_component(
-        id,
-        AnimationComponent {
-            anim_set: AnimationSet::Single(AnimationClip {
-                frames: (0..14)
-                    .map(|col| Sprite {
-                        spritesheet: "bathroom_sink".to_string(),
-                        rect: SdlRect::new(col * 32, 0, 32, 32),
-                        anchor: Point2D::new(16, 16),
-                    })
-                    .collect(),
-                seconds_per_frame: 0.1,
-            }),
-            elapsed_time: Duration::from_secs(0),
-            playing: true,
         },
     );
 

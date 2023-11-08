@@ -1,13 +1,16 @@
 // This might want to be in a module with ldtk_json.rs and other resource loading files
 // some day, rather than here with the entity files
 
+use super::component::{AnimationClip, AnimationComponent, AnimationSet, Sprite, SpriteComponent};
 use crate::ecs::component::{Collision, Name, Position, Scripts};
 use crate::ecs::Ecs;
 use crate::ldtk_json::{self};
 use crate::script::{self, ScriptClass, ScriptTrigger};
 use crate::world::WorldPos;
-use euclid::Size2D;
+use euclid::{Point2D, Size2D};
+use sdl2::rect::Rect as SdlRect;
 use serde::de::DeserializeOwned;
+use std::time::Duration;
 
 pub fn load_entities_from_ldtk(ecs: &mut Ecs, project: &ldtk_json::Project) {
     for ldtk_world in &project.worlds {
@@ -19,10 +22,12 @@ pub fn load_entities_from_ldtk(ecs: &mut Ecs, project: &ldtk_json::Project) {
                 .iter()
                 .flat_map(|layer| &layer.entity_instances)
             {
-                #[allow(clippy::single_match)]
                 match entity.identifier.as_str() {
                     "script" => {
                         load_script_entity(ecs, entity, ldtk_world, level);
+                    }
+                    "animated_object" => {
+                        load_animated_object_entity(ecs, entity, ldtk_world, level);
                     }
 
                     _ => {}
@@ -107,6 +112,60 @@ fn load_script_entity(
     );
 }
 
+fn load_animated_object_entity(
+    ecs: &mut Ecs,
+    entity: &ldtk_json::EntityInstance,
+    ldtk_world: &ldtk_json::World,
+    level: &ldtk_json::Level,
+) {
+    let id = ecs.add_entity();
+
+    // Position
+    let position = if ldtk_world.levels.iter().any(|l| l.identifier == "_world_map") {
+        Position(WorldPos::new(
+            &ldtk_world.identifier,
+            (entity.px[0] + level.world_x) as f64 / 16.,
+            (entity.px[1] + level.world_y) as f64 / 16.,
+        ))
+    } else {
+        Position(WorldPos::new(
+            &level.identifier,
+            entity.px[0] as f64 / 16.,
+            entity.px[1] as f64 / 16.,
+        ))
+    };
+    ecs.add_component(id, position);
+
+    // Sprite
+    ecs.add_component(id, SpriteComponent::default());
+
+    // Animation
+    let spritesheet = read_entity_field_string("spritesheet", entity).unwrap();
+    let num_frames = read_entity_field_i32("num_frames", entity).unwrap();
+    let seconds_per_frame = read_entity_field_f64("seconds_per_frame", entity).unwrap();
+
+    let w = entity.width;
+    let h = entity.height;
+
+    ecs.add_component(
+        id,
+        AnimationComponent {
+            anim_set: AnimationSet::Single(AnimationClip {
+                frames: (0..num_frames)
+                    .map(|col| Sprite {
+                        spritesheet: spritesheet.clone(),
+                        rect: SdlRect::new(col * w as i32, 0, w as u32, h as u32),
+                        anchor: Point2D::new(w as i32 / 2, h as i32 / 2),
+                    })
+                    .collect(),
+                seconds_per_frame,
+            }),
+            elapsed_time: Duration::from_secs(0),
+            playing: true,
+        },
+    );
+}
+
 fn read_entity_field_json<F>(field: &str, entity: &ldtk_json::EntityInstance) -> Option<F>
 where
     F: DeserializeOwned,
@@ -134,4 +193,29 @@ fn read_entity_field_string(field: &str, entity: &ldtk_json::EntityInstance) -> 
             _ => None,
         })
         .cloned()
+}
+
+fn read_entity_field_i32(field: &str, entity: &ldtk_json::EntityInstance) -> Option<i32> {
+    entity
+        .field_instances
+        .iter()
+        .find(|f| f.identifier == field)
+        .and_then(|f| f.value.as_ref())
+        .and_then(|v| match v {
+            serde_json::Value::Number(n) => n.as_i64(),
+            _ => None,
+        })
+        .map(|v| v as i32)
+}
+
+fn read_entity_field_f64(field: &str, entity: &ldtk_json::EntityInstance) -> Option<f64> {
+    entity
+        .field_instances
+        .iter()
+        .find(|f| f.identifier == field)
+        .and_then(|f| f.value.as_ref())
+        .and_then(|v| match v {
+            serde_json::Value::Number(n) => n.as_f64(),
+            _ => None,
+        })
 }
