@@ -166,7 +166,7 @@ impl Renderer<'_, '_> {
             .sorted_by(|(p1, ..), (p2, ..)| p1.0.map_pos.y.partial_cmp(&p2.0.map_pos.y).unwrap());
         for (position, sprite_component, sine_offset_animation) in sorted {
             // Skip entities not on the current map
-            if position.0.map_name != map.name {
+            if position.0.map != map.name {
                 continue;
             }
 
@@ -218,7 +218,7 @@ impl Renderer<'_, '_> {
             for row in map_bounds.min_y()..map_bounds.max_y() {
                 let cell_pos = CellPos::new(col, row);
 
-                for aabb in map.get_collision_aabbs_for_cell(cell_pos).iter().flatten() {
+                for aabb in map.collision_aabbs_for_cell(cell_pos).iter().flatten() {
                     let top_left =
                         map_pos_to_screen_top_left(Point2D::new(aabb.left, aabb.top), None);
 

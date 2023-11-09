@@ -5,7 +5,7 @@ use super::component::{AnimationClip, AnimationComponent, AnimationSet, Sprite, 
 use crate::ecs::component::{Collision, Name, Position, Scripts};
 use crate::ecs::Ecs;
 use crate::ldtk_json::{self};
-use crate::script::{self, ScriptClass, ScriptTrigger};
+use crate::script::{self, ScriptClass, Trigger};
 use crate::world::WorldPos;
 use euclid::{Point2D, Size2D};
 use sdl2::rect::Rect as SdlRect;
@@ -27,7 +27,7 @@ pub fn load_entities_from_ldtk(ecs: &mut Ecs, project: &ldtk_json::Project) {
                         load_script_entity(ecs, entity, ldtk_world, level);
                     }
                     "animated_object" => {
-                        load_animated_object_entity(ecs, entity, ldtk_world, level);
+                        load_animated_object(ecs, entity, ldtk_world, level);
                     }
 
                     _ => {}
@@ -71,32 +71,32 @@ fn load_script_entity(
     );
 
     // Name
-    if let Some(name) = read_entity_field_string("name", entity) {
+    if let Some(name) = read_field_string("name", entity) {
         ecs.add_component(id, Name(name));
     }
 
     // Script
-    let source = read_entity_field_string("external_source", entity)
+    let source = read_field_string("external_source", entity)
         .map(|s| {
-            let (file_name, subscript_label) = s.split_once(':').unwrap();
+            let (file_name, subscript_label) = s.split_once("::").unwrap();
             script::get_sub_script(
                 &std::fs::read_to_string(format!("assets/{file_name}.lua")).unwrap(),
                 subscript_label,
             )
         })
-        .or(read_entity_field_string("source", entity))
+        .or(read_field_string("source", entity))
         .unwrap();
 
-    let trigger = read_entity_field_string("trigger", entity).and_then(|f| match f.as_str() {
-        "interaction" => Some(ScriptTrigger::Interaction),
-        "soft_collision" => Some(ScriptTrigger::SoftCollision),
+    let trigger = read_field_string("trigger", entity).and_then(|f| match f.as_str() {
+        "interaction" => Some(Trigger::Interaction),
+        "soft_collision" => Some(Trigger::SoftCollision),
         _ => None,
     });
 
-    let start_condition = read_entity_field_json("start_condition", entity);
-    let abort_condition = read_entity_field_json("abort_condition", entity);
-    let set_on_start = read_entity_field_json("set_on_start", entity);
-    let set_on_finish = read_entity_field_json("set_on_finish", entity);
+    let start_condition = read_field_json("start_condition", entity);
+    let abort_condition = read_field_json("abort_condition", entity);
+    let set_on_start = read_field_json("set_on_start", entity);
+    let set_on_finish = read_field_json("set_on_finish", entity);
 
     ecs.add_component(
         id,
@@ -112,7 +112,7 @@ fn load_script_entity(
     );
 }
 
-fn load_animated_object_entity(
+fn load_animated_object(
     ecs: &mut Ecs,
     entity: &ldtk_json::EntityInstance,
     ldtk_world: &ldtk_json::World,
@@ -137,7 +137,7 @@ fn load_animated_object_entity(
     ecs.add_component(id, position);
 
     // Name
-    if let Some(name) = read_entity_field_string("name", entity) {
+    if let Some(name) = read_field_string("name", entity) {
         ecs.add_component(id, Name(name));
     }
 
@@ -145,12 +145,12 @@ fn load_animated_object_entity(
     ecs.add_component(id, SpriteComponent::default());
 
     // Animation
-    let spritesheet = read_entity_field_string("spritesheet", entity).unwrap();
+    let spritesheet = read_field_string("spritesheet", entity).unwrap();
     // TODO for reverse, just manually check last > first and apply .rev() to range
-    let first_frame = read_entity_field_i32("first_frame", entity).unwrap();
-    let last_frame = read_entity_field_i32("last_frame", entity).unwrap();
-    let seconds_per_frame = read_entity_field_f64("seconds_per_frame", entity).unwrap();
-    let (playing, repeat) = match read_entity_field_bool("repeating", entity).unwrap() {
+    let first_frame = read_field_i32("first_frame", entity).unwrap();
+    let last_frame = read_field_i32("last_frame", entity).unwrap();
+    let seconds_per_frame = read_field_f64("seconds_per_frame", entity).unwrap();
+    let (playing, repeat) = match read_field_bool("repeating", entity).unwrap() {
         true => (true, true),
         false => (false, false),
     };
@@ -178,7 +178,7 @@ fn load_animated_object_entity(
     );
 }
 
-fn read_entity_field_json<F>(field: &str, entity: &ldtk_json::EntityInstance) -> Option<F>
+fn read_field_json<F>(field: &str, entity: &ldtk_json::EntityInstance) -> Option<F>
 where
     F: DeserializeOwned,
 {
@@ -194,33 +194,31 @@ where
         .and_then(|v| serde_json::from_str::<F>(v).ok())
 }
 
-fn read_entity_field_string(field: &str, entity: &ldtk_json::EntityInstance) -> Option<String> {
+fn read_field_string(field: &str, entity: &ldtk_json::EntityInstance) -> Option<String> {
     entity
         .field_instances
         .iter()
         .find(|f| f.identifier == field)
         .and_then(|f| f.value.as_ref())
         .and_then(|v| match v {
-            serde_json::Value::String(s) => Some(s),
+            serde_json::Value::String(s) => Some(s.clone()),
             _ => None,
         })
-        .cloned()
 }
 
-fn read_entity_field_bool(field: &str, entity: &ldtk_json::EntityInstance) -> Option<bool> {
+fn read_field_bool(field: &str, entity: &ldtk_json::EntityInstance) -> Option<bool> {
     entity
         .field_instances
         .iter()
         .find(|f| f.identifier == field)
         .and_then(|f| f.value.as_ref())
         .and_then(|v| match v {
-            serde_json::Value::Bool(b) => Some(b),
+            serde_json::Value::Bool(b) => Some(*b),
             _ => None,
         })
-        .cloned()
 }
 
-fn read_entity_field_i32(field: &str, entity: &ldtk_json::EntityInstance) -> Option<i32> {
+fn read_field_i32(field: &str, entity: &ldtk_json::EntityInstance) -> Option<i32> {
     entity
         .field_instances
         .iter()
@@ -233,7 +231,7 @@ fn read_entity_field_i32(field: &str, entity: &ldtk_json::EntityInstance) -> Opt
         .map(|v| v as i32)
 }
 
-fn read_entity_field_f64(field: &str, entity: &ldtk_json::EntityInstance) -> Option<f64> {
+fn read_field_f64(field: &str, entity: &ldtk_json::EntityInstance) -> Option<f64> {
     entity
         .field_instances
         .iter()

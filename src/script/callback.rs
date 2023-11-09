@@ -1,11 +1,11 @@
-use super::{ScriptError, ScriptId, WaitCondition};
+use super::{Error, ScriptId, WaitCondition};
 use crate::ecs::component::{
     AnimationComponent, Collision, Facing, Position, SineOffsetAnimation, Sprite, SpriteComponent,
     Walking,
 };
 use crate::ecs::{Ecs, EntityId};
 use crate::world::WorldPos;
-use crate::{Direction, MapOverlayColorTransition, MessageWindow};
+use crate::{Direction, MapOverlayTransition, MessageWindow};
 use euclid::{Point2D, Vector2D};
 use rlua::Result as LuaResult;
 use sdl2::mixer::{Chunk, Music};
@@ -15,7 +15,7 @@ use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
 pub fn get_story_var(key: String, story_vars: &HashMap<String, i32>) -> LuaResult<i32> {
-    let val = story_vars.get(&key).copied().ok_or(ScriptError::InvalidStoryVar(key))?;
+    let val = story_vars.get(&key).copied().ok_or(Error::NoStoryVar(key))?;
     Ok(val)
 }
 
@@ -28,16 +28,14 @@ pub fn set_story_var(
 }
 
 pub fn get_entity_map_pos(entity: String, ecs: &Ecs) -> LuaResult<(f64, f64)> {
-    let position =
-        ecs.query_one_with_name::<&Position>(&entity).ok_or(ScriptError::InvalidEntity(entity))?;
+    let position = ecs.query_one_with_name::<&Position>(&entity).ok_or(Error::NoEntity(entity))?;
     Ok((position.0.map_pos.x, position.0.map_pos.y))
 }
 
 // Requires entity to have a position component already, since map is omitted
 pub fn set_entity_map_pos((entity, x, y): (String, f64, f64), ecs: &Ecs) -> LuaResult<()> {
-    let mut position = ecs
-        .query_one_with_name::<&mut Position>(&entity)
-        .ok_or(ScriptError::InvalidEntity(entity))?;
+    let mut position =
+        ecs.query_one_with_name::<&mut Position>(&entity).ok_or(Error::NoEntity(entity))?;
     position.0.map_pos = Point2D::new(x, y);
     Ok(())
 }
@@ -47,15 +45,13 @@ pub fn set_entity_world_pos(
     (entity, map, x, y): (String, String, f64, f64),
     ecs: &mut Ecs,
 ) -> LuaResult<()> {
-    let entity_id =
-        ecs.query_one_with_name::<EntityId>(&entity).ok_or(ScriptError::InvalidEntity(entity))?;
+    let entity_id = ecs.query_one_with_name::<EntityId>(&entity).ok_or(Error::NoEntity(entity))?;
     ecs.add_component(entity_id, Position(WorldPos::new(&map, x, y)));
     Ok(())
 }
 
 pub fn remove_entity_position(entity: String, ecs: &mut Ecs) -> LuaResult<()> {
-    let id =
-        ecs.query_one_with_name::<EntityId>(&entity).ok_or(ScriptError::InvalidEntity(entity))?;
+    let id = ecs.query_one_with_name::<EntityId>(&entity).ok_or(Error::NoEntity(entity))?;
     ecs.remove_component::<Position>(id);
     Ok(())
 }
@@ -73,9 +69,8 @@ pub fn set_forced_sprite(
     ),
     ecs: &Ecs,
 ) -> LuaResult<()> {
-    let mut sprite_component = ecs
-        .query_one_with_name::<&mut SpriteComponent>(&entity)
-        .ok_or(ScriptError::InvalidEntity(entity))?;
+    let mut sprite_component =
+        ecs.query_one_with_name::<&mut SpriteComponent>(&entity).ok_or(Error::NoEntity(entity))?;
 
     sprite_component.forced_sprite = Some(Sprite {
         spritesheet: spritesheet_name,
@@ -87,17 +82,15 @@ pub fn set_forced_sprite(
 }
 
 pub fn remove_forced_sprite(entity: String, ecs: &Ecs) -> LuaResult<()> {
-    let mut sprite_component = ecs
-        .query_one_with_name::<&mut SpriteComponent>(&entity)
-        .ok_or(ScriptError::InvalidEntity(entity))?;
+    let mut sprite_component =
+        ecs.query_one_with_name::<&mut SpriteComponent>(&entity).ok_or(Error::NoEntity(entity))?;
     sprite_component.forced_sprite = None;
     Ok(())
 }
 
 pub fn set_entity_solid((entity, enabled): (String, bool), ecs: &Ecs) -> LuaResult<()> {
-    let mut collision = ecs
-        .query_one_with_name::<&mut Collision>(&entity)
-        .ok_or(ScriptError::InvalidEntity(entity))?;
+    let mut collision =
+        ecs.query_one_with_name::<&mut Collision>(&entity).ok_or(Error::NoEntity(entity))?;
     collision.solid = enabled;
     Ok(())
 }
@@ -126,14 +119,14 @@ pub fn walk(
 ) -> LuaResult<()> {
     let (position, mut facing, mut walking) = ecs
         .query_one_with_name::<(&Position, &mut Facing, &mut Walking)>(&entity)
-        .ok_or(ScriptError::InvalidEntity(entity))?;
+        .ok_or(Error::NoEntity(entity))?;
 
     walking.direction = match direction.as_str() {
         "up" => Ok(Direction::Up),
         "down" => Ok(Direction::Down),
         "left" => Ok(Direction::Left),
         "right" => Ok(Direction::Right),
-        s => Err(ScriptError::Generic(format!("{s} is not a valid direction"))),
+        s => Err(Error::Generic(format!("{s} is not a valid direction"))),
     }?;
 
     walking.speed = speed;
@@ -159,14 +152,14 @@ pub fn walk_to(
 ) -> LuaResult<()> {
     let (position, mut facing, mut walking) = ecs
         .query_one_with_name::<(&Position, &mut Facing, &mut Walking)>(&entity)
-        .ok_or(ScriptError::InvalidEntity(entity))?;
+        .ok_or(Error::NoEntity(entity))?;
 
     walking.direction = match direction.as_str() {
         "up" => Ok(Direction::Up),
         "down" => Ok(Direction::Down),
         "left" => Ok(Direction::Left),
         "right" => Ok(Direction::Right),
-        s => Err(ScriptError::Generic(format!("{s} is not a valid direction"))),
+        s => Err(Error::NoEntity(format!("{s} is not a valid direction"))),
     }?;
 
     walking.speed = speed;
@@ -182,8 +175,7 @@ pub fn walk_to(
 }
 
 pub fn is_entity_walking(entity: String, ecs: &Ecs) -> LuaResult<bool> {
-    let walking =
-        ecs.query_one_with_name::<&Walking>(&entity).ok_or(ScriptError::InvalidEntity(entity))?;
+    let walking = ecs.query_one_with_name::<&Walking>(&entity).ok_or(Error::NoEntity(entity))?;
     Ok(walking.destination.is_some())
 }
 
@@ -191,7 +183,7 @@ pub fn is_entity_walking(entity: String, ecs: &Ecs) -> LuaResult<bool> {
 pub fn play_object_animation((entity, repeat): (String, bool), ecs: &Ecs) -> LuaResult<()> {
     let mut anim_comp = ecs
         .query_one_with_name::<&mut AnimationComponent>(&entity)
-        .ok_or(ScriptError::InvalidEntity(entity))?;
+        .ok_or(Error::NoEntity(entity))?;
 
     anim_comp.playing = true;
     anim_comp.repeat = repeat;
@@ -202,7 +194,7 @@ pub fn play_object_animation((entity, repeat): (String, bool), ecs: &Ecs) -> Lua
 pub fn stop_object_animation(entity: String, ecs: &Ecs) -> LuaResult<()> {
     let mut anim_comp = ecs
         .query_one_with_name::<&mut AnimationComponent>(&entity)
-        .ok_or(ScriptError::InvalidEntity(entity))?;
+        .ok_or(Error::NoEntity(entity))?;
 
     anim_comp.playing = false;
     anim_comp.repeat = false;
@@ -211,8 +203,7 @@ pub fn stop_object_animation(entity: String, ecs: &Ecs) -> LuaResult<()> {
 }
 
 pub fn anim_quiver((entity, duration): (String, f64), ecs: &mut Ecs) -> LuaResult<()> {
-    let id =
-        ecs.query_one_with_name::<EntityId>(&entity).ok_or(ScriptError::InvalidEntity(entity))?;
+    let id = ecs.query_one_with_name::<EntityId>(&entity).ok_or(Error::NoEntity(entity))?;
 
     ecs.add_component(
         id,
@@ -229,8 +220,7 @@ pub fn anim_quiver((entity, duration): (String, f64), ecs: &mut Ecs) -> LuaResul
 }
 
 pub fn anim_jump(entity: String, ecs: &mut Ecs) -> LuaResult<()> {
-    let id =
-        ecs.query_one_with_name::<EntityId>(&entity).ok_or(ScriptError::InvalidEntity(entity))?;
+    let id = ecs.query_one_with_name::<EntityId>(&entity).ok_or(Error::NoEntity(entity))?;
 
     ecs.add_component(
         id,
@@ -261,16 +251,16 @@ pub fn play_music(
 }
 
 pub fn stop_music(fade_out_time: f64) -> LuaResult<()> {
-    Music::fade_out((fade_out_time * 1000.) as i32).map_err(ScriptError::Generic)?;
+    Music::fade_out((fade_out_time * 1000.) as i32).map_err(Error::NoEntity)?;
     Ok(())
 }
 
 pub fn set_map_overlay_color(
     (r, g, b, a, duration): (u8, u8, u8, u8, f64),
-    map_overlay_color_transition: &mut Option<MapOverlayColorTransition>,
+    map_overlay_color_transition: &mut Option<MapOverlayTransition>,
     map_overlay_color: Color,
 ) -> LuaResult<()> {
-    *map_overlay_color_transition = Some(MapOverlayColorTransition {
+    *map_overlay_color_transition = Some(MapOverlayTransition {
         start_time: Instant::now(),
         duration: Duration::from_secs_f64(duration),
         start_color: map_overlay_color,

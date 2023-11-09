@@ -3225,7 +3225,7 @@
 									{ "__identifier": "source", "__type": "String", "__value": "if get_story_var(\"sink_1::running\") == 1 then\n  stop_object_animation(\"sink_1\")\n  set_story_var(\"sink_1::running\", 0)\nelse\n  play_object_animation(\"sink_1\", true)\n  set_story_var(\"sink_1::running\", 1)\nend", "__tile": null, "defUid": 753, "realEditorValues": [{
 										"id": "V_String",
 										"params": [
-											"if get_story_var(\"sink_1::running\") == 1 then\\n  stop_object_animation(\"sink_1\")\\n  set_story_var(\"sink_1::running\", 0)\\nelse\\n  play_object_animation(\"sink_1\", true)\\n  set_story_var(\"sink_1::running\", 1)\\nend"
+											"if get_story_var(\"sink_1::running\") == 1 then\n  stop_object_animation(\"sink_1\")\n  set_story_var(\"sink_1::running\", 0)\nelse\n  play_object_animation(\"sink_1\", true)\n  set_story_var(\"sink_1::running\", 1)\nend"
 										]
 									}] },
 									{ "__identifier": "external_source", "__type": "String", "__value": null, "__tile": null, "defUid": 790, "realEditorValues": [] },
@@ -3258,7 +3258,7 @@
 									{ "__identifier": "source", "__type": "String", "__value": "if get_story_var(\"sink_1::running\") == 1 then\n  stop_object_animation(\"sink_1\")\n  set_story_var(\"sink_1::running\", 0)\nelse\n  play_object_animation(\"sink_1\", true)\n  set_story_var(\"sink_1::running\", 1)\nend", "__tile": null, "defUid": 753, "realEditorValues": [{
 										"id": "V_String",
 										"params": [
-											"if get_story_var(\"sink_1::running\") == 1 then\\n  stop_object_animation(\"sink_1\")\\n  set_story_var(\"sink_1::running\", 0)\\nelse\\n  play_object_animation(\"sink_1\", true)\\n  set_story_var(\"sink_1::running\", 1)\\nend"
+											"if get_story_var(\"sink_1::running\") == 1 then\n  stop_object_animation(\"sink_1\")\n  set_story_var(\"sink_1::running\", 0)\nelse\n  play_object_animation(\"sink_1\", true)\n  set_story_var(\"sink_1::running\", 1)\nend"
 										]
 									}] },
 									{ "__identifier": "external_source", "__type": "String", "__value": null, "__tile": null, "defUid": 790, "realEditorValues": [] },
@@ -3291,7 +3291,7 @@
 									{ "__identifier": "source", "__type": "String", "__value": "if get_story_var(\"sink_2::running\") == 1 then\n  stop_object_animation(\"sink_2\")\n  set_story_var(\"sink_2::running\", 0)\nelse\n  play_object_animation(\"sink_2\", true)\n  set_story_var(\"sink_2::running\", 1)\nend", "__tile": null, "defUid": 753, "realEditorValues": [{
 										"id": "V_String",
 										"params": [
-											"if get_story_var(\"sink_2::running\") == 1 then\\n  stop_object_animation(\"sink_2\")\\n  set_story_var(\"sink_2::running\", 0)\\nelse\\n  play_object_animation(\"sink_2\", true)\\n  set_story_var(\"sink_2::running\", 1)\\nend"
+											"if get_story_var(\"sink_2::running\") == 1 then\n  stop_object_animation(\"sink_2\")\n  set_story_var(\"sink_2::running\", 0)\nelse\n  play_object_animation(\"sink_2\", true)\n  set_story_var(\"sink_2::running\", 1)\nend"
 										]
 									}] },
 									{ "__identifier": "external_source", "__type": "String", "__value": null, "__tile": null, "defUid": 790, "realEditorValues": [] },
@@ -3324,7 +3324,7 @@
 									{ "__identifier": "source", "__type": "String", "__value": "if get_story_var(\"sink_2::running\") == 1 then\n  stop_object_animation(\"sink_2\")\n  set_story_var(\"sink_2::running\", 0)\nelse\n  play_object_animation(\"sink_2\", true)\n  set_story_var(\"sink_2::running\", 1)\nend", "__tile": null, "defUid": 753, "realEditorValues": [{
 										"id": "V_String",
 										"params": [
-											"if get_story_var(\"sink_2::running\") == 1 then\\n  stop_object_animation(\"sink_2\")\\n  set_story_var(\"sink_2::running\", 0)\\nelse\\n  play_object_animation(\"sink_2\", true)\\n  set_story_var(\"sink_2::running\", 1)\\nend"
+											"if get_story_var(\"sink_2::running\") == 1 then\n  stop_object_animation(\"sink_2\")\n  set_story_var(\"sink_2::running\", 0)\nelse\n  play_object_animation(\"sink_2\", true)\n  set_story_var(\"sink_2::running\", 1)\nend"
 										]
 									}] },
 									{ "__identifier": "external_source", "__type": "String", "__value": null, "__tile": null, "defUid": 790, "realEditorValues": [] },
@@ -5476,9 +5476,9 @@
 								"fieldInstances": [
 									{ "__identifier": "name", "__type": "String", "__value": null, "__tile": null, "defUid": 756, "realEditorValues": [] },
 									{ "__identifier": "source", "__type": "String", "__value": "", "__tile": null, "defUid": 753, "realEditorValues": [null] },
-									{ "__identifier": "external_source", "__type": "String", "__value": "scripts:grab_a_bun", "__tile": null, "defUid": 790, "realEditorValues": [{
+									{ "__identifier": "external_source", "__type": "String", "__value": "scripts::grab_a_bun", "__tile": null, "defUid": 790, "realEditorValues": [{
 										"id": "V_String",
-										"params": ["scripts:grab_a_bun"]
+										"params": ["scripts::grab_a_bun"]
 									}] },
 									{ "__identifier": "trigger", "__type": "LocalEnum.script_trigger", "__value": "interaction", "__tile": null, "defUid": 788, "realEditorValues": [{
 										"id": "V_String",

@@ -15,7 +15,7 @@ use ecs::component::{
 use ecs::{Ecs, EntityId};
 use euclid::{Point2D, Rect, Size2D, Vector2D};
 use render::{Renderer, SCREEN_COLS, SCREEN_ROWS, SCREEN_SCALE, TILE_SIZE};
-use script::{ScriptId, ScriptInstanceManager, ScriptTrigger};
+use script::{ScriptId, ScriptManager, Trigger};
 use sdl2::event::Event;
 use sdl2::image::LoadTexture;
 use sdl2::keyboard::Keycode;
@@ -46,7 +46,7 @@ pub struct MessageWindow {
 }
 
 // Where does this go? RenderData?
-pub struct MapOverlayColorTransition {
+pub struct MapOverlayTransition {
     start_time: Instant,
     duration: Duration,
     start_color: Color,
@@ -66,8 +66,8 @@ fn main() {
     }
 
     let sdl_context = sdl2::init().unwrap();
-    let _image_context = sdl2::image::init(sdl2::image::InitFlag::PNG).unwrap();
-    let _audio_subsystem = sdl_context.audio().unwrap();
+    sdl2::image::init(sdl2::image::InitFlag::PNG).unwrap();
+    sdl_context.audio().unwrap();
     let ttf_context = sdl2::ttf::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
     let mut event_pump = sdl_context.event_pump().unwrap();
@@ -223,12 +223,11 @@ fn main() {
     story_vars.insert("sink_1::running".to_string(), 0);
     story_vars.insert("sink_2::running".to_string(), 0);
 
-    let mut script_instance_manager =
-        ScriptInstanceManager { script_instances: SlotMap::with_key() };
+    let mut script_manager = ScriptManager { instances: SlotMap::with_key() };
 
     let mut message_window: Option<MessageWindow> = None;
     let mut player_movement_locked = false;
-    let mut map_overlay_color_transition: Option<MapOverlayColorTransition> = None;
+    let mut map_overlay_transition: Option<MapOverlayTransition> = None;
 
     // --------------------------------------------------------------
     // Scratchpad
@@ -294,7 +293,7 @@ fn main() {
                 {
                     input::choose_message_window_option(
                         &mut message_window,
-                        &mut script_instance_manager,
+                        &mut script_manager,
                         keycode,
                     );
                 }
@@ -306,7 +305,7 @@ fn main() {
                         message_window = None;
                     } else {
                         input::trigger_interaction_scripts(
-                            &mut script_instance_manager,
+                            &mut script_manager,
                             &mut story_vars,
                             &ecs,
                             player_id,
@@ -327,21 +326,21 @@ fn main() {
             for script in scripts
                 .0
                 .iter()
-                .filter(|script| script.trigger == Some(ScriptTrigger::Auto))
+                .filter(|script| script.trigger == Some(Trigger::Auto))
                 .filter(|script| script.is_start_condition_fulfilled(&story_vars))
                 .collect::<Vec<_>>()
             {
-                script_instance_manager.start_script(script, &mut story_vars);
+                script_manager.start_script(script, &mut story_vars);
             }
         }
 
         // Update script execution
-        for script in script_instance_manager.script_instances.values_mut() {
+        for script in script_manager.instances.values_mut() {
             #[rustfmt::skip]
             script.update(
                 &mut story_vars, &mut ecs,
                 &mut message_window, &mut player_movement_locked,
-                &mut map_overlay_color_transition, renderer.map_overlay_color,
+                &mut map_overlay_transition, renderer.map_overlay_color,
                 &mut renderer.show_cutscene_border,
                 &mut renderer.displayed_card_name,
                 &mut running, &musics, &sound_effects, player_id
@@ -355,7 +354,7 @@ fn main() {
             }
         }
         // Remove finished scripts
-        script_instance_manager.script_instances.retain(|_, script| !script.finished);
+        script_manager.instances.retain(|_, script| !script.finished);
 
         // Stop player if message window is open (and movement is from input rather than forced)
         // I really have to rework this already...
@@ -367,18 +366,18 @@ fn main() {
         }
 
         // Move entities and resolve collisions
-        update_walking_entities(&ecs, &world, &mut script_instance_manager, &mut story_vars);
+        update_walking_entities(&ecs, &world, &mut script_manager, &mut story_vars);
 
         // Start player soft collision scripts
-        let (player_aabb, player_map_name) = {
+        let (player_aabb, player_map) = {
             let (pos, coll) = ecs.query_one_with_id::<(&Position, &Collision)>(player_id).unwrap();
-            (AABB::from_pos_and_hitbox(pos.0.map_pos, coll.hitbox), pos.0.map_name.clone())
+            (AABB::from_pos_and_hitbox(pos.0.map_pos, coll.hitbox), pos.0.map.clone())
         };
         // For each entity colliding with the player...
-        for (_, _, scripts) in ecs
+        for (.., scripts) in ecs
             .query::<(&Position, &Collision, &Scripts)>()
-            .filter(|(pos, _, _)| pos.0.map_name == player_map_name)
-            .filter(|(pos, coll, _)| {
+            .filter(|(pos, ..)| pos.0.map == player_map)
+            .filter(|(pos, coll, ..)| {
                 AABB::from_pos_and_hitbox(pos.0.map_pos, coll.hitbox).is_colliding(&player_aabb)
             })
         {
@@ -386,11 +385,11 @@ fn main() {
             for script in scripts
                 .0
                 .iter()
-                .filter(|script| script.trigger == Some(ScriptTrigger::SoftCollision))
+                .filter(|script| script.trigger == Some(Trigger::SoftCollision))
                 .filter(|script| script.is_start_condition_fulfilled(&story_vars))
                 .collect::<Vec<_>>()
             {
-                script_instance_manager.start_script(script, &mut story_vars);
+                script_manager.start_script(script, &mut story_vars);
             }
         }
 
@@ -468,8 +467,8 @@ fn main() {
         ecs.flush_deferred_mutations();
 
         // Update map overlay color
-        if let Some(MapOverlayColorTransition { start_time, duration, start_color, end_color }) =
-            &map_overlay_color_transition
+        if let Some(MapOverlayTransition { start_time, duration, start_color, end_color }) =
+            &map_overlay_transition
         {
             let interp = start_time.elapsed().div_duration_f64(*duration).min(1.0);
             let r = ((end_color.r - start_color.r) as f64 * interp + start_color.r as f64) as u8;
@@ -479,7 +478,7 @@ fn main() {
             renderer.map_overlay_color = Color::RGBA(r, g, b, a);
 
             if start_time.elapsed() > *duration {
-                map_overlay_color_transition = None;
+                map_overlay_transition = None;
             }
         }
 
@@ -490,7 +489,7 @@ fn main() {
         // Camera could be an entity with a position component
         // map_to_render is camera's world pos' map
         let player_position = &ecs.query_one_with_id::<&Position>(player_id).unwrap().0;
-        let map_to_render = world.maps.get(&player_position.map_name).unwrap();
+        let map_to_render = world.maps.get(&player_position.map).unwrap();
         let mut camera_position = player_position.map_pos;
 
         // Clamp camera to map
@@ -553,13 +552,12 @@ mod input {
 
     pub fn choose_message_window_option(
         message_window: &mut Option<MessageWindow>,
-        script_instance_manager: &mut ScriptInstanceManager,
+        script_manager: &mut ScriptManager,
         keycode: Keycode,
     ) {
         if let Some(message_window) = &*message_window
             && message_window.is_selection
-            && let Some(script) =
-                script_instance_manager.script_instances.get_mut(message_window.waiting_script_id)
+            && let Some(script) = script_manager.instances.get_mut(message_window.waiting_script_id)
         {
             // I want to redo how window<->script communcation works
             script.input = match keycode {
@@ -575,7 +573,7 @@ mod input {
 
     // TODO interaction script triggering based on script entity hitbox rather than cell
     pub fn trigger_interaction_scripts(
-        script_instance_manager: &mut ScriptInstanceManager,
+        script_manager: &mut ScriptManager,
         story_vars: &mut HashMap<String, i32>,
         ecs: &Ecs,
         player_id: EntityId,
@@ -599,11 +597,11 @@ mod input {
             for script in scripts
                 .0
                 .iter()
-                .filter(|script| script.trigger == Some(ScriptTrigger::Interaction))
+                .filter(|script| script.trigger == Some(Trigger::Interaction))
                 .filter(|script| script.is_start_condition_fulfilled(&*story_vars))
                 .collect::<Vec<_>>()
             {
-                script_instance_manager.start_script(script, story_vars);
+                script_manager.start_script(script, story_vars);
             }
         }
     }
@@ -616,7 +614,7 @@ mod input {
 fn update_walking_entities(
     ecs: &Ecs,
     world: &World,
-    script_instance_manager: &mut ScriptInstanceManager,
+    script_manager: &mut ScriptManager,
     story_vars: &mut HashMap<String, i32>,
 ) {
     for (id, mut position, mut walking, collision) in
@@ -661,7 +659,7 @@ fn update_walking_entities(
             for cell_aabb in cellposes_to_check
                 .iter()
                 .flat_map(|cp| {
-                    world.maps.get(&position.0.map_name).unwrap().get_collision_aabbs_for_cell(*cp)
+                    world.maps.get(&position.0.map).unwrap().collision_aabbs_for_cell(*cp)
                 })
                 .flatten()
             {
@@ -675,10 +673,10 @@ fn update_walking_entities(
 
             // Resolve collisions with all solid entities except this one
             for (other_pos, other_coll, other_scripts) in
-                ecs.query_except_id::<(&Position, &Collision, Option<&Scripts>)>(id)
+                ecs.query_except::<(&Position, &Collision, Option<&Scripts>)>(id)
             {
                 // Skip checking against entities not on the current map or not solid
-                if other_pos.0.map_name != position.0.map_name || !other_coll.solid {
+                if other_pos.0.map != position.0.map || !other_coll.solid {
                     continue;
                 }
 
@@ -692,18 +690,18 @@ fn update_walking_entities(
                     for script in scripts
                         .0
                         .iter()
-                        .filter(|script| script.trigger == Some(ScriptTrigger::Auto))
+                        .filter(|script| script.trigger == Some(Trigger::Auto))
                         .filter(|script| script.is_start_condition_fulfilled(story_vars))
                         .collect::<Vec<_>>()
                     {
-                        script_instance_manager.start_script(script, story_vars);
+                        script_manager.start_script(script, story_vars);
                     }
                 }
 
                 new_aabb.resolve_collision(&old_aabb, &other_aabb);
             }
 
-            new_position = new_aabb.get_center();
+            new_position = new_aabb.center();
         }
 
         // Update position after collision resolution
@@ -784,7 +782,7 @@ impl AABB {
         }
     }
 
-    pub fn get_center(&self) -> MapPos {
+    pub fn center(&self) -> MapPos {
         Point2D::new((self.left + self.right) / 2., (self.top + self.bottom) / 2.)
     }
 }

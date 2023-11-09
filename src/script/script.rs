@@ -1,6 +1,6 @@
 use super::callback;
 use crate::ecs::{Ecs, EntityId};
-use crate::{MapOverlayColorTransition, MessageWindow};
+use crate::{MapOverlayTransition, MessageWindow};
 use rlua::{Error as LuaError, Function, Lua, Result as LuaResult, Thread, ThreadStatus};
 use sdl2::mixer::{Chunk, Music};
 use sdl2::pixels::Color;
@@ -8,24 +8,25 @@ use serde::Deserialize;
 use slotmap::{new_key_type, SlotMap};
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::error::Error;
+use std::error::Error as StdError;
 use std::fmt::{self, Display};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 new_key_type! { pub struct ScriptId; }
 
-pub struct ScriptInstanceManager {
-    pub script_instances: SlotMap<ScriptId, ScriptInstance>,
+// Rename?
+pub struct ScriptManager {
+    pub instances: SlotMap<ScriptId, ScriptInstance>,
 }
 
-impl ScriptInstanceManager {
+impl ScriptManager {
     pub fn start_script(
         &mut self,
         script_class: &ScriptClass,
         story_vars: &mut HashMap<String, i32>,
     ) {
-        self.script_instances.insert_with_key(|id| ScriptInstance::new(script_class.clone(), id));
+        self.instances.insert_with_key(|id| ScriptInstance::new(script_class.clone(), id));
 
         if let Some((var, value)) = &script_class.set_on_start {
             *story_vars.get_mut(var).unwrap() = *value;
@@ -34,35 +35,37 @@ impl ScriptInstanceManager {
 }
 
 #[derive(Debug)]
-pub enum ScriptError {
+pub enum Error {
     Generic(String),
-    InvalidStoryVar(String),
-    InvalidEntity(String),
+    NoEntity(String),
+    NoStoryVar(String),
 }
 
-impl Error for ScriptError {}
+impl StdError for Error {}
 
-impl Display for ScriptError {
+impl Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ScriptError::Generic(message) => write!(f, "{message}"),
-            ScriptError::InvalidStoryVar(var) => write!(f, "no story var \"{var}\""),
-            ScriptError::InvalidEntity(name) => {
-                write!(f, "no entity \"{name}\" with necessary components")
+            Error::Generic(message) => write!(f, "{message}"),
+            Error::NoEntity(message) => {
+                write!(f, "no entity \"{message}\" with necessary components")
+            }
+            Error::NoStoryVar(message) => {
+                write!(f, "no story var \"{message}\"")
             }
         }
     }
 }
 
-impl From<ScriptError> for LuaError {
-    fn from(err: ScriptError) -> Self {
+impl From<Error> for LuaError {
+    fn from(err: Error) -> Self {
         LuaError::ExternalError(Arc::new(err))
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[allow(dead_code)]
-pub enum ScriptTrigger {
+pub enum Trigger {
     Interaction,
     // Rename these two?
     SoftCollision, // player is "colliding" AFTER movement update
@@ -71,7 +74,7 @@ pub enum ScriptTrigger {
 }
 
 #[derive(Debug, Clone, Deserialize)]
-pub struct ScriptCondition {
+pub struct StartAbortCondition {
     pub story_var: String,
     pub value: i32,
     // This could also have an enum for eq, gt, lt, ne...
@@ -84,13 +87,14 @@ pub enum WaitCondition {
     StoryVar(String, i32),
 }
 
+// Rename (Definition?)
 #[derive(Debug, Clone, Default)]
 pub struct ScriptClass {
     pub source: String,
     pub label: Option<String>,
-    pub trigger: Option<ScriptTrigger>,
-    pub start_condition: Option<ScriptCondition>,
-    pub abort_condition: Option<ScriptCondition>,
+    pub trigger: Option<Trigger>,
+    pub start_condition: Option<StartAbortCondition>,
+    pub abort_condition: Option<StartAbortCondition>,
     // Story vars to set automatically on script start and finish.
     // Useful in combination with start_condition to ensure that Auto
     // and SoftCollision scripts don't start extra instances every frame.
@@ -107,7 +111,7 @@ pub struct ScriptClass {
 impl ScriptClass {
     pub fn is_start_condition_fulfilled(&self, story_vars: &HashMap<String, i32>) -> bool {
         match &self.start_condition {
-            Some(ScriptCondition { story_var, value }) => {
+            Some(StartAbortCondition { story_var, value }) => {
                 story_vars.get(story_var).unwrap_or_else(|| panic!("no story var \"{story_var}\""))
                     == value
             }
@@ -116,6 +120,7 @@ impl ScriptClass {
     }
 }
 
+// Rename (Instance?)
 pub struct ScriptInstance {
     pub lua_instance: Lua,
     pub script_class: ScriptClass,
@@ -205,7 +210,7 @@ impl ScriptInstance {
         ecs: &mut Ecs,
         message_window: &mut Option<MessageWindow>,
         player_movement_locked: &mut bool,
-        map_overlay_color_transition: &mut Option<MapOverlayColorTransition>,
+        map_overlay_color_transition: &mut Option<MapOverlayTransition>,
         map_overlay_color: Color,
         cutscene_border: &mut bool,
         displayed_card_name: &mut Option<String>,
@@ -503,6 +508,8 @@ pub fn get_sub_script(full_source: &str, label: &str) -> String {
     let (between_label_and_end, _) = after_label.split_once("--#").unwrap();
     between_label_and_end.to_string()
 }
+
+// bind_callback!(get_story_var, &story_vars);
 
 // Rework eventually with the new architecture I've been thinking of:
 // ScriptClass references a function rather than holding a source string

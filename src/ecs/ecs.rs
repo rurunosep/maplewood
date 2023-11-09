@@ -61,7 +61,7 @@ impl Ecs {
         Box::new(self.filter::<Q>().map(|id| Q::borrow(id, &self.component_maps)))
     }
 
-    pub fn query_except_id<Q>(&self, except: EntityId) -> QueryResultIter<Q>
+    pub fn query_except<Q>(&self, except: EntityId) -> QueryResultIter<Q>
     where
         Q: Query,
     {
