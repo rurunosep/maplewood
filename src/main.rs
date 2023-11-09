@@ -371,14 +371,14 @@ fn main() {
         // Start player soft collision scripts
         let (player_aabb, player_map) = {
             let (pos, coll) = ecs.query_one_with_id::<(&Position, &Collision)>(player_id).unwrap();
-            (AABB::from_pos_and_hitbox(pos.0.map_pos, coll.hitbox), pos.0.map.clone())
+            (AABB::new(pos.0.map_pos, coll.hitbox), pos.0.map.clone())
         };
         // For each entity colliding with the player...
         for (.., scripts) in ecs
             .query::<(&Position, &Collision, &Scripts)>()
             .filter(|(pos, ..)| pos.0.map == player_map)
             .filter(|(pos, coll, ..)| {
-                AABB::from_pos_and_hitbox(pos.0.map_pos, coll.hitbox).is_colliding(&player_aabb)
+                AABB::new(pos.0.map_pos, coll.hitbox).intersects(&player_aabb)
             })
         {
             // ...start scripts that have collision trigger and fulfill start condition
@@ -571,34 +571,34 @@ mod input {
         *message_window = None;
     }
 
-    // TODO interaction script triggering based on script entity hitbox rather than cell
     pub fn trigger_interaction_scripts(
         script_manager: &mut ScriptManager,
         story_vars: &mut HashMap<String, i32>,
         ecs: &Ecs,
         player_id: EntityId,
     ) {
+        // Select a specific point some distance in front of the player to check for
+        // the presence of an entity with an interaction script.
+        // This might fail in some weird cases, but it works for now.
         let (player_pos, player_facing) =
             ecs.query_one_with_id::<(&Position, &Facing)>(player_id).unwrap();
-        let player_facing_cell: CellPos = (match player_facing.0 {
-            Direction::Up => player_pos.0.map_pos + Vector2D::new(0.0, -0.6),
-            Direction::Down => player_pos.0.map_pos + Vector2D::new(0.0, 0.6),
-            Direction::Left => player_pos.0.map_pos + Vector2D::new(-0.6, 0.0),
-            Direction::Right => player_pos.0.map_pos + Vector2D::new(0.6, 0.0),
-        })
-        .cast()
-        .cast_unit();
-        // For each entity in the cell the player is facing...
-        for (_, scripts) in ecs
-            .query::<(&Position, &Scripts)>()
-            .filter(|(position, _)| position.0.map_pos.cast().cast_unit() == player_facing_cell)
+        let target = player_pos.0.map_pos
+            + match player_facing.0 {
+                Direction::Up => Vector2D::new(0.0, -0.6),
+                Direction::Down => Vector2D::new(0.0, 0.6),
+                Direction::Left => Vector2D::new(-0.6, 0.0),
+                Direction::Right => Vector2D::new(0.6, 0.0),
+            };
+
+        for (.., scripts) in ecs
+            .query::<(&Position, &Collision, &Scripts)>()
+            .filter(|(pos, coll, ..)| AABB::new(pos.0.map_pos, coll.hitbox).contains(&target))
         {
-            // ...start scripts with interaction trigger and fulfilled start condition
             for script in scripts
                 .0
                 .iter()
                 .filter(|script| script.trigger == Some(Trigger::Interaction))
-                .filter(|script| script.is_start_condition_fulfilled(&*story_vars))
+                .filter(|script| script.is_start_condition_fulfilled(story_vars))
                 .collect::<Vec<_>>()
             {
                 script_manager.start_script(script, story_vars);
@@ -635,9 +635,9 @@ fn update_walking_entities(
         if let Some(collision) = collision
             && collision.solid
         {
-            let old_aabb = AABB::from_pos_and_hitbox(map_pos, collision.hitbox);
+            let old_aabb = AABB::new(map_pos, collision.hitbox);
 
-            let mut new_aabb = AABB::from_pos_and_hitbox(new_position, collision.hitbox);
+            let mut new_aabb = AABB::new(new_position, collision.hitbox);
 
             // Resolve collisions with the 9 cells centered around new position
             // (Currently, we get the 9 cells around the position, and then we get
@@ -680,17 +680,17 @@ fn update_walking_entities(
                     continue;
                 }
 
-                let other_aabb = AABB::from_pos_and_hitbox(other_pos.0.map_pos, other_coll.hitbox);
+                let other_aabb = AABB::new(other_pos.0.map_pos, other_coll.hitbox);
 
                 // Trigger HardCollision scripts
                 // (* bottom comment about event system)
-                if new_aabb.is_colliding(&other_aabb)
+                if new_aabb.intersects(&other_aabb)
                     && let Some(scripts) = other_scripts
                 {
                     for script in scripts
                         .0
                         .iter()
-                        .filter(|script| script.trigger == Some(Trigger::Auto))
+                        .filter(|script| script.trigger == Some(Trigger::HardCollision))
                         .filter(|script| script.is_start_condition_fulfilled(story_vars))
                         .collect::<Vec<_>>()
                     {
@@ -724,7 +724,6 @@ fn update_walking_entities(
     }
 }
 
-// Use euclid::Box2D instead?
 #[derive(Clone, Copy, Default, Debug)]
 pub struct AABB {
     pub top: f64,
@@ -734,20 +733,24 @@ pub struct AABB {
 }
 
 impl AABB {
-    pub fn from_pos_and_hitbox(position: MapPos, hitbox_dimensions: Size2D<f64, MapUnits>) -> Self {
+    pub fn new(center: MapPos, dimensions: Size2D<f64, MapUnits>) -> Self {
         Self {
-            top: position.y - hitbox_dimensions.height / 2.0,
-            bottom: position.y + hitbox_dimensions.height / 2.0,
-            left: position.x - hitbox_dimensions.width / 2.0,
-            right: position.x + hitbox_dimensions.width / 2.0,
+            top: center.y - dimensions.height / 2.0,
+            bottom: center.y + dimensions.height / 2.0,
+            left: center.x - dimensions.width / 2.0,
+            right: center.x + dimensions.width / 2.0,
         }
     }
 
-    pub fn is_colliding(&self, other: &AABB) -> bool {
+    pub fn intersects(&self, other: &AABB) -> bool {
         self.top < other.bottom
             && self.bottom > other.top
             && self.left < other.right
             && self.right > other.left
+    }
+
+    pub fn contains(&self, point: &Point2D<f64, MapUnits>) -> bool {
+        self.top < point.y && self.bottom > point.y && self.left < point.x && self.right > point.x
     }
 
     // The old AABB is required to determine the direction of motion
@@ -755,7 +758,7 @@ impl AABB {
     // So collision resolution could instead eventually take a direction enum
     // or vector and use that directly
     pub fn resolve_collision(&mut self, old_self: &AABB, other: &AABB) {
-        if self.is_colliding(other) {
+        if self.intersects(other) {
             if self.top < other.bottom && old_self.top > other.bottom {
                 let depth = other.bottom - self.top + 0.01;
                 self.top += depth;
