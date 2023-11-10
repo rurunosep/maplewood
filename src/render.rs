@@ -24,7 +24,6 @@ pub struct Renderer<'c, 'f> {
     pub canvas: WindowCanvas,
     pub tilesets: HashMap<String, Texture<'c>>,
     pub spritesheets: HashMap<String, Texture<'c>>,
-    pub cards: HashMap<String, Texture<'c>>,
     // These don't necessarily have to be bound to the Renderer
     pub font: Font<'f, 'f>,
     pub show_cutscene_border: bool,
@@ -57,9 +56,6 @@ impl Renderer<'_, '_> {
             }
         };
 
-        // (Possible future optimization: cache rendered tile layers, or chunks of them.
-        // No reason to redraw every single static tile every single frame.)
-
         // Draw tile layers below entities
         for layer in map.tile_layers.iter().take_while_inclusive(|l| l.name != "interiors_3") {
             self.draw_tile_layer(layer, map, map_pos_to_screen_top_left);
@@ -87,17 +83,6 @@ impl Renderer<'_, '_> {
         // Draw cutscene border
         if self.show_cutscene_border {
             self.draw_cutscene_border();
-        }
-
-        // Draw card
-        if let Some(displayed_card_name) = &self.displayed_card_name {
-            self.canvas
-                .copy(
-                    self.cards.get(displayed_card_name).unwrap(),
-                    None,
-                    SdlRect::new(152, 114, 720, 540),
-                )
-                .unwrap();
         }
 
         // Draw message window

@@ -509,8 +509,6 @@ pub fn get_sub_script(full_source: &str, label: &str) -> String {
     between_label_and_end.to_string()
 }
 
-// bind_callback!(get_story_var, &story_vars);
-
 // Rework eventually with the new architecture I've been thinking of:
 // ScriptClass references a function rather than holding a source string
 // ScriptInstance references a thread created from the function

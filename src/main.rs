@@ -9,8 +9,9 @@ mod script;
 mod world;
 
 use ecs::component::{
-    AnimationClip, AnimationComponent, AnimationSet, CharacterAnimationState, Collision, Facing,
-    Name, Position, Scripts, SineOffsetAnimation, Sprite, SpriteComponent, Walking,
+    AnimationClip, AnimationComponent, AnimationSet, CharacterAnimationState, Collision,
+    DualStateAnimationState, Facing, Name, Position, Scripts, SineOffsetAnimation, Sprite,
+    SpriteComponent, Walking,
 };
 use ecs::{Ecs, EntityId};
 use euclid::{Point2D, Rect, Size2D, Vector2D};
@@ -45,7 +46,7 @@ pub struct MessageWindow {
     waiting_script_id: ScriptId,
 }
 
-// Where does this go? RenderData?
+// Where does this go? Renderer?
 pub struct MapOverlayTransition {
     start_time: Instant,
     duration: Duration,
@@ -110,6 +111,7 @@ fn main() {
             "bathtub_2",
             "cabinet",
             "toilet_door",
+            "door",
         ]
         .map(|name| {
             (
@@ -119,14 +121,10 @@ fn main() {
         }),
     );
 
-    #[allow(unused)]
-    let mut cards: HashMap<String, Texture> = HashMap::new();
-
     let mut renderer = Renderer {
         canvas,
         tilesets,
         spritesheets,
-        cards,
         font,
         show_cutscene_border: false,
         displayed_card_name: None,
@@ -212,6 +210,41 @@ fn main() {
         },
     );
 
+    // Door
+    let id = ecs.add_entity();
+    ecs.add_component(id, Name("door".to_string()));
+    ecs.add_component(id, Position(WorldPos::new("bathroom", 4.5, 8.)));
+    ecs.add_component(id, SpriteComponent::default());
+    ecs.add_component(id, Collision { hitbox: Size2D::new(1., 2.), solid: true });
+
+    let clip_from_cols = |cols: &[i32]| AnimationClip {
+        frames: cols
+            .iter()
+            .map(|col| Sprite {
+                spritesheet: "door".to_string(),
+                rect: SdlRect::new(col * 16, 0, 16, 48),
+                anchor: Point2D::new(8, 32),
+            })
+            .collect(),
+        seconds_per_frame: 0.3,
+    };
+
+    ecs.add_component(
+        id,
+        AnimationComponent {
+            anim_set: AnimationSet::DualState {
+                state: DualStateAnimationState::First,
+                first: clip_from_cols(&[0]),
+                first_to_second: clip_from_cols(&[0, 1, 2, 3, 4]),
+                second: clip_from_cols(&[4]),
+                second_to_first: clip_from_cols(&[4, 3, 2, 1]),
+            },
+            elapsed_time: Duration::from_secs(0),
+            playing: false,
+            repeat: false,
+        },
+    );
+
     // Entities from ldtk
     ecs::loader::load_entities_from_ldtk(&mut ecs, &project);
 
@@ -244,6 +277,26 @@ fn main() {
         // ----------------------------------------------------------
         for event in event_pump.poll_iter() {
             match event {
+                // TODO
+                // -------------------
+                Event::KeyDown { keycode: Some(Keycode::Q), .. } => {
+                    let mut anim_comp =
+                        ecs.query_one_with_name::<&mut AnimationComponent>("door").unwrap();
+                    if let AnimationSet::DualState { state, .. } = &mut anim_comp.anim_set {
+                        *state = DualStateAnimationState::FirstToSecond;
+                    }
+                    anim_comp.playing = true;
+                }
+                Event::KeyDown { keycode: Some(Keycode::W), .. } => {
+                    let mut anim_comp =
+                        ecs.query_one_with_name::<&mut AnimationComponent>("door").unwrap();
+                    if let AnimationSet::DualState { state, .. } = &mut anim_comp.anim_set {
+                        *state = DualStateAnimationState::SecondToFirst;
+                    }
+                    anim_comp.playing = true;
+                }
+                // -------------------
+
                 // Close program
                 Event::Quit { .. } | Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
                     running = false;
@@ -417,6 +470,36 @@ fn main() {
             }
         }
 
+        // Update dual state animation state
+        for mut anim_comp in ecs.query::<&mut AnimationComponent>() {
+            // (I really, really need to rethink how we're querying a particular animation
+            // set and manipulating the data in it. This enum shit doesn't work. The options
+            // are: separate components for each set; or fully runtime checked with string set,
+            // string state, and string->clip hashmap; or, I dunno. I think it has to be the first.
+            // And then a "free" one with strings in case I need the flexibility for some one-off
+            // entity that could then be made into its own type later, or not.)
+            let AnimationSet::DualState { .. } = anim_comp.anim_set else {
+                continue;
+            };
+
+            let prev_state = match anim_comp.anim_set {
+                AnimationSet::DualState { state, .. } => state,
+                _ => unreachable!(),
+            };
+
+            // If a transition animation is finished playing, switch to the next state
+            use DualStateAnimationState::*;
+            let new_state = match (prev_state, anim_comp.playing) {
+                (FirstToSecond, false) => Second,
+                (SecondToFirst, false) => First,
+                _ => prev_state,
+            };
+
+            if let AnimationSet::DualState { state, .. } = &mut anim_comp.anim_set {
+                *state = new_state;
+            }
+        }
+
         // Update entity animations and sprites
         for (mut anim_comp, mut sprite_comp) in
             ecs.query::<(&mut AnimationComponent, &mut SpriteComponent)>()
@@ -436,20 +519,40 @@ fn main() {
                     CharacterAnimationState::WalkRight => right,
                 },
                 AnimationSet::Single(clip) => clip,
+                AnimationSet::DualState {
+                    state,
+                    first,
+                    first_to_second,
+                    second,
+                    second_to_first,
+                } => match state {
+                    DualStateAnimationState::First => first,
+                    DualStateAnimationState::FirstToSecond => first_to_second,
+                    DualStateAnimationState::Second => second,
+                    DualStateAnimationState::SecondToFirst => second_to_first,
+                },
             };
+
+            // TODO
+            // The problem is with my frame timings. The divs and mods and ceils/floors.
+            // I need to think about this more clearly. How exactly do I want this to work?
+            // I need it to be frame 0 (first) when not playing, frame 1 (second) as soon as
+            // the animation starts, and last frame when finished. I could also possibly have
+            // it be last frame when not playing. That aligns better with the spritesheets
+            // anyway.
 
             let clip_duration = clip.seconds_per_frame * clip.frames.len() as f64;
 
             let clip_playback_finished =
                 anim_comp.elapsed_time.as_secs_f64() > clip_duration && !anim_comp.repeat;
 
-            let seek_time = match clip_playback_finished {
-                false => anim_comp.elapsed_time.as_secs_f64() % clip_duration,
-                true => 0.,
+            let frame_index = if clip_playback_finished {
+                clip.frames.len() - 1
+            } else {
+                let seek_time = anim_comp.elapsed_time.as_secs_f64() % clip_duration;
+                (seek_time / clip.seconds_per_frame).ceil() as usize % clip.frames.len()
             };
 
-            let frame_index =
-                (seek_time / clip.seconds_per_frame).ceil() as usize % clip.frames.len();
             let current_sprite = clip.frames.get(frame_index).unwrap();
             sprite_comp.sprite = Some(current_sprite.clone());
 

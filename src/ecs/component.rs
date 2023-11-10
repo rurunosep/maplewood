@@ -53,7 +53,13 @@ pub enum AnimationSet {
         right: AnimationClip,
     },
     Single(AnimationClip),
-    // TODO "the door problem"
+    DualState {
+        state: DualStateAnimationState,
+        first: AnimationClip,
+        first_to_second: AnimationClip,
+        second: AnimationClip,
+        second_to_first: AnimationClip,
+    },
 }
 
 pub struct AnimationClip {
@@ -67,6 +73,15 @@ pub enum CharacterAnimationState {
     WalkRight,
     WalkUp,
     WalkDown,
+}
+
+// lmao
+#[derive(Clone, Copy)]
+pub enum DualStateAnimationState {
+    First,
+    FirstToSecond,
+    Second,
+    SecondToFirst,
 }
 
 pub struct SineOffsetAnimation {

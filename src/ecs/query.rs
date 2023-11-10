@@ -1,6 +1,7 @@
 use super::{Component, ComponentMap, EntityId};
 use anymap::AnyMap;
 use std::cell::{Ref, RefMut};
+use std::marker::PhantomData;
 
 pub trait Query {
     type Result<'r>;
@@ -71,7 +72,7 @@ where
 }
 
 // With<C> and Without<C> are not necessary yet, but I like em.
-pub struct With<C>(std::marker::PhantomData<C>)
+pub struct With<C>(PhantomData<C>)
 where
     C: Component + 'static;
 
@@ -88,7 +89,7 @@ where
     fn borrow(_: EntityId, _: &AnyMap) -> Self::Result<'_> {}
 }
 
-pub struct Without<C>(std::marker::PhantomData<C>)
+pub struct Without<C>(PhantomData<C>)
 where
     C: Component + 'static;
 
