@@ -11,7 +11,7 @@
 	"iid": "9f15cbd0-ed50-11ed-8f21-4d63da406901",
 	"jsonVersion": "1.4.1",
 	"appBuildId": 471015,
-	"nextUid": 817,
+	"nextUid": 820,
 	"identifierStyle": "Lowercase",
 	"toc": [],
 	"worldLayout": null,
@@ -2573,46 +2573,11 @@
 					"tilesetUid": null
 				},
 				{
-					"identifier": "first_frame",
+					"identifier": "frames",
 					"doc": null,
-					"__type": "Int",
-					"uid": 814,
-					"type": "F_Int",
-					"isArray": false,
-					"canBeNull": false,
-					"arrayMinLength": null,
-					"arrayMaxLength": null,
-					"editorDisplayMode": "Hidden",
-					"editorDisplayScale": 1,
-					"editorDisplayPos": "Above",
-					"editorLinkStyle": "StraightArrow",
-					"editorDisplayColor": null,
-					"editorAlwaysShow": false,
-					"editorShowInWorld": true,
-					"editorCutLongValues": true,
-					"editorTextSuffix": null,
-					"editorTextPrefix": null,
-					"useForSmartColor": false,
-					"min": null,
-					"max": null,
-					"regex": null,
-					"acceptFileTypes": null,
-					"defaultOverride": null,
-					"textLanguageMode": null,
-					"symmetricalRef": false,
-					"autoChainRef": true,
-					"allowOutOfLevelRef": true,
-					"allowedRefs": "OnlySame",
-					"allowedRefsEntityUid": null,
-					"allowedRefTags": [],
-					"tilesetUid": null
-				},
-				{
-					"identifier": "last_frame",
-					"doc": null,
-					"__type": "Int",
-					"uid": 809,
-					"type": "F_Int",
+					"__type": "String",
+					"uid": 818,
+					"type": "F_String",
 					"isArray": false,
 					"canBeNull": false,
 					"arrayMinLength": null,
@@ -2962,8 +2927,10 @@
 										"id": "V_String",
 										"params": ["bathroom_sink_2"]
 									}] },
-									{ "__identifier": "first_frame", "__type": "Int", "__value": 0, "__tile": null, "defUid": 814, "realEditorValues": [] },
-									{ "__identifier": "last_frame", "__type": "Int", "__value": 13, "__tile": null, "defUid": 809, "realEditorValues": [{ "id": "V_Int", "params": [13] }] },
+									{ "__identifier": "frames", "__type": "String", "__value": "[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]", "__tile": null, "defUid": 818, "realEditorValues": [{
+										"id": "V_String",
+										"params": ["[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]"]
+									}] },
 									{ "__identifier": "seconds_per_frame", "__type": "Float", "__value": 0.2, "__tile": null, "defUid": 810, "realEditorValues": [{ "id": "V_Float", "params": [0.2] }] },
 									{ "__identifier": "repeating", "__type": "Bool", "__value": false, "__tile": null, "defUid": 816, "realEditorValues": [null] }
 								]
@@ -2991,8 +2958,10 @@
 										"id": "V_String",
 										"params": ["bathroom_sink"]
 									}] },
-									{ "__identifier": "first_frame", "__type": "Int", "__value": 0, "__tile": null, "defUid": 814, "realEditorValues": [] },
-									{ "__identifier": "last_frame", "__type": "Int", "__value": 13, "__tile": null, "defUid": 809, "realEditorValues": [{ "id": "V_Int", "params": [13] }] },
+									{ "__identifier": "frames", "__type": "String", "__value": "[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]", "__tile": null, "defUid": 818, "realEditorValues": [{
+										"id": "V_String",
+										"params": ["[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]"]
+									}] },
 									{ "__identifier": "seconds_per_frame", "__type": "Float", "__value": 0.15, "__tile": null, "defUid": 810, "realEditorValues": [{ "id": "V_Float", "params": [0.15] }] },
 									{ "__identifier": "repeating", "__type": "Bool", "__value": false, "__tile": null, "defUid": 816, "realEditorValues": [null] }
 								]
@@ -3020,8 +2989,10 @@
 										"id": "V_String",
 										"params": ["bathtub_2"]
 									}] },
-									{ "__identifier": "first_frame", "__type": "Int", "__value": 0, "__tile": null, "defUid": 814, "realEditorValues": [] },
-									{ "__identifier": "last_frame", "__type": "Int", "__value": 13, "__tile": null, "defUid": 809, "realEditorValues": [{ "id": "V_Int", "params": [13] }] },
+									{ "__identifier": "frames", "__type": "String", "__value": "[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 0]", "__tile": null, "defUid": 818, "realEditorValues": [{
+										"id": "V_String",
+										"params": ["[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 0]"]
+									}] },
 									{ "__identifier": "seconds_per_frame", "__type": "Float", "__value": 0.1, "__tile": null, "defUid": 810, "realEditorValues": [{ "id": "V_Float", "params": [0.1] }] },
 									{ "__identifier": "repeating", "__type": "Bool", "__value": false, "__tile": null, "defUid": 816, "realEditorValues": [null] }
 								]
@@ -3046,8 +3017,10 @@
 										"id": "V_String",
 										"params": ["bathtub"]
 									}] },
-									{ "__identifier": "first_frame", "__type": "Int", "__value": 3, "__tile": null, "defUid": 814, "realEditorValues": [{ "id": "V_Int", "params": [3] }] },
-									{ "__identifier": "last_frame", "__type": "Int", "__value": 6, "__tile": null, "defUid": 809, "realEditorValues": [{ "id": "V_Int", "params": [6] }] },
+									{ "__identifier": "frames", "__type": "String", "__value": "[3, 4, 5, 6]", "__tile": null, "defUid": 818, "realEditorValues": [{
+										"id": "V_String",
+										"params": ["[3, 4, 5, 6]"]
+									}] },
 									{ "__identifier": "seconds_per_frame", "__type": "Float", "__value": 0.1, "__tile": null, "defUid": 810, "realEditorValues": [{ "id": "V_Float", "params": [0.1] }] },
 									{ "__identifier": "repeating", "__type": "Bool", "__value": true, "__tile": null, "defUid": 816, "realEditorValues": [{
 										"id": "V_Bool",
@@ -3075,8 +3048,10 @@
 										"id": "V_String",
 										"params": ["cabinet"]
 									}] },
-									{ "__identifier": "first_frame", "__type": "Int", "__value": 0, "__tile": null, "defUid": 814, "realEditorValues": [] },
-									{ "__identifier": "last_frame", "__type": "Int", "__value": 9, "__tile": null, "defUid": 809, "realEditorValues": [{ "id": "V_Int", "params": [9] }] },
+									{ "__identifier": "frames", "__type": "String", "__value": "[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0]", "__tile": null, "defUid": 818, "realEditorValues": [{
+										"id": "V_String",
+										"params": ["[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0]"]
+									}] },
 									{ "__identifier": "seconds_per_frame", "__type": "Float", "__value": 0.2, "__tile": null, "defUid": 810, "realEditorValues": [{ "id": "V_Float", "params": [0.2] }] },
 									{ "__identifier": "repeating", "__type": "Bool", "__value": true, "__tile": null, "defUid": 816, "realEditorValues": [{
 										"id": "V_Bool",
@@ -3107,8 +3082,10 @@
 										"id": "V_String",
 										"params": ["toilet_door"]
 									}] },
-									{ "__identifier": "first_frame", "__type": "Int", "__value": 0, "__tile": null, "defUid": 814, "realEditorValues": [] },
-									{ "__identifier": "last_frame", "__type": "Int", "__value": 7, "__tile": null, "defUid": 809, "realEditorValues": [{ "id": "V_Int", "params": [7] }] },
+									{ "__identifier": "frames", "__type": "String", "__value": "[1, 2, 3, 4, 5, 6, 7, 0]", "__tile": null, "defUid": 818, "realEditorValues": [{
+										"id": "V_String",
+										"params": ["[1, 2, 3, 4, 5, 6, 7, 0]"]
+									}] },
 									{ "__identifier": "seconds_per_frame", "__type": "Float", "__value": 0.2, "__tile": null, "defUid": 810, "realEditorValues": [{ "id": "V_Float", "params": [0.2] }] },
 									{ "__identifier": "repeating", "__type": "Bool", "__value": false, "__tile": null, "defUid": 816, "realEditorValues": [] }
 								]
@@ -3376,9 +3353,12 @@
 							{ "px": [128,16], "src": [48,80], "f": 0, "t": 53, "d": [711,33], "a": 1 },
 							{ "px": [16,64], "src": [48,80], "f": 0, "t": 53, "d": [711,101], "a": 1 },
 							{ "px": [16,112], "src": [48,80], "f": 0, "t": 53, "d": [711,176], "a": 1 },
+							{ "px": [112,96], "src": [32,64], "f": 0, "t": 42, "d": [705,157], "a": 1 },
 							{ "px": [208,176], "src": [16,32], "f": 0, "t": 21, "d": [704,288], "a": 1 },
 							{ "px": [240,176], "src": [32,32], "f": 0, "t": 22, "d": [703,290], "a": 1 },
+							{ "px": [208,96], "src": [16,16], "f": 0, "t": 11, "d": [702,163], "a": 1 },
 							{ "px": [112,160], "src": [16,16], "f": 0, "t": 11, "d": [702,257], "a": 1 },
+							{ "px": [240,96], "src": [32,16], "f": 0, "t": 12, "d": [701,165], "a": 1 },
 							{ "px": [128,96], "src": [128,80], "f": 0, "t": 58, "d": [700,158], "a": 1 },
 							{ "px": [112,112], "src": [112,16], "f": 0, "t": 17, "d": [696,182], "a": 1 },
 							{ "px": [208,112], "src": [112,64], "f": 0, "t": 47, "d": [695,188], "a": 1 },
@@ -3468,6 +3448,7 @@
 							{ "px": [368,16], "src": [64,16], "f": 0, "t": 14, "d": [683,48], "a": 1 },
 							{ "px": [16,16], "src": [48,16], "f": 0, "t": 13, "d": [682,26], "a": 1 },
 							{ "px": [128,16], "src": [48,16], "f": 0, "t": 13, "d": [682,33], "a": 1 },
+							{ "px": [112,96], "src": [48,16], "f": 0, "t": 13, "d": [682,157], "a": 1 },
 							{ "px": [112,96], "src": [80,80], "f": 0, "t": 55, "d": [680,157], "a": 1 },
 							{ "px": [208,96], "src": [80,16], "f": 0, "t": 15, "d": [679,163], "a": 1 },
 							{ "px": [240,96], "src": [80,48], "f": 0, "t": 35, "d": [677,165], "a": 1 },

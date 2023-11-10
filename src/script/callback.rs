@@ -185,8 +185,10 @@ pub fn play_object_animation((entity, repeat): (String, bool), ecs: &Ecs) -> Lua
         .query_one_with_name::<&mut AnimationComponent>(&entity)
         .ok_or(Error::NoEntity(entity))?;
 
+    // TODO play_once(), play_repeating(), play(repeat)
     anim_comp.playing = true;
     anim_comp.repeat = repeat;
+    anim_comp.elapsed = Duration::ZERO;
 
     Ok(())
 }
@@ -196,8 +198,8 @@ pub fn stop_object_animation(entity: String, ecs: &Ecs) -> LuaResult<()> {
         .query_one_with_name::<&mut AnimationComponent>(&entity)
         .ok_or(Error::NoEntity(entity))?;
 
+    // TODO stop()
     anim_comp.playing = false;
-    anim_comp.repeat = false;
 
     Ok(())
 }

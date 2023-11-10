@@ -183,7 +183,7 @@ fn main() {
     );
 
     let clip_from_row = |row| AnimationClip {
-        frames: [7, 8, 7, 6]
+        frames: [8, 7, 6, 7]
             .into_iter()
             .map(|col| Sprite {
                 spritesheet: "characters".to_string(),
@@ -204,7 +204,7 @@ fn main() {
                 left: clip_from_row(1),
                 right: clip_from_row(2),
             },
-            elapsed_time: Duration::from_secs(0),
+            elapsed: Duration::from_secs(0),
             playing: false,
             repeat: false,
         },
@@ -226,7 +226,7 @@ fn main() {
                 anchor: Point2D::new(8, 32),
             })
             .collect(),
-        seconds_per_frame: 0.3,
+        seconds_per_frame: 0.1,
     };
 
     ecs.add_component(
@@ -235,11 +235,11 @@ fn main() {
             anim_set: AnimationSet::DualState {
                 state: DualStateAnimationState::First,
                 first: clip_from_cols(&[0]),
-                first_to_second: clip_from_cols(&[0, 1, 2, 3, 4]),
+                first_to_second: clip_from_cols(&[1, 2, 3, 4]),
                 second: clip_from_cols(&[4]),
-                second_to_first: clip_from_cols(&[4, 3, 2, 1]),
+                second_to_first: clip_from_cols(&[3, 2, 1, 0]),
             },
-            elapsed_time: Duration::from_secs(0),
+            elapsed: Duration::from_secs(0),
             playing: false,
             repeat: false,
         },
@@ -270,14 +270,14 @@ fn main() {
     let mut last_time = Instant::now();
     let mut running = true;
     while running {
-        let delta_time = last_time.elapsed();
+        let delta = last_time.elapsed();
         last_time = Instant::now();
         // ----------------------------------------------------------
         // Process Input
         // ----------------------------------------------------------
         for event in event_pump.poll_iter() {
             match event {
-                // TODO
+                // TODO move to script
                 // -------------------
                 Event::KeyDown { keycode: Some(Keycode::Q), .. } => {
                     let mut anim_comp =
@@ -285,7 +285,10 @@ fn main() {
                     if let AnimationSet::DualState { state, .. } = &mut anim_comp.anim_set {
                         *state = DualStateAnimationState::FirstToSecond;
                     }
+                    // TODO play_once()
                     anim_comp.playing = true;
+                    anim_comp.repeat = false;
+                    anim_comp.elapsed = Duration::ZERO;
                 }
                 Event::KeyDown { keycode: Some(Keycode::W), .. } => {
                     let mut anim_comp =
@@ -293,7 +296,10 @@ fn main() {
                     if let AnimationSet::DualState { state, .. } = &mut anim_comp.anim_set {
                         *state = DualStateAnimationState::SecondToFirst;
                     }
+                    // TODO play_once()
                     anim_comp.playing = true;
+                    anim_comp.repeat = false;
+                    anim_comp.elapsed = Duration::ZERO;
                 }
                 // -------------------
 
@@ -462,22 +468,20 @@ fn main() {
             };
 
             if walk_comp.speed > 0. {
-                anim_comp.playing = true;
-                anim_comp.repeat = true;
+                if !anim_comp.playing {
+                    // TODO play_repeating()
+                    anim_comp.playing = true;
+                    anim_comp.repeat = true;
+                    anim_comp.elapsed = Duration::ZERO;
+                }
             } else {
+                // TODO stop()
                 anim_comp.playing = false;
-                anim_comp.repeat = false;
             }
         }
 
         // Update dual state animation state
         for mut anim_comp in ecs.query::<&mut AnimationComponent>() {
-            // (I really, really need to rethink how we're querying a particular animation
-            // set and manipulating the data in it. This enum shit doesn't work. The options
-            // are: separate components for each set; or fully runtime checked with string set,
-            // string state, and string->clip hashmap; or, I dunno. I think it has to be the first.
-            // And then a "free" one with strings in case I need the flexibility for some one-off
-            // entity that could then be made into its own type later, or not.)
             let AnimationSet::DualState { .. } = anim_comp.anim_set else {
                 continue;
             };
@@ -504,13 +508,7 @@ fn main() {
         for (mut anim_comp, mut sprite_comp) in
             ecs.query::<(&mut AnimationComponent, &mut SpriteComponent)>()
         {
-            if anim_comp.playing {
-                anim_comp.elapsed_time += delta_time;
-            } else {
-                anim_comp.elapsed_time = Duration::from_secs(0);
-            }
-
-            // This could possibly be moved into an impl of the state machine enum
+            // TODO animation component rework
             let clip = match &anim_comp.anim_set {
                 AnimationSet::Character { state, up, down, left, right } => match state {
                     CharacterAnimationState::WalkUp => up,
@@ -531,32 +529,28 @@ fn main() {
                     DualStateAnimationState::Second => second,
                     DualStateAnimationState::SecondToFirst => second_to_first,
                 },
-            };
+            }
+            .clone();
 
-            // TODO
-            // The problem is with my frame timings. The divs and mods and ceils/floors.
-            // I need to think about this more clearly. How exactly do I want this to work?
-            // I need it to be frame 0 (first) when not playing, frame 1 (second) as soon as
-            // the animation starts, and last frame when finished. I could also possibly have
-            // it be last frame when not playing. That aligns better with the spritesheets
-            // anyway.
+            // TODO enum: playing, paused, stopped (not playing)
+            // playing
+            if anim_comp.playing {
+                anim_comp.elapsed += delta;
+            }
 
-            let clip_duration = clip.seconds_per_frame * clip.frames.len() as f64;
-
-            let clip_playback_finished =
-                anim_comp.elapsed_time.as_secs_f64() > clip_duration && !anim_comp.repeat;
-
-            let frame_index = if clip_playback_finished {
+            let elapsed = anim_comp.elapsed.as_secs_f64();
+            let duration = clip.seconds_per_frame * clip.frames.len() as f64;
+            let finished = elapsed > duration && !anim_comp.repeat;
+            // finished or stopped
+            let frame_index = if finished || !anim_comp.playing {
                 clip.frames.len() - 1
             } else {
-                let seek_time = anim_comp.elapsed_time.as_secs_f64() % clip_duration;
-                (seek_time / clip.seconds_per_frame).ceil() as usize % clip.frames.len()
+                (elapsed % duration / clip.seconds_per_frame).floor() as usize
             };
+            let sprite = clip.frames.get(frame_index).unwrap();
+            sprite_comp.sprite = Some(sprite.clone());
 
-            let current_sprite = clip.frames.get(frame_index).unwrap();
-            sprite_comp.sprite = Some(current_sprite.clone());
-
-            if clip_playback_finished {
+            if finished {
                 anim_comp.playing = false;
             }
         }

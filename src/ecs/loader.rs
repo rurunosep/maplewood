@@ -146,9 +146,7 @@ fn load_animated_object(
 
     // Animation
     let spritesheet = read_field_string("spritesheet", entity).unwrap();
-    // TODO for reverse, just manually check last > first and apply .rev() to range
-    let first_frame = read_field_i32("first_frame", entity).unwrap();
-    let last_frame = read_field_i32("last_frame", entity).unwrap();
+    let frame_indexes: Vec<i32> = read_field_json("frames", entity).unwrap();
     let seconds_per_frame = read_field_f64("seconds_per_frame", entity).unwrap();
     let (playing, repeat) = match read_field_bool("repeating", entity).unwrap() {
         true => (true, true),
@@ -162,7 +160,8 @@ fn load_animated_object(
         id,
         AnimationComponent {
             anim_set: AnimationSet::Single(AnimationClip {
-                frames: (first_frame..=last_frame)
+                frames: frame_indexes
+                    .iter()
                     .map(|col| Sprite {
                         spritesheet: spritesheet.clone(),
                         rect: SdlRect::new(col * w as i32, 0, w as u32, h as u32),
@@ -171,7 +170,7 @@ fn load_animated_object(
                     .collect(),
                 seconds_per_frame,
             }),
-            elapsed_time: Duration::from_secs(0),
+            elapsed: Duration::from_secs(0),
             playing,
             repeat,
         },
@@ -218,6 +217,7 @@ fn read_field_bool(field: &str, entity: &ldtk_json::EntityInstance) -> Option<bo
         })
 }
 
+#[allow(dead_code)]
 fn read_field_i32(field: &str, entity: &ldtk_json::EntityInstance) -> Option<i32> {
     entity
         .field_instances
