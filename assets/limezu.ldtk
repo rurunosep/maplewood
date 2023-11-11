@@ -11,7 +11,7 @@
 	"iid": "9f15cbd0-ed50-11ed-8f21-4d63da406901",
 	"jsonVersion": "1.4.1",
 	"appBuildId": 471015,
-	"nextUid": 820,
+	"nextUid": 829,
 	"identifierStyle": "Lowercase",
 	"toc": [],
 	"worldLayout": null,
@@ -2470,7 +2470,7 @@
 			]
 		},
 		{
-			"identifier": "animated_object",
+			"identifier": "simple_anim",
 			"uid": 806,
 			"tags": [],
 			"exportToToc": false,
@@ -2671,6 +2671,286 @@
 						"id": "V_Bool",
 						"params": [ false ]
 					},
+					"textLanguageMode": null,
+					"symmetricalRef": false,
+					"autoChainRef": true,
+					"allowOutOfLevelRef": true,
+					"allowedRefs": "OnlySame",
+					"allowedRefsEntityUid": null,
+					"allowedRefTags": [],
+					"tilesetUid": null
+				}
+			]
+		},
+		{
+			"identifier": "dual_state_anim",
+			"uid": 820,
+			"tags": [],
+			"exportToToc": false,
+			"doc": null,
+			"width": 16,
+			"height": 16,
+			"resizableX": true,
+			"resizableY": true,
+			"minWidth": 16,
+			"maxWidth": null,
+			"minHeight": 16,
+			"maxHeight": null,
+			"keepAspectRatio": false,
+			"tileOpacity": 1,
+			"fillOpacity": 0.8,
+			"lineOpacity": 1,
+			"hollow": false,
+			"color": "#0099DB",
+			"renderMode": "Rectangle",
+			"showName": false,
+			"tilesetId": null,
+			"tileRenderMode": "FitInside",
+			"tileRect": null,
+			"uiTileRect": null,
+			"nineSliceBorders": [],
+			"maxCount": 0,
+			"limitScope": "PerLevel",
+			"limitBehavior": "MoveLastOne",
+			"pivotX": 0.5,
+			"pivotY": 0.5,
+			"fieldDefs": [
+				{
+					"identifier": "name",
+					"doc": null,
+					"__type": "String",
+					"uid": 821,
+					"type": "F_String",
+					"isArray": false,
+					"canBeNull": true,
+					"arrayMinLength": null,
+					"arrayMaxLength": null,
+					"editorDisplayMode": "ValueOnly",
+					"editorDisplayScale": 1,
+					"editorDisplayPos": "Center",
+					"editorLinkStyle": "StraightArrow",
+					"editorDisplayColor": null,
+					"editorAlwaysShow": false,
+					"editorShowInWorld": true,
+					"editorCutLongValues": true,
+					"editorTextSuffix": null,
+					"editorTextPrefix": null,
+					"useForSmartColor": false,
+					"min": null,
+					"max": null,
+					"regex": null,
+					"acceptFileTypes": null,
+					"defaultOverride": null,
+					"textLanguageMode": null,
+					"symmetricalRef": false,
+					"autoChainRef": true,
+					"allowOutOfLevelRef": true,
+					"allowedRefs": "OnlySame",
+					"allowedRefsEntityUid": null,
+					"allowedRefTags": [],
+					"tilesetUid": null
+				},
+				{
+					"identifier": "spritesheet",
+					"doc": null,
+					"__type": "String",
+					"uid": 822,
+					"type": "F_String",
+					"isArray": false,
+					"canBeNull": false,
+					"arrayMinLength": null,
+					"arrayMaxLength": null,
+					"editorDisplayMode": "Hidden",
+					"editorDisplayScale": 1,
+					"editorDisplayPos": "Center",
+					"editorLinkStyle": "StraightArrow",
+					"editorDisplayColor": null,
+					"editorAlwaysShow": false,
+					"editorShowInWorld": true,
+					"editorCutLongValues": true,
+					"editorTextSuffix": null,
+					"editorTextPrefix": null,
+					"useForSmartColor": false,
+					"min": null,
+					"max": null,
+					"regex": null,
+					"acceptFileTypes": null,
+					"defaultOverride": null,
+					"textLanguageMode": null,
+					"symmetricalRef": false,
+					"autoChainRef": true,
+					"allowOutOfLevelRef": true,
+					"allowedRefs": "OnlySame",
+					"allowedRefsEntityUid": null,
+					"allowedRefTags": [],
+					"tilesetUid": null
+				},
+				{
+					"identifier": "first_state",
+					"doc": null,
+					"__type": "String",
+					"uid": 823,
+					"type": "F_String",
+					"isArray": false,
+					"canBeNull": false,
+					"arrayMinLength": null,
+					"arrayMaxLength": null,
+					"editorDisplayMode": "Hidden",
+					"editorDisplayScale": 1,
+					"editorDisplayPos": "Above",
+					"editorLinkStyle": "StraightArrow",
+					"editorDisplayColor": null,
+					"editorAlwaysShow": false,
+					"editorShowInWorld": true,
+					"editorCutLongValues": true,
+					"editorTextSuffix": null,
+					"editorTextPrefix": null,
+					"useForSmartColor": false,
+					"min": null,
+					"max": null,
+					"regex": null,
+					"acceptFileTypes": null,
+					"defaultOverride": null,
+					"textLanguageMode": null,
+					"symmetricalRef": false,
+					"autoChainRef": true,
+					"allowOutOfLevelRef": true,
+					"allowedRefs": "OnlySame",
+					"allowedRefsEntityUid": null,
+					"allowedRefTags": [],
+					"tilesetUid": null
+				},
+				{
+					"identifier": "first_to_second",
+					"doc": null,
+					"__type": "String",
+					"uid": 826,
+					"type": "F_String",
+					"isArray": false,
+					"canBeNull": false,
+					"arrayMinLength": null,
+					"arrayMaxLength": null,
+					"editorDisplayMode": "Hidden",
+					"editorDisplayScale": 1,
+					"editorDisplayPos": "Above",
+					"editorLinkStyle": "StraightArrow",
+					"editorDisplayColor": null,
+					"editorAlwaysShow": false,
+					"editorShowInWorld": true,
+					"editorCutLongValues": true,
+					"editorTextSuffix": null,
+					"editorTextPrefix": null,
+					"useForSmartColor": false,
+					"min": null,
+					"max": null,
+					"regex": null,
+					"acceptFileTypes": null,
+					"defaultOverride": null,
+					"textLanguageMode": null,
+					"symmetricalRef": false,
+					"autoChainRef": true,
+					"allowOutOfLevelRef": true,
+					"allowedRefs": "OnlySame",
+					"allowedRefsEntityUid": null,
+					"allowedRefTags": [],
+					"tilesetUid": null
+				},
+				{
+					"identifier": "second_state",
+					"doc": null,
+					"__type": "String",
+					"uid": 827,
+					"type": "F_String",
+					"isArray": false,
+					"canBeNull": false,
+					"arrayMinLength": null,
+					"arrayMaxLength": null,
+					"editorDisplayMode": "Hidden",
+					"editorDisplayScale": 1,
+					"editorDisplayPos": "Above",
+					"editorLinkStyle": "StraightArrow",
+					"editorDisplayColor": null,
+					"editorAlwaysShow": false,
+					"editorShowInWorld": true,
+					"editorCutLongValues": true,
+					"editorTextSuffix": null,
+					"editorTextPrefix": null,
+					"useForSmartColor": false,
+					"min": null,
+					"max": null,
+					"regex": null,
+					"acceptFileTypes": null,
+					"defaultOverride": null,
+					"textLanguageMode": null,
+					"symmetricalRef": false,
+					"autoChainRef": true,
+					"allowOutOfLevelRef": true,
+					"allowedRefs": "OnlySame",
+					"allowedRefsEntityUid": null,
+					"allowedRefTags": [],
+					"tilesetUid": null
+				},
+				{
+					"identifier": "second_to_first",
+					"doc": null,
+					"__type": "String",
+					"uid": 828,
+					"type": "F_String",
+					"isArray": false,
+					"canBeNull": false,
+					"arrayMinLength": null,
+					"arrayMaxLength": null,
+					"editorDisplayMode": "Hidden",
+					"editorDisplayScale": 1,
+					"editorDisplayPos": "Above",
+					"editorLinkStyle": "StraightArrow",
+					"editorDisplayColor": null,
+					"editorAlwaysShow": false,
+					"editorShowInWorld": true,
+					"editorCutLongValues": true,
+					"editorTextSuffix": null,
+					"editorTextPrefix": null,
+					"useForSmartColor": false,
+					"min": null,
+					"max": null,
+					"regex": null,
+					"acceptFileTypes": null,
+					"defaultOverride": null,
+					"textLanguageMode": null,
+					"symmetricalRef": false,
+					"autoChainRef": true,
+					"allowOutOfLevelRef": true,
+					"allowedRefs": "OnlySame",
+					"allowedRefsEntityUid": null,
+					"allowedRefTags": [],
+					"tilesetUid": null
+				},
+				{
+					"identifier": "seconds_per_frame",
+					"doc": null,
+					"__type": "Float",
+					"uid": 824,
+					"type": "F_Float",
+					"isArray": false,
+					"canBeNull": false,
+					"arrayMinLength": null,
+					"arrayMaxLength": null,
+					"editorDisplayMode": "Hidden",
+					"editorDisplayScale": 1,
+					"editorDisplayPos": "Above",
+					"editorLinkStyle": "StraightArrow",
+					"editorDisplayColor": null,
+					"editorAlwaysShow": false,
+					"editorShowInWorld": true,
+					"editorCutLongValues": true,
+					"editorTextSuffix": null,
+					"editorTextPrefix": null,
+					"useForSmartColor": false,
+					"min": null,
+					"max": null,
+					"regex": null,
+					"acceptFileTypes": null,
+					"defaultOverride": null,
 					"textLanguageMode": null,
 					"symmetricalRef": false,
 					"autoChainRef": true,
@@ -2905,69 +3185,7 @@
 								]
 							},
 							{
-								"__identifier": "animated_object",
-								"__grid": [16,3],
-								"__pivot": [0.5,0.5],
-								"__tags": [],
-								"__tile": null,
-								"__smartColor": "#0099DB",
-								"__worldX": 256,
-								"__worldY": 48,
-								"iid": "b997e370-6280-11ee-bf08-a91725b092b0",
-								"width": 32,
-								"height": 32,
-								"defUid": 806,
-								"px": [256,48],
-								"fieldInstances": [
-									{ "__identifier": "name", "__type": "String", "__value": "sink_2", "__tile": null, "defUid": 815, "realEditorValues": [{
-										"id": "V_String",
-										"params": ["sink_2"]
-									}] },
-									{ "__identifier": "spritesheet", "__type": "String", "__value": "bathroom_sink_2", "__tile": null, "defUid": 807, "realEditorValues": [{
-										"id": "V_String",
-										"params": ["bathroom_sink_2"]
-									}] },
-									{ "__identifier": "frames", "__type": "String", "__value": "[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]", "__tile": null, "defUid": 818, "realEditorValues": [{
-										"id": "V_String",
-										"params": ["[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]"]
-									}] },
-									{ "__identifier": "seconds_per_frame", "__type": "Float", "__value": 0.2, "__tile": null, "defUid": 810, "realEditorValues": [{ "id": "V_Float", "params": [0.2] }] },
-									{ "__identifier": "repeating", "__type": "Bool", "__value": false, "__tile": null, "defUid": 816, "realEditorValues": [null] }
-								]
-							},
-							{
-								"__identifier": "animated_object",
-								"__grid": [13,3],
-								"__pivot": [0.5,0.5],
-								"__tags": [],
-								"__tile": null,
-								"__smartColor": "#0099DB",
-								"__worldX": 208,
-								"__worldY": 48,
-								"iid": "036ec0b0-6280-11ee-bf08-bded87680af1",
-								"width": 32,
-								"height": 32,
-								"defUid": 806,
-								"px": [208,48],
-								"fieldInstances": [
-									{ "__identifier": "name", "__type": "String", "__value": "sink_1", "__tile": null, "defUid": 815, "realEditorValues": [{
-										"id": "V_String",
-										"params": ["sink_1"]
-									}] },
-									{ "__identifier": "spritesheet", "__type": "String", "__value": "bathroom_sink", "__tile": null, "defUid": 807, "realEditorValues": [{
-										"id": "V_String",
-										"params": ["bathroom_sink"]
-									}] },
-									{ "__identifier": "frames", "__type": "String", "__value": "[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]", "__tile": null, "defUid": 818, "realEditorValues": [{
-										"id": "V_String",
-										"params": ["[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]"]
-									}] },
-									{ "__identifier": "seconds_per_frame", "__type": "Float", "__value": 0.15, "__tile": null, "defUid": 810, "realEditorValues": [{ "id": "V_Float", "params": [0.15] }] },
-									{ "__identifier": "repeating", "__type": "Bool", "__value": false, "__tile": null, "defUid": 816, "realEditorValues": [null] }
-								]
-							},
-							{
-								"__identifier": "animated_object",
+								"__identifier": "simple_anim",
 								"__grid": [18,8],
 								"__pivot": [0.5,0.5],
 								"__tags": [],
@@ -2998,7 +3216,7 @@
 								]
 							},
 							{
-								"__identifier": "animated_object",
+								"__identifier": "simple_anim",
 								"__grid": [22,3],
 								"__pivot": [0.5,0.5],
 								"__tags": [],
@@ -3029,7 +3247,7 @@
 								]
 							},
 							{
-								"__identifier": "animated_object",
+								"__identifier": "simple_anim",
 								"__grid": [20,3],
 								"__pivot": [0.5,0.5],
 								"__tags": [],
@@ -3057,68 +3275,6 @@
 										"id": "V_Bool",
 										"params": [ true ]
 									}] }
-								]
-							},
-							{
-								"__identifier": "animated_object",
-								"__grid": [8,8],
-								"__pivot": [0.5,0.5],
-								"__tags": [],
-								"__tile": null,
-								"__smartColor": "#0099DB",
-								"__worldX": 136,
-								"__worldY": 136,
-								"iid": "ea7e9530-6280-11ee-bf08-c3c87cd592d0",
-								"width": 16,
-								"height": 48,
-								"defUid": 806,
-								"px": [136,136],
-								"fieldInstances": [
-									{ "__identifier": "name", "__type": "String", "__value": "toilet_door", "__tile": null, "defUid": 815, "realEditorValues": [{
-										"id": "V_String",
-										"params": ["toilet_door"]
-									}] },
-									{ "__identifier": "spritesheet", "__type": "String", "__value": "toilet_door", "__tile": null, "defUid": 807, "realEditorValues": [{
-										"id": "V_String",
-										"params": ["toilet_door"]
-									}] },
-									{ "__identifier": "frames", "__type": "String", "__value": "[1, 2, 3, 4, 5, 6, 7, 0]", "__tile": null, "defUid": 818, "realEditorValues": [{
-										"id": "V_String",
-										"params": ["[1, 2, 3, 4, 5, 6, 7, 0]"]
-									}] },
-									{ "__identifier": "seconds_per_frame", "__type": "Float", "__value": 0.2, "__tile": null, "defUid": 810, "realEditorValues": [{ "id": "V_Float", "params": [0.2] }] },
-									{ "__identifier": "repeating", "__type": "Bool", "__value": false, "__tile": null, "defUid": 816, "realEditorValues": [] }
-								]
-							},
-							{
-								"__identifier": "script",
-								"__grid": [8,8],
-								"__pivot": [0.5,0.5],
-								"__tags": [],
-								"__tile": null,
-								"__smartColor": "#3E8948",
-								"__worldX": 136,
-								"__worldY": 136,
-								"iid": "0a433d40-6280-11ee-9664-a5c98ff5590f",
-								"width": 16,
-								"height": 16,
-								"defUid": 752,
-								"px": [136,136],
-								"fieldInstances": [
-									{ "__identifier": "name", "__type": "String", "__value": null, "__tile": null, "defUid": 756, "realEditorValues": [] },
-									{ "__identifier": "source", "__type": "String", "__value": "play_object_animation(\"toilet_door\", false)", "__tile": null, "defUid": 753, "realEditorValues": [{
-										"id": "V_String",
-										"params": ["play_object_animation(\"toilet_door\", false)"]
-									}] },
-									{ "__identifier": "external_source", "__type": "String", "__value": null, "__tile": null, "defUid": 790, "realEditorValues": [] },
-									{ "__identifier": "trigger", "__type": "LocalEnum.script_trigger", "__value": "interaction", "__tile": null, "defUid": 788, "realEditorValues": [{
-										"id": "V_String",
-										"params": ["interaction"]
-									}] },
-									{ "__identifier": "start_condition", "__type": "String", "__value": null, "__tile": null, "defUid": 757, "realEditorValues": [] },
-									{ "__identifier": "abort_condition", "__type": "String", "__value": null, "__tile": null, "defUid": 789, "realEditorValues": [] },
-									{ "__identifier": "set_on_start", "__type": "String", "__value": null, "__tile": null, "defUid": 758, "realEditorValues": [] },
-									{ "__identifier": "set_on_finish", "__type": "String", "__value": null, "__tile": null, "defUid": 759, "realEditorValues": [] }
 								]
 							},
 							{
@@ -3153,25 +3309,67 @@
 								]
 							},
 							{
+								"__identifier": "dual_state_anim",
+								"__grid": [4,7],
+								"__pivot": [0.5,0.5],
+								"__tags": [],
+								"__tile": null,
+								"__smartColor": "#0099DB",
+								"__worldX": 72,
+								"__worldY": 120,
+								"iid": "509a6ae0-6280-11ee-b4be-b9bc75094029",
+								"width": 16,
+								"height": 48,
+								"defUid": 820,
+								"px": [72,120],
+								"fieldInstances": [
+									{ "__identifier": "name", "__type": "String", "__value": "door", "__tile": null, "defUid": 821, "realEditorValues": [{
+										"id": "V_String",
+										"params": ["door"]
+									}] },
+									{ "__identifier": "spritesheet", "__type": "String", "__value": "door", "__tile": null, "defUid": 822, "realEditorValues": [{
+										"id": "V_String",
+										"params": ["door"]
+									}] },
+									{ "__identifier": "first_state", "__type": "String", "__value": "[0]", "__tile": null, "defUid": 823, "realEditorValues": [{
+										"id": "V_String",
+										"params": ["[0]"]
+									}] },
+									{ "__identifier": "first_to_second", "__type": "String", "__value": "[1, 2, 3, 4]", "__tile": null, "defUid": 826, "realEditorValues": [{
+										"id": "V_String",
+										"params": ["[1, 2, 3, 4]"]
+									}] },
+									{ "__identifier": "second_state", "__type": "String", "__value": "[4]", "__tile": null, "defUid": 827, "realEditorValues": [{
+										"id": "V_String",
+										"params": ["[4]"]
+									}] },
+									{ "__identifier": "second_to_first", "__type": "String", "__value": "[3, 2, 1, 0]", "__tile": null, "defUid": 828, "realEditorValues": [{
+										"id": "V_String",
+										"params": ["[3, 2, 1, 0]"]
+									}] },
+									{ "__identifier": "seconds_per_frame", "__type": "Float", "__value": 0.1, "__tile": null, "defUid": 824, "realEditorValues": [{ "id": "V_Float", "params": [0.1] }] }
+								]
+							},
+							{
 								"__identifier": "script",
-								"__grid": [13,3],
+								"__grid": [4,8],
 								"__pivot": [0.5,0.5],
 								"__tags": [],
 								"__tile": null,
 								"__smartColor": "#3E8948",
-								"__worldX": 208,
-								"__worldY": 56,
-								"iid": "cb3e3ed0-6280-11ee-9664-a5fdf56bf413",
-								"width": 32,
-								"height": 16,
+								"__worldX": 72,
+								"__worldY": 128,
+								"iid": "4e223ac0-6280-11ee-b4be-cd24aa01846a",
+								"width": 16,
+								"height": 32,
 								"defUid": 752,
-								"px": [208,56],
+								"px": [72,128],
 								"fieldInstances": [
 									{ "__identifier": "name", "__type": "String", "__value": null, "__tile": null, "defUid": 756, "realEditorValues": [] },
-									{ "__identifier": "source", "__type": "String", "__value": "if get_story_var(\"sink_1::running\") == 1 then\n  stop_object_animation(\"sink_1\")\n  set_story_var(\"sink_1::running\", 0)\nelse\n  play_object_animation(\"sink_1\", true)\n  set_story_var(\"sink_1::running\", 1)\nend", "__tile": null, "defUid": 753, "realEditorValues": [{
+									{ "__identifier": "source", "__type": "String", "__value": "if get_story_var(\"door::open\") == 0 then\n  switch_dual_state_animation(\"door\", 2)\n  set_story_var(\"door::open\", 1)\nelse\n  switch_dual_state_animation(\"door\", 1)\n  set_story_var(\"door::open\", 0)\nend", "__tile": null, "defUid": 753, "realEditorValues": [{
 										"id": "V_String",
 										"params": [
-											"if get_story_var(\"sink_1::running\") == 1 then\\n  stop_object_animation(\"sink_1\")\\n  set_story_var(\"sink_1::running\", 0)\\nelse\\n  play_object_animation(\"sink_1\", true)\\n  set_story_var(\"sink_1::running\", 1)\\nend"
+											"if get_story_var(\"door::open\") == 0 then\\n  switch_dual_state_animation(\"door\", 2)\\n  set_story_var(\"door::open\", 1)\\nelse\\n  switch_dual_state_animation(\"door\", 1)\\n  set_story_var(\"door::open\", 0)\\nend"
 										]
 									}] },
 									{ "__identifier": "external_source", "__type": "String", "__value": null, "__tile": null, "defUid": 790, "realEditorValues": [] },
@@ -3186,6 +3384,123 @@
 								]
 							},
 							{
+								"__identifier": "dual_state_anim",
+								"__grid": [13,3],
+								"__pivot": [0.5,0.5],
+								"__tags": [],
+								"__tile": null,
+								"__smartColor": "#0099DB",
+								"__worldX": 208,
+								"__worldY": 48,
+								"iid": "f1bc1890-6280-11ee-b4be-1be99731ca09",
+								"width": 32,
+								"height": 32,
+								"defUid": 820,
+								"px": [208,48],
+								"fieldInstances": [
+									{ "__identifier": "name", "__type": "String", "__value": "sink_1", "__tile": null, "defUid": 821, "realEditorValues": [{
+										"id": "V_String",
+										"params": ["sink_1"]
+									}] },
+									{ "__identifier": "spritesheet", "__type": "String", "__value": "bathroom_sink", "__tile": null, "defUid": 822, "realEditorValues": [{
+										"id": "V_String",
+										"params": ["bathroom_sink"]
+									}] },
+									{ "__identifier": "first_state", "__type": "String", "__value": "[13]", "__tile": null, "defUid": 823, "realEditorValues": [{
+										"id": "V_String",
+										"params": ["[13]"]
+									}] },
+									{ "__identifier": "first_to_second", "__type": "String", "__value": "[0, 1, 2]", "__tile": null, "defUid": 826, "realEditorValues": [{
+										"id": "V_String",
+										"params": ["[0, 1, 2]"]
+									}] },
+									{ "__identifier": "second_state", "__type": "String", "__value": "[3, 4, 5, 6]", "__tile": null, "defUid": 827, "realEditorValues": [{
+										"id": "V_String",
+										"params": ["[3, 4, 5, 6]"]
+									}] },
+									{ "__identifier": "second_to_first", "__type": "String", "__value": "[10, 11, 12]", "__tile": null, "defUid": 828, "realEditorValues": [{
+										"id": "V_String",
+										"params": ["[10, 11, 12]"]
+									}] },
+									{ "__identifier": "seconds_per_frame", "__type": "Float", "__value": 0.15, "__tile": null, "defUid": 824, "realEditorValues": [{ "id": "V_Float", "params": [0.15] }] }
+								]
+							},
+							{
+								"__identifier": "script",
+								"__grid": [13,3],
+								"__pivot": [0.5,0.5],
+								"__tags": [],
+								"__tile": null,
+								"__smartColor": "#3E8948",
+								"__worldX": 208,
+								"__worldY": 56,
+								"iid": "6efa7950-6280-11ee-b4be-376c9fe6fb33",
+								"width": 32,
+								"height": 16,
+								"defUid": 752,
+								"px": [208,56],
+								"fieldInstances": [
+									{ "__identifier": "name", "__type": "String", "__value": null, "__tile": null, "defUid": 756, "realEditorValues": [] },
+									{ "__identifier": "source", "__type": "String", "__value": "if get_story_var(\"sink_1::running\") == 1 then\n  switch_dual_state_animation(\"sink_1\", 1)\n  set_story_var(\"sink_1::running\", 0)\nelse\n  switch_dual_state_animation(\"sink_1\", 2)\n  set_story_var(\"sink_1::running\", 1)\nend", "__tile": null, "defUid": 753, "realEditorValues": [{
+										"id": "V_String",
+										"params": [
+											"if get_story_var(\"sink_1::running\") == 1 then\\n  switch_dual_state_animation(\"sink_1\", 1)\\n  set_story_var(\"sink_1::running\", 0)\\nelse\\n  switch_dual_state_animation(\"sink_1\", 2)\\n  set_story_var(\"sink_1::running\", 1)\\nend"
+										]
+									}] },
+									{ "__identifier": "external_source", "__type": "String", "__value": null, "__tile": null, "defUid": 790, "realEditorValues": [] },
+									{ "__identifier": "trigger", "__type": "LocalEnum.script_trigger", "__value": "interaction", "__tile": null, "defUid": 788, "realEditorValues": [{
+										"id": "V_String",
+										"params": ["interaction"]
+									}] },
+									{ "__identifier": "start_condition", "__type": "String", "__value": null, "__tile": null, "defUid": 757, "realEditorValues": [] },
+									{ "__identifier": "abort_condition", "__type": "String", "__value": null, "__tile": null, "defUid": 789, "realEditorValues": [] },
+									{ "__identifier": "set_on_start", "__type": "String", "__value": null, "__tile": null, "defUid": 758, "realEditorValues": [] },
+									{ "__identifier": "set_on_finish", "__type": "String", "__value": null, "__tile": null, "defUid": 759, "realEditorValues": [] }
+								]
+							},
+							{
+								"__identifier": "dual_state_anim",
+								"__grid": [16,3],
+								"__pivot": [0.5,0.5],
+								"__tags": [],
+								"__tile": null,
+								"__smartColor": "#0099DB",
+								"__worldX": 256,
+								"__worldY": 48,
+								"iid": "1f01d6d0-6280-11ee-b4be-55837e8701cb",
+								"width": 32,
+								"height": 32,
+								"defUid": 820,
+								"px": [256,48],
+								"fieldInstances": [
+									{ "__identifier": "name", "__type": "String", "__value": "sink_2", "__tile": null, "defUid": 821, "realEditorValues": [{
+										"id": "V_String",
+										"params": ["sink_2"]
+									}] },
+									{ "__identifier": "spritesheet", "__type": "String", "__value": "bathroom_sink_2", "__tile": null, "defUid": 822, "realEditorValues": [{
+										"id": "V_String",
+										"params": ["bathroom_sink_2"]
+									}] },
+									{ "__identifier": "first_state", "__type": "String", "__value": "[13]", "__tile": null, "defUid": 823, "realEditorValues": [{
+										"id": "V_String",
+										"params": ["[13]"]
+									}] },
+									{ "__identifier": "first_to_second", "__type": "String", "__value": "[0, 1, 2]", "__tile": null, "defUid": 826, "realEditorValues": [{
+										"id": "V_String",
+										"params": ["[0, 1, 2]"]
+									}] },
+									{ "__identifier": "second_state", "__type": "String", "__value": "[3, 4, 5, 6]", "__tile": null, "defUid": 827, "realEditorValues": [{
+										"id": "V_String",
+										"params": ["[3, 4, 5, 6]"]
+									}] },
+									{ "__identifier": "second_to_first", "__type": "String", "__value": "[10, 11, 12]", "__tile": null, "defUid": 828, "realEditorValues": [{
+										"id": "V_String",
+										"params": ["[10, 11, 12]"]
+									}] },
+									{ "__identifier": "seconds_per_frame", "__type": "Float", "__value": 0.15, "__tile": null, "defUid": 824, "realEditorValues": [{ "id": "V_Float", "params": [0.15] }] }
+								]
+							},
+							{
 								"__identifier": "script",
 								"__grid": [16,3],
 								"__pivot": [0.5,0.5],
@@ -3194,17 +3509,92 @@
 								"__smartColor": "#3E8948",
 								"__worldX": 256,
 								"__worldY": 56,
-								"iid": "a62fe5c0-6280-11ee-9664-fb5cad1154c2",
+								"iid": "2e03d980-6280-11ee-b4be-9125a98e414a",
 								"width": 32,
 								"height": 16,
 								"defUid": 752,
 								"px": [256,56],
 								"fieldInstances": [
 									{ "__identifier": "name", "__type": "String", "__value": null, "__tile": null, "defUid": 756, "realEditorValues": [] },
-									{ "__identifier": "source", "__type": "String", "__value": "if get_story_var(\"sink_2::running\") == 1 then\n  stop_object_animation(\"sink_2\")\n  set_story_var(\"sink_2::running\", 0)\nelse\n  play_object_animation(\"sink_2\", true)\n  set_story_var(\"sink_2::running\", 1)\nend", "__tile": null, "defUid": 753, "realEditorValues": [{
+									{ "__identifier": "source", "__type": "String", "__value": "if get_story_var(\"sink_2::running\") == 1 then\n  switch_dual_state_animation(\"sink_2\", 1)\n  set_story_var(\"sink_2::running\", 0)\nelse\n  switch_dual_state_animation(\"sink_2\", 2)\n  set_story_var(\"sink_2::running\", 1)\nend", "__tile": null, "defUid": 753, "realEditorValues": [{
 										"id": "V_String",
 										"params": [
-											"if get_story_var(\"sink_2::running\") == 1 then\\n  stop_object_animation(\"sink_2\")\\n  set_story_var(\"sink_2::running\", 0)\\nelse\\n  play_object_animation(\"sink_2\", true)\\n  set_story_var(\"sink_2::running\", 1)\\nend"
+											"if get_story_var(\"sink_2::running\") == 1 then\\n  switch_dual_state_animation(\"sink_2\", 1)\\n  set_story_var(\"sink_2::running\", 0)\\nelse\\n  switch_dual_state_animation(\"sink_2\", 2)\\n  set_story_var(\"sink_2::running\", 1)\\nend"
+										]
+									}] },
+									{ "__identifier": "external_source", "__type": "String", "__value": null, "__tile": null, "defUid": 790, "realEditorValues": [] },
+									{ "__identifier": "trigger", "__type": "LocalEnum.script_trigger", "__value": "interaction", "__tile": null, "defUid": 788, "realEditorValues": [{
+										"id": "V_String",
+										"params": ["interaction"]
+									}] },
+									{ "__identifier": "start_condition", "__type": "String", "__value": null, "__tile": null, "defUid": 757, "realEditorValues": [] },
+									{ "__identifier": "abort_condition", "__type": "String", "__value": null, "__tile": null, "defUid": 789, "realEditorValues": [] },
+									{ "__identifier": "set_on_start", "__type": "String", "__value": null, "__tile": null, "defUid": 758, "realEditorValues": [] },
+									{ "__identifier": "set_on_finish", "__type": "String", "__value": null, "__tile": null, "defUid": 759, "realEditorValues": [] }
+								]
+							},
+							{
+								"__identifier": "dual_state_anim",
+								"__grid": [8,8],
+								"__pivot": [0.5,0.5],
+								"__tags": [],
+								"__tile": null,
+								"__smartColor": "#0099DB",
+								"__worldX": 136,
+								"__worldY": 136,
+								"iid": "feaaeb50-6280-11ee-b4be-cda6f8a21a92",
+								"width": 16,
+								"height": 48,
+								"defUid": 820,
+								"px": [136,136],
+								"fieldInstances": [
+									{ "__identifier": "name", "__type": "String", "__value": "toilet_door", "__tile": null, "defUid": 821, "realEditorValues": [{
+										"id": "V_String",
+										"params": ["toilet_door"]
+									}] },
+									{ "__identifier": "spritesheet", "__type": "String", "__value": "toilet_door", "__tile": null, "defUid": 822, "realEditorValues": [{
+										"id": "V_String",
+										"params": ["toilet_door"]
+									}] },
+									{ "__identifier": "first_state", "__type": "String", "__value": "[0]", "__tile": null, "defUid": 823, "realEditorValues": [{
+										"id": "V_String",
+										"params": ["[0]"]
+									}] },
+									{ "__identifier": "first_to_second", "__type": "String", "__value": "[1, 2, 3, 4]", "__tile": null, "defUid": 826, "realEditorValues": [{
+										"id": "V_String",
+										"params": ["[1, 2, 3, 4]"]
+									}] },
+									{ "__identifier": "second_state", "__type": "String", "__value": "[4]", "__tile": null, "defUid": 827, "realEditorValues": [{
+										"id": "V_String",
+										"params": ["[4]"]
+									}] },
+									{ "__identifier": "second_to_first", "__type": "String", "__value": "[3, 2, 1, 0]", "__tile": null, "defUid": 828, "realEditorValues": [{
+										"id": "V_String",
+										"params": ["[3, 2, 1, 0]"]
+									}] },
+									{ "__identifier": "seconds_per_frame", "__type": "Float", "__value": 0.1, "__tile": null, "defUid": 824, "realEditorValues": [{ "id": "V_Float", "params": [0.1] }] }
+								]
+							},
+							{
+								"__identifier": "script",
+								"__grid": [8,8],
+								"__pivot": [0.5,0.5],
+								"__tags": [],
+								"__tile": null,
+								"__smartColor": "#3E8948",
+								"__worldX": 136,
+								"__worldY": 136,
+								"iid": "2da96800-6280-11ee-b4be-4b1f89d02eef",
+								"width": 16,
+								"height": 16,
+								"defUid": 752,
+								"px": [136,136],
+								"fieldInstances": [
+									{ "__identifier": "name", "__type": "String", "__value": null, "__tile": null, "defUid": 756, "realEditorValues": [] },
+									{ "__identifier": "source", "__type": "String", "__value": "if get_story_var(\"toilet_door::open\") == 0 then\n  switch_dual_state_animation(\"toilet_door\", 2)\n  set_story_var(\"toilet_door::open\", 1)\nelse\n  switch_dual_state_animation(\"toilet_door\", 1)\n  set_story_var(\"toilet_door::open\", 0)\nend", "__tile": null, "defUid": 753, "realEditorValues": [{
+										"id": "V_String",
+										"params": [
+											"if get_story_var(\"toilet_door::open\") == 0 then\\n  switch_dual_state_animation(\"toilet_door\", 2)\\n  set_story_var(\"toilet_door::open\", 1)\\nelse\\n  switch_dual_state_animation(\"toilet_door\", 1)\\n  set_story_var(\"toilet_door::open\", 0)\\nend"
 										]
 									}] },
 									{ "__identifier": "external_source", "__type": "String", "__value": null, "__tile": null, "defUid": 790, "realEditorValues": [] },

@@ -205,37 +205,6 @@ fn main() {
         },
     );
 
-    // Door
-    let id = ecs.add_entity();
-    ecs.add_component(id, Name("door".to_string()));
-    ecs.add_component(id, Position(WorldPos::new("bathroom", 4.5, 8.)));
-    ecs.add_component(id, SpriteComponent::default());
-    ecs.add_component(id, Collision { hitbox: Size2D::new(1., 2.), solid: true });
-
-    let clip_from_cols = |cols: &[i32]| AnimationClip {
-        frames: cols
-            .iter()
-            .map(|col| Sprite {
-                spritesheet: "door".to_string(),
-                rect: SdlRect::new(col * 16, 0, 16, 48),
-                anchor: Point2D::new(8, 32),
-            })
-            .collect(),
-        seconds_per_frame: 0.1,
-    };
-
-    ecs.add_component(id, AnimationComponent::default());
-    ecs.add_component(
-        id,
-        DualStateAnimations {
-            state: DualStateAnimationState::First,
-            first: clip_from_cols(&[0]),
-            first_to_second: clip_from_cols(&[1, 2, 3, 4]),
-            second: clip_from_cols(&[4]),
-            second_to_first: clip_from_cols(&[3, 2, 1, 0]),
-        },
-    );
-
     // Entities from ldtk
     ecs::loader::load_entities_from_ldtk(&mut ecs, &project);
 
@@ -246,6 +215,8 @@ fn main() {
     let mut story_vars: HashMap<String, i32> = HashMap::new();
     story_vars.insert("sink_1::running".to_string(), 0);
     story_vars.insert("sink_2::running".to_string(), 0);
+    story_vars.insert("door::open".to_string(), 0);
+    story_vars.insert("toilet_door::open".to_string(), 0);
 
     let mut script_manager = ScriptManager { instances: SlotMap::with_key() };
 
@@ -268,28 +239,6 @@ fn main() {
         // ----------------------------------------------------------
         for event in event_pump.poll_iter() {
             match event {
-                // TODO move to script
-                // -------------------
-                Event::KeyDown { keycode: Some(Keycode::Q), .. } => {
-                    let (mut anim_comp, mut dual_anims) = ecs
-                        .query_one_with_name::<(&mut AnimationComponent, &mut DualStateAnimations)>(
-                            "door",
-                        )
-                        .unwrap();
-                    dual_anims.state = DualStateAnimationState::FirstToSecond;
-                    anim_comp.start(false);
-                }
-                Event::KeyDown { keycode: Some(Keycode::W), .. } => {
-                    let (mut anim_comp, mut dual_anims) = ecs
-                        .query_one_with_name::<(&mut AnimationComponent, &mut DualStateAnimations)>(
-                            "door",
-                        )
-                        .unwrap();
-                    dual_anims.state = DualStateAnimationState::SecondToFirst;
-                    anim_comp.start(false);
-                }
-                // -------------------
-
                 // Close program
                 Event::Quit { .. } | Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
                     running = false;
@@ -468,8 +417,14 @@ fn main() {
 
             // If a transition animation is finished playing, switch to the next state
             match (dual_anims.state, anim_comp.state) {
-                (FirstToSecond, PlaybackState::Stopped) => dual_anims.state = Second,
-                (SecondToFirst, PlaybackState::Stopped) => dual_anims.state = First,
+                (FirstToSecond, PlaybackState::Stopped) => {
+                    dual_anims.state = Second;
+                    anim_comp.start(true);
+                }
+                (SecondToFirst, PlaybackState::Stopped) => {
+                    dual_anims.state = First;
+                    anim_comp.start(true);
+                }
                 _ => {}
             };
 
@@ -479,7 +434,7 @@ fn main() {
                 Second => &dual_anims.second,
                 SecondToFirst => &dual_anims.second_to_first,
             }
-            .clone()
+            .clone();
         }
 
         // Play entity animations and set sprite
@@ -487,7 +442,7 @@ fn main() {
             ecs.query::<(&mut AnimationComponent, &mut SpriteComponent)>()
         {
             // Should anim_comp.clip be an Option? Or is "no clip" just an empty clip?
-            if anim_comp.clip.frames.len() < 1 {
+            if anim_comp.clip.frames.is_empty() {
                 continue;
             }
 

@@ -50,6 +50,7 @@ impl AnimationComponent {
     pub fn start(&mut self, repeat: bool) {
         self.state = PlaybackState::Playing;
         self.repeat = repeat;
+        self.elapsed = Duration::ZERO;
     }
 
     #[allow(dead_code)]
@@ -64,7 +65,6 @@ impl AnimationComponent {
 
     pub fn stop(&mut self) {
         self.state = PlaybackState::Stopped;
-        self.elapsed = Duration::ZERO;
     }
 }
 

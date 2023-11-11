@@ -70,6 +70,9 @@ pub enum Trigger {
     // Rename these two?
     SoftCollision, // player is "colliding" AFTER movement update
     HardCollision, // player collided DURING movement update
+    // We need a way to trigger scripts as soon as player enters a map
+    // Currently, unlike RMXP Auto events, Auto scripts start regardless of
+    // player map, since all entities are always loaded
     Auto,
 }
 
@@ -361,6 +364,12 @@ impl ScriptInstance {
                         "stop_object_animation",
                         scope.create_function_mut(|_, args| {
                             callback::stop_object_animation(args, *ecs.borrow_mut())
+                        })?,
+                    )?;
+                    globals.set(
+                        "switch_dual_state_animation",
+                        scope.create_function_mut(|_, args| {
+                            callback::switch_dual_state_animation(args, *ecs.borrow_mut())
                         })?,
                     )?;
                     globals.set(

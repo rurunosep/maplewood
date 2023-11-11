@@ -1,7 +1,7 @@
 use super::{Error, ScriptId, WaitCondition};
 use crate::ecs::component::{
-    AnimationComponent, Collision, Facing, PlaybackState, Position, SineOffsetAnimation, Sprite,
-    SpriteComponent, Walking,
+    AnimationComponent, Collision, DualStateAnimationState, DualStateAnimations, Facing,
+    PlaybackState, Position, SineOffsetAnimation, Sprite, SpriteComponent, Walking,
 };
 use crate::ecs::{Ecs, EntityId};
 use crate::world::WorldPos;
@@ -179,7 +179,6 @@ pub fn is_entity_walking(entity: String, ecs: &Ecs) -> LuaResult<bool> {
     Ok(walking.destination.is_some())
 }
 
-// Doesn't test if the entity actually has a single animation clip vs a character animation set
 pub fn play_object_animation((entity, repeat): (String, bool), ecs: &Ecs) -> LuaResult<()> {
     let mut anim_comp = ecs
         .query_one_with_name::<&mut AnimationComponent>(&entity)
@@ -195,6 +194,23 @@ pub fn stop_object_animation(entity: String, ecs: &Ecs) -> LuaResult<()> {
         .ok_or(Error::NoEntity(entity))?;
 
     anim_comp.state = PlaybackState::Stopped;
+    Ok(())
+}
+
+pub fn switch_dual_state_animation((entity, state): (String, i32), ecs: &Ecs) -> LuaResult<()> {
+    let (mut anim_comp, mut dual_anims) = ecs
+        .query_one_with_name::<(&mut AnimationComponent, &mut DualStateAnimations)>(&entity)
+        .ok_or(Error::NoEntity(entity))?;
+
+    let state = match state {
+        1 => Ok(DualStateAnimationState::SecondToFirst),
+        2 => Ok(DualStateAnimationState::FirstToSecond),
+        _ => Err(Error::Generic("state must be 1 or 2".to_string())),
+    }?;
+
+    dual_anims.state = state;
+    anim_comp.start(false);
+
     Ok(())
 }
 
