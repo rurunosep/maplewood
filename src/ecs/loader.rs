@@ -1,7 +1,7 @@
 // This might want to be in a module with ldtk_json.rs and other resource loading files
 // some day, rather than here with the entity files
 
-use super::component::{AnimationClip, AnimationComponent, AnimationSet, Sprite, SpriteComponent};
+use super::component::{AnimationClip, AnimationComponent, PlaybackState, Sprite, SpriteComponent};
 use crate::ecs::component::{Collision, Name, Position, Scripts};
 use crate::ecs::Ecs;
 use crate::ldtk_json::{self};
@@ -148,9 +148,9 @@ fn load_animated_object(
     let spritesheet = read_field_string("spritesheet", entity).unwrap();
     let frame_indexes: Vec<i32> = read_field_json("frames", entity).unwrap();
     let seconds_per_frame = read_field_f64("seconds_per_frame", entity).unwrap();
-    let (playing, repeat) = match read_field_bool("repeating", entity).unwrap() {
-        true => (true, true),
-        false => (false, false),
+    let (state, repeat) = match read_field_bool("repeating", entity).unwrap() {
+        true => (PlaybackState::Playing, true),
+        false => (PlaybackState::Stopped, false),
     };
 
     let w = entity.width;
@@ -159,7 +159,7 @@ fn load_animated_object(
     ecs.add_component(
         id,
         AnimationComponent {
-            anim_set: AnimationSet::Single(AnimationClip {
+            clip: AnimationClip {
                 frames: frame_indexes
                     .iter()
                     .map(|col| Sprite {
@@ -169,9 +169,9 @@ fn load_animated_object(
                     })
                     .collect(),
                 seconds_per_frame,
-            }),
-            elapsed: Duration::from_secs(0),
-            playing,
+            },
+            elapsed: Duration::ZERO,
+            state,
             repeat,
         },
     );

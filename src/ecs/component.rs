@@ -35,54 +35,80 @@ pub struct Sprite {
     pub anchor: Point2D<i32, PixelUnits>,
 }
 
+// Animation ------------------------------------
+
+#[derive(Default)]
 pub struct AnimationComponent {
-    pub anim_set: AnimationSet,
+    pub clip: AnimationClip,
     pub elapsed: Duration,
-    pub playing: bool,
+    pub state: PlaybackState,
     pub repeat: bool,
 }
 impl Component for AnimationComponent {}
 
-pub enum AnimationSet {
-    Character {
-        state: CharacterAnimationState,
-        up: AnimationClip,
-        down: AnimationClip,
-        left: AnimationClip,
-        right: AnimationClip,
-    },
-    Single(AnimationClip),
-    DualState {
-        state: DualStateAnimationState,
-        first: AnimationClip,
-        first_to_second: AnimationClip,
-        second: AnimationClip,
-        second_to_first: AnimationClip,
-    },
+impl AnimationComponent {
+    pub fn start(&mut self, repeat: bool) {
+        self.state = PlaybackState::Playing;
+        self.repeat = repeat;
+    }
+
+    #[allow(dead_code)]
+    pub fn pause(&mut self) {
+        self.state = PlaybackState::Paused;
+    }
+
+    #[allow(dead_code)]
+    pub fn resume(&mut self) {
+        self.state = PlaybackState::Playing
+    }
+
+    pub fn stop(&mut self) {
+        self.state = PlaybackState::Stopped;
+        self.elapsed = Duration::ZERO;
+    }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct AnimationClip {
     pub frames: Vec<Sprite>,
     pub seconds_per_frame: f64,
 }
 
-#[allow(clippy::enum_variant_names)]
-pub enum CharacterAnimationState {
-    WalkLeft,
-    WalkRight,
-    WalkUp,
-    WalkDown,
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum PlaybackState {
+    Playing,
+    Paused,
+    #[default]
+    Stopped,
 }
 
+pub struct CharacterAnimations {
+    pub up: AnimationClip,
+    pub down: AnimationClip,
+    pub left: AnimationClip,
+    pub right: AnimationClip,
+}
+impl Component for CharacterAnimations {}
+
+pub struct DualStateAnimations {
+    pub state: DualStateAnimationState,
+    pub first: AnimationClip,
+    pub first_to_second: AnimationClip,
+    pub second: AnimationClip,
+    pub second_to_first: AnimationClip,
+}
+impl Component for DualStateAnimations {}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 // lmao
-#[derive(Clone, Copy)]
 pub enum DualStateAnimationState {
     First,
     FirstToSecond,
     Second,
     SecondToFirst,
 }
+
+// ----------------------------------------------
 
 pub struct SineOffsetAnimation {
     pub start_time: Instant,

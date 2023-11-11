@@ -9,9 +9,9 @@ mod script;
 mod world;
 
 use ecs::component::{
-    AnimationClip, AnimationComponent, AnimationSet, CharacterAnimationState, Collision,
-    DualStateAnimationState, Facing, Name, Position, Scripts, SineOffsetAnimation, Sprite,
-    SpriteComponent, Walking,
+    AnimationClip, AnimationComponent, CharacterAnimations, Collision, DualStateAnimationState,
+    DualStateAnimations, Facing, Name, PlaybackState, Position, Scripts, SineOffsetAnimation,
+    Sprite, SpriteComponent, Walking,
 };
 use ecs::{Ecs, EntityId};
 use euclid::{Point2D, Rect, Size2D, Vector2D};
@@ -194,19 +194,14 @@ fn main() {
         seconds_per_frame: 0.15,
     };
 
+    ecs.add_component(player_id, AnimationComponent::default());
     ecs.add_component(
         player_id,
-        AnimationComponent {
-            anim_set: AnimationSet::Character {
-                state: CharacterAnimationState::WalkDown,
-                up: clip_from_row(3),
-                down: clip_from_row(0),
-                left: clip_from_row(1),
-                right: clip_from_row(2),
-            },
-            elapsed: Duration::from_secs(0),
-            playing: false,
-            repeat: false,
+        CharacterAnimations {
+            up: clip_from_row(3),
+            down: clip_from_row(0),
+            left: clip_from_row(1),
+            right: clip_from_row(2),
         },
     );
 
@@ -229,19 +224,15 @@ fn main() {
         seconds_per_frame: 0.1,
     };
 
+    ecs.add_component(id, AnimationComponent::default());
     ecs.add_component(
         id,
-        AnimationComponent {
-            anim_set: AnimationSet::DualState {
-                state: DualStateAnimationState::First,
-                first: clip_from_cols(&[0]),
-                first_to_second: clip_from_cols(&[1, 2, 3, 4]),
-                second: clip_from_cols(&[4]),
-                second_to_first: clip_from_cols(&[3, 2, 1, 0]),
-            },
-            elapsed: Duration::from_secs(0),
-            playing: false,
-            repeat: false,
+        DualStateAnimations {
+            state: DualStateAnimationState::First,
+            first: clip_from_cols(&[0]),
+            first_to_second: clip_from_cols(&[1, 2, 3, 4]),
+            second: clip_from_cols(&[4]),
+            second_to_first: clip_from_cols(&[3, 2, 1, 0]),
         },
     );
 
@@ -280,26 +271,22 @@ fn main() {
                 // TODO move to script
                 // -------------------
                 Event::KeyDown { keycode: Some(Keycode::Q), .. } => {
-                    let mut anim_comp =
-                        ecs.query_one_with_name::<&mut AnimationComponent>("door").unwrap();
-                    if let AnimationSet::DualState { state, .. } = &mut anim_comp.anim_set {
-                        *state = DualStateAnimationState::FirstToSecond;
-                    }
-                    // TODO play_once()
-                    anim_comp.playing = true;
-                    anim_comp.repeat = false;
-                    anim_comp.elapsed = Duration::ZERO;
+                    let (mut anim_comp, mut dual_anims) = ecs
+                        .query_one_with_name::<(&mut AnimationComponent, &mut DualStateAnimations)>(
+                            "door",
+                        )
+                        .unwrap();
+                    dual_anims.state = DualStateAnimationState::FirstToSecond;
+                    anim_comp.start(false);
                 }
                 Event::KeyDown { keycode: Some(Keycode::W), .. } => {
-                    let mut anim_comp =
-                        ecs.query_one_with_name::<&mut AnimationComponent>("door").unwrap();
-                    if let AnimationSet::DualState { state, .. } = &mut anim_comp.anim_set {
-                        *state = DualStateAnimationState::SecondToFirst;
-                    }
-                    // TODO play_once()
-                    anim_comp.playing = true;
-                    anim_comp.repeat = false;
-                    anim_comp.elapsed = Duration::ZERO;
+                    let (mut anim_comp, mut dual_anims) = ecs
+                        .query_one_with_name::<(&mut AnimationComponent, &mut DualStateAnimations)>(
+                            "door",
+                        )
+                        .unwrap();
+                    dual_anims.state = DualStateAnimationState::SecondToFirst;
+                    anim_comp.start(false);
                 }
                 // -------------------
 
@@ -452,97 +439,67 @@ fn main() {
             }
         }
 
-        // Update character animation state
-        for (mut anim_comp, facing, walk_comp) in
-            ecs.query::<(&mut AnimationComponent, &Facing, &Walking)>()
+        // Update character animations
+        for (mut anim_comp, char_anims, facing, walk_comp) in
+            ecs.query::<(&mut AnimationComponent, &CharacterAnimations, &Facing, &Walking)>()
         {
-            let AnimationSet::Character { state, .. } = &mut anim_comp.anim_set else {
-                continue;
-            };
-
-            *state = match facing.0 {
-                Direction::Up => CharacterAnimationState::WalkUp,
-                Direction::Down => CharacterAnimationState::WalkDown,
-                Direction::Left => CharacterAnimationState::WalkLeft,
-                Direction::Right => CharacterAnimationState::WalkRight,
-            };
-
-            if walk_comp.speed > 0. {
-                if !anim_comp.playing {
-                    // TODO play_repeating()
-                    anim_comp.playing = true;
-                    anim_comp.repeat = true;
-                    anim_comp.elapsed = Duration::ZERO;
-                }
-            } else {
-                // TODO stop()
-                anim_comp.playing = false;
-            }
-        }
-
-        // Update dual state animation state
-        for mut anim_comp in ecs.query::<&mut AnimationComponent>() {
-            let AnimationSet::DualState { .. } = anim_comp.anim_set else {
-                continue;
-            };
-
-            let prev_state = match anim_comp.anim_set {
-                AnimationSet::DualState { state, .. } => state,
-                _ => unreachable!(),
-            };
-
-            // If a transition animation is finished playing, switch to the next state
-            use DualStateAnimationState::*;
-            let new_state = match (prev_state, anim_comp.playing) {
-                (FirstToSecond, false) => Second,
-                (SecondToFirst, false) => First,
-                _ => prev_state,
-            };
-
-            if let AnimationSet::DualState { state, .. } = &mut anim_comp.anim_set {
-                *state = new_state;
-            }
-        }
-
-        // Update entity animations and sprites
-        for (mut anim_comp, mut sprite_comp) in
-            ecs.query::<(&mut AnimationComponent, &mut SpriteComponent)>()
-        {
-            // TODO animation component rework
-            let clip = match &anim_comp.anim_set {
-                AnimationSet::Character { state, up, down, left, right } => match state {
-                    CharacterAnimationState::WalkUp => up,
-                    CharacterAnimationState::WalkDown => down,
-                    CharacterAnimationState::WalkLeft => left,
-                    CharacterAnimationState::WalkRight => right,
-                },
-                AnimationSet::Single(clip) => clip,
-                AnimationSet::DualState {
-                    state,
-                    first,
-                    first_to_second,
-                    second,
-                    second_to_first,
-                } => match state {
-                    DualStateAnimationState::First => first,
-                    DualStateAnimationState::FirstToSecond => first_to_second,
-                    DualStateAnimationState::Second => second,
-                    DualStateAnimationState::SecondToFirst => second_to_first,
-                },
+            anim_comp.clip = match facing.0 {
+                Direction::Up => &char_anims.up,
+                Direction::Down => &char_anims.down,
+                Direction::Left => &char_anims.left,
+                Direction::Right => &char_anims.right,
             }
             .clone();
 
-            // TODO enum: playing, paused, stopped (not playing)
-            // playing
-            if anim_comp.playing {
+            if walk_comp.speed > 0. {
+                if anim_comp.state == PlaybackState::Stopped {
+                    anim_comp.start(true);
+                }
+            } else {
+                anim_comp.stop();
+            }
+        }
+
+        // Update dual state animations
+        for (mut anim_comp, mut dual_anims) in
+            ecs.query::<(&mut AnimationComponent, &mut DualStateAnimations)>()
+        {
+            use DualStateAnimationState::*;
+
+            // If a transition animation is finished playing, switch to the next state
+            match (dual_anims.state, anim_comp.state) {
+                (FirstToSecond, PlaybackState::Stopped) => dual_anims.state = Second,
+                (SecondToFirst, PlaybackState::Stopped) => dual_anims.state = First,
+                _ => {}
+            };
+
+            anim_comp.clip = match dual_anims.state {
+                First => &dual_anims.first,
+                FirstToSecond => &dual_anims.first_to_second,
+                Second => &dual_anims.second,
+                SecondToFirst => &dual_anims.second_to_first,
+            }
+            .clone()
+        }
+
+        // Play entity animations and set sprite
+        for (mut anim_comp, mut sprite_comp) in
+            ecs.query::<(&mut AnimationComponent, &mut SpriteComponent)>()
+        {
+            // Should anim_comp.clip be an Option? Or is "no clip" just an empty clip?
+            if anim_comp.clip.frames.len() < 1 {
+                continue;
+            }
+
+            if anim_comp.state == PlaybackState::Playing {
                 anim_comp.elapsed += delta;
             }
 
+            let clip = &anim_comp.clip;
             let elapsed = anim_comp.elapsed.as_secs_f64();
             let duration = clip.seconds_per_frame * clip.frames.len() as f64;
             let finished = elapsed > duration && !anim_comp.repeat;
-            // finished or stopped
-            let frame_index = if finished || !anim_comp.playing {
+            let frame_index = if finished || anim_comp.state == PlaybackState::Stopped {
                 clip.frames.len() - 1
             } else {
                 (elapsed % duration / clip.seconds_per_frame).floor() as usize
@@ -551,7 +508,7 @@ fn main() {
             sprite_comp.sprite = Some(sprite.clone());
 
             if finished {
-                anim_comp.playing = false;
+                anim_comp.stop();
             }
         }
 
