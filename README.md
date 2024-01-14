@@ -13,7 +13,7 @@ The humble beginnings of a 2D adventure game engine built from the ground up wit
   Scripts have various triggers (such as entity collision, interaction, or automatic given a condition). Scripts provide the functions for scripting much of the story and game content (such as displaying messages, animating entities, playing sound effects and music, setting and branching on story variables, etc).
 
 - 🗺️ Simple 2D graphics and a tile-based map.  
-  _(The next focus of development is the game world/map.)_
+  *(The next focus of development is the game world/map.)*
 
 ## Notable Libraries Used
 
@@ -23,7 +23,7 @@ The humble beginnings of a 2D adventure game engine built from the ground up wit
 
 ## Building and Running
 
-Developed with nightly Rust.
+Developed with nightly Rust. (Because I couldn't live without let chains.)
 
 [Install Rust](https://www.rust-lang.org/tools/install) using rustup. Select the nightly toolchain. For Windows, install the Visual Studio build tools if prompted. The minimal requirements are:
 

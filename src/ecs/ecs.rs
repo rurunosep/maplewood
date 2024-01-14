@@ -1,4 +1,4 @@
-use super::component::Name;
+use super::components::Name;
 use super::query::Query;
 use anymap::AnyMap;
 use slotmap::{new_key_type, Key, SecondaryMap, SlotMap};
@@ -26,7 +26,7 @@ impl From<DeferredEntityId> for RealOrDeferredEntityId {
     }
 }
 
-type QueryResultIter<'a, Q> = Box<dyn Iterator<Item = <Q as Query>::Result<'a>> + 'a>;
+type QueryResultIter<'r, Q> = Box<dyn Iterator<Item = <Q as Query>::Result<'r>> + 'r>;
 pub type ComponentMap<C> = SecondaryMap<EntityId, RefCell<C>>;
 
 pub struct Ecs {
@@ -85,7 +85,7 @@ impl Ecs {
     where
         Q: Query + 'static,
     {
-        self.query::<(&Name, Q)>().find(|(l, _)| l.0.as_str() == name).map(|(_, q)| q)
+        self.query::<(&Name, Q)>().find(|(n, _)| n.as_str() == name).map(|(_, q)| q)
     }
 
     pub fn add_entity(&mut self) -> EntityId {

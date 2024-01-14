@@ -1,4 +1,4 @@
-use crate::ecs::component::{Position, SineOffsetAnimation, SpriteComponent};
+use crate::ecs::components::{Position, SineOffsetAnimation, SpriteComponent};
 use crate::ecs::Ecs;
 use crate::world::{CellPos, Map, MapPos, MapUnits, TileLayer};
 use crate::MessageWindow;
@@ -147,11 +147,11 @@ impl Renderer<'_, '_> {
     ) {
         // (Long for-in-query-sorted line breaks rustfmt. So this is just to split it up.)
         let query = ecs.query::<(&Position, &SpriteComponent, Option<&SineOffsetAnimation>)>();
-        let sorted = query
-            .sorted_by(|(p1, ..), (p2, ..)| p1.0.map_pos.y.partial_cmp(&p2.0.map_pos.y).unwrap());
+        let sorted =
+            query.sorted_by(|(p1, ..), (p2, ..)| p1.map_pos.y.partial_cmp(&p2.map_pos.y).unwrap());
         for (position, sprite_component, sine_offset_animation) in sorted {
             // Skip entities not on the current map
-            if position.0.map != map.name {
+            if position.map != map.name {
                 continue;
             }
 
@@ -163,7 +163,7 @@ impl Renderer<'_, '_> {
             };
 
             // If entity has a SineOffsetAnimation, offset sprite position accordingly
-            let mut position = position.0.map_pos;
+            let mut position = position.map_pos;
             if let Some(soa) = sine_offset_animation {
                 let offset = soa.direction
                     * (soa.start_time.elapsed().as_secs_f64() * soa.frequency * (PI * 2.)).sin()

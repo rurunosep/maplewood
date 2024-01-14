@@ -1,4 +1,4 @@
-pub mod callback;
+pub mod callbacks;
 
 #[allow(clippy::module_inception)]
 mod script;

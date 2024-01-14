@@ -8,7 +8,7 @@ mod render;
 mod script;
 mod world;
 
-use ecs::component::{
+use ecs::components::{
     AnimationClip, AnimationComponent, CharacterAnimations, Collision, DualStateAnimationState,
     DualStateAnimations, Facing, Name, PlaybackState, Position, Scripts, SineOffsetAnimation,
     Sprite, SpriteComponent, Walking,
@@ -319,7 +319,6 @@ fn main() {
         // Start Auto scripts
         for scripts in ecs.query::<&Scripts>() {
             for script in scripts
-                .0
                 .iter()
                 .filter(|script| script.trigger == Some(Trigger::Auto))
                 .filter(|script| script.is_start_condition_fulfilled(&story_vars))
@@ -366,19 +365,16 @@ fn main() {
         // Start player soft collision scripts
         let (player_aabb, player_map) = {
             let (pos, coll) = ecs.query_one_with_id::<(&Position, &Collision)>(player_id).unwrap();
-            (AABB::new(pos.0.map_pos, coll.hitbox), pos.0.map.clone())
+            (AABB::new(pos.map_pos, coll.hitbox), pos.map.clone())
         };
         // For each entity colliding with the player...
         for (.., scripts) in ecs
             .query::<(&Position, &Collision, &Scripts)>()
-            .filter(|(pos, ..)| pos.0.map == player_map)
-            .filter(|(pos, coll, ..)| {
-                AABB::new(pos.0.map_pos, coll.hitbox).intersects(&player_aabb)
-            })
+            .filter(|(pos, ..)| pos.map == player_map)
+            .filter(|(pos, coll, ..)| AABB::new(pos.map_pos, coll.hitbox).intersects(&player_aabb))
         {
             // ...start scripts that have collision trigger and fulfill start condition
             for script in scripts
-                .0
                 .iter()
                 .filter(|script| script.trigger == Some(Trigger::SoftCollision))
                 .filter(|script| script.is_start_condition_fulfilled(&story_vars))
@@ -399,6 +395,10 @@ fn main() {
                 Direction::Right => &char_anims.right,
             }
             .clone();
+            // If I don't want to clone() the whole clip, I could use Rc<AnimationClip>
+            // And if I don't want multiple owners, AnimationComponent could use Weak<_>
+            // And if I want it to sometimes own a clip, I could use Either<_, Weak<_>>
+            // But all of that is just optimization to avoid clone()
 
             if walk_comp.speed > 0. {
                 if anim_comp.state == PlaybackState::Stopped {
@@ -497,7 +497,7 @@ fn main() {
 
         // Camera could be an entity with a position component
         // map_to_render is camera's world pos' map
-        let player_position = &ecs.query_one_with_id::<&Position>(player_id).unwrap().0;
+        let player_position = &ecs.query_one_with_id::<&Position>(player_id).unwrap();
         let map_to_render = world.maps.get(&player_position.map).unwrap();
         let mut camera_position = player_position.map_pos;
 
@@ -591,7 +591,7 @@ mod input {
         // This might fail in some weird cases, but it works for now.
         let (player_pos, player_facing) =
             ecs.query_one_with_id::<(&Position, &Facing)>(player_id).unwrap();
-        let target = player_pos.0.map_pos
+        let target = player_pos.map_pos
             + match player_facing.0 {
                 Direction::Up => Vector2D::new(0.0, -0.6),
                 Direction::Down => Vector2D::new(0.0, 0.6),
@@ -601,10 +601,9 @@ mod input {
 
         for (.., scripts) in ecs
             .query::<(&Position, &Collision, &Scripts)>()
-            .filter(|(pos, coll, ..)| AABB::new(pos.0.map_pos, coll.hitbox).contains(&target))
+            .filter(|(pos, coll, ..)| AABB::new(pos.map_pos, coll.hitbox).contains(&target))
         {
             for script in scripts
-                .0
                 .iter()
                 .filter(|script| script.trigger == Some(Trigger::Interaction))
                 .filter(|script| script.is_start_condition_fulfilled(story_vars))
@@ -629,7 +628,7 @@ fn update_walking_entities(
     for (id, mut position, mut walking, collision) in
         ecs.query::<(EntityId, &mut Position, &mut Walking, Option<&Collision>)>()
     {
-        let map_pos = position.0.map_pos;
+        let map_pos = position.map_pos;
 
         // Determine new position before collision resolution
         let mut new_position = map_pos
@@ -667,9 +666,7 @@ fn update_walking_entities(
             ];
             for cell_aabb in cellposes_to_check
                 .iter()
-                .flat_map(|cp| {
-                    world.maps.get(&position.0.map).unwrap().collision_aabbs_for_cell(*cp)
-                })
+                .flat_map(|cp| world.maps.get(&position.map).unwrap().collision_aabbs_for_cell(*cp))
                 .flatten()
             {
                 new_aabb.resolve_collision(&old_aabb, &cell_aabb);
@@ -685,11 +682,11 @@ fn update_walking_entities(
                 ecs.query_except::<(&Position, &Collision, Option<&Scripts>)>(id)
             {
                 // Skip checking against entities not on the current map or not solid
-                if other_pos.0.map != position.0.map || !other_coll.solid {
+                if other_pos.map != position.map || !other_coll.solid {
                     continue;
                 }
 
-                let other_aabb = AABB::new(other_pos.0.map_pos, other_coll.hitbox);
+                let other_aabb = AABB::new(other_pos.map_pos, other_coll.hitbox);
 
                 // Trigger HardCollision scripts
                 // (* bottom comment about event system)
@@ -697,7 +694,6 @@ fn update_walking_entities(
                     && let Some(scripts) = other_scripts
                 {
                     for script in scripts
-                        .0
                         .iter()
                         .filter(|script| script.trigger == Some(Trigger::HardCollision))
                         .filter(|script| script.is_start_condition_fulfilled(story_vars))
@@ -714,7 +710,7 @@ fn update_walking_entities(
         }
 
         // Update position after collision resolution
-        position.0.map_pos = new_position;
+        position.map_pos = new_position;
 
         // End forced walking if destination reached
         if let Some(destination) = walking.destination {
@@ -725,7 +721,7 @@ fn update_walking_entities(
                 Direction::Right => map_pos.x > destination.x,
             };
             if passed_destination {
-                position.0.map_pos = destination;
+                position.map_pos = destination;
                 walking.speed = 0.;
                 walking.destination = None;
             }

@@ -1,5 +1,5 @@
 use super::{Error, ScriptId, WaitCondition};
-use crate::ecs::component::{
+use crate::ecs::components::{
     AnimationComponent, Collision, DualStateAnimationState, DualStateAnimations, Facing,
     PlaybackState, Position, SineOffsetAnimation, Sprite, SpriteComponent, Walking,
 };
@@ -29,14 +29,14 @@ pub fn set_story_var(
 
 pub fn get_entity_map_pos(entity: String, ecs: &Ecs) -> LuaResult<(f64, f64)> {
     let position = ecs.query_one_with_name::<&Position>(&entity).ok_or(Error::NoEntity(entity))?;
-    Ok((position.0.map_pos.x, position.0.map_pos.y))
+    Ok((position.map_pos.x, position.map_pos.y))
 }
 
 // Requires entity to have a position component already, since map is omitted
 pub fn set_entity_map_pos((entity, x, y): (String, f64, f64), ecs: &Ecs) -> LuaResult<()> {
     let mut position =
         ecs.query_one_with_name::<&mut Position>(&entity).ok_or(Error::NoEntity(entity))?;
-    position.0.map_pos = Point2D::new(x, y);
+    position.map_pos = Point2D::new(x, y);
     Ok(())
 }
 
@@ -57,7 +57,7 @@ pub fn remove_entity_position(entity: String, ecs: &mut Ecs) -> LuaResult<()> {
 }
 
 pub fn set_forced_sprite(
-    (entity, spritesheet_name, rect_x, rect_y, rect_w, rect_h, anchor_x, anchor_y): (
+    (entity, spritesheet, rect_x, rect_y, rect_w, rect_h, anchor_x, anchor_y): (
         String,
         String,
         i32,
@@ -73,7 +73,7 @@ pub fn set_forced_sprite(
         ecs.query_one_with_name::<&mut SpriteComponent>(&entity).ok_or(Error::NoEntity(entity))?;
 
     sprite_component.forced_sprite = Some(Sprite {
-        spritesheet: spritesheet_name,
+        spritesheet,
         rect: Rect::new(rect_x, rect_y, rect_w, rect_h),
         anchor: Point2D::new(anchor_x, anchor_y),
     });
@@ -132,7 +132,7 @@ pub fn walk(
     walking.speed = speed;
 
     walking.destination = Some(
-        position.0.map_pos
+        position.map_pos
             + match walking.direction {
                 Direction::Up => Vector2D::new(0., -distance),
                 Direction::Down => Vector2D::new(0., distance),
@@ -159,14 +159,14 @@ pub fn walk_to(
         "down" => Ok(Direction::Down),
         "left" => Ok(Direction::Left),
         "right" => Ok(Direction::Right),
-        s => Err(Error::NoEntity(format!("{s} is not a valid direction"))),
+        s => Err(Error::Generic(format!("{s} is not a valid direction"))),
     }?;
 
     walking.speed = speed;
 
     walking.destination = Some(match walking.direction {
-        Direction::Up | Direction::Down => Point2D::new(position.0.map_pos.x, destination),
-        Direction::Left | Direction::Right => Point2D::new(destination, position.0.map_pos.y),
+        Direction::Up | Direction::Down => Point2D::new(position.map_pos.x, destination),
+        Direction::Left | Direction::Right => Point2D::new(destination, position.map_pos.y),
     });
 
     facing.0 = walking.direction;

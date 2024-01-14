@@ -3,14 +3,16 @@ use crate::render::PixelUnits;
 use crate::script::ScriptClass;
 use crate::world::{MapPos, MapUnits, WorldPos};
 use crate::Direction;
+use derive_more::{Deref, DerefMut};
 use euclid::{Point2D, Size2D, Vector2D};
 use sdl2::rect::Rect as SdlRect;
 use std::time::{Duration, Instant};
 
+#[derive(Deref)]
 pub struct Name(pub String);
 impl Component for Name {}
 
-#[derive(Default)]
+#[derive(Deref, DerefMut)]
 pub struct Position(pub WorldPos);
 impl Component for Position {}
 
@@ -18,6 +20,7 @@ impl Component for Position {}
 pub struct Facing(pub Direction);
 impl Component for Facing {}
 
+#[derive(Deref)]
 pub struct Scripts(pub Vec<ScriptClass>);
 impl Component for Scripts {}
 
@@ -74,7 +77,7 @@ pub struct AnimationClip {
     pub seconds_per_frame: f64,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Clone, Copy, PartialEq, Eq, Default)]
 pub enum PlaybackState {
     Playing,
     Paused,
