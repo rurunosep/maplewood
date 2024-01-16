@@ -110,8 +110,8 @@ impl Map {
 
         let top = world.levels.iter().map(|l| l.world_y).min().unwrap() as i32 / 16;
         let left = world.levels.iter().map(|l| l.world_x).min().unwrap() as i32 / 16;
-        let bottom = world.levels.iter().map(|l| l.world_y + l.px_wid).max().unwrap() as i32 / 16;
-        let right = world.levels.iter().map(|l| l.world_x + l.px_hei).max().unwrap() as i32 / 16;
+        let bottom = world.levels.iter().map(|l| l.world_y + l.px_hei).max().unwrap() as i32 / 16;
+        let right = world.levels.iter().map(|l| l.world_x + l.px_wid).max().unwrap() as i32 / 16;
 
         let dimensions = Size2D::new(right - left, bottom - top);
         let offset = Vector2D::new(left, top);
@@ -123,6 +123,10 @@ impl Map {
             .iter()
             .rev()
             .filter(|layer| is_tile_layer(layer))
+            .filter(|layer| {
+                layer.identifier != "interiors_objects_guide"
+                    && layer.identifier != "exteriors_objects_guide"
+            })
             .map(|layer| TileLayer {
                 name: layer.identifier.clone(),
                 tileset_path: layer.tileset_rel_path.as_ref().unwrap().clone(),
@@ -168,30 +172,33 @@ impl Map {
             }
 
             // Populate collision map
-            for (i, v) in level
-                .layer_instances
-                .as_ref()
-                .unwrap()
-                .iter()
-                .find(|l| l.identifier == "collision_map")
-                .unwrap()
-                .int_grid_csv
-                .iter()
-                .enumerate()
-            {
-                let pos_in_level = Vector2D::new(
-                    i as i32 % (level.px_wid as i32 / 16 * 2),
-                    i as i32 / (level.px_wid as i32 / 16 * 2),
-                );
-                let pos_in_world = pos_in_level
-                    + Vector2D::new(level.world_x as i32, level.world_y as i32) / 16 * 2;
-                let vec_coords = pos_in_world - offset * 2;
-                let vec_index = vec_coords.y * dimensions.width * 2 + vec_coords.x;
+            // (skip empty _world_map level, as it will overwrite collision map where it overlaps)
+            if level.identifier != "_world_map" {
+                for (i, v) in level
+                    .layer_instances
+                    .as_ref()
+                    .unwrap()
+                    .iter()
+                    .find(|l| l.identifier == "collision_map")
+                    .unwrap()
+                    .int_grid_csv
+                    .iter()
+                    .enumerate()
+                {
+                    let pos_in_level = Vector2D::new(
+                        i as i32 % (level.px_wid as i32 / 16 * 2),
+                        i as i32 / (level.px_wid as i32 / 16 * 2),
+                    );
+                    let pos_in_world = pos_in_level
+                        + Vector2D::new(level.world_x as i32, level.world_y as i32) / 16 * 2;
+                    let vec_coords = pos_in_world - offset * 2;
+                    let vec_index = vec_coords.y * dimensions.width * 2 + vec_coords.x;
 
-                *collisions.get_mut(vec_index as usize).unwrap() = match v {
-                    1 => Some(()),
-                    _ => None,
-                };
+                    *collisions.get_mut(vec_index as usize).unwrap() = match v {
+                        1 => Some(()),
+                        _ => None,
+                    };
+                }
             }
         }
 

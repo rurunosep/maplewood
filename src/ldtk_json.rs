@@ -315,8 +315,7 @@ pub struct IntGridValueGroupDefinition {
 /// This section is mostly only intended for the LDtk editor app itself. You can safely
 /// ignore it.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct FieldDefinition {
-}
+pub struct FieldDefinition {}
 
 /// The `Tileset` definition is the most important part among project definitions. It
 /// contains some extra informations about each integrated tileset. If you only had to parse
@@ -483,8 +482,7 @@ pub struct AutoLayerRuleGroup {
 /// completely resolved internally by the editor before any saving. You should just ignore
 /// this part.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AutoLayerRuleDefinition {
-}
+pub struct AutoLayerRuleDefinition {}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LdtkCustomCommand {

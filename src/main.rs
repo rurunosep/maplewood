@@ -763,6 +763,8 @@ impl AABB {
     // So collision resolution could instead eventually take a direction enum
     // or vector and use that directly
     pub fn resolve_collision(&mut self, old_self: &AABB, other: &AABB) {
+        // TODO this is apparently broken in certain cases that come up often in the outside map,
+        // and I'm not sure why
         if self.intersects(other) {
             if self.top < other.bottom && old_self.top > other.bottom {
                 let depth = other.bottom - self.top + 0.01;
