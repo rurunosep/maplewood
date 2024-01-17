@@ -652,7 +652,8 @@ fn update_walking_entities(
             // the 4 optional collision AABBs for the 4 corners of each of those
             // cells. It got this way iteratively and could probably
             // be reworked much simpler?)
-            let new_cellpos: CellPos = new_position.cast().cast_unit();
+            let new_cellpos: CellPos = new_position.floor().cast().cast_unit();
+            // I just had to floor here ^ 😭
             let cellposes_to_check: [CellPos; 9] = [
                 Point2D::new(new_cellpos.x - 1, new_cellpos.y - 1),
                 Point2D::new(new_cellpos.x, new_cellpos.y - 1),
@@ -763,8 +764,6 @@ impl AABB {
     // So collision resolution could instead eventually take a direction enum
     // or vector and use that directly
     pub fn resolve_collision(&mut self, old_self: &AABB, other: &AABB) {
-        // TODO this is apparently broken in certain cases that come up often in the outside map,
-        // and I'm not sure why
         if self.intersects(other) {
             if self.top < other.bottom && old_self.top > other.bottom {
                 let depth = other.bottom - self.top + 0.01;
