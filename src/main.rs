@@ -112,6 +112,10 @@ fn main() {
             "cabinet",
             "toilet_door",
             "door",
+            "fire",
+            "water_jet",
+            "firefighter",
+            "treadmill",
         ]
         .map(|name| {
             (
@@ -520,7 +524,10 @@ fn main() {
 
         renderer.render(map_to_render, camera_position, &ecs, &message_window);
 
-        std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
+        // Frame duration as a percent of a full 60 fps frame:
+        // println!("{:.2}%", last_time.elapsed().as_secs_f64() / (1. / 60.) * 100.);
+
+        std::thread::sleep(Duration::from_secs_f64(1. / 60.).saturating_sub(last_time.elapsed()));
     }
 }
 
