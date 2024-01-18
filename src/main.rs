@@ -16,7 +16,7 @@ use ecs::components::{
 use ecs::{Ecs, EntityId};
 use euclid::{Point2D, Rect, Size2D, Vector2D};
 use render::{Renderer, SCREEN_COLS, SCREEN_ROWS, SCREEN_SCALE, TILE_SIZE};
-use script::{ScriptId, ScriptManager, Trigger};
+use script::{ScriptClass, ScriptId, ScriptManager, StartAbortCondition, Trigger};
 use sdl2::event::Event;
 use sdl2::image::LoadTexture;
 use sdl2::keyboard::Keycode;
@@ -177,13 +177,13 @@ fn main() {
     // Player
     let player_id = ecs.add_entity();
     ecs.add_component(player_id, Name("player".to_string()));
-    ecs.add_component(player_id, Position(WorldPos::new("bathroom", 14.5, 9.5)));
+    ecs.add_component(player_id, Position(WorldPos::new("overworld", 1.5, 2.5)));
     ecs.add_component(player_id, SpriteComponent::default());
     ecs.add_component(player_id, Facing::default());
     ecs.add_component(player_id, Walking::default());
     ecs.add_component(
         player_id,
-        Collision { hitbox: Size2D::new(8. / 16., 6. / 16.), solid: true },
+        Collision { hitbox: Size2D::new(7. / 16., 5. / 16.), solid: true },
     );
 
     let clip_from_row = |row| AnimationClip {
@@ -209,6 +209,33 @@ fn main() {
         },
     );
 
+    // Start script entity
+    let e = ecs.add_entity();
+    ecs.add_component(
+        e,
+        Scripts(vec![ScriptClass {
+            source: script::get_sub_script(
+                &std::fs::read_to_string(format!("assets/scripts.lua")).unwrap(),
+                "start",
+            ),
+            label: None,
+            trigger: Some(Trigger::Auto),
+            start_condition: Some(StartAbortCondition {
+                story_var: "start_script::started".to_string(),
+                value: 0,
+            }),
+            abort_condition: None,
+            set_on_start: Some(("start_script::started".to_string(), 1)),
+            set_on_finish: None,
+        }]),
+    );
+
+    // Bathroom door blocker
+    let e = ecs.add_entity();
+    ecs.add_component(e, Name("bathroom::door::blocker".to_string()));
+    ecs.add_component(e, Position(WorldPos::new("bathroom", 4.5, 8.)));
+    ecs.add_component(e, Collision { hitbox: Size2D::new(1., 2.), solid: true });
+
     // Entities from ldtk
     ecs::loader::load_entities_from_ldtk(&mut ecs, &project);
 
@@ -219,8 +246,17 @@ fn main() {
     let mut story_vars: HashMap<String, i32> = HashMap::new();
     story_vars.insert("sink_1::running".to_string(), 0);
     story_vars.insert("sink_2::running".to_string(), 0);
-    story_vars.insert("door::open".to_string(), 0);
+
     story_vars.insert("toilet_door::open".to_string(), 0);
+
+    story_vars.insert("start_script::started".to_string(), 0);
+    story_vars.insert("school::kid::stage".to_string(), 1);
+    story_vars.insert("bathroom::door::open".to_string(), 0);
+    story_vars.insert("bathroom::door::have_key".to_string(), 0);
+    story_vars.insert("bathroom::pen_found".to_string(), 0);
+    story_vars.insert("gym::janitor::stage".to_string(), 1);
+    story_vars.insert("bakery::girl::stage".to_string(), 1);
+    story_vars.insert("main::plushy_found".to_string(), 0);
 
     let mut script_manager = ScriptManager { instances: SlotMap::with_key() };
 
@@ -606,9 +642,10 @@ mod input {
                 Direction::Right => Vector2D::new(0.6, 0.0),
             };
 
-        for (.., scripts) in ecs
-            .query::<(&Position, &Collision, &Scripts)>()
-            .filter(|(pos, coll, ..)| AABB::new(pos.map_pos, coll.hitbox).contains(&target))
+        for (.., scripts) in
+            ecs.query::<(&Position, &Collision, &Scripts)>().filter(|(pos, coll, ..)| {
+                pos.map == player_pos.map && AABB::new(pos.map_pos, coll.hitbox).contains(&target)
+            })
         {
             for script in scripts
                 .iter()

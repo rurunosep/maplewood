@@ -25,8 +25,8 @@ pub fn load_entities_from_ldtk(ecs: &mut Ecs, project: &ldtk_json::Project) {
                 .flat_map(|layer| &layer.entity_instances)
             {
                 match entity.identifier.as_str() {
-                    "script" => {
-                        load_script_entity(ecs, entity, ldtk_world, level);
+                    "simple_script" => {
+                        load_simple_script_entity(ecs, entity, ldtk_world, level);
                     }
                     "simple_anim" => {
                         load_simple_animation(ecs, entity, ldtk_world, level);
@@ -42,7 +42,7 @@ pub fn load_entities_from_ldtk(ecs: &mut Ecs, project: &ldtk_json::Project) {
     }
 }
 
-fn load_script_entity(
+fn load_simple_script_entity(
     ecs: &mut Ecs,
     entity: &ldtk_json::EntityInstance,
     ldtk_world: &ldtk_json::World,
