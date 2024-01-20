@@ -2,6 +2,7 @@
 #![feature(div_duration)]
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod data;
 mod ecs;
 mod ldtk_json;
 mod render;
@@ -9,25 +10,24 @@ mod script;
 mod world;
 
 use ecs::components::{
-    AnimationClip, AnimationComponent, CharacterAnimations, Collision, DualStateAnimationState,
-    DualStateAnimations, Facing, Name, NamedAnimations, PlaybackState, Position, Scripts,
-    SineOffsetAnimation, Sprite, SpriteComponent, Walking,
+    AnimationComponent, CharacterAnimations, Collision, DualStateAnimationState,
+    DualStateAnimations, Facing, NamedAnimations, PlaybackState, Position, Scripts,
+    SineOffsetAnimation, SpriteComponent, Walking,
 };
 use ecs::{Ecs, EntityId};
 use euclid::{Point2D, Rect, Size2D, Vector2D};
 use render::{Renderer, SCREEN_COLS, SCREEN_ROWS, SCREEN_SCALE, TILE_SIZE};
-use script::{ScriptClass, ScriptId, ScriptManager, StartAbortCondition, Trigger};
+use script::{ScriptId, ScriptManager, Trigger};
 use sdl2::event::Event;
 use sdl2::image::LoadTexture;
 use sdl2::keyboard::Keycode;
 use sdl2::mixer::{Chunk, Music, AUDIO_S16SYS, DEFAULT_CHANNELS};
 use sdl2::pixels::Color;
-use sdl2::rect::Rect as SdlRect;
 use sdl2::render::Texture;
 use slotmap::SlotMap;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
-use world::{CellPos, Map, MapPos, MapUnits, World, WorldPos};
+use world::{CellPos, Map, MapPos, MapUnits, World};
 
 // Where do I keep this?
 #[derive(Debug, Clone, Copy, Default)]
@@ -83,8 +83,6 @@ fn main() {
         .build()
         .unwrap();
 
-    let font = ttf_context.load_font("assets/Grand9KPixel.ttf", 8).unwrap();
-
     // --------------------------------------------------------------
     // Graphics
     // --------------------------------------------------------------
@@ -92,38 +90,30 @@ fn main() {
     let canvas = window.into_canvas().build().unwrap();
     let texture_creator = canvas.texture_creator();
 
-    let tilesets: HashMap<String, Texture> = HashMap::from(
-        ["walls", "floors", "ceilings", "modern_interiors", "modern_exteriors"].map(|name| {
+    let tilesets: HashMap<String, Texture> = std::fs::read_dir("assets/tilesets/")
+        .unwrap()
+        .map(|entry| {
+            let entry = entry.unwrap();
             (
                 // Keyed like this because this is how ldtk layers reference them
-                format!("tilesets/{name}.png"),
-                texture_creator.load_texture(format!("assets/tilesets/{name}.png")).unwrap(),
+                format!("tilesets/{}", entry.file_name().to_str().unwrap()),
+                texture_creator.load_texture(entry.path()).unwrap(),
             )
-        }),
-    );
+        })
+        .collect();
 
-    let spritesheets: HashMap<String, Texture> = HashMap::from(
-        [
-            "characters",
-            "bathroom_sink",
-            "bathroom_sink_2",
-            "bathtub",
-            "bathtub_2",
-            "cabinet",
-            "toilet_door",
-            "door",
-            "fire",
-            "water_jet",
-            "firefighter",
-            "treadmill",
-        ]
-        .map(|name| {
+    let spritesheets: HashMap<String, Texture> = std::fs::read_dir("assets/spritesheets/")
+        .unwrap()
+        .map(|entry| {
+            let entry = entry.unwrap();
             (
-                name.to_string(),
-                texture_creator.load_texture(format!("assets/spritesheets/{name}.png")).unwrap(),
+                entry.path().file_stem().unwrap().to_str().unwrap().to_string(),
+                texture_creator.load_texture(entry.path()).unwrap(),
             )
-        }),
-    );
+        })
+        .collect();
+
+    let font = ttf_context.load_font("assets/Grand9KPixel.ttf", 8).unwrap();
 
     let mut renderer = Renderer {
         canvas,
@@ -147,18 +137,16 @@ fn main() {
     let mut musics: HashMap<String, Music> = HashMap::new();
 
     // --------------------------------------------------------------
-    // World
+    // Game Data
     // --------------------------------------------------------------
 
     let project: ldtk_json::Project =
         serde_json::from_str(&std::fs::read_to_string("assets/limezu.ldtk").unwrap()).unwrap();
 
     let mut world = World::new();
-
     for ldtk_world in &project.worlds {
-        // If the world has a level called "_world_map", then the entire world is a single
-        // map, and the fields in that level apply to the whole world-map.
-        // If there is no such level, then each level in the world is an individual map.
+        // If world has level called "_world_map", then entire world is a single map
+        // Otherwise, each level in the world is an individual map.
         if ldtk_world.levels.iter().any(|l| l.identifier == "_world_map") {
             world.maps.insert(ldtk_world.identifier.clone(), Map::from_ldtk_world(ldtk_world));
         } else {
@@ -168,115 +156,17 @@ fn main() {
         };
     }
 
-    // --------------------------------------------------------------
-    // Entities
-    // --------------------------------------------------------------
-
     let mut ecs = Ecs::new();
-
-    // Player
-    let player_id = ecs.add_entity();
-    ecs.add_component(player_id, Name("player".to_string()));
-    ecs.add_component(player_id, Position(WorldPos::new("overworld", 1.5, 2.5)));
-    ecs.add_component(player_id, SpriteComponent::default());
-    ecs.add_component(player_id, Facing::default());
-    ecs.add_component(player_id, Walking::default());
-    ecs.add_component(
-        player_id,
-        Collision { hitbox: Size2D::new(7. / 16., 5. / 16.), solid: true },
-    );
-
-    let clip_from_row = |row| AnimationClip {
-        frames: [8, 7, 6, 7]
-            .into_iter()
-            .map(|col| Sprite {
-                spritesheet: "characters".to_string(),
-                rect: SdlRect::new(col * 16, row * 16, 16, 16),
-                anchor: Point2D::new(8, 13),
-            })
-            .collect(),
-        seconds_per_frame: 0.15,
-    };
-
-    ecs.add_component(player_id, AnimationComponent::default());
-    ecs.add_component(
-        player_id,
-        CharacterAnimations {
-            up: clip_from_row(3),
-            down: clip_from_row(0),
-            left: clip_from_row(1),
-            right: clip_from_row(2),
-        },
-    );
-
-    ecs.add_component(
-        player_id,
-        NamedAnimations {
-            clips: HashMap::from([(
-                "spin".to_string(),
-                AnimationClip {
-                    frames: [(6, 0), (6, 1), (6, 2), (6, 3)]
-                        .into_iter()
-                        .map(|(col, row)| Sprite {
-                            spritesheet: "characters".to_string(),
-                            rect: SdlRect::new(col * 16, row * 16, 16, 16),
-                            anchor: Point2D::new(8, 13),
-                        })
-                        .collect(),
-                    seconds_per_frame: 0.1,
-                },
-            )]),
-        },
-    );
-
-    // Start script entity
-    let e = ecs.add_entity();
-    ecs.add_component(
-        e,
-        Scripts(vec![ScriptClass {
-            source: script::get_sub_script(
-                &std::fs::read_to_string(format!("assets/scripts.lua")).unwrap(),
-                "start",
-            ),
-            label: None,
-            trigger: Some(Trigger::Auto),
-            start_condition: Some(StartAbortCondition {
-                story_var: "start_script::started".to_string(),
-                value: 0,
-            }),
-            abort_condition: None,
-            set_on_start: Some(("start_script::started".to_string(), 1)),
-            set_on_finish: None,
-        }]),
-    );
-
-    // Bathroom door blocker
-    let e = ecs.add_entity();
-    ecs.add_component(e, Name("bathroom::door::blocker".to_string()));
-    ecs.add_component(e, Position(WorldPos::new("bathroom", 4.5, 8.)));
-    ecs.add_component(e, Collision { hitbox: Size2D::new(1., 2.), solid: true });
-
-    // Entities from ldtk
+    data::load_entities_from_source(&mut ecs);
     ecs::loader::load_entities_from_ldtk(&mut ecs, &project);
+    let player_id = ecs.query_one_with_name::<EntityId>("player").unwrap();
+
+    let mut story_vars: HashMap<String, i32> = HashMap::new();
+    data::load_story_vars_from_source(&mut story_vars);
 
     // --------------------------------------------------------------
     // Misc
     // --------------------------------------------------------------
-
-    let mut story_vars: HashMap<String, i32> = HashMap::new();
-    story_vars.insert("sink_1::running".to_string(), 0);
-    story_vars.insert("sink_2::running".to_string(), 0);
-
-    story_vars.insert("toilet_door::open".to_string(), 0);
-
-    story_vars.insert("start_script::started".to_string(), 0);
-    story_vars.insert("school::kid::stage".to_string(), 1);
-    story_vars.insert("bathroom::door::open".to_string(), 0);
-    story_vars.insert("bathroom::door::have_key".to_string(), 0);
-    story_vars.insert("bathroom::pen_found".to_string(), 0);
-    story_vars.insert("gym::janitor::stage".to_string(), 1);
-    story_vars.insert("bakery::girl::stage".to_string(), 1);
-    story_vars.insert("main::plushy_found".to_string(), 0);
 
     let mut script_manager = ScriptManager { instances: SlotMap::with_key() };
 
