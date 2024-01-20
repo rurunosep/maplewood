@@ -4,6 +4,8 @@ message("You're sleepy.")
 message("But you need a plushy.")
 message("Legend tells that the kid in the classroom has a plushy.")
 
+play_named_animation("player", "spin")
+
 --# kid
 
 local stages = {
@@ -88,3 +90,5 @@ local stages = {
 }
 
 stages[get_story_var("bakery::girl::stage")]()
+
+--#

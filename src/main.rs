@@ -10,8 +10,8 @@ mod world;
 
 use ecs::components::{
     AnimationClip, AnimationComponent, CharacterAnimations, Collision, DualStateAnimationState,
-    DualStateAnimations, Facing, Name, PlaybackState, Position, Scripts, SineOffsetAnimation,
-    Sprite, SpriteComponent, Walking,
+    DualStateAnimations, Facing, Name, NamedAnimations, PlaybackState, Position, Scripts,
+    SineOffsetAnimation, Sprite, SpriteComponent, Walking,
 };
 use ecs::{Ecs, EntityId};
 use euclid::{Point2D, Rect, Size2D, Vector2D};
@@ -209,6 +209,26 @@ fn main() {
         },
     );
 
+    ecs.add_component(
+        player_id,
+        NamedAnimations {
+            clips: HashMap::from([(
+                "spin".to_string(),
+                AnimationClip {
+                    frames: [(6, 0), (6, 1), (6, 2), (6, 3)]
+                        .into_iter()
+                        .map(|(col, row)| Sprite {
+                            spritesheet: "characters".to_string(),
+                            rect: SdlRect::new(col * 16, row * 16, 16, 16),
+                            anchor: Point2D::new(8, 13),
+                        })
+                        .collect(),
+                    seconds_per_frame: 0.1,
+                },
+            )]),
+        },
+    );
+
     // Start script entity
     let e = ecs.add_entity();
     ecs.add_component(
@@ -279,6 +299,16 @@ fn main() {
         // ----------------------------------------------------------
         for event in event_pump.poll_iter() {
             match event {
+                // Arbitrary testing
+                Event::KeyDown { keycode: Some(Keycode::A), .. } => {
+                    let (mut ac, na) = ecs
+                        .query_one_with_id::<(&mut AnimationComponent, &NamedAnimations)>(player_id)
+                        .unwrap();
+                    ac.clip = na.clips.get("spin").unwrap().clone();
+                    ac.forced = true;
+                    ac.start(false);
+                }
+
                 // Close program
                 Event::Quit { .. } | Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
                     running = false;
@@ -428,6 +458,10 @@ fn main() {
         for (mut anim_comp, char_anims, facing, walk_comp) in
             ecs.query::<(&mut AnimationComponent, &CharacterAnimations, &Facing, &Walking)>()
         {
+            if anim_comp.forced {
+                continue;
+            }
+
             anim_comp.clip = match facing.0 {
                 Direction::Up => &char_anims.up,
                 Direction::Down => &char_anims.down,
@@ -453,6 +487,10 @@ fn main() {
         for (mut anim_comp, mut dual_anims) in
             ecs.query::<(&mut AnimationComponent, &mut DualStateAnimations)>()
         {
+            if anim_comp.forced {
+                continue;
+            }
+
             use DualStateAnimationState::*;
 
             // If a transition animation is finished playing, switch to the next state

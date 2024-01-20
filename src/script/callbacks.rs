@@ -1,7 +1,8 @@
 use super::{Error, ScriptId, WaitCondition};
 use crate::ecs::components::{
     AnimationComponent, Collision, DualStateAnimationState, DualStateAnimations, Facing,
-    PlaybackState, Position, SineOffsetAnimation, Sprite, SpriteComponent, Walking,
+    NamedAnimations, PlaybackState, Position, SineOffsetAnimation, Sprite, SpriteComponent,
+    Walking,
 };
 use crate::ecs::{Ecs, EntityId};
 use crate::world::WorldPos;
@@ -210,6 +211,26 @@ pub fn switch_dual_state_animation((entity, state): (String, i32), ecs: &Ecs) ->
 
     dual_anims.state = state;
     anim_comp.start(false);
+
+    Ok(())
+}
+
+pub fn play_named_animation(
+    (entity, animation, repeat): (String, String, bool),
+    ecs: &Ecs,
+) -> LuaResult<()> {
+    let (mut anim_comp, anims) = ecs
+        .query_one_with_name::<(&mut AnimationComponent, &NamedAnimations)>(&entity)
+        .ok_or(Error::NoEntity(entity.clone()))?;
+
+    let clip = anims
+        .clips
+        .get(&animation)
+        .ok_or(Error::Generic(format!("no animation '{animation}' on entity '{entity}'")))?;
+
+    anim_comp.clip = clip.clone();
+    anim_comp.forced = true;
+    anim_comp.start(repeat);
 
     Ok(())
 }

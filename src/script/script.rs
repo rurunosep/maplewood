@@ -48,10 +48,10 @@ impl Display for Error {
         match self {
             Error::Generic(message) => write!(f, "{message}"),
             Error::NoEntity(message) => {
-                write!(f, "no entity \"{message}\" with necessary components")
+                write!(f, "no entity '{message}' with necessary components")
             }
             Error::NoStoryVar(message) => {
-                write!(f, "no story var \"{message}\"")
+                write!(f, "no story var '{message}'")
             }
         }
     }
@@ -371,6 +371,12 @@ impl ScriptInstance {
                         "switch_dual_state_animation",
                         scope.create_function_mut(|_, args| {
                             callbacks::switch_dual_state_animation(args, *ecs.borrow_mut())
+                        })?,
+                    )?;
+                    globals.set(
+                        "play_named_animation",
+                        scope.create_function_mut(|_, args| {
+                            callbacks::play_named_animation(args, *ecs.borrow_mut())
                         })?,
                     )?;
                     globals.set(

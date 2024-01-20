@@ -11,7 +11,8 @@
     "walk_to_wait",
     "remove_cutscene_border",
     "unlock_player_input",
-    "get_story_var"
+    "get_story_var",
+    "play_named_animation"
   ],
   "Lua.diagnostics.disable": ["redefined-local"]
 }

@@ -6,6 +6,7 @@ use crate::Direction;
 use derive_more::{Deref, DerefMut};
 use euclid::{Point2D, Size2D, Vector2D};
 use sdl2::rect::Rect as SdlRect;
+use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
 #[derive(Deref)]
@@ -46,10 +47,13 @@ pub struct AnimationComponent {
     pub elapsed: Duration,
     pub state: PlaybackState,
     pub repeat: bool,
+    pub forced: bool,
 }
 impl Component for AnimationComponent {}
 
 impl AnimationComponent {
+    // TODO better control over starting loaded clip, loading and starting new clip, swapping clip
+    // while maintaining duration, forced clip, etc
     pub fn start(&mut self, repeat: bool) {
         self.state = PlaybackState::Playing;
         self.repeat = repeat;
@@ -68,6 +72,7 @@ impl AnimationComponent {
 
     pub fn stop(&mut self) {
         self.state = PlaybackState::Stopped;
+        self.forced = false;
     }
 }
 
@@ -110,6 +115,11 @@ pub enum DualStateAnimationState {
     Second,
     SecondToFirst,
 }
+
+pub struct NamedAnimations {
+    pub clips: HashMap<String, AnimationClip>,
+}
+impl Component for NamedAnimations {}
 
 // ----------------------------------------------
 
