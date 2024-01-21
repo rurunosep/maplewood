@@ -54,6 +54,9 @@ impl Component for AnimationComponent {}
 impl AnimationComponent {
     // TODO better control over starting loaded clip, loading and starting new clip, swapping clip
     // while maintaining duration, forced clip, etc
+
+    // TODO playback speed multiplier
+
     pub fn start(&mut self, repeat: bool) {
         self.state = PlaybackState::Playing;
         self.repeat = repeat;

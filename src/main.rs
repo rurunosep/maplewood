@@ -157,12 +157,13 @@ fn main() {
     }
 
     let mut ecs = Ecs::new();
-    data::load_entities_from_source(&mut ecs);
     ecs::loader::load_entities_from_ldtk(&mut ecs, &project);
+    // After loading from ldtk so that ldtk entities may have additional components attached
+    data::load_entities_from_source(&mut ecs);
     let player_id = ecs.query_one_with_name::<EntityId>("player").unwrap();
 
     let mut story_vars: HashMap<String, i32> = HashMap::new();
-    data::load_story_vars_from_source(&mut story_vars);
+    data::load_story_vars(&mut story_vars);
 
     // --------------------------------------------------------------
     // Misc
@@ -570,11 +571,10 @@ mod input {
                 Direction::Right => Vector2D::new(0.6, 0.0),
             };
 
-        for (.., scripts) in
-            ecs.query::<(&Position, &Collision, &Scripts)>().filter(|(pos, coll, ..)| {
-                pos.map == player_pos.map && AABB::new(pos.map_pos, coll.hitbox).contains(&target)
-            })
-        {
+        for (_, scripts) in ecs.query::<(&Position, &Scripts)>().filter(|(pos, _)| {
+            pos.map == player_pos.map
+                && AABB::new(pos.map_pos, Size2D::new(0.5, 0.5)).contains(&target)
+        }) {
             for script in scripts
                 .iter()
                 .filter(|script| script.trigger == Some(Trigger::Interaction))

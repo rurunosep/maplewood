@@ -2,7 +2,7 @@ use crate::ecs::components::{
     AnimationClip, AnimationComponent, CharacterAnimations, Collision, Facing, Name,
     NamedAnimations, Position, Scripts, Sprite, SpriteComponent, Walking,
 };
-use crate::ecs::Ecs;
+use crate::ecs::{Ecs, EntityId};
 use crate::script::{self, ScriptClass, StartAbortCondition, Trigger};
 use crate::world::WorldPos;
 use euclid::{Point2D, Size2D};
@@ -91,9 +91,37 @@ pub fn load_entities_from_source(ecs: &mut Ecs) {
     ecs.add_component(e, Name("bathroom::door::blocker".to_string()));
     ecs.add_component(e, Position(WorldPos::new("bathroom", 4.5, 8.)));
     ecs.add_component(e, Collision { hitbox: Size2D::new(1., 2.), solid: true });
+
+    // Janitor extension
+    let e = ecs.query_one_with_name::<EntityId>("janitor").unwrap();
+    ecs.add_component(
+        e,
+        Scripts(vec![ScriptClass {
+            source: script::get_sub_script(
+                &std::fs::read_to_string(format!("assets/scripts.lua")).unwrap(),
+                "janitor",
+            ),
+            trigger: Some(Trigger::Interaction),
+            ..ScriptClass::default()
+        }]),
+    );
+
+    // Kid extension
+    let e = ecs.query_one_with_name::<EntityId>("kid").unwrap();
+    ecs.add_component(
+        e,
+        Scripts(vec![ScriptClass {
+            source: script::get_sub_script(
+                &std::fs::read_to_string(format!("assets/scripts.lua")).unwrap(),
+                "kid",
+            ),
+            trigger: Some(Trigger::Interaction),
+            ..ScriptClass::default()
+        }]),
+    );
 }
 
-pub fn load_story_vars_from_source(story_vars: &mut HashMap<String, i32>) {
+pub fn load_story_vars(story_vars: &mut HashMap<String, i32>) {
     [
         ("sink_1::running", 0),
         ("sink_2::running", 0),

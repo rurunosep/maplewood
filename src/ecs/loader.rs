@@ -2,8 +2,8 @@
 // some day, rather than here with the entity files
 
 use super::components::{
-    AnimationClip, AnimationComponent, DualStateAnimationState, DualStateAnimations, Sprite,
-    SpriteComponent,
+    AnimationClip, AnimationComponent, CharacterAnimations, DualStateAnimationState,
+    DualStateAnimations, Facing, Sprite, SpriteComponent, Walking,
 };
 use crate::ecs::components::{Collision, Name, Position, Scripts};
 use crate::ecs::Ecs;
@@ -29,10 +29,13 @@ pub fn load_entities_from_ldtk(ecs: &mut Ecs, project: &ldtk_json::Project) {
                         load_simple_script_entity(ecs, entity, ldtk_world, level);
                     }
                     "simple_anim" => {
-                        load_simple_animation(ecs, entity, ldtk_world, level);
+                        load_simple_animation_entity(ecs, entity, ldtk_world, level);
                     }
                     "dual_state_anim" => {
-                        load_dual_state_animation(ecs, entity, ldtk_world, level);
+                        load_dual_state_animation_entity(ecs, entity, ldtk_world, level);
+                    }
+                    "character" => {
+                        load_character_entity(ecs, entity, ldtk_world, level);
                     }
 
                     _ => {}
@@ -117,7 +120,7 @@ fn load_simple_script_entity(
     );
 }
 
-fn load_simple_animation(
+fn load_simple_animation_entity(
     ecs: &mut Ecs,
     entity: &ldtk_json::EntityInstance,
     ldtk_world: &ldtk_json::World,
@@ -178,7 +181,7 @@ fn load_simple_animation(
     ecs.add_component(id, anim_comp);
 }
 
-fn load_dual_state_animation(
+fn load_dual_state_animation_entity(
     ecs: &mut Ecs,
     entity: &ldtk_json::EntityInstance,
     ldtk_world: &ldtk_json::World,
@@ -247,6 +250,70 @@ fn load_dual_state_animation(
     let mut anim_comp = AnimationComponent::default();
     anim_comp.start(true);
     ecs.add_component(id, anim_comp);
+}
+
+fn load_character_entity(
+    ecs: &mut Ecs,
+    entity: &ldtk_json::EntityInstance,
+    ldtk_world: &ldtk_json::World,
+    level: &ldtk_json::Level,
+) {
+    let id = ecs.add_entity();
+
+    // Position
+    let position = if ldtk_world.levels.iter().any(|l| l.identifier == "_world_map") {
+        Position(WorldPos::new(
+            &ldtk_world.identifier,
+            (entity.px[0] + level.world_x) as f64 / 16.,
+            (entity.px[1] + level.world_y) as f64 / 16.,
+        ))
+    } else {
+        Position(WorldPos::new(
+            &level.identifier,
+            entity.px[0] as f64 / 16.,
+            entity.px[1] as f64 / 16.,
+        ))
+    };
+    ecs.add_component(id, position);
+
+    // Collision
+    ecs.add_component(id, Collision { hitbox: Size2D::new(14. / 16., 6. / 16.), solid: true });
+
+    // Name
+    if let Some(name) = read_field_string("name", entity) {
+        ecs.add_component(id, Name(name));
+    }
+
+    // Animation
+    let spritesheet = read_field_string("spritesheet", entity).unwrap();
+
+    let clip_from_frames = |frames: Vec<(i32, i32)>| AnimationClip {
+        frames: frames
+            .into_iter()
+            .map(|(col, row)| Sprite {
+                spritesheet: spritesheet.clone(),
+                rect: SdlRect::new(col * 16, row * 32, 16, 32),
+                anchor: Point2D::new(8, 29),
+            })
+            .collect(),
+        seconds_per_frame: 0.2,
+    };
+
+    ecs.add_component(id, AnimationComponent::default());
+    ecs.add_component(
+        id,
+        CharacterAnimations {
+            up: clip_from_frames(vec![(6, 2), (1, 0), (9, 2), (1, 0)]),
+            down: clip_from_frames(vec![(18, 2), (3, 0), (21, 2), (3, 0)]),
+            left: clip_from_frames(vec![(12, 2), (2, 0), (15, 2), (2, 0)]),
+            right: clip_from_frames(vec![(0, 2), (0, 0), (3, 2), (0, 0)]),
+        },
+    );
+
+    // Misc
+    ecs.add_component(id, SpriteComponent::default());
+    ecs.add_component(id, Facing::default());
+    ecs.add_component(id, Walking::default());
 }
 
 fn read_field_json<F>(field: &str, entity: &ldtk_json::EntityInstance) -> Option<F>
