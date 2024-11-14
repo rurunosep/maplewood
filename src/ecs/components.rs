@@ -13,7 +13,7 @@ use std::time::{Duration, Instant};
 pub struct Name(pub String);
 impl Component for Name {}
 
-#[derive(Deref, DerefMut)]
+#[derive(Deref, DerefMut, Default)]
 pub struct Position(pub WorldPos);
 impl Component for Position {}
 
@@ -70,7 +70,7 @@ impl AnimationComponent {
 
     #[allow(dead_code)]
     pub fn resume(&mut self) {
-        self.state = PlaybackState::Playing
+        self.state = PlaybackState::Playing;
     }
 
     pub fn stop(&mut self) {

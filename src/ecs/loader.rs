@@ -176,7 +176,7 @@ fn load_simple_animation_entity(
         ..AnimationComponent::default()
     };
     if repeating {
-        anim_comp.start(true)
+        anim_comp.start(true);
     }
     ecs.add_component(id, anim_comp);
 }

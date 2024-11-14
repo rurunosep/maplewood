@@ -1,5 +1,5 @@
 #![feature(let_chains)]
-#![feature(div_duration)]
+#![allow(dependency_on_unit_never_type_fallback)]
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod data;
@@ -193,7 +193,9 @@ fn main() {
                 // Arbitrary testing
                 Event::KeyDown { keycode: Some(Keycode::A), .. } => {
                     let (mut ac, na) = ecs
-                        .query_one_with_id::<(&mut AnimationComponent, &NamedAnimations)>(player_id)
+                        .query_one_with_id::<(&mut AnimationComponent, &NamedAnimations)>(
+                            player_id,
+                        )
                         .unwrap();
                     ac.clip = na.clips.get("spin").unwrap().clone();
                     ac.forced = true;
@@ -325,14 +327,17 @@ fn main() {
 
         // Start player soft collision scripts
         let (player_aabb, player_map) = {
-            let (pos, coll) = ecs.query_one_with_id::<(&Position, &Collision)>(player_id).unwrap();
+            let (pos, coll) =
+                ecs.query_one_with_id::<(&Position, &Collision)>(player_id).unwrap();
             (AABB::new(pos.map_pos, coll.hitbox), pos.map.clone())
         };
         // For each entity colliding with the player...
         for (.., scripts) in ecs
             .query::<(&Position, &Collision, &Scripts)>()
             .filter(|(pos, ..)| pos.map == player_map)
-            .filter(|(pos, coll, ..)| AABB::new(pos.map_pos, coll.hitbox).intersects(&player_aabb))
+            .filter(|(pos, coll, ..)| {
+                AABB::new(pos.map_pos, coll.hitbox).intersects(&player_aabb)
+            })
         {
             // ...start scripts that have collision trigger and fulfill start condition
             for script in scripts
@@ -466,6 +471,7 @@ fn main() {
 
         // Camera could be an entity with a position component
         // map_to_render is camera's world pos' map
+        // TODO separate camera entity
         let player_position = &ecs.query_one_with_id::<&Position>(player_id).unwrap();
         let map_to_render = world.maps.get(&player_position.map).unwrap();
         let mut camera_position = player_position.map_pos;
@@ -473,7 +479,9 @@ fn main() {
         // Clamp camera to map
         let viewport_dimensions = Size2D::new(SCREEN_COLS as f64, SCREEN_ROWS as f64);
         let map_bounds: Rect<f64, MapUnits> =
-            Rect::new(map_to_render.offset.to_point(), map_to_render.dimensions).cast().cast_unit();
+            Rect::new(map_to_render.offset.to_point(), map_to_render.dimensions)
+                .cast()
+                .cast_unit();
         // If map is smaller than viewport, skip clamping, or clamp() will panic
         // (Could be done separately by dimension)
         if map_bounds.size.contains(viewport_dimensions) {
@@ -536,9 +544,10 @@ mod input {
         script_manager: &mut ScriptManager,
         keycode: Keycode,
     ) {
-        if let Some(message_window) = &*message_window
+        if let Some(message_window) = message_window
             && message_window.is_selection
-            && let Some(script) = script_manager.instances.get_mut(message_window.waiting_script_id)
+            && let Some(script) =
+                script_manager.instances.get_mut(message_window.waiting_script_id)
         {
             // I want to redo how window<->script communcation works
             script.input = match keycode {
@@ -558,19 +567,27 @@ mod input {
         ecs: &Ecs,
         player_id: EntityId,
     ) {
-        // Select a specific point some distance in front of the player to check for
-        // the presence of an entity with an interaction script.
-        // This might fail in some weird cases, but it works for now.
+        // TODO rework the whole interaction targetting system
+        // Interactable entity should have an "interaction hitbox"
+        // Currently some interaction scripts in ldtk have dimensions, but that's fake news since
+        // this code only checks a 0.5x0.5 box centered on the position, and imported entities
+        // don't even have any sort of hitbox or dimensions despite how it may seem in the editor
+
+        // Select a specific point some distance in front of the player to check for the presence
+        // of an entity with an interaction script.
+        // This fails in some cases, but it works okay for now.
         let (player_pos, player_facing) =
             ecs.query_one_with_id::<(&Position, &Facing)>(player_id).unwrap();
         let target = player_pos.map_pos
             + match player_facing.0 {
-                Direction::Up => Vector2D::new(0.0, -0.6),
-                Direction::Down => Vector2D::new(0.0, 0.6),
-                Direction::Left => Vector2D::new(-0.6, 0.0),
-                Direction::Right => Vector2D::new(0.6, 0.0),
+                Direction::Up => Vector2D::new(0.0, -0.5),
+                Direction::Down => Vector2D::new(0.0, 0.5),
+                Direction::Left => Vector2D::new(-0.5, 0.0),
+                Direction::Right => Vector2D::new(0.5, 0.0),
             };
 
+        // This is checking against a 0.5x0.5 box centered on the position of the entity
+        // regardless of the "size" of the entity
         for (_, scripts) in ecs.query::<(&Position, &Scripts)>().filter(|(pos, _)| {
             pos.map == player_pos.map
                 && AABB::new(pos.map_pos, Size2D::new(0.5, 0.5)).contains(&target)
@@ -639,7 +656,9 @@ fn update_walking_entities(
             ];
             for cell_aabb in cellposes_to_check
                 .iter()
-                .flat_map(|cp| world.maps.get(&position.map).unwrap().collision_aabbs_for_cell(*cp))
+                .flat_map(|cp| {
+                    world.maps.get(&position.map).unwrap().collision_aabbs_for_cell(*cp)
+                })
                 .flatten()
             {
                 new_aabb.resolve_collision(&old_aabb, &cell_aabb);
@@ -663,6 +682,7 @@ fn update_walking_entities(
 
                 // Trigger HardCollision scripts
                 // (* bottom comment about event system)
+                // (This triggers if any entity collides with script entity, not just the player)
                 if new_aabb.intersects(&other_aabb)
                     && let Some(scripts) = other_scripts
                 {
@@ -720,7 +740,7 @@ impl AABB {
         }
     }
 
-    pub fn intersects(&self, other: &AABB) -> bool {
+    pub fn intersects(&self, other: &Self) -> bool {
         self.top < other.bottom
             && self.bottom > other.top
             && self.left < other.right
@@ -735,7 +755,7 @@ impl AABB {
     // And what the collision resolution really needs is just the direction
     // So collision resolution could instead eventually take a direction enum
     // or vector and use that directly
-    pub fn resolve_collision(&mut self, old_self: &AABB, other: &AABB) {
+    pub fn resolve_collision(&mut self, old_self: &Self, other: &Self) {
         if self.intersects(other) {
             if self.top < other.bottom && old_self.top > other.bottom {
                 let depth = other.bottom - self.top + 0.01;
@@ -789,3 +809,4 @@ impl AABB {
 // #![allow(clippy::must_use_candidate)]
 // #![allow(clippy::cast_possible_wrap)]
 // #![allow(clippy::unnecessary_wraps)]
+// #![allow(clippy::module_name_repetitions)]

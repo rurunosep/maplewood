@@ -9,10 +9,16 @@ pub struct CellUnits;
 pub type MapPos = Point2D<f64, MapUnits>;
 pub type CellPos = Point2D<i32, CellUnits>;
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct WorldPos {
     pub map: String,
     pub map_pos: MapPos,
+}
+
+impl Default for WorldPos {
+    fn default() -> Self {
+        Self { map: "overworld".to_string(), map_pos: Point2D::default() }
+    }
 }
 
 impl WorldPos {

@@ -3600,7 +3600,7 @@
 								"__tile": null,
 								"__smartColor": "#3E8948",
 								"iid": "627fab90-6280-11ee-9664-0b73a806f2de",
-								"width": 32,
+								"width": 16,
 								"height": 16,
 								"defUid": 752,
 								"px": [288,136],
@@ -3674,9 +3674,9 @@
 								"__smartColor": "#3E8948",
 								"iid": "4e223ac0-6280-11ee-b4be-cd24aa01846a",
 								"width": 16,
-								"height": 32,
+								"height": 16,
 								"defUid": 752,
-								"px": [72,128],
+								"px": [72,136],
 								"fieldInstances": [
 									{ "__identifier": "name", "__type": "String", "__value": null, "__tile": null, "defUid": 756, "realEditorValues": [] },
 									{ "__identifier": "source", "__type": "String", "__value": "local open = get_story_var(\"bathroom::door::open\")\nlocal key = get_story_var(\"bathroom::door::have_key\")\n\nif open == 0 and key == 1 then\n  switch_dual_state_animation(\"bathroom::door\", 2)\n  set_entity_solid(\"bathroom::door::blocker\", false)\n  set_story_var(\"bathroom::door::open\", 1)\nelseif open == 0 and key == 0 then\n  message(\"Get the key from the janitor in the gym.\")\n  if get_story_var(\"gym::janitor::stage\") == 1 then\n    set_story_var(\"gym::janitor::stage\", 2)\n  end\nend", "__tile": null, "defUid": 753, "realEditorValues": [{
@@ -3696,7 +3696,7 @@
 									{ "__identifier": "set_on_finish", "__type": "String", "__value": null, "__tile": null, "defUid": 759, "realEditorValues": [] }
 								],
 								"__worldX": 72,
-								"__worldY": 128
+								"__worldY": 136
 							},
 							{
 								"__identifier": "dual_state_anim",
@@ -3748,10 +3748,10 @@
 								"__tile": null,
 								"__smartColor": "#3E8948",
 								"iid": "6efa7950-6280-11ee-b4be-376c9fe6fb33",
-								"width": 32,
+								"width": 16,
 								"height": 16,
 								"defUid": 752,
-								"px": [208,56],
+								"px": [208,48],
 								"fieldInstances": [
 									{ "__identifier": "name", "__type": "String", "__value": null, "__tile": null, "defUid": 756, "realEditorValues": [] },
 									{ "__identifier": "source", "__type": "String", "__value": "if get_story_var(\"sink_1::running\") == 1 then\n  switch_dual_state_animation(\"sink_1\", 1)\n  set_story_var(\"sink_1::running\", 0)\nelse\n  switch_dual_state_animation(\"sink_1\", 2)\n  set_story_var(\"sink_1::running\", 1)\nend", "__tile": null, "defUid": 753, "realEditorValues": [{
@@ -3771,7 +3771,7 @@
 									{ "__identifier": "set_on_finish", "__type": "String", "__value": null, "__tile": null, "defUid": 759, "realEditorValues": [] }
 								],
 								"__worldX": 208,
-								"__worldY": 56
+								"__worldY": 48
 							},
 							{
 								"__identifier": "dual_state_anim",
@@ -3823,10 +3823,10 @@
 								"__tile": null,
 								"__smartColor": "#3E8948",
 								"iid": "2e03d980-6280-11ee-b4be-9125a98e414a",
-								"width": 32,
+								"width": 16,
 								"height": 16,
 								"defUid": 752,
-								"px": [256,56],
+								"px": [256,48],
 								"fieldInstances": [
 									{ "__identifier": "name", "__type": "String", "__value": null, "__tile": null, "defUid": 756, "realEditorValues": [] },
 									{ "__identifier": "source", "__type": "String", "__value": "if get_story_var(\"sink_2::running\") == 1 then\n  switch_dual_state_animation(\"sink_2\", 1)\n  set_story_var(\"sink_2::running\", 0)\nelse\n  switch_dual_state_animation(\"sink_2\", 2)\n  set_story_var(\"sink_2::running\", 1)\nend", "__tile": null, "defUid": 753, "realEditorValues": [{
@@ -3846,7 +3846,7 @@
 									{ "__identifier": "set_on_finish", "__type": "String", "__value": null, "__tile": null, "defUid": 759, "realEditorValues": [] }
 								],
 								"__worldX": 256,
-								"__worldY": 56
+								"__worldY": 48
 							},
 							{
 								"__identifier": "dual_state_anim",
@@ -3934,7 +3934,7 @@
 								"width": 16,
 								"height": 16,
 								"defUid": 752,
-								"px": [104,56],
+								"px": [104,48],
 								"fieldInstances": [
 									{ "__identifier": "name", "__type": "String", "__value": null, "__tile": null, "defUid": 756, "realEditorValues": [] },
 									{ "__identifier": "source", "__type": "String", "__value": "message(\"You find the pen.\")\nset_story_var(\"bathroom::pen_found\", 1)", "__tile": null, "defUid": 753, "realEditorValues": [{
@@ -3955,7 +3955,7 @@
 									{ "__identifier": "set_on_finish", "__type": "String", "__value": null, "__tile": null, "defUid": 759, "realEditorValues": [] }
 								],
 								"__worldX": 104,
-								"__worldY": 56
+								"__worldY": 48
 							}
 						]
 					},
@@ -8823,7 +8823,7 @@
 								"width": 16,
 								"height": 16,
 								"defUid": 752,
-								"px": [112,64],
+								"px": [112,72],
 								"fieldInstances": [
 									{ "__identifier": "name", "__type": "String", "__value": null, "__tile": null, "defUid": 756, "realEditorValues": [] },
 									{ "__identifier": "source", "__type": "String", "__value": "local kid_stage = get_story_var(\"school::kid::stage\")\nlocal pen_found = get_story_var(\"bathroom::pen_found\")\n\nif (kid_stage == 2 and pen_found == 1) then\n  message(\"You write the name in the book.\")\n  set_story_var(\"school::kid::stage\", 3)\nend", "__tile": null, "defUid": 753, "realEditorValues": [{
@@ -8843,7 +8843,7 @@
 									{ "__identifier": "set_on_finish", "__type": "String", "__value": null, "__tile": null, "defUid": 759, "realEditorValues": [] }
 								],
 								"__worldX": -256,
-								"__worldY": 64
+								"__worldY": 72
 							},
 							{
 								"__identifier": "character",
@@ -10169,7 +10169,7 @@
 								"__tile": null,
 								"__smartColor": "#3E8948",
 								"iid": "0f833b30-b0a0-11ee-b262-75e5eace0b11",
-								"width": 32,
+								"width": 16,
 								"height": 16,
 								"defUid": 752,
 								"px": [48,72],
