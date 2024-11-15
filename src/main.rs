@@ -510,6 +510,7 @@ fn main() {
 
 mod input {
     use super::*;
+    use ecs::components::Interaction;
 
     pub fn move_player(
         ecs: &Ecs,
@@ -567,12 +568,6 @@ mod input {
         ecs: &Ecs,
         player_id: EntityId,
     ) {
-        // TODO rework the whole interaction targetting system
-        // Interactable entity should have an "interaction hitbox"
-        // Currently some interaction scripts in ldtk have dimensions, but that's fake news since
-        // this code only checks a 0.5x0.5 box centered on the position, and imported entities
-        // don't even have any sort of hitbox or dimensions despite how it may seem in the editor
-
         // Select a specific point some distance in front of the player to check for the presence
         // of an entity with an interaction script.
         // This fails in some cases, but it works okay for now.
@@ -586,12 +581,12 @@ mod input {
                 Direction::Right => Vector2D::new(0.5, 0.0),
             };
 
-        // This is checking against a 0.5x0.5 box centered on the position of the entity
-        // regardless of the "size" of the entity
-        for (_, scripts) in ecs.query::<(&Position, &Scripts)>().filter(|(pos, _)| {
-            pos.map == player_pos.map
-                && AABB::new(pos.map_pos, Size2D::new(0.5, 0.5)).contains(&target)
-        }) {
+        // Start interaction scripts for entity with interaction hitbox containing target point
+        for (_, _, scripts) in
+            ecs.query::<(&Position, &Interaction, &Scripts)>().filter(|(pos, int, _)| {
+                pos.map == player_pos.map && AABB::new(pos.map_pos, int.hitbox).contains(&target)
+            })
+        {
             for script in scripts
                 .iter()
                 .filter(|script| script.trigger == Some(Trigger::Interaction))
@@ -642,7 +637,6 @@ fn update_walking_entities(
             // cells. It got this way iteratively and could probably
             // be reworked much simpler?)
             let new_cellpos: CellPos = new_position.floor().cast().cast_unit();
-            // I just had to floor here ^ 😭
             let cellposes_to_check: [CellPos; 9] = [
                 Point2D::new(new_cellpos.x - 1, new_cellpos.y - 1),
                 Point2D::new(new_cellpos.x, new_cellpos.y - 1),

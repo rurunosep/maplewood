@@ -3,7 +3,7 @@
 
 use super::components::{
     AnimationClip, AnimationComponent, CharacterAnimations, DualStateAnimationState,
-    DualStateAnimations, Facing, Sprite, SpriteComponent, Walking,
+    DualStateAnimations, Facing, Interaction, Sprite, SpriteComponent, Walking,
 };
 use crate::ecs::components::{Collision, Name, Position, Scripts};
 use crate::ecs::Ecs;
@@ -69,15 +69,6 @@ fn load_simple_script_entity(
     };
     ecs.add_component(id, position);
 
-    // Collision
-    ecs.add_component(
-        id,
-        Collision {
-            hitbox: Size2D::new(entity.width as f64 / 16., entity.height as f64 / 16.),
-            solid: false,
-        },
-    );
-
     // Name
     if let Some(name) = read_field_string("name", entity) {
         ecs.add_component(id, Name(name));
@@ -118,6 +109,27 @@ fn load_simple_script_entity(
             ..ScriptClass::default()
         }]),
     );
+
+    // Collision
+    if trigger == Some(Trigger::SoftCollision) {
+        ecs.add_component(
+            id,
+            Collision {
+                hitbox: Size2D::new(entity.width as f64 / 16., entity.height as f64 / 16.),
+                solid: false,
+            },
+        );
+    }
+
+    // Interaction
+    if trigger == Some(Trigger::Interaction) {
+        ecs.add_component(
+            id,
+            Interaction {
+                hitbox: Size2D::new(entity.width as f64 / 16., entity.height as f64 / 16.),
+            },
+        );
+    }
 }
 
 fn load_simple_animation_entity(

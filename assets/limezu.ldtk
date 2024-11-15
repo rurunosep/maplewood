@@ -3479,7 +3479,7 @@
 								"width": 16,
 								"height": 16,
 								"defUid": 752,
-								"px": [200,136],
+								"px": [200,128],
 								"fieldInstances": [
 									{ "__identifier": "name", "__type": "String", "__value": null, "__tile": null, "defUid": 756, "realEditorValues": [] },
 									{ "__identifier": "source", "__type": "String", "__value": "message(\"It's a plunger.\")", "__tile": null, "defUid": 753, "realEditorValues": [{
@@ -3497,7 +3497,7 @@
 									{ "__identifier": "set_on_finish", "__type": "String", "__value": null, "__tile": null, "defUid": 759, "realEditorValues": [] }
 								],
 								"__worldX": 200,
-								"__worldY": 136
+								"__worldY": 128
 							},
 							{
 								"__identifier": "simple_anim",
@@ -3600,10 +3600,10 @@
 								"__tile": null,
 								"__smartColor": "#3E8948",
 								"iid": "627fab90-6280-11ee-9664-0b73a806f2de",
-								"width": 16,
-								"height": 16,
+								"width": 24,
+								"height": 32,
 								"defUid": 752,
-								"px": [288,136],
+								"px": [288,128],
 								"fieldInstances": [
 									{ "__identifier": "name", "__type": "String", "__value": null, "__tile": null, "defUid": 756, "realEditorValues": [] },
 									{ "__identifier": "source", "__type": "String", "__value": "play_object_animation(\"bathtub_2\", false)", "__tile": null, "defUid": 753, "realEditorValues": [{
@@ -3621,7 +3621,7 @@
 									{ "__identifier": "set_on_finish", "__type": "String", "__value": null, "__tile": null, "defUid": 759, "realEditorValues": [] }
 								],
 								"__worldX": 288,
-								"__worldY": 136
+								"__worldY": 128
 							},
 							{
 								"__identifier": "dual_state_anim",
@@ -3748,7 +3748,7 @@
 								"__tile": null,
 								"__smartColor": "#3E8948",
 								"iid": "6efa7950-6280-11ee-b4be-376c9fe6fb33",
-								"width": 16,
+								"width": 32,
 								"height": 16,
 								"defUid": 752,
 								"px": [208,48],
@@ -3823,7 +3823,7 @@
 								"__tile": null,
 								"__smartColor": "#3E8948",
 								"iid": "2e03d980-6280-11ee-b4be-9125a98e414a",
-								"width": 16,
+								"width": 32,
 								"height": 16,
 								"defUid": 752,
 								"px": [256,48],
@@ -8823,7 +8823,7 @@
 								"width": 16,
 								"height": 16,
 								"defUid": 752,
-								"px": [112,72],
+								"px": [112,64],
 								"fieldInstances": [
 									{ "__identifier": "name", "__type": "String", "__value": null, "__tile": null, "defUid": 756, "realEditorValues": [] },
 									{ "__identifier": "source", "__type": "String", "__value": "local kid_stage = get_story_var(\"school::kid::stage\")\nlocal pen_found = get_story_var(\"bathroom::pen_found\")\n\nif (kid_stage == 2 and pen_found == 1) then\n  message(\"You write the name in the book.\")\n  set_story_var(\"school::kid::stage\", 3)\nend", "__tile": null, "defUid": 753, "realEditorValues": [{
@@ -8843,7 +8843,7 @@
 									{ "__identifier": "set_on_finish", "__type": "String", "__value": null, "__tile": null, "defUid": 759, "realEditorValues": [] }
 								],
 								"__worldX": -256,
-								"__worldY": 72
+								"__worldY": 64
 							},
 							{
 								"__identifier": "character",
@@ -10169,7 +10169,7 @@
 								"__tile": null,
 								"__smartColor": "#3E8948",
 								"iid": "0f833b30-b0a0-11ee-b262-75e5eace0b11",
-								"width": 16,
+								"width": 32,
 								"height": 16,
 								"defUid": 752,
 								"px": [48,72],

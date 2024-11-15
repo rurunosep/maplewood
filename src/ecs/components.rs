@@ -149,3 +149,18 @@ pub struct Collision {
     pub solid: bool,
 }
 impl Component for Collision {}
+
+// Should the interaction component contain its own list of interaction scripts instead of keeping
+// them all in the scripts component?
+// Should scripts contain their own trigger hitboxes?
+// What if we want a soft collision script that doesn't use the entity's collision hitbox? Or the
+// entity is solid? What if we want a "personal space" script?
+// Should scripts even be kept in entities at all? Or should they be kept elsewhere and referenced
+// by entities?
+//
+// For now we will use a single interaction hitbox used by all attached interaction scripts, and
+// (as before) a single collision hitbox used by all attached soft and hard collision scripts
+pub struct Interaction {
+    pub hitbox: Size2D<f64, MapUnits>,
+}
+impl Component for Interaction {}

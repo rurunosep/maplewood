@@ -1,5 +1,5 @@
 use crate::ecs::components::{
-    AnimationClip, AnimationComponent, CharacterAnimations, Collision, Facing, Name,
+    AnimationClip, AnimationComponent, CharacterAnimations, Collision, Facing, Interaction, Name,
     NamedAnimations, Position, Scripts, Sprite, SpriteComponent, Walking,
 };
 use crate::ecs::{Ecs, EntityId};
@@ -107,6 +107,7 @@ pub fn load_entities_from_source(ecs: &mut Ecs) {
             ..ScriptClass::default()
         }]),
     );
+    ecs.add_component(id, Interaction { hitbox: Size2D::new(1., 1.) });
 
     // Kid extension
     let id = ecs.query_one_with_name::<EntityId>("kid").unwrap();
@@ -121,6 +122,7 @@ pub fn load_entities_from_source(ecs: &mut Ecs) {
             ..ScriptClass::default()
         }]),
     );
+    ecs.add_component(id, Interaction { hitbox: Size2D::new(1., 1.) });
 }
 
 pub fn load_story_vars(story_vars: &mut HashMap<String, i32>) {
