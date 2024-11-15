@@ -1,6 +1,6 @@
 use crate::ecs::components::{
-    AnimationClip, AnimationComponent, CharacterAnimations, Collision, Facing, Interaction, Name,
-    NamedAnimations, Position, Scripts, Sprite, SpriteComponent, Walking,
+    AnimationClip, AnimationComponent, Camera, CharacterAnimations, Collision, Facing,
+    Interaction, Name, NamedAnimations, Position, Scripts, Sprite, SpriteComponent, Walking,
 };
 use crate::ecs::{Ecs, EntityId};
 use crate::script::{self, ScriptClass, StartAbortCondition, Trigger};
@@ -65,7 +65,12 @@ pub fn load_entities_from_source(ecs: &mut Ecs) {
     // Camera
     let id = ecs.add_entity();
     ecs.add_component(id, Name("CAMERA".to_string()));
+    ecs.add_component(id, Camera { target_entity_name: Some("player".to_string()) });
     ecs.add_component(id, Position::default());
+    // Needs "walking" component to be pathed. Needs "facing" for walking code to work.
+    // (Make Facing component optional in Walking update code.)
+    ecs.add_component(id, Walking::default());
+    ecs.add_component(id, Facing::default());
 
     // Start script entity
     let id = ecs.add_entity();

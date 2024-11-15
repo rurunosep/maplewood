@@ -115,7 +115,9 @@ impl ScriptClass {
     pub fn is_start_condition_fulfilled(&self, story_vars: &HashMap<String, i32>) -> bool {
         match &self.start_condition {
             Some(StartAbortCondition { story_var, value }) => {
-                story_vars.get(story_var).unwrap_or_else(|| panic!("no story var \"{story_var}\""))
+                story_vars
+                    .get(story_var)
+                    .unwrap_or_else(|| panic!("no story var \"{story_var}\""))
                     == value
             }
             None => true,
@@ -339,9 +341,22 @@ impl ScriptInstance {
                         })?,
                     )?;
                     globals.set(
+                        "set_camera_target",
+                        scope.create_function_mut(|_, args| {
+                            callbacks::set_camera_target(args, *ecs.borrow())
+                        })?,
+                    )?;
+                    globals.set(
+                        "remove_camera_target",
+                        scope.create_function_mut(|_, ()| {
+                            callbacks::remove_camera_target(*ecs.borrow())
+                        })?,
+                    )?;
+                    globals.set(
                         "walk",
-                        scope
-                            .create_function_mut(|_, args| callbacks::walk(args, *ecs.borrow()))?,
+                        scope.create_function_mut(|_, args| {
+                            callbacks::walk(args, *ecs.borrow())
+                        })?,
                     )?;
                     globals.set(
                         "walk_to",
@@ -393,12 +408,14 @@ impl ScriptInstance {
                     )?;
                     globals.set(
                         "play_sfx",
-                        scope
-                            .create_function(|_, args| callbacks::play_sfx(args, sound_effects))?,
+                        scope.create_function(|_, args| {
+                            callbacks::play_sfx(args, sound_effects)
+                        })?,
                     )?;
                     globals.set(
                         "play_music",
-                        scope.create_function_mut(|_, args| callbacks::play_music(args, musics))?,
+                        scope
+                            .create_function_mut(|_, args| callbacks::play_music(args, musics))?,
                     )?;
                     globals.set(
                         "stop_music",

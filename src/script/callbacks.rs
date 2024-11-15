@@ -1,6 +1,6 @@
 use super::{Error, ScriptId, WaitCondition};
 use crate::ecs::components::{
-    AnimationComponent, Collision, DualStateAnimationState, DualStateAnimations, Facing,
+    AnimationComponent, Camera, Collision, DualStateAnimationState, DualStateAnimations, Facing,
     NamedAnimations, PlaybackState, Position, SineOffsetAnimation, Sprite, SpriteComponent,
     Walking,
 };
@@ -29,7 +29,8 @@ pub fn set_story_var(
 }
 
 pub fn get_entity_map_pos(entity: String, ecs: &Ecs) -> LuaResult<(f64, f64)> {
-    let position = ecs.query_one_with_name::<&Position>(&entity).ok_or(Error::NoEntity(entity))?;
+    let position =
+        ecs.query_one_with_name::<&Position>(&entity).ok_or(Error::NoEntity(entity))?;
     Ok((position.map_pos.x, position.map_pos.y))
 }
 
@@ -46,7 +47,8 @@ pub fn set_entity_world_pos(
     (entity, map, x, y): (String, String, f64, f64),
     ecs: &mut Ecs,
 ) -> LuaResult<()> {
-    let entity_id = ecs.query_one_with_name::<EntityId>(&entity).ok_or(Error::NoEntity(entity))?;
+    let entity_id =
+        ecs.query_one_with_name::<EntityId>(&entity).ok_or(Error::NoEntity(entity))?;
     ecs.add_component(entity_id, Position(WorldPos::new(&map, x, y)));
     Ok(())
 }
@@ -70,8 +72,9 @@ pub fn set_forced_sprite(
     ),
     ecs: &Ecs,
 ) -> LuaResult<()> {
-    let mut sprite_component =
-        ecs.query_one_with_name::<&mut SpriteComponent>(&entity).ok_or(Error::NoEntity(entity))?;
+    let mut sprite_component = ecs
+        .query_one_with_name::<&mut SpriteComponent>(&entity)
+        .ok_or(Error::NoEntity(entity))?;
 
     sprite_component.forced_sprite = Some(Sprite {
         spritesheet,
@@ -83,8 +86,9 @@ pub fn set_forced_sprite(
 }
 
 pub fn remove_forced_sprite(entity: String, ecs: &Ecs) -> LuaResult<()> {
-    let mut sprite_component =
-        ecs.query_one_with_name::<&mut SpriteComponent>(&entity).ok_or(Error::NoEntity(entity))?;
+    let mut sprite_component = ecs
+        .query_one_with_name::<&mut SpriteComponent>(&entity)
+        .ok_or(Error::NoEntity(entity))?;
     sprite_component.forced_sprite = None;
     Ok(())
 }
@@ -111,6 +115,16 @@ pub fn lock_player_input(
         walking.speed = 0.;
     }
 
+    Ok(())
+}
+
+pub fn set_camera_target(entity: String, ecs: &Ecs) -> LuaResult<()> {
+    ecs.query_one_with_name::<&mut Camera>("CAMERA").unwrap().target_entity_name = Some(entity);
+    Ok(())
+}
+
+pub fn remove_camera_target(ecs: &Ecs) -> LuaResult<()> {
+    ecs.query_one_with_name::<&mut Camera>("CAMERA").unwrap().target_entity_name = None;
     Ok(())
 }
 

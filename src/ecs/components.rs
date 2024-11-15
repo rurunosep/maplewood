@@ -13,7 +13,7 @@ use std::time::{Duration, Instant};
 pub struct Name(pub String);
 impl Component for Name {}
 
-#[derive(Deref, DerefMut, Default)]
+#[derive(Deref, DerefMut, Default, Clone)]
 pub struct Position(pub WorldPos);
 impl Component for Position {}
 
@@ -142,6 +142,12 @@ pub struct Walking {
     pub destination: Option<MapPos>,
 }
 impl Component for Walking {}
+
+#[derive(Default)]
+pub struct Camera {
+    pub target_entity_name: Option<String>,
+}
+impl Component for Camera {}
 
 #[derive(Default)]
 pub struct Collision {

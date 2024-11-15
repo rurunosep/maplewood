@@ -10,7 +10,7 @@ mod script;
 mod world;
 
 use ecs::components::{
-    AnimationComponent, CharacterAnimations, Collision, DualStateAnimationState,
+    AnimationComponent, Camera, CharacterAnimations, Collision, DualStateAnimationState,
     DualStateAnimations, Facing, NamedAnimations, PlaybackState, Position, Scripts,
     SineOffsetAnimation, SpriteComponent, Walking,
 };
@@ -469,33 +469,34 @@ fn main() {
         // Render
         // ----------------------------------------------------------
 
-        // Camera could be an entity with a position component
-        // map_to_render is camera's world pos' map
-        // TODO separate camera entity
-        let player_position = &ecs.query_one_with_id::<&Position>(player_id).unwrap();
-        let map_to_render = world.maps.get(&player_position.map).unwrap();
-        let mut camera_position = player_position.map_pos;
+        let (mut camera_position, camera_component) =
+            ecs.query_one_with_name::<(&mut Position, &Camera)>("CAMERA").unwrap();
+
+        // Update camera position to follow target entity
+        // (double ECS borrow)
+        if let Some(target) = &camera_component.target_entity_name {
+            *camera_position = ecs.query_one_with_name::<&Position>(target).unwrap().clone();
+        }
+
+        let camera_map = world.maps.get(&camera_position.map).unwrap();
 
         // Clamp camera to map
         let viewport_dimensions = Size2D::new(SCREEN_COLS as f64, SCREEN_ROWS as f64);
         let map_bounds: Rect<f64, MapUnits> =
-            Rect::new(map_to_render.offset.to_point(), map_to_render.dimensions)
-                .cast()
-                .cast_unit();
-        // If map is smaller than viewport, skip clamping, or clamp() will panic
-        // (Could be done separately by dimension)
+            Rect::new(camera_map.offset.to_point(), camera_map.dimensions).cast().cast_unit();
+        // (If map is smaller than viewport, skip clamping, or clamp() will panic)
         if map_bounds.size.contains(viewport_dimensions) {
-            camera_position.x = camera_position.x.clamp(
+            camera_position.map_pos.x = camera_position.map_pos.x.clamp(
                 map_bounds.min_x() + viewport_dimensions.width / 2.,
                 map_bounds.max_x() - viewport_dimensions.width / 2.,
             );
-            camera_position.y = camera_position.y.clamp(
+            camera_position.map_pos.y = camera_position.map_pos.y.clamp(
                 map_bounds.min_y() + viewport_dimensions.height / 2.,
                 map_bounds.max_y() - viewport_dimensions.height / 2.,
             );
         }
 
-        renderer.render(map_to_render, camera_position, &ecs, &message_window);
+        renderer.render(camera_map, camera_position.map_pos, &ecs, &message_window);
 
         // Frame duration as a percent of a full 60 fps frame:
         // println!("{:.2}%", last_time.elapsed().as_secs_f64() / (1. / 60.) * 100.);

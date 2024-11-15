@@ -12,7 +12,10 @@
     "remove_cutscene_border",
     "unlock_player_input",
     "get_story_var",
-    "play_named_animation"
+    "play_named_animation",
+    "remove_camera_target",
+    "walk_wait",
+    "set_camera_target"
   ],
   "Lua.diagnostics.disable": ["redefined-local"]
 }
