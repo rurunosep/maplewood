@@ -162,7 +162,8 @@ fn load_simple_animation_entity(
     }
 
     // Sprite
-    ecs.add_component(id, SpriteComponent::default());
+    let visible = read_field_bool("visible", entity).unwrap();
+    ecs.add_component(id, SpriteComponent { visible, ..Default::default() });
 
     // Animation
     let spritesheet = read_field_string("spritesheet", entity).unwrap();
@@ -223,7 +224,8 @@ fn load_dual_state_animation_entity(
     }
 
     // Sprite
-    ecs.add_component(id, SpriteComponent::default());
+    let visible = read_field_bool("visible", entity).unwrap();
+    ecs.add_component(id, SpriteComponent { visible, ..Default::default() });
 
     // Animation
     let spritesheet = read_field_string("spritesheet", entity).unwrap();

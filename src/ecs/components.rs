@@ -3,6 +3,7 @@ use crate::render::PixelUnits;
 use crate::script::ScriptClass;
 use crate::world::{MapPos, MapUnits, WorldPos};
 use crate::Direction;
+use derivative::Derivative;
 use derive_more::{Deref, DerefMut};
 use euclid::{Point2D, Size2D, Vector2D};
 use sdl2::rect::Rect as SdlRect;
@@ -25,10 +26,13 @@ impl Component for Facing {}
 pub struct Scripts(pub Vec<ScriptClass>);
 impl Component for Scripts {}
 
-#[derive(Default)]
+#[derive(Derivative)]
+#[derivative(Default)]
 pub struct SpriteComponent {
     pub sprite: Option<Sprite>,
     pub forced_sprite: Option<Sprite>,
+    #[derivative(Default(value = "true"))]
+    pub visible: bool,
 }
 impl Component for SpriteComponent {}
 

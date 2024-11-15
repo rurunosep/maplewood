@@ -317,6 +317,12 @@ impl ScriptInstance {
                         })?,
                     )?;
                     globals.set(
+                        "set_entity_visible",
+                        scope.create_function_mut(|_, args| {
+                            callbacks::set_entity_visible(args, *ecs.borrow())
+                        })?,
+                    )?;
+                    globals.set(
                         "set_entity_solid",
                         scope.create_function_mut(|_, args| {
                             callbacks::set_entity_solid(args, *ecs.borrow())

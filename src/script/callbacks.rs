@@ -93,6 +93,14 @@ pub fn remove_forced_sprite(entity: String, ecs: &Ecs) -> LuaResult<()> {
     Ok(())
 }
 
+pub fn set_entity_visible((entity, visible): (String, bool), ecs: &Ecs) -> LuaResult<()> {
+    let mut sprite = ecs
+        .query_one_with_name::<&mut SpriteComponent>(&entity)
+        .ok_or(Error::NoEntity(entity))?;
+    sprite.visible = visible;
+    Ok(())
+}
+
 pub fn set_entity_solid((entity, enabled): (String, bool), ecs: &Ecs) -> LuaResult<()> {
     let mut collision =
         ecs.query_one_with_name::<&mut Collision>(&entity).ok_or(Error::NoEntity(entity))?;

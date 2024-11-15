@@ -11,7 +11,7 @@
 	"iid": "9f15cbd0-ed50-11ed-8f21-4d63da406901",
 	"jsonVersion": "1.5.3",
 	"appBuildId": 473703,
-	"nextUid": 837,
+	"nextUid": 840,
 	"identifierStyle": "Lowercase",
 	"toc": [],
 	"worldLayout": null,
@@ -2757,6 +2757,46 @@
 					"tilesetUid": null
 				},
 				{
+					"identifier": "visible",
+					"doc": null,
+					"__type": "Bool",
+					"uid": 837,
+					"type": "F_Bool",
+					"isArray": false,
+					"canBeNull": false,
+					"arrayMinLength": null,
+					"arrayMaxLength": null,
+					"editorDisplayMode": "Hidden",
+					"editorDisplayScale": 1,
+					"editorDisplayPos": "Above",
+					"editorLinkStyle": "StraightArrow",
+					"editorDisplayColor": null,
+					"editorAlwaysShow": false,
+					"editorShowInWorld": true,
+					"editorCutLongValues": true,
+					"editorTextSuffix": null,
+					"editorTextPrefix": null,
+					"useForSmartColor": false,
+					"exportToToc": false,
+					"searchable": false,
+					"min": null,
+					"max": null,
+					"regex": null,
+					"acceptFileTypes": null,
+					"defaultOverride": {
+						"id": "V_Bool",
+						"params": [ true ]
+					},
+					"textLanguageMode": null,
+					"symmetricalRef": false,
+					"autoChainRef": true,
+					"allowOutOfLevelRef": true,
+					"allowedRefs": "OnlySame",
+					"allowedRefsEntityUid": null,
+					"allowedRefTags": [],
+					"tilesetUid": null
+				},
+				{
 					"identifier": "frames",
 					"doc": null,
 					"__type": "String",
@@ -2971,6 +3011,46 @@
 					"regex": null,
 					"acceptFileTypes": null,
 					"defaultOverride": null,
+					"textLanguageMode": null,
+					"symmetricalRef": false,
+					"autoChainRef": true,
+					"allowOutOfLevelRef": true,
+					"allowedRefs": "OnlySame",
+					"allowedRefsEntityUid": null,
+					"allowedRefTags": [],
+					"tilesetUid": null
+				},
+				{
+					"identifier": "visible",
+					"doc": null,
+					"__type": "Bool",
+					"uid": 838,
+					"type": "F_Bool",
+					"isArray": false,
+					"canBeNull": false,
+					"arrayMinLength": null,
+					"arrayMaxLength": null,
+					"editorDisplayMode": "Hidden",
+					"editorDisplayScale": 1,
+					"editorDisplayPos": "Above",
+					"editorLinkStyle": "StraightArrow",
+					"editorDisplayColor": null,
+					"editorAlwaysShow": false,
+					"editorShowInWorld": true,
+					"editorCutLongValues": true,
+					"editorTextSuffix": null,
+					"editorTextPrefix": null,
+					"useForSmartColor": false,
+					"exportToToc": false,
+					"searchable": false,
+					"min": null,
+					"max": null,
+					"regex": null,
+					"acceptFileTypes": null,
+					"defaultOverride": {
+						"id": "V_Bool",
+						"params": [ true ]
+					},
 					"textLanguageMode": null,
 					"symmetricalRef": false,
 					"autoChainRef": true,
@@ -3520,6 +3600,7 @@
 										"id": "V_String",
 										"params": ["bathtub_2"]
 									}] },
+									{ "__identifier": "visible", "__type": "Bool", "__value": true, "__tile": null, "defUid": 837, "realEditorValues": [] },
 									{ "__identifier": "frames", "__type": "String", "__value": "[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 0]", "__tile": null, "defUid": 818, "realEditorValues": [{
 										"id": "V_String",
 										"params": ["[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 0]"]
@@ -3548,6 +3629,7 @@
 										"id": "V_String",
 										"params": ["bathtub"]
 									}] },
+									{ "__identifier": "visible", "__type": "Bool", "__value": true, "__tile": null, "defUid": 837, "realEditorValues": [] },
 									{ "__identifier": "frames", "__type": "String", "__value": "[3, 4, 5, 6]", "__tile": null, "defUid": 818, "realEditorValues": [{
 										"id": "V_String",
 										"params": ["[3, 4, 5, 6]"]
@@ -3579,6 +3661,7 @@
 										"id": "V_String",
 										"params": ["cabinet"]
 									}] },
+									{ "__identifier": "visible", "__type": "Bool", "__value": true, "__tile": null, "defUid": 837, "realEditorValues": [] },
 									{ "__identifier": "frames", "__type": "String", "__value": "[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0]", "__tile": null, "defUid": 818, "realEditorValues": [{
 										"id": "V_String",
 										"params": ["[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0]"]
@@ -3644,6 +3727,7 @@
 										"id": "V_String",
 										"params": ["door"]
 									}] },
+									{ "__identifier": "visible", "__type": "Bool", "__value": true, "__tile": null, "defUid": 838, "realEditorValues": [] },
 									{ "__identifier": "first_state", "__type": "String", "__value": "[0]", "__tile": null, "defUid": 823, "realEditorValues": [{
 										"id": "V_String",
 										"params": ["[0]"]
@@ -3719,6 +3803,7 @@
 										"id": "V_String",
 										"params": ["bathroom_sink"]
 									}] },
+									{ "__identifier": "visible", "__type": "Bool", "__value": true, "__tile": null, "defUid": 838, "realEditorValues": [] },
 									{ "__identifier": "first_state", "__type": "String", "__value": "[13]", "__tile": null, "defUid": 823, "realEditorValues": [{
 										"id": "V_String",
 										"params": ["[13]"]
@@ -3794,6 +3879,7 @@
 										"id": "V_String",
 										"params": ["bathroom_sink_2"]
 									}] },
+									{ "__identifier": "visible", "__type": "Bool", "__value": true, "__tile": null, "defUid": 838, "realEditorValues": [] },
 									{ "__identifier": "first_state", "__type": "String", "__value": "[13]", "__tile": null, "defUid": 823, "realEditorValues": [{
 										"id": "V_String",
 										"params": ["[13]"]
@@ -3869,6 +3955,7 @@
 										"id": "V_String",
 										"params": ["toilet_door"]
 									}] },
+									{ "__identifier": "visible", "__type": "Bool", "__value": true, "__tile": null, "defUid": 838, "realEditorValues": [] },
 									{ "__identifier": "first_state", "__type": "String", "__value": "[0]", "__tile": null, "defUid": 823, "realEditorValues": [{
 										"id": "V_String",
 										"params": ["[0]"]
@@ -6368,6 +6455,7 @@
 										"id": "V_String",
 										"params": ["treadmill"]
 									}] },
+									{ "__identifier": "visible", "__type": "Bool", "__value": true, "__tile": null, "defUid": 837, "realEditorValues": [] },
 									{ "__identifier": "frames", "__type": "String", "__value": "[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]", "__tile": null, "defUid": 818, "realEditorValues": [{
 										"id": "V_String",
 										"params": ["[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]"]
@@ -7859,6 +7947,10 @@
 										"id": "V_String",
 										"params": ["water_jet"]
 									}] },
+									{ "__identifier": "visible", "__type": "Bool", "__value": false, "__tile": null, "defUid": 837, "realEditorValues": [{
+										"id": "V_Bool",
+										"params": [ false ]
+									}] },
 									{ "__identifier": "frames", "__type": "String", "__value": "[0, 1, 2, 3, 2, 1]", "__tile": null, "defUid": 818, "realEditorValues": [{
 										"id": "V_String",
 										"params": ["[0, 1, 2, 3, 2, 1]"]
@@ -7892,6 +7984,10 @@
 									{ "__identifier": "spritesheet", "__type": "String", "__value": "firefighter", "__tile": null, "defUid": 807, "realEditorValues": [{
 										"id": "V_String",
 										"params": ["firefighter"]
+									}] },
+									{ "__identifier": "visible", "__type": "Bool", "__value": false, "__tile": null, "defUid": 837, "realEditorValues": [{
+										"id": "V_Bool",
+										"params": [ false ]
 									}] },
 									{ "__identifier": "frames", "__type": "String", "__value": "[0, 1, 2, 3, 4, 5]", "__tile": null, "defUid": 818, "realEditorValues": [{
 										"id": "V_String",
@@ -7927,6 +8023,10 @@
 										"id": "V_String",
 										"params": ["fire"]
 									}] },
+									{ "__identifier": "visible", "__type": "Bool", "__value": false, "__tile": null, "defUid": 837, "realEditorValues": [{
+										"id": "V_Bool",
+										"params": [ false ]
+									}] },
 									{ "__identifier": "frames", "__type": "String", "__value": "[0, 1, 2, 3, 4]", "__tile": null, "defUid": 818, "realEditorValues": [{
 										"id": "V_String",
 										"params": ["[0, 1, 2, 3, 4]"]
@@ -7939,6 +8039,72 @@
 								],
 								"__worldX": 376,
 								"__worldY": 304
+							},
+							{
+								"__identifier": "simple_script",
+								"__grid": [10,3],
+								"__pivot": [0.5,0.5],
+								"__tags": [],
+								"__tile": null,
+								"__smartColor": "#3E8948",
+								"iid": "45b89c00-9b00-11ef-b906-7fedf06a5a24",
+								"width": 16,
+								"height": 16,
+								"defUid": 752,
+								"px": [168,56],
+								"fieldInstances": [
+									{ "__identifier": "name", "__type": "String", "__value": null, "__tile": null, "defUid": 756, "realEditorValues": [] },
+									{ "__identifier": "source", "__type": "String", "__value": "set_entity_visible(\"fire\", true)\nset_entity_visible(\"firefighter\", true)\nset_entity_visible(\"water_jet\", true)", "__tile": null, "defUid": 753, "realEditorValues": [{
+										"id": "V_String",
+										"params": [
+											"set_entity_visible(\"fire\", true)\\nset_entity_visible(\"firefighter\", true)\\nset_entity_visible(\"water_jet\", true)"
+										]
+									}] },
+									{ "__identifier": "external_source", "__type": "String", "__value": null, "__tile": null, "defUid": 790, "realEditorValues": [] },
+									{ "__identifier": "trigger", "__type": "LocalEnum.script_trigger", "__value": "interaction", "__tile": null, "defUid": 788, "realEditorValues": [{
+										"id": "V_String",
+										"params": ["interaction"]
+									}] },
+									{ "__identifier": "start_condition", "__type": "String", "__value": null, "__tile": null, "defUid": 757, "realEditorValues": [] },
+									{ "__identifier": "abort_condition", "__type": "String", "__value": null, "__tile": null, "defUid": 789, "realEditorValues": [] },
+									{ "__identifier": "set_on_start", "__type": "String", "__value": null, "__tile": null, "defUid": 758, "realEditorValues": [] },
+									{ "__identifier": "set_on_finish", "__type": "String", "__value": null, "__tile": null, "defUid": 759, "realEditorValues": [] }
+								],
+								"__worldX": 440,
+								"__worldY": 312
+							},
+							{
+								"__identifier": "simple_script",
+								"__grid": [11,3],
+								"__pivot": [0.5,0.5],
+								"__tags": [],
+								"__tile": null,
+								"__smartColor": "#3E8948",
+								"iid": "6af5fee0-9b00-11ef-b906-df83fbc27cfe",
+								"width": 16,
+								"height": 16,
+								"defUid": 752,
+								"px": [184,56],
+								"fieldInstances": [
+									{ "__identifier": "name", "__type": "String", "__value": null, "__tile": null, "defUid": 756, "realEditorValues": [] },
+									{ "__identifier": "source", "__type": "String", "__value": "set_entity_visible(\"fire\", false)\nset_entity_visible(\"firefighter\", false)\nset_entity_visible(\"water_jet\", false)", "__tile": null, "defUid": 753, "realEditorValues": [{
+										"id": "V_String",
+										"params": [
+											"set_entity_visible(\"fire\", false)\\nset_entity_visible(\"firefighter\", false)\\nset_entity_visible(\"water_jet\", false)"
+										]
+									}] },
+									{ "__identifier": "external_source", "__type": "String", "__value": null, "__tile": null, "defUid": 790, "realEditorValues": [] },
+									{ "__identifier": "trigger", "__type": "LocalEnum.script_trigger", "__value": "interaction", "__tile": null, "defUid": 788, "realEditorValues": [{
+										"id": "V_String",
+										"params": ["interaction"]
+									}] },
+									{ "__identifier": "start_condition", "__type": "String", "__value": null, "__tile": null, "defUid": 757, "realEditorValues": [] },
+									{ "__identifier": "abort_condition", "__type": "String", "__value": null, "__tile": null, "defUid": 789, "realEditorValues": [] },
+									{ "__identifier": "set_on_start", "__type": "String", "__value": null, "__tile": null, "defUid": 758, "realEditorValues": [] },
+									{ "__identifier": "set_on_finish", "__type": "String", "__value": null, "__tile": null, "defUid": 759, "realEditorValues": [] }
+								],
+								"__worldX": 456,
+								"__worldY": 312
 							}
 						]
 					},

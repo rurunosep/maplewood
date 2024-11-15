@@ -166,6 +166,10 @@ impl Renderer<'_, '_> {
                 continue;
             }
 
+            if !sprite_component.visible {
+                continue;
+            }
+
             // Choose sprite to draw
             let Some(sprite) =
                 sprite_component.forced_sprite.as_ref().or(sprite_component.sprite.as_ref())
