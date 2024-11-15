@@ -1,7 +1,9 @@
-use crate::ecs::components::{Position, SineOffsetAnimation, SpriteComponent};
+use crate::ecs::components::{
+    Collision, Facing, Interaction, Position, SineOffsetAnimation, SpriteComponent,
+};
 use crate::ecs::Ecs;
 use crate::world::{CellPos, Map, MapPos, MapUnits, TileLayer};
-use crate::MessageWindow;
+use crate::{Direction, MessageWindow};
 use euclid::{Point2D, Rect, Size2D, Vector2D};
 use itertools::Itertools;
 use sdl2::pixels::Color;
@@ -69,9 +71,18 @@ impl Renderer<'_, '_> {
             self.draw_tile_layer(layer, map, map_pos_to_screen_top_left);
         }
 
-        // Draw collision map
+        // Draw debug stuff
         if false {
             self.draw_collision_map(map, map_pos_to_screen_top_left);
+        }
+        if false {
+            self.draw_collision_hitboxes(ecs, map, map_pos_to_screen_top_left);
+        }
+        if false {
+            self.draw_interaction_hitboxes(ecs, map, map_pos_to_screen_top_left);
+        }
+        if false {
+            self.draw_interaction_target(ecs, map_pos_to_screen_top_left);
         }
 
         // Draw map overlay after map/entities/etc and before UI
@@ -147,8 +158,8 @@ impl Renderer<'_, '_> {
     ) {
         // (Long for-in-query-sorted line breaks rustfmt. So this is just to split it up.)
         let query = ecs.query::<(&Position, &SpriteComponent, Option<&SineOffsetAnimation>)>();
-        let sorted =
-            query.sorted_by(|(p1, ..), (p2, ..)| p1.map_pos.y.partial_cmp(&p2.map_pos.y).unwrap());
+        let sorted = query
+            .sorted_by(|(p1, ..), (p2, ..)| p1.map_pos.y.partial_cmp(&p2.map_pos.y).unwrap());
         for (position, sprite_component, sine_offset_animation) in sorted {
             // Skip entities not on the current map
             if position.map != map.name {
@@ -184,7 +195,11 @@ impl Renderer<'_, '_> {
             );
 
             self.canvas
-                .copy(self.spritesheets.get(&sprite.spritesheet).unwrap(), sprite.rect, screen_rect)
+                .copy(
+                    self.spritesheets.get(&sprite.spritesheet).unwrap(),
+                    sprite.rect,
+                    screen_rect,
+                )
                 .unwrap();
         }
     }
@@ -218,6 +233,104 @@ impl Renderer<'_, '_> {
                 }
             }
         }
+    }
+
+    fn draw_collision_hitboxes(
+        &mut self,
+        ecs: &Ecs,
+        map: &Map,
+        map_pos_to_screen_top_left: impl Fn(
+            Point2D<f64, MapUnits>,
+            Option<Vector2D<i32, PixelUnits>>,
+        ) -> Point2D<i32, PixelUnits>,
+    ) {
+        // Use canvas scaling for thick lines
+        self.canvas.set_scale(SCREEN_SCALE as f32, SCREEN_SCALE as f32).unwrap();
+
+        self.canvas.set_draw_color(Color::RGB(255, 0, 0));
+
+        for (pos, coll) in ecs.query::<(&Position, &Collision)>() {
+            if pos.map != map.name {
+                continue;
+            }
+            let mut top_left = map_pos_to_screen_top_left(pos.map_pos - coll.hitbox / 2., None);
+            // Unscale positition since we're drawing with canvas scale enabled
+            top_left = top_left / SCREEN_SCALE as i32;
+            let screen_dimensions = (coll.hitbox * TILE_SIZE as f64).cast::<u32>();
+            self.canvas
+                .draw_rect(SdlRect::new(
+                    top_left.x,
+                    top_left.y,
+                    screen_dimensions.width,
+                    screen_dimensions.height,
+                ))
+                .unwrap();
+        }
+
+        // Make sure to put the canvas scale back after we're done
+        self.canvas.set_scale(1., 1.).unwrap();
+    }
+
+    fn draw_interaction_hitboxes(
+        &mut self,
+        ecs: &Ecs,
+        map: &Map,
+        map_pos_to_screen_top_left: impl Fn(
+            Point2D<f64, MapUnits>,
+            Option<Vector2D<i32, PixelUnits>>,
+        ) -> Point2D<i32, PixelUnits>,
+    ) {
+        // Use canvas scaling for thick lines
+        self.canvas.set_scale(SCREEN_SCALE as f32, SCREEN_SCALE as f32).unwrap();
+
+        self.canvas.set_draw_color(Color::RGB(255, 0, 255));
+
+        for (pos, int) in ecs.query::<(&Position, &Interaction)>() {
+            if pos.map != map.name {
+                continue;
+            }
+            let mut top_left = map_pos_to_screen_top_left(pos.map_pos - int.hitbox / 2., None);
+            // Unscale positition since we're drawing with canvas scale enabled
+            top_left = top_left / SCREEN_SCALE as i32;
+            let screen_dimensions = (int.hitbox * TILE_SIZE as f64).cast::<u32>();
+            self.canvas
+                .draw_rect(SdlRect::new(
+                    top_left.x,
+                    top_left.y,
+                    screen_dimensions.width,
+                    screen_dimensions.height,
+                ))
+                .unwrap();
+        }
+
+        // Make sure to put the canvas scale back after we're done
+        self.canvas.set_scale(1., 1.).unwrap();
+    }
+
+    fn draw_interaction_target(
+        &mut self,
+        ecs: &Ecs,
+        map_pos_to_screen_top_left: impl Fn(
+            Point2D<f64, MapUnits>,
+            Option<Vector2D<i32, PixelUnits>>,
+        ) -> Point2D<i32, PixelUnits>,
+    ) {
+        self.canvas.set_draw_color(Color::RGB(0, 0, 255));
+
+        let (player_pos, player_facing) =
+            ecs.query_one_with_name::<(&Position, &Facing)>("player").unwrap();
+        let target = player_pos.map_pos
+            + match player_facing.0 {
+                Direction::Up => Vector2D::new(0.0, -0.5),
+                Direction::Down => Vector2D::new(0.0, 0.5),
+                Direction::Left => Vector2D::new(-0.5, 0.0),
+                Direction::Right => Vector2D::new(0.5, 0.0),
+            };
+        let target_on_screen = map_pos_to_screen_top_left(target, None);
+
+        self.canvas
+            .fill_rect(SdlRect::new(target_on_screen.x - 3, target_on_screen.y - 3, 6, 6))
+            .unwrap();
     }
 
     fn draw_cutscene_border(&mut self) {
