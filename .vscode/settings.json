@@ -15,7 +15,9 @@
     "play_named_animation",
     "remove_camera_target",
     "walk_wait",
-    "set_camera_target"
+    "set_camera_target",
+    "set_entity_visible",
+    "walk"
   ],
   "Lua.diagnostics.disable": ["redefined-local"]
 }

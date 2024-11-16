@@ -4179,12 +4179,9 @@
 							{ "px": [128,16], "src": [48,80], "f": 0, "t": 53, "d": [711,33], "a": 1 },
 							{ "px": [16,64], "src": [48,80], "f": 0, "t": 53, "d": [711,101], "a": 1 },
 							{ "px": [16,112], "src": [48,80], "f": 0, "t": 53, "d": [711,176], "a": 1 },
-							{ "px": [112,96], "src": [32,64], "f": 0, "t": 42, "d": [705,157], "a": 1 },
 							{ "px": [208,176], "src": [16,32], "f": 0, "t": 21, "d": [704,288], "a": 1 },
 							{ "px": [240,176], "src": [32,32], "f": 0, "t": 22, "d": [703,290], "a": 1 },
-							{ "px": [208,96], "src": [16,16], "f": 0, "t": 11, "d": [702,163], "a": 1 },
 							{ "px": [112,160], "src": [16,16], "f": 0, "t": 11, "d": [702,257], "a": 1 },
-							{ "px": [240,96], "src": [32,16], "f": 0, "t": 12, "d": [701,165], "a": 1 },
 							{ "px": [128,96], "src": [128,80], "f": 0, "t": 58, "d": [700,158], "a": 1 },
 							{ "px": [112,112], "src": [112,16], "f": 0, "t": 17, "d": [696,182], "a": 1 },
 							{ "px": [208,112], "src": [112,64], "f": 0, "t": 47, "d": [695,188], "a": 1 },
@@ -4274,7 +4271,6 @@
 							{ "px": [368,16], "src": [64,16], "f": 0, "t": 14, "d": [683,48], "a": 1 },
 							{ "px": [16,16], "src": [48,16], "f": 0, "t": 13, "d": [682,26], "a": 1 },
 							{ "px": [128,16], "src": [48,16], "f": 0, "t": 13, "d": [682,33], "a": 1 },
-							{ "px": [112,96], "src": [48,16], "f": 0, "t": 13, "d": [682,157], "a": 1 },
 							{ "px": [112,96], "src": [80,80], "f": 0, "t": 55, "d": [680,157], "a": 1 },
 							{ "px": [208,96], "src": [80,16], "f": 0, "t": 15, "d": [679,163], "a": 1 },
 							{ "px": [240,96], "src": [80,48], "f": 0, "t": 35, "d": [677,165], "a": 1 },
@@ -5380,6 +5376,44 @@
 								],
 								"__worldX": 184,
 								"__worldY": 424
+							},
+							{
+								"__identifier": "simple_anim",
+								"__grid": [10,2],
+								"__pivot": [0.5,0.5],
+								"__tags": [],
+								"__tile": null,
+								"__smartColor": "#0099DB",
+								"iid": "99f45640-9b00-11ef-8c25-572ccf0698ae",
+								"width": 32,
+								"height": 32,
+								"defUid": 806,
+								"px": [160,40],
+								"fieldInstances": [
+									{ "__identifier": "name", "__type": "String", "__value": "bun_fire", "__tile": null, "defUid": 815, "realEditorValues": [{
+										"id": "V_String",
+										"params": ["bun_fire"]
+									}] },
+									{ "__identifier": "spritesheet", "__type": "String", "__value": "fire", "__tile": null, "defUid": 807, "realEditorValues": [{
+										"id": "V_String",
+										"params": ["fire"]
+									}] },
+									{ "__identifier": "visible", "__type": "Bool", "__value": false, "__tile": null, "defUid": 837, "realEditorValues": [{
+										"id": "V_Bool",
+										"params": [ false ]
+									}] },
+									{ "__identifier": "frames", "__type": "String", "__value": "[0, 1, 2, 3, 4]", "__tile": null, "defUid": 818, "realEditorValues": [{
+										"id": "V_String",
+										"params": ["[0, 1, 2, 3, 4]"]
+									}] },
+									{ "__identifier": "seconds_per_frame", "__type": "Float", "__value": 0.2, "__tile": null, "defUid": 810, "realEditorValues": [{ "id": "V_Float", "params": [0.2] }] },
+									{ "__identifier": "repeating", "__type": "Bool", "__value": true, "__tile": null, "defUid": 816, "realEditorValues": [{
+										"id": "V_Bool",
+										"params": [ true ]
+									}] }
+								],
+								"__worldX": 160,
+								"__worldY": 296
 							}
 						]
 					},
@@ -6486,7 +6520,7 @@
 									{ "__identifier": "source", "__type": "String", "__value": "local kid_stage = get_story_var(\"school::kid::stage\")\nlocal plushy_found = get_story_var(\"main::plushy_found\")\n\nif kid_stage == 4 and plushy_found == 0 then\n  message(\"You found the plushy!\")\n  message(\"Now go outside and find somewhere to sleep.\")\n  set_story_var(\"main::plushy_found\", 1)\nend", "__tile": null, "defUid": 753, "realEditorValues": [{
 										"id": "V_String",
 										"params": [
-											"local kid_stage = get_story_var(\"school::kid::stage\")\\nlocal plushy_found = get_story_var(\"main::plushy_found\")\\n\\nif kid_stage == 4 and plushy_found == 0 then\\n  message(\"You found the plushy!\")\\n  message(\"Now go outside and find somewhere to sleep.\")\\n  set_story_var(\"main::plushy_found\", 1)\\nend"
+											"local kid_stage = get_story_var(\"school::kid::stage\")\nlocal plushy_found = get_story_var(\"main::plushy_found\")\n\nif kid_stage == 4 and plushy_found == 0 then\n  message(\"You found the plushy!\")\n  message(\"Now go outside and find somewhere to sleep.\")\n  set_story_var(\"main::plushy_found\", 1)\nend"
 										]
 									}] },
 									{ "__identifier": "external_source", "__type": "String", "__value": null, "__tile": null, "defUid": 790, "realEditorValues": [] },
@@ -8999,7 +9033,7 @@
 									{ "__identifier": "source", "__type": "String", "__value": "local kid_stage = get_story_var(\"school::kid::stage\")\nlocal pen_found = get_story_var(\"bathroom::pen_found\")\n\nif (kid_stage == 2 and pen_found == 1) then\n  message(\"You write the name in the book.\")\n  set_story_var(\"school::kid::stage\", 3)\nend", "__tile": null, "defUid": 753, "realEditorValues": [{
 										"id": "V_String",
 										"params": [
-											"local kid_stage = get_story_var(\"school::kid::stage\")\\nlocal pen_found = get_story_var(\"bathroom::pen_found\")\\n\\nif (kid_stage == 2 and pen_found == 1) then\\n  message(\"You write the name in the book.\")\\n  set_story_var(\"school::kid::stage\", 3)\\nend"
+											"local kid_stage = get_story_var(\"school::kid::stage\")\nlocal pen_found = get_story_var(\"bathroom::pen_found\")\n\nif (kid_stage == 2 and pen_found == 1) then\n  message(\"You write the name in the book.\")\n  set_story_var(\"school::kid::stage\", 3)\nend"
 										]
 									}] },
 									{ "__identifier": "external_source", "__type": "String", "__value": null, "__tile": null, "defUid": 790, "realEditorValues": [] },
@@ -10315,7 +10349,7 @@
 									{ "__identifier": "source", "__type": "String", "__value": "if get_story_var(\"bakery::girl::stage\") == 3 then\n  message(\"Got a quarter.\")\n  set_story_var(\"bakery::girl::stage\", 4)\nend", "__tile": null, "defUid": 753, "realEditorValues": [{
 										"id": "V_String",
 										"params": [
-											"if get_story_var(\"bakery::girl::stage\") == 3 then\\n  message(\"Got a quarter.\")\\n  set_story_var(\"bakery::girl::stage\", 4)\\nend"
+											"if get_story_var(\"bakery::girl::stage\") == 3 then\n  message(\"Got a quarter.\")\n  set_story_var(\"bakery::girl::stage\", 4)\nend"
 										]
 									}] },
 									{ "__identifier": "external_source", "__type": "String", "__value": null, "__tile": null, "defUid": 790, "realEditorValues": [] },
@@ -10348,7 +10382,7 @@
 									{ "__identifier": "source", "__type": "String", "__value": "if get_story_var(\"main::plushy_found\") == 1 then\n  message(\"This is a great place to sleep.\")\n  message(\"Goodnight!\")\n  close_game()\nend", "__tile": null, "defUid": 753, "realEditorValues": [{
 										"id": "V_String",
 										"params": [
-											"if get_story_var(\"main::plushy_found\") == 1 then\\n  message(\"This is a great place to sleep.\")\\n  message(\"Goodnight!\")\\n  close_game()\\nend"
+											"if get_story_var(\"main::plushy_found\") == 1 then\n  message(\"This is a great place to sleep.\")\n  message(\"Goodnight!\")\n  close_game()\nend"
 										]
 									}] },
 									{ "__identifier": "external_source", "__type": "String", "__value": null, "__tile": null, "defUid": 790, "realEditorValues": [] },
@@ -10363,6 +10397,39 @@
 								],
 								"__worldX": -112,
 								"__worldY": -88
+							},
+							{
+								"__identifier": "simple_script",
+								"__grid": [11,9],
+								"__pivot": [0.5,0.5],
+								"__tags": [],
+								"__tile": null,
+								"__smartColor": "#3E8948",
+								"iid": "da2d73e0-9b00-11ef-b906-b9e4d862bb1d",
+								"width": 16,
+								"height": 16,
+								"defUid": 752,
+								"px": [184,152],
+								"fieldInstances": [
+									{ "__identifier": "name", "__type": "String", "__value": null, "__tile": null, "defUid": 756, "realEditorValues": [] },
+									{ "__identifier": "source", "__type": "String", "__value": "set_cutscene_border()\nlock_player_input()\nremove_camera_target()\nwalk_wait(\"CAMERA\", \"right\", 5, 0.1)\nwalk_wait(\"CAMERA\", \"left\", 5, 0.1)\nset_camera_target(\"player\")\nunlock_player_input()\nremove_cutscene_border()", "__tile": null, "defUid": 753, "realEditorValues": [{
+										"id": "V_String",
+										"params": [
+											"set_cutscene_border()\nlock_player_input()\nremove_camera_target()\nwalk_wait(\"CAMERA\", \"right\", 5, 0.1)\nwalk_wait(\"CAMERA\", \"left\", 5, 0.1)\nset_camera_target(\"player\")\nunlock_player_input()\nremove_cutscene_border()"
+										]
+									}] },
+									{ "__identifier": "external_source", "__type": "String", "__value": null, "__tile": null, "defUid": 790, "realEditorValues": [] },
+									{ "__identifier": "trigger", "__type": "LocalEnum.script_trigger", "__value": "interaction", "__tile": null, "defUid": 788, "realEditorValues": [{
+										"id": "V_String",
+										"params": ["interaction"]
+									}] },
+									{ "__identifier": "start_condition", "__type": "String", "__value": null, "__tile": null, "defUid": 757, "realEditorValues": [] },
+									{ "__identifier": "abort_condition", "__type": "String", "__value": null, "__tile": null, "defUid": 789, "realEditorValues": [] },
+									{ "__identifier": "set_on_start", "__type": "String", "__value": null, "__tile": null, "defUid": 758, "realEditorValues": [] },
+									{ "__identifier": "set_on_finish", "__type": "String", "__value": null, "__tile": null, "defUid": 759, "realEditorValues": [] }
+								],
+								"__worldX": 24,
+								"__worldY": -8
 							}
 						]
 					},
