@@ -11,7 +11,7 @@ mod world;
 
 use ecs::components::{
     AnimationComponent, Camera, CharacterAnimations, Collision, DualStateAnimationState,
-    DualStateAnimations, Facing, NamedAnimations, PlaybackState, Position, Scripts,
+    DualStateAnimations, Facing, NamedAnimations, PlaybackState, Position, Scripts, SfxEmitter,
     SineOffsetAnimation, SpriteComponent, Walking,
 };
 use ecs::{Ecs, EntityId};
@@ -131,8 +131,12 @@ fn main() {
 
     sdl2::mixer::open_audio(41_100, AUDIO_S16SYS, DEFAULT_CHANNELS, 512).unwrap();
     sdl2::mixer::allocate_channels(10);
+
     #[allow(unused)]
     let mut sound_effects: HashMap<String, Chunk> = HashMap::new();
+    sound_effects
+        .insert("running".to_string(), Chunk::from_file("assets/audio/running.wav").unwrap());
+
     #[allow(unused)]
     let mut musics: HashMap<String, Music> = HashMap::new();
 
@@ -312,6 +316,8 @@ fn main() {
         end_sine_offset_animations(&mut ecs);
         update_map_overlay_color(&mut map_overlay_transition, &mut renderer);
         update_camera(&ecs, &world);
+
+        update_sfx_emitting_entities(&ecs, &sound_effects);
 
         // ----------------------------------------------------------
         // Render
@@ -861,6 +867,32 @@ fn update_camera(ecs: &Ecs, world: &World) {
             map_bounds.min_y() + viewport_dimensions.height / 2.,
             map_bounds.max_y() - viewport_dimensions.height / 2.,
         );
+    }
+}
+
+fn update_sfx_emitting_entities(ecs: &Ecs, sound_effects: &HashMap<String, Chunk>) {
+    let camera_map = &ecs.query_one_with_name::<&Position>("CAMERA").unwrap().map;
+    for (pos, mut sfx) in ecs.query::<(&Position, &mut SfxEmitter)>() {
+        // If entity is on camera map, and it has an sfx to emit, and sfx is not playing on
+        // any channel, play the sfx
+        if pos.map == *camera_map
+            && let Some(sfx_name) = &sfx.sfx_name
+            && sfx.channel == None
+        {
+            let chunk = sound_effects.get(sfx_name).unwrap();
+            let channel =
+                sdl2::mixer::Channel::all().play(chunk, if sfx.repeat { -1 } else { 0 }).unwrap();
+            sfx.channel = Some(channel);
+        }
+
+        // If entity is not on camera map, or it has no sfx to emit, and sfx is playing on a
+        // channel, stop playing the sfx
+        if pos.map != *camera_map || sfx.sfx_name == None {
+            if let Some(channel) = sfx.channel {
+                sdl2::mixer::Channel::halt(channel);
+                sfx.channel = None;
+            }
+        }
     }
 }
 

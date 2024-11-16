@@ -428,6 +428,18 @@ impl ScriptInstance {
                         scope.create_function_mut(|_, args| callbacks::stop_music(args))?,
                     )?;
                     globals.set(
+                        "emit_entity_sfx",
+                        scope.create_function(|_, args| {
+                            callbacks::emit_entity_sfx(args, *ecs.borrow())
+                        })?,
+                    )?;
+                    globals.set(
+                        "stop_entity_sfx",
+                        scope.create_function(|_, args| {
+                            callbacks::stop_entity_sfx(args, *ecs.borrow())
+                        })?,
+                    )?;
+                    globals.set(
                         "set_map_overlay_color",
                         scope.create_function_mut(|_, args| {
                             callbacks::set_map_overlay_color(

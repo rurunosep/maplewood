@@ -1,8 +1,7 @@
 use super::{Error, ScriptId, WaitCondition};
 use crate::ecs::components::{
     AnimationComponent, Camera, Collision, DualStateAnimationState, DualStateAnimations, Facing,
-    NamedAnimations, PlaybackState, Position, SineOffsetAnimation, Sprite, SpriteComponent,
-    Walking,
+    NamedAnimations, Position, SfxEmitter, SineOffsetAnimation, Sprite, SpriteComponent, Walking,
 };
 use crate::ecs::{Ecs, EntityId};
 use crate::world::WorldPos;
@@ -215,8 +214,7 @@ pub fn stop_object_animation(entity: String, ecs: &Ecs) -> LuaResult<()> {
     let mut anim_comp = ecs
         .query_one_with_name::<&mut AnimationComponent>(&entity)
         .ok_or(Error::NoEntity(entity))?;
-
-    anim_comp.state = PlaybackState::Stopped;
+    anim_comp.stop();
     Ok(())
 }
 
@@ -307,6 +305,25 @@ pub fn play_music(
 
 pub fn stop_music(fade_out_time: f64) -> LuaResult<()> {
     Music::fade_out((fade_out_time * 1000.) as i32).map_err(Error::NoEntity)?;
+    Ok(())
+}
+
+pub fn emit_entity_sfx(
+    (entity, sfx, repeat): (String, String, bool),
+    ecs: &Ecs,
+) -> LuaResult<()> {
+    let mut sfx_comp =
+        ecs.query_one_with_name::<&mut SfxEmitter>(&entity).ok_or(Error::NoEntity(entity))?;
+    sfx_comp.sfx_name = Some(sfx);
+    sfx_comp.repeat = repeat;
+    Ok(())
+}
+
+pub fn stop_entity_sfx(entity: String, ecs: &Ecs) -> LuaResult<()> {
+    let mut sfx_comp =
+        ecs.query_one_with_name::<&mut SfxEmitter>(&entity).ok_or(Error::NoEntity(entity))?;
+    sfx_comp.sfx_name = None;
+    sfx_comp.repeat = false;
     Ok(())
 }
 

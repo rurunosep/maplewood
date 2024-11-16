@@ -1,6 +1,7 @@
 use crate::ecs::components::{
     AnimationClip, AnimationComponent, Camera, CharacterAnimations, Collision, Facing,
-    Interaction, Name, NamedAnimations, Position, Scripts, Sprite, SpriteComponent, Walking,
+    Interaction, Name, NamedAnimations, Position, Scripts, SfxEmitter, Sprite, SpriteComponent,
+    Walking,
 };
 use crate::ecs::{Ecs, EntityId};
 use crate::script::{self, ScriptClass, StartAbortCondition, Trigger};
@@ -113,6 +114,26 @@ pub fn load_entities_from_source(ecs: &mut Ecs) {
         }]),
     );
     ecs.add_component(id, Interaction { hitbox: Size2D::new(1., 1.) });
+    ecs.add_component(id, SfxEmitter::default());
+    ecs.add_component(
+        id,
+        NamedAnimations {
+            clips: HashMap::from([(
+                "sprinting".to_string(),
+                AnimationClip {
+                    frames: [(7, 2), (1, 0), (10, 2), (1, 0)]
+                        .into_iter()
+                        .map(|(col, row)| Sprite {
+                            spritesheet: "janitor".to_string(),
+                            rect: SdlRect::new(col * 16, row * 32, 16, 32),
+                            anchor: Point2D::new(8, 29),
+                        })
+                        .collect(),
+                    seconds_per_frame: 0.08,
+                },
+            )]),
+        },
+    );
 
     // Kid extension
     let id = ecs.query_one_with_name::<EntityId>("kid").unwrap();

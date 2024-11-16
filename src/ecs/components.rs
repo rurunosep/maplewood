@@ -6,6 +6,7 @@ use crate::Direction;
 use derivative::Derivative;
 use derive_more::{Deref, DerefMut};
 use euclid::{Point2D, Size2D, Vector2D};
+use sdl2::mixer::Channel;
 use sdl2::rect::Rect as SdlRect;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
@@ -174,3 +175,14 @@ pub struct Interaction {
     pub hitbox: Size2D<f64, MapUnits>,
 }
 impl Component for Interaction {}
+
+#[derive(Default)]
+pub struct SfxEmitter {
+    // The name of the sfx that should be emmited, if any
+    pub sfx_name: Option<String>,
+    // The channel that the emitted sfx is playing on, if any
+    pub channel: Option<Channel>,
+    // Should the sfx play continuously
+    pub repeat: bool,
+}
+impl Component for SfxEmitter {}
