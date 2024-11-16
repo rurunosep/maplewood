@@ -146,7 +146,8 @@ fn main() {
     let mut world = World::new();
     for ldtk_world in &project.worlds {
         // If world has level called "_world_map", then entire world is a single map
-        // Otherwise, each level in the world is an individual map.
+        // Otherwise, each level in the world is an individual map
+        // (Custom metadata for a world map can go in the _world_map level)
         if ldtk_world.levels.iter().any(|l| l.identifier == "_world_map") {
             world.maps.insert(ldtk_world.identifier.clone(), Map::from_ldtk_world(ldtk_world));
         } else {
@@ -180,11 +181,15 @@ fn main() {
     // --------------------------------------------------------------
     {}
 
+    // --------------------------------------------------------------
+    // Main Loop
+    // --------------------------------------------------------------
     let mut last_time = Instant::now();
     let mut running = true;
     while running {
         let delta = last_time.elapsed();
         last_time = Instant::now();
+
         // ----------------------------------------------------------
         // Process Input
         // ----------------------------------------------------------
@@ -279,223 +284,41 @@ fn main() {
         // Update
         // ----------------------------------------------------------
 
-        // Start Auto scripts
-        for scripts in ecs.query::<&Scripts>() {
-            for script in scripts
-                .iter()
-                .filter(|script| script.trigger == Some(Trigger::Auto))
-                .filter(|script| script.is_start_condition_fulfilled(&story_vars))
-                .collect::<Vec<_>>()
-            {
-                script_manager.start_script(script, &mut story_vars);
-            }
-        }
+        start_auto_scripts(&ecs, &mut story_vars, &mut script_manager);
 
-        // Update script execution
-        for script in script_manager.instances.values_mut() {
-            #[rustfmt::skip]
-            script.update(
-                &mut story_vars, &mut ecs,
-                &mut message_window, &mut player_movement_locked,
-                &mut map_overlay_transition, renderer.map_overlay_color,
-                &mut renderer.show_cutscene_border,
-                &mut renderer.displayed_card_name,
-                &mut running, &musics, &sound_effects, player_id
-            );
+        #[rustfmt::skip]
+        execute_scripts(
+            &mut script_manager, &mut story_vars, &mut ecs, &mut message_window,
+            &mut player_movement_locked, &mut map_overlay_transition, &mut renderer,
+            &mut running, &musics, &sound_effects, player_id,
+        );
 
-            // Set any set_on_finish story vars for finished scripts
-            if script.finished
-                && let Some((var, value)) = &script.script_class.set_on_finish
-            {
-                *story_vars.get_mut(var).unwrap() = *value;
-            }
-        }
-        // Remove finished scripts
-        script_manager.instances.retain(|_, script| !script.finished);
+        stop_player_movement_when_message_window_open(&message_window, &ecs, player_id);
 
-        // Stop player if message window is open (and movement is from input rather than forced)
-        // I really have to rework this already...
-        if message_window.is_some()
-            && let Some(mut walking_component) = ecs.query_one_with_id::<&mut Walking>(player_id)
-            && walking_component.destination.is_none()
-        {
-            walking_component.speed = 0.;
-        }
+        move_entities_and_resolve_collisions(
+            &ecs,
+            &mut script_manager,
+            &mut story_vars,
+            &world,
+            player_id,
+        );
 
-        // Move entities and resolve collisions
-        update_walking_entities(&ecs, &world, &mut script_manager, &mut story_vars);
+        start_soft_collision_scripts(&ecs, &mut story_vars, &mut script_manager, player_id);
 
-        // Start player soft collision scripts
-        let (player_aabb, player_map) = {
-            let (pos, coll) =
-                ecs.query_one_with_id::<(&Position, &Collision)>(player_id).unwrap();
-            (AABB::new(pos.map_pos, coll.hitbox), pos.map.clone())
-        };
-        // For each entity colliding with the player...
-        for (.., scripts) in ecs
-            .query::<(&Position, &Collision, &Scripts)>()
-            .filter(|(pos, ..)| pos.map == player_map)
-            .filter(|(pos, coll, ..)| {
-                AABB::new(pos.map_pos, coll.hitbox).intersects(&player_aabb)
-            })
-        {
-            // ...start scripts that have collision trigger and fulfill start condition
-            for script in scripts
-                .iter()
-                .filter(|script| script.trigger == Some(Trigger::SoftCollision))
-                .filter(|script| script.is_start_condition_fulfilled(&story_vars))
-                .collect::<Vec<_>>()
-            {
-                script_manager.start_script(script, &mut story_vars);
-            }
-        }
+        update_character_animations(&ecs);
+        update_dual_state_animations(&ecs);
+        play_animations_and_set_sprites(&ecs, delta);
 
-        // Update character animations
-        for (mut anim_comp, char_anims, facing, walk_comp) in
-            ecs.query::<(&mut AnimationComponent, &CharacterAnimations, &Facing, &Walking)>()
-        {
-            if anim_comp.forced {
-                continue;
-            }
-
-            anim_comp.clip = match facing.0 {
-                Direction::Up => &char_anims.up,
-                Direction::Down => &char_anims.down,
-                Direction::Left => &char_anims.left,
-                Direction::Right => &char_anims.right,
-            }
-            .clone();
-            // If I don't want to clone() the whole clip, I could use Rc<AnimationClip>
-            // And if I don't want multiple owners, AnimationComponent could use Weak<_>
-            // And if I want it to sometimes own a clip, I could use Either<_, Weak<_>>
-            // But all of that is just optimization to avoid clone()
-
-            if walk_comp.speed > 0. {
-                if anim_comp.state == PlaybackState::Stopped {
-                    anim_comp.start(true);
-                }
-            } else {
-                anim_comp.stop();
-            }
-        }
-
-        // Update dual state animations
-        for (mut anim_comp, mut dual_anims) in
-            ecs.query::<(&mut AnimationComponent, &mut DualStateAnimations)>()
-        {
-            if anim_comp.forced {
-                continue;
-            }
-
-            use DualStateAnimationState::*;
-
-            // If a transition animation is finished playing, switch to the next state
-            match (dual_anims.state, anim_comp.state) {
-                (FirstToSecond, PlaybackState::Stopped) => {
-                    dual_anims.state = Second;
-                    anim_comp.start(true);
-                }
-                (SecondToFirst, PlaybackState::Stopped) => {
-                    dual_anims.state = First;
-                    anim_comp.start(true);
-                }
-                _ => {}
-            };
-
-            anim_comp.clip = match dual_anims.state {
-                First => &dual_anims.first,
-                FirstToSecond => &dual_anims.first_to_second,
-                Second => &dual_anims.second,
-                SecondToFirst => &dual_anims.second_to_first,
-            }
-            .clone();
-        }
-
-        // Play entity animations and set sprite
-        for (mut anim_comp, mut sprite_comp) in
-            ecs.query::<(&mut AnimationComponent, &mut SpriteComponent)>()
-        {
-            // Should anim_comp.clip be an Option? Or is "no clip" just an empty clip?
-            if anim_comp.clip.frames.is_empty() {
-                continue;
-            }
-
-            if anim_comp.state == PlaybackState::Playing {
-                anim_comp.elapsed += delta;
-            }
-
-            let clip = &anim_comp.clip;
-            let elapsed = anim_comp.elapsed.as_secs_f64();
-            let duration = clip.seconds_per_frame * clip.frames.len() as f64;
-            let finished = elapsed > duration && !anim_comp.repeat;
-            let frame_index = if finished || anim_comp.state == PlaybackState::Stopped {
-                clip.frames.len() - 1
-            } else {
-                (elapsed % duration / clip.seconds_per_frame).floor() as usize
-            };
-            let sprite = clip.frames.get(frame_index).unwrap();
-            sprite_comp.sprite = Some(sprite.clone());
-
-            if finished {
-                anim_comp.stop();
-            }
-        }
-
-        // End entity SineOffsetAnimations that have exceeded their duration
-        for (id, soa) in ecs.query::<(EntityId, &SineOffsetAnimation)>() {
-            if soa.start_time.elapsed() > soa.duration {
-                ecs.remove_component_deferred::<SineOffsetAnimation>(id);
-            }
-        }
-        ecs.flush_deferred_mutations();
-
-        // Update map overlay color
-        if let Some(MapOverlayTransition { start_time, duration, start_color, end_color }) =
-            &map_overlay_transition
-        {
-            let interp = start_time.elapsed().div_duration_f64(*duration).min(1.0);
-            let r = ((end_color.r - start_color.r) as f64 * interp + start_color.r as f64) as u8;
-            let g = ((end_color.g - start_color.g) as f64 * interp + start_color.g as f64) as u8;
-            let b = ((end_color.b - start_color.b) as f64 * interp + start_color.b as f64) as u8;
-            let a = ((end_color.a - start_color.a) as f64 * interp + start_color.a as f64) as u8;
-            renderer.map_overlay_color = Color::RGBA(r, g, b, a);
-
-            if start_time.elapsed() > *duration {
-                map_overlay_transition = None;
-            }
-        }
+        end_sine_offset_animations(&mut ecs);
+        update_map_overlay_color(&mut map_overlay_transition, &mut renderer);
+        update_camera(&ecs, &world);
 
         // ----------------------------------------------------------
         // Render
         // ----------------------------------------------------------
 
-        let (mut camera_position, camera_component) =
-            ecs.query_one_with_name::<(&mut Position, &Camera)>("CAMERA").unwrap();
-
-        // Update camera position to follow target entity
-        // (double ECS borrow)
-        if let Some(target) = &camera_component.target_entity_name {
-            *camera_position = ecs.query_one_with_name::<&Position>(target).unwrap().clone();
-        }
-
+        let camera_position = ecs.query_one_with_name::<&Position>("CAMERA").unwrap();
         let camera_map = world.maps.get(&camera_position.map).unwrap();
-
-        // Clamp camera to map
-        let viewport_dimensions = Size2D::new(SCREEN_COLS as f64, SCREEN_ROWS as f64);
-        let map_bounds: Rect<f64, MapUnits> =
-            Rect::new(camera_map.offset.to_point(), camera_map.dimensions).cast().cast_unit();
-        // (If map is smaller than viewport, skip clamping, or clamp() will panic)
-        if map_bounds.size.contains(viewport_dimensions) {
-            camera_position.map_pos.x = camera_position.map_pos.x.clamp(
-                map_bounds.min_x() + viewport_dimensions.width / 2.,
-                map_bounds.max_x() - viewport_dimensions.width / 2.,
-            );
-            camera_position.map_pos.y = camera_position.map_pos.y.clamp(
-                map_bounds.min_y() + viewport_dimensions.height / 2.,
-                map_bounds.max_y() - viewport_dimensions.height / 2.,
-            );
-        }
-
         renderer.render(camera_map, camera_position.map_pos, &ecs, &message_window);
 
         // Frame duration as a percent of a full 60 fps frame:
@@ -506,7 +329,7 @@ fn main() {
 }
 
 // ------------------------------------------------------------------
-// Input Cleanup
+// Input
 // ------------------------------------------------------------------
 
 mod input {
@@ -601,14 +424,194 @@ mod input {
 }
 
 // ------------------------------------------------------------------
-// Collision Stuff
+// Scripts
 // ------------------------------------------------------------------
 
-fn update_walking_entities(
+fn start_auto_scripts(
     ecs: &Ecs,
-    world: &World,
+    story_vars: &mut HashMap<String, i32>,
+    script_manager: &mut ScriptManager,
+) {
+    for scripts in ecs.query::<&Scripts>() {
+        for script in scripts
+            .iter()
+            .filter(|script| script.trigger == Some(Trigger::Auto))
+            .filter(|script| script.is_start_condition_fulfilled(&*story_vars))
+            .collect::<Vec<_>>()
+        {
+            script_manager.start_script(script, story_vars);
+        }
+    }
+}
+
+fn start_soft_collision_scripts(
+    ecs: &Ecs,
+    story_vars: &mut HashMap<String, i32>,
+    script_manager: &mut ScriptManager,
+    player_id: EntityId,
+) {
+    let (player_aabb, player_map) = {
+        let (pos, coll) = ecs.query_one_with_id::<(&Position, &Collision)>(player_id).unwrap();
+        (AABB::new(pos.map_pos, coll.hitbox), pos.map.clone())
+    };
+    // For each entity colliding with the player...
+    for (.., scripts) in ecs
+        .query::<(&Position, &Collision, &Scripts)>()
+        .filter(|(pos, ..)| pos.map == player_map)
+        .filter(|(pos, coll, ..)| AABB::new(pos.map_pos, coll.hitbox).intersects(&player_aabb))
+    {
+        // ...start scripts that have collision trigger and fulfill start condition
+        for script in scripts
+            .iter()
+            .filter(|script| script.trigger == Some(Trigger::SoftCollision))
+            .filter(|script| script.is_start_condition_fulfilled(&*story_vars))
+            .collect::<Vec<_>>()
+        {
+            script_manager.start_script(script, story_vars);
+        }
+    }
+}
+
+fn execute_scripts(
     script_manager: &mut ScriptManager,
     story_vars: &mut HashMap<String, i32>,
+    ecs: &mut Ecs,
+    message_window: &mut Option<MessageWindow>,
+    player_movement_locked: &mut bool,
+    map_overlay_transition: &mut Option<MapOverlayTransition>,
+    renderer: &mut Renderer<'_, '_>,
+    running: &mut bool,
+    musics: &HashMap<String, Music<'_>>,
+    sound_effects: &HashMap<String, Chunk>,
+    player_id: EntityId,
+) {
+    for script in script_manager.instances.values_mut() {
+        #[rustfmt::skip]
+        script.update(
+            story_vars, ecs, message_window, player_movement_locked, map_overlay_transition,
+            renderer.map_overlay_color, &mut renderer.show_cutscene_border,
+            &mut renderer.displayed_card_name, running, musics, sound_effects, player_id
+        );
+
+        // Set set_on_finish story vars for finished scripts
+        if script.finished
+            && let Some((var, value)) = &script.script_class.set_on_finish
+        {
+            *story_vars.get_mut(var).unwrap() = *value;
+        }
+    }
+    // Remove finished scripts
+    script_manager.instances.retain(|_, script| !script.finished);
+}
+
+// ------------------------------------------------------------------
+// Animation
+// ------------------------------------------------------------------
+
+fn update_character_animations(ecs: &Ecs) {
+    for (mut anim_comp, char_anims, facing, walk_comp) in
+        ecs.query::<(&mut AnimationComponent, &CharacterAnimations, &Facing, &Walking)>()
+    {
+        if anim_comp.forced {
+            continue;
+        }
+
+        anim_comp.clip = match facing.0 {
+            Direction::Up => &char_anims.up,
+            Direction::Down => &char_anims.down,
+            Direction::Left => &char_anims.left,
+            Direction::Right => &char_anims.right,
+        }
+        .clone();
+        // If I don't want to clone() the whole clip, I could use Rc<AnimationClip>
+        // And if I don't want multiple owners, AnimationComponent could use Weak<_>
+        // And if I want it to sometimes own a clip, I could use Either<_, Weak<_>>
+        // But all of that is just optimization to avoid clone()
+
+        if walk_comp.speed > 0. {
+            if anim_comp.state == PlaybackState::Stopped {
+                anim_comp.start(true);
+            }
+        } else {
+            anim_comp.stop();
+        }
+    }
+}
+
+fn update_dual_state_animations(ecs: &Ecs) {
+    for (mut anim_comp, mut dual_anims) in
+        ecs.query::<(&mut AnimationComponent, &mut DualStateAnimations)>()
+    {
+        if anim_comp.forced {
+            continue;
+        }
+
+        use DualStateAnimationState::*;
+
+        // If a transition animation is finished playing, switch to the next state
+        match (dual_anims.state, anim_comp.state) {
+            (FirstToSecond, PlaybackState::Stopped) => {
+                dual_anims.state = Second;
+                anim_comp.start(true);
+            }
+            (SecondToFirst, PlaybackState::Stopped) => {
+                dual_anims.state = First;
+                anim_comp.start(true);
+            }
+            _ => {}
+        };
+
+        anim_comp.clip = match dual_anims.state {
+            First => &dual_anims.first,
+            FirstToSecond => &dual_anims.first_to_second,
+            Second => &dual_anims.second,
+            SecondToFirst => &dual_anims.second_to_first,
+        }
+        .clone();
+    }
+}
+
+fn play_animations_and_set_sprites(ecs: &Ecs, delta: Duration) {
+    for (mut anim_comp, mut sprite_comp) in
+        ecs.query::<(&mut AnimationComponent, &mut SpriteComponent)>()
+    {
+        // Should anim_comp.clip be an Option? Or is "no clip" just an empty clip?
+        if anim_comp.clip.frames.is_empty() {
+            continue;
+        }
+
+        if anim_comp.state == PlaybackState::Playing {
+            anim_comp.elapsed += delta;
+        }
+
+        let clip = &anim_comp.clip;
+        let elapsed = anim_comp.elapsed.as_secs_f64();
+        let duration = clip.seconds_per_frame * clip.frames.len() as f64;
+        let finished = elapsed > duration && !anim_comp.repeat;
+        let frame_index = if finished || anim_comp.state == PlaybackState::Stopped {
+            clip.frames.len() - 1
+        } else {
+            (elapsed % duration / clip.seconds_per_frame).floor() as usize
+        };
+        let sprite = clip.frames.get(frame_index).unwrap();
+        sprite_comp.sprite = Some(sprite.clone());
+
+        if finished {
+            anim_comp.stop();
+        }
+    }
+}
+
+// ------------------------------------------------------------------
+// Collision
+// ------------------------------------------------------------------
+
+fn move_entities_and_resolve_collisions(
+    ecs: &Ecs,
+    script_manager: &mut ScriptManager,
+    story_vars: &mut HashMap<String, i32>,
+    world: &World,
+    player_id: EntityId,
 ) {
     for (id, mut position, mut walking, collision) in
         ecs.query::<(EntityId, &mut Position, &mut Walking, Option<&Collision>)>()
@@ -677,8 +680,8 @@ fn update_walking_entities(
 
                 // Trigger HardCollision scripts
                 // (* bottom comment about event system)
-                // (This triggers if any entity collides with script entity, not just the player)
-                if new_aabb.intersects(&other_aabb)
+                if id == player_id
+                    && new_aabb.intersects(&other_aabb)
                     && let Some(scripts) = other_scripts
                 {
                     for script in scripts
@@ -780,6 +783,84 @@ impl AABB {
 
     pub fn center(&self) -> MapPos {
         Point2D::new((self.left + self.right) / 2., (self.top + self.bottom) / 2.)
+    }
+}
+
+// ------------------------------------------------------------------
+// Misc
+// ------------------------------------------------------------------
+
+fn stop_player_movement_when_message_window_open(
+    message_window: &Option<MessageWindow>,
+    ecs: &Ecs,
+    player_id: EntityId,
+) {
+    // Stop player movement when message window is open, but only if that movement is
+    // from player input, not forced
+    // TODO rework player input movement vs forced movement
+    if message_window.is_some()
+        && let Some(mut walking_component) = ecs.query_one_with_id::<&mut Walking>(player_id)
+        && walking_component.destination.is_none()
+    {
+        walking_component.speed = 0.;
+    }
+}
+
+fn end_sine_offset_animations(ecs: &mut Ecs) {
+    for (id, soa) in ecs.query::<(EntityId, &SineOffsetAnimation)>() {
+        if soa.start_time.elapsed() > soa.duration {
+            ecs.remove_component_deferred::<SineOffsetAnimation>(id);
+        }
+    }
+    ecs.flush_deferred_mutations();
+}
+
+fn update_map_overlay_color(
+    map_overlay_transition: &mut Option<MapOverlayTransition>,
+    renderer: &mut Renderer<'_, '_>,
+) {
+    if let Some(MapOverlayTransition { start_time, duration, start_color, end_color }) =
+        &*map_overlay_transition
+    {
+        let interp = start_time.elapsed().div_duration_f64(*duration).min(1.0);
+        let r = ((end_color.r - start_color.r) as f64 * interp + start_color.r as f64) as u8;
+        let g = ((end_color.g - start_color.g) as f64 * interp + start_color.g as f64) as u8;
+        let b = ((end_color.b - start_color.b) as f64 * interp + start_color.b as f64) as u8;
+        let a = ((end_color.a - start_color.a) as f64 * interp + start_color.a as f64) as u8;
+        renderer.map_overlay_color = Color::RGBA(r, g, b, a);
+
+        if start_time.elapsed() > *duration {
+            *map_overlay_transition = None;
+        }
+    }
+}
+
+fn update_camera(ecs: &Ecs, world: &World) {
+    let (mut camera_position, camera_component) =
+        ecs.query_one_with_name::<(&mut Position, &Camera)>("CAMERA").unwrap();
+
+    // Update camera position to follow target entity
+    // (double ECS borrow)
+    if let Some(target) = &camera_component.target_entity_name {
+        *camera_position = ecs.query_one_with_name::<&Position>(target).unwrap().clone();
+    }
+
+    let camera_map = world.maps.get(&camera_position.map).unwrap();
+
+    // Clamp camera to map
+    let viewport_dimensions = Size2D::new(SCREEN_COLS as f64, SCREEN_ROWS as f64);
+    let map_bounds: Rect<f64, MapUnits> =
+        Rect::new(camera_map.offset.to_point(), camera_map.dimensions).cast().cast_unit();
+    // (If map is smaller than viewport, skip clamping, or clamp() will panic)
+    if map_bounds.size.contains(viewport_dimensions) {
+        camera_position.map_pos.x = camera_position.map_pos.x.clamp(
+            map_bounds.min_x() + viewport_dimensions.width / 2.,
+            map_bounds.max_x() - viewport_dimensions.width / 2.,
+        );
+        camera_position.map_pos.y = camera_position.map_pos.y.clamp(
+            map_bounds.min_y() + viewport_dimensions.height / 2.,
+            map_bounds.max_y() - viewport_dimensions.height / 2.,
+        );
     }
 }
 
