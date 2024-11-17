@@ -149,6 +149,25 @@ pub fn load_entities_from_source(ecs: &mut Ecs) {
         }]),
     );
     ecs.add_component(id, Interaction { hitbox: Size2D::new(1., 1.) });
+
+    // Bakery girl extension
+    let id = ecs.query_one_with_name::<EntityId>("bakery_girl").unwrap();
+    ecs.add_component(
+        id,
+        Scripts(vec![ScriptClass {
+            source: script::get_sub_script(
+                &std::fs::read_to_string("assets/scripts.lua").unwrap(),
+                "bakery_girl::panic",
+            ),
+            trigger: Some(Trigger::Auto),
+            start_condition: Some(StartAbortCondition {
+                story_var: "bakery::girl::stage".to_string(),
+                value: 6,
+            }),
+            set_on_start: Some(("bakery::girl::stage".to_string(), 7)),
+            ..ScriptClass::default()
+        }]),
+    );
 }
 
 pub fn load_story_vars(story_vars: &mut HashMap<String, i32>) {

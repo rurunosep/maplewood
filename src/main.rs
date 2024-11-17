@@ -130,15 +130,30 @@ fn main() {
     // --------------------------------------------------------------
 
     sdl2::mixer::open_audio(41_100, AUDIO_S16SYS, DEFAULT_CHANNELS, 512).unwrap();
+    // How high can I reasonably take this? 20? 50? 100? 200? 1000?``
     sdl2::mixer::allocate_channels(10);
 
-    #[allow(unused)]
-    let mut sound_effects: HashMap<String, Chunk> = HashMap::new();
-    sound_effects
-        .insert("running".to_string(), Chunk::from_file("assets/audio/running.wav").unwrap());
+    let sound_effects: HashMap<String, Chunk> = std::fs::read_dir("assets/sfx/")
+        .unwrap()
+        .map(|entry| {
+            let entry = entry.unwrap();
+            (
+                entry.path().file_stem().unwrap().to_str().unwrap().to_string(),
+                Chunk::from_file(entry.path()).unwrap(),
+            )
+        })
+        .collect();
 
-    #[allow(unused)]
-    let mut musics: HashMap<String, Music> = HashMap::new();
+    let musics: HashMap<String, Music> = std::fs::read_dir("assets/music/")
+        .unwrap()
+        .map(|entry| {
+            let entry = entry.unwrap();
+            (
+                entry.path().file_stem().unwrap().to_str().unwrap().to_string(),
+                Music::from_file(entry.path()).unwrap(),
+            )
+        })
+        .collect();
 
     // --------------------------------------------------------------
     // Game Data

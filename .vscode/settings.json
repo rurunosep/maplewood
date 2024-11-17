@@ -17,7 +17,9 @@
     "walk_wait",
     "set_camera_target",
     "set_entity_visible",
-    "walk"
+    "walk",
+    "emit_entity_sfx",
+    "play_object_animation"
   ],
   "Lua.diagnostics.disable": ["redefined-local"]
 }

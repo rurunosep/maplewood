@@ -27,6 +27,12 @@ local stages = {
   end,
   [4] = function()
     message("The plushy is in the gym.")
+
+    set_entity_map_pos("janitor", 7, 12)
+    play_named_animation("janitor", "sprinting", true)
+    emit_entity_sfx("janitor", "running", true)
+    set_story_var("gym::janitor::stage", 6)
+    play_object_animation("gym::treadmill_right", true)
   end
 }
 
@@ -57,7 +63,11 @@ local stages = {
   end,
   [5] = function()
     message("Now I can run.")
-  end
+  end,
+
+  [6] = function() end,
+  [7] = function() end,
+  [8] = function() end
 }
 
 stages[get_story_var("gym::janitor::stage")]()
@@ -87,24 +97,24 @@ local stages = {
     lock_player_input()
     remove_camera_target()
 
-    walk("CAMERA", "up", 4, 0.05)
-    walk_wait("bakery_girl", "up", 0.75, 0.08)
-    walk_wait("bakery_girl", "left", 8, 0.08)
-    walk_wait("bakery_girl", "up", 4.5, 0.08)
-    walk_wait("bakery_girl", "right", 6.5, 0.08)
-    walk_wait("bakery_girl", "up", 0, 0.08)
-    wait(1)
-    walk_wait("bakery_girl", "left", 6.5, 0.08)
-    walk_wait("bakery_girl", "down", 4.5, 0.08)
-    walk_wait("bakery_girl", "right", 8, 0.08)
-    walk_wait("bakery_girl", "down", 0.4, 0.08)
-    wait(0.5)
-    message("\"Here's your bun.\"")
-    wait(1)
-    set_entity_visible("bun_fire", true)
-    wait(1)
-    walk("CAMERA", "down", 4, 0.05)
-    wait(2)
+    -- walk("CAMERA", "up", 4, 0.05)
+    -- walk_wait("bakery_girl", "up", 0.75, 0.08)
+    -- walk_wait("bakery_girl", "left", 8, 0.08)
+    -- walk_wait("bakery_girl", "up", 4.5, 0.08)
+    -- walk_wait("bakery_girl", "right", 6.5, 0.08)
+    -- walk_wait("bakery_girl", "up", 0, 0.08)
+    -- wait(1)
+    -- walk_wait("bakery_girl", "left", 6.5, 0.08)
+    -- walk_wait("bakery_girl", "down", 4.5, 0.08)
+    -- walk_wait("bakery_girl", "right", 8, 0.08)
+    -- walk_wait("bakery_girl", "down", 0.4, 0.08)
+    -- wait(0.5)
+    -- message("\"Here's your bun.\"")
+    -- wait(1)
+    -- set_entity_visible("bun_fire", true)
+    -- wait(1)
+    -- walk("CAMERA", "down", 4, 0.05)
+    -- wait(2)
     message("\"Take care!\"")
 
     set_camera_target("player")
@@ -117,9 +127,19 @@ local stages = {
 
   [5] = function()
     message("Have a nice day.")
-  end
+  end,
+
+  [6] = function() end,
+  [7] = function() end
 }
 
 stages[get_story_var("bakery::girl::stage")]()
+
+--# bakery_girl::panic
+
+while true do
+  walk_wait("bakery_girl", "left", 2, 0.12)
+  walk_wait("bakery_girl", "right", 2, 0.12)
+end
 
 --#
