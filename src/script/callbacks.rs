@@ -1,11 +1,13 @@
 use super::{Error, ScriptId, WaitCondition};
-use crate::ecs::components::{
+use crate::components::{
     AnimationComponent, Camera, Collision, DualStateAnimationState, DualStateAnimations, Facing,
     NamedAnimations, Position, SfxEmitter, SineOffsetAnimation, Sprite, SpriteComponent, Walking,
 };
+use crate::data::PLAYER_ENTITY_NAME;
 use crate::ecs::{Ecs, EntityId};
+use crate::misc::Direction;
 use crate::world::WorldPos;
-use crate::{Direction, MapOverlayTransition, MessageWindow};
+use crate::{MapOverlayTransition, MessageWindow};
 use euclid::{Point2D, Vector2D};
 use rlua::Result as LuaResult;
 use sdl2::mixer::{Chunk, Music};
@@ -111,14 +113,13 @@ pub fn lock_player_input(
     _args: (),
     player_movement_locked: &mut bool,
     ecs: &Ecs,
-    player_id: EntityId,
 ) -> LuaResult<()> {
     *player_movement_locked = true;
     // End current player movement
     // There's no way to tell if it's from input or other
     // It might be better to set speed to 0 at end of each update (if movement is not
     // being forced) and set it again in input processing as long as key is still held
-    if let Some(mut walking) = ecs.query_one_with_id::<&mut Walking>(player_id) {
+    if let Some(mut walking) = ecs.query_one_with_name::<&mut Walking>(PLAYER_ENTITY_NAME) {
         walking.speed = 0.;
     }
 

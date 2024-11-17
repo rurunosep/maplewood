@@ -1,11 +1,11 @@
 // This might want to be in a module with ldtk_json.rs and other resource loading files
 // some day, rather than here with the entity files
 
-use super::components::{
-    AnimationClip, AnimationComponent, CharacterAnimations, DualStateAnimationState,
-    DualStateAnimations, Facing, Interaction, Sprite, SpriteComponent, Walking,
+use crate::components::{
+    AnimationClip, AnimationComponent, CharacterAnimations, Collision, DualStateAnimationState,
+    DualStateAnimations, Facing, Interaction, Name, Position, Scripts, Sprite, SpriteComponent,
+    Walking,
 };
-use crate::ecs::components::{Collision, Name, Position, Scripts};
 use crate::ecs::Ecs;
 use crate::ldtk_json::{self};
 use crate::script::{self, ScriptClass, Trigger};

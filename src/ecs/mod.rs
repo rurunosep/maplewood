@@ -1,6 +1,3 @@
-pub mod components;
-pub mod loader;
-
 mod query;
 
 #[allow(clippy::module_inception)]

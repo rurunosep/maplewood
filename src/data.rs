@@ -1,4 +1,4 @@
-use crate::ecs::components::{
+use crate::components::{
     AnimationClip, AnimationComponent, Camera, CharacterAnimations, Collision, Facing,
     Interaction, Name, NamedAnimations, Position, Scripts, SfxEmitter, Sprite, SpriteComponent,
     Walking,
@@ -10,10 +10,12 @@ use euclid::{Point2D, Size2D};
 use sdl2::rect::Rect as SdlRect;
 use std::collections::HashMap;
 
+pub const PLAYER_ENTITY_NAME: &str = "player";
+
 pub fn load_entities_from_source(ecs: &mut Ecs) {
     // Player
     let id = ecs.add_entity();
-    ecs.add_component(id, Name("player".to_string()));
+    ecs.add_component(id, Name(PLAYER_ENTITY_NAME.to_string()));
     ecs.add_component(id, Position(WorldPos::new("overworld", 1.5, 2.5)));
     ecs.add_component(id, SpriteComponent::default());
     ecs.add_component(id, Facing::default());
@@ -66,7 +68,7 @@ pub fn load_entities_from_source(ecs: &mut Ecs) {
     // Camera
     let id = ecs.add_entity();
     ecs.add_component(id, Name("CAMERA".to_string()));
-    ecs.add_component(id, Camera { target_entity_name: Some("player".to_string()) });
+    ecs.add_component(id, Camera { target_entity_name: Some(PLAYER_ENTITY_NAME.to_string()) });
     ecs.add_component(id, Position::default());
     // Needs "walking" component to be pathed. Needs "facing" for walking code to work.
     // (Make Facing component optional in Walking update code.)

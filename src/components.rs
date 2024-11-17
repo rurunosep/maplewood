@@ -1,8 +1,8 @@
-use super::Component;
+use crate::ecs::Component;
+use crate::misc::Direction;
 use crate::render::PixelUnits;
 use crate::script::ScriptClass;
 use crate::world::{MapPos, MapUnits, WorldPos};
-use crate::Direction;
 use derivative::Derivative;
 use derive_more::{Deref, DerefMut};
 use euclid::{Point2D, Size2D, Vector2D};
@@ -10,6 +10,8 @@ use sdl2::mixer::Channel;
 use sdl2::rect::Rect as SdlRect;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
+
+// I think eventually components should be organized into their domains
 
 #[derive(Deref)]
 pub struct Name(pub String);

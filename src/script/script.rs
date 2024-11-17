@@ -1,5 +1,5 @@
 use super::callbacks;
-use crate::ecs::{Ecs, EntityId};
+use crate::ecs::Ecs;
 use crate::{MapOverlayTransition, MessageWindow};
 use rlua::{Error as LuaError, Function, Lua, Result as LuaResult, Thread, ThreadStatus};
 use sdl2::mixer::{Chunk, Music};
@@ -222,7 +222,6 @@ impl ScriptInstance {
         running: &mut bool,
         musics: &HashMap<String, Music>,
         sound_effects: &HashMap<String, Chunk>,
-        player_id: EntityId,
     ) {
         // Abort script if abort condition is fulfilled
         if let Some(condition) = &self.script_class.abort_condition {
@@ -335,7 +334,6 @@ impl ScriptInstance {
                                 args,
                                 *player_movement_locked.borrow_mut(),
                                 *ecs.borrow(),
-                                player_id,
                             )
                         })?,
                     )?;

@@ -1,5 +1,5 @@
-use super::components::Name;
 use super::query::Query;
+use crate::components::Name;
 use anymap::AnyMap;
 use slotmap::{new_key_type, Key, SecondaryMap, SlotMap};
 use std::cell::RefCell;
