@@ -137,14 +137,14 @@ pub fn load_entities_from_source(ecs: &mut Ecs) {
         },
     );
 
-    // Kid extension
-    let id = ecs.query_one_with_name::<EntityId>("kid").unwrap();
+    // School kid extension
+    let id = ecs.query_one_with_name::<EntityId>("school_kid").unwrap();
     ecs.add_component(
         id,
         Scripts(vec![ScriptClass {
             source: script::get_sub_script(
                 &std::fs::read_to_string("assets/scripts.lua").unwrap(),
-                "kid",
+                "school_kid",
             ),
             trigger: Some(Trigger::Interaction),
             ..ScriptClass::default()
@@ -163,10 +163,10 @@ pub fn load_entities_from_source(ecs: &mut Ecs) {
             ),
             trigger: Some(Trigger::Auto),
             start_condition: Some(StartAbortCondition {
-                story_var: "bakery::girl::stage".to_string(),
+                story_var: "bakery_girl::stage".to_string(),
                 value: 6,
             }),
-            set_on_start: Some(("bakery::girl::stage".to_string(), 7)),
+            set_on_start: Some(("bakery_girl::stage".to_string(), 7)),
             ..ScriptClass::default()
         }]),
     );
@@ -174,17 +174,14 @@ pub fn load_entities_from_source(ecs: &mut Ecs) {
 
 pub fn load_story_vars(story_vars: &mut HashMap<String, i32>) {
     for (k, v) in [
-        ("sink_1::running", 0),
-        ("sink_2::running", 0),
-        ("toilet_door::open", 0),
-        ("start_script::started", 0),
-        ("school::kid::stage", 1),
-        ("bathroom::door::open", 0),
-        ("bathroom::door::have_key", 0),
-        ("bathroom::pen_found", 0),
-        ("gym::janitor::stage", 1),
-        ("bakery::girl::stage", 1),
         ("main::plushy_found", 0),
+        ("main::pen_found", 0),
+        ("start_script::started", 0),
+        ("bathroom::door::have_key", 0),
+        ("bathroom::door::open", 0),
+        ("school_kid::stage", 1),
+        ("janitor::stage", 1),
+        ("bakery_girl::stage", 1),
     ]
     .iter()
     {
