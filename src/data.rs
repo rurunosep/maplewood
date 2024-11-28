@@ -1,3 +1,5 @@
+// TODO make todo tree work on script files + move script files to scripts folder
+
 use crate::components::{
     AnimationClip, AnimationComponent, Camera, CharacterAnimations, Collision, Facing,
     Interaction, Name, NamedAnimations, Position, Scripts, SfxEmitter, Sprite, SpriteComponent,
@@ -10,6 +12,7 @@ use euclid::{Point2D, Size2D};
 use sdl2::rect::Rect as SdlRect;
 use std::collections::HashMap;
 
+// TODO rename player entity? "_PLAYER"? "PLAYER"?
 pub const PLAYER_ENTITY_NAME: &str = "player";
 
 pub fn load_entities_from_source(ecs: &mut Ecs) {
@@ -102,6 +105,18 @@ pub fn load_entities_from_source(ecs: &mut Ecs) {
     ecs.add_component(id, Position(WorldPos::new("bathroom", 4.5, 8.)));
     ecs.add_component(id, Collision { hitbox: Size2D::new(1., 2.), solid: true });
 
+    // Bathroom entrance blocker
+    let id = ecs.add_entity();
+    ecs.add_component(id, Name("hallway::bathroom_entrance_blocker".to_string()));
+    ecs.add_component(id, Position(WorldPos::new("hallway", 3.5, 2.5)));
+    ecs.add_component(id, Collision { hitbox: Size2D::new(1., 1.), solid: false });
+
+    // Bakery entrance blocker
+    let id = ecs.add_entity();
+    ecs.add_component(id, Name("hallway::bakery_entrance_blocker".to_string()));
+    ecs.add_component(id, Position(WorldPos::new("hallway", 9.5, 2.5)));
+    ecs.add_component(id, Collision { hitbox: Size2D::new(1., 1.), solid: false });
+
     // Janitor extension
     let id = ecs.query_one_with_name::<EntityId>("janitor").unwrap();
     ecs.add_component(
@@ -164,9 +179,9 @@ pub fn load_entities_from_source(ecs: &mut Ecs) {
             trigger: Some(Trigger::Auto),
             start_condition: Some(StartAbortCondition {
                 story_var: "bakery_girl::stage".to_string(),
-                value: 6,
+                value: 4,
             }),
-            set_on_start: Some(("bakery_girl::stage".to_string(), 7)),
+            set_on_start: Some(("bakery_girl::stage".to_string(), 5)),
             ..ScriptClass::default()
         }]),
     );
@@ -179,6 +194,8 @@ pub fn load_story_vars(story_vars: &mut HashMap<String, i32>) {
         ("start_script::started", 0),
         ("bathroom::door::have_key", 0),
         ("bathroom::door::open", 0),
+        ("bathroom::flooded", 0),
+        ("bathroom::exit::running", 0),
         ("school_kid::stage", 1),
         ("janitor::stage", 1),
         ("bakery_girl::stage", 1),

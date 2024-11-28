@@ -5,7 +5,7 @@ use crate::components::{
 };
 use crate::data::PLAYER_ENTITY_NAME;
 use crate::ecs::{Ecs, EntityId};
-use crate::misc::{Direction, AABB};
+use crate::misc::{Aabb, Direction};
 use crate::render::{SCREEN_COLS, SCREEN_ROWS};
 use crate::script::{ScriptManager, Trigger};
 use crate::world::{CellPos, MapUnits, World};
@@ -34,8 +34,7 @@ pub fn update(
     #[rustfmt::skip]
     execute_scripts(
       script_manager, &mut game_data.story_vars, &mut game_data.ecs,
-      player_movement_locked, ui_data,
-      running, musics, sound_effects
+      player_movement_locked, ui_data, running, musics, sound_effects
     );
 
     // Entity (Movement)
@@ -91,13 +90,13 @@ fn start_soft_collision_scripts(
         let query_one_with_name =
             ecs.query_one_with_name::<(&Position, &Collision)>(PLAYER_ENTITY_NAME);
         let (pos, coll) = query_one_with_name.unwrap();
-        (AABB::new(pos.map_pos, coll.hitbox), pos.map.clone())
+        (Aabb::new(pos.map_pos, coll.hitbox), pos.map.clone())
     };
     // For each entity colliding with the player...
     for (.., scripts) in ecs
         .query::<(&Position, &Collision, &Scripts)>()
         .filter(|(pos, ..)| pos.map == player_map)
-        .filter(|(pos, coll, ..)| AABB::new(pos.map_pos, coll.hitbox).intersects(&player_aabb))
+        .filter(|(pos, coll, ..)| Aabb::new(pos.map_pos, coll.hitbox).intersects(&player_aabb))
     {
         // ...start scripts that have collision trigger and fulfill start condition
         for script in scripts
@@ -257,6 +256,7 @@ fn move_entities_and_resolve_collisions(
         let map_pos = position.map_pos;
 
         // Determine new position before collision resolution
+        // TODO !! use frame delta
         let mut new_position = map_pos
             + match walking.direction {
                 Direction::Up => Vector2D::new(0.0, -walking.speed),
@@ -269,9 +269,9 @@ fn move_entities_and_resolve_collisions(
         if let Some(collision) = collision
             && collision.solid
         {
-            let old_aabb = AABB::new(map_pos, collision.hitbox);
+            let old_aabb = Aabb::new(map_pos, collision.hitbox);
 
-            let mut new_aabb = AABB::new(new_position, collision.hitbox);
+            let mut new_aabb = Aabb::new(new_position, collision.hitbox);
 
             // Resolve collisions with the 9 cells centered around new position
             // (Currently, we get the 9 cells around the position, and then we get
@@ -314,7 +314,7 @@ fn move_entities_and_resolve_collisions(
                     continue;
                 }
 
-                let other_aabb = AABB::new(other_pos.map_pos, other_coll.hitbox);
+                let other_aabb = Aabb::new(other_pos.map_pos, other_coll.hitbox);
 
                 // Trigger HardCollision scripts
                 // (* bottom comment about event system)
@@ -420,6 +420,7 @@ fn update_camera(ecs: &Ecs, world: &World) {
     let camera_map = world.maps.get(&camera_position.map).unwrap();
 
     // Clamp camera to map
+    // TODO !! toggle clamping
     let viewport_dimensions = Size2D::new(SCREEN_COLS as f64, SCREEN_ROWS as f64);
     let map_bounds: Rect<f64, MapUnits> =
         Rect::new(camera_map.offset.to_point(), camera_map.dimensions).cast().cast_unit();

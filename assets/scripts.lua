@@ -30,12 +30,6 @@ local stages = {
     message("The plushy is in the gym.")
 
     set_story_var("school_kid::stage", 4)
-
-    set_entity_map_pos("janitor", 7, 12)
-    play_named_animation("janitor", "sprinting", true)
-    emit_entity_sfx("janitor", "running", true)
-    play_object_animation("gym::treadmill_right", true)
-    set_story_var("janitor::stage", 6)
   end,
 
   [4] = function()
@@ -96,18 +90,6 @@ local stages = {
   end,
 
   [2] = function()
-    message("You need a Super Sugar Bun?")
-    message("That's 25 cents.")
-    message("You can get a quarter by returning a shopping cart.")
-
-    set_story_var("bakery_girl::stage", 3)
-  end,
-
-  [3] = function()
-    message("Get the quarter.")
-  end,
-
-  [4] = function()
     message("\"I'll get you your bun.\"")
 
     set_cutscene_border()
@@ -138,18 +120,18 @@ local stages = {
     unlock_player_input()
     remove_cutscene_border()
 
-    set_story_var("bakery_girl::stage", 5)
+    set_story_var("bakery_girl::stage", 3)
     set_story_var("janitor::stage", 4)
   end,
 
-  [5] = function()
+  [3] = function()
     message("Have a nice day.")
   end,
 
   -- may start panicking
-  [6] = function() end,
+  [4] = function() end,
   -- has started panicking
-  [7] = function() end
+  [5] = function() end
 }
 
 stages[get_story_var("bakery_girl::stage")]()
@@ -186,6 +168,52 @@ if get_story_var("main::pen_found") == 0 then
   message("You find the pen.")
 
   set_story_var("main::pen_found", 1)
+  set_story_var("school_kid::stage", 3)
+
+  set_entity_world_pos("bakery_girl", "hallway", 7.5, 4.5)
+  set_entity_solid("bakery_girl", false)
+  set_story_var("bakery_girl::stage", 4)
+  set_entity_visible("hallway::bakery_fire", true)
+  set_entity_visible("hallway::bakery_firefighter", true)
+  set_entity_visible("hallway::bakery_water_jet", true)
+  set_entity_solid("hallway::bakery_entrance_blocker", true)
+
+  set_entity_map_pos("janitor", 7, 12)
+  play_named_animation("janitor", "sprinting", true)
+  emit_entity_sfx("janitor", "running", true)
+  play_object_animation("gym::treadmill_right", true)
+  set_story_var("janitor::stage", 6)
+end
+
+--# bathroom::exit
+
+if get_story_var("main::pen_found") == 1 and get_story_var("bathroom::flooded") == 0 then
+  set_story_var("bathroom::flooded", 1)
+
+  set_cutscene_border()
+  lock_player_input()
+  remove_camera_target()
+
+  set_entity_world_pos("player", "hallway", 3.5, 3.5)
+
+  wait(1)
+  walk_to_wait("CAMERA", "up", 6.01, 0.05)
+  wait(1)
+  switch_dual_state_animation("bathroom::sink_1", 2)
+  play_sfx("faucet")
+  wait(1)
+  switch_dual_state_animation("bathroom::sink_2", 2)
+  play_sfx("faucet")
+  wait(1)
+  switch_dual_state_animation("bathroom::bathtub", 2)
+  play_sfx("faucet")
+  wait(4)
+
+  set_camera_target("player")
+  unlock_player_input()
+  remove_cutscene_border()
+else
+  set_entity_world_pos("player", "hallway", 3.5, 3.5)
 end
 
 --# overworld::shopping_cart
@@ -196,14 +224,6 @@ if get_story_var("bakery_girl::stage") == 3 then
   set_story_var("bakery_girl::stage", 4)
 end
 
---# school::attendance_book
-
-if get_story_var("school_kid::stage") == 2 and get_story_var("main::pen_found") == 1 then
-  message("You write the name in the book.")
-
-  set_story_var("school_kid::stage", 3)
-end
-
 --# gym::punching_bag
 
 if get_story_var("school_kid::stage") == 4 and get_story_var("main::plushy_found") == 0 then
@@ -212,12 +232,12 @@ if get_story_var("school_kid::stage") == 4 and get_story_var("main::plushy_found
 
   set_story_var("main::plushy_found", 1)
 
-  set_entity_world_pos("bakery_girl", "hallway", 7.5, 4.5)
-  set_entity_solid("bakery_girl", false)
-  set_story_var("bakery_girl::stage", 6)
-  set_entity_visible("fire", true)
-  set_entity_visible("firefighter", true)
-  set_entity_visible("water_jet", true)
+  set_entity_visible("hallway::bathroom_fire", true)
+  set_entity_visible("hallway::small_fire_1", true)
+  set_entity_visible("hallway::small_fire_2", true)
+  set_entity_visible("hallway::bathroom_firefighter", true)
+  set_entity_visible("hallway::bathroom_water_jet", true)
+  set_entity_solid("hallway::bathroom_entrance_blocker", true)
 
   set_story_var("janitor::stage", 7)
 end
@@ -239,6 +259,7 @@ set_forced_sprite("janitor", "janitor_down", 0, 0, 32, 16, 16, 8)
 set_entity_map_pos("janitor", 7, 14.8)
 set_entity_solid("janitor", false)
 
-message("boom")
+set_entity_visible("hallway::wall_crack", true)
+play_sfx("rock_smash")
 
 --#

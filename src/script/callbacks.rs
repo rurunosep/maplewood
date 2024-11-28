@@ -309,6 +309,7 @@ pub fn stop_music(fade_out_time: f64) -> LuaResult<()> {
     Ok(())
 }
 
+// TODO attach sfx component if it doesn't exist?
 pub fn emit_entity_sfx(
     (entity, sfx, repeat): (String, String, bool),
     ecs: &Ecs,

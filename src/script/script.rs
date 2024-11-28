@@ -201,13 +201,6 @@ impl ScriptInstance {
         Self { lua_instance, script_class, id, finished: false, wait_condition: None, input: 0 }
     }
 
-    // The only way to not pass all of this stuff AND MORE through a giant function
-    // signature, is going to be to store this stuff in somesort of struct, or several,
-    // and pass that. It's all basically global state anyway. I'm probably going to need
-    // some global game state struct. Entities, tilemap, and story vars are game data.
-    // Message window, map overlay, border, card, and running are app data(possibly
-    // further divided into UI, renderer, or true app). Music and sound effects are
-    // resources and probably counts as app data, too
     #[allow(clippy::too_many_arguments)]
     pub fn update(
         &mut self,
@@ -264,8 +257,8 @@ impl ScriptInstance {
                     // references in the closure remain valid
 
                     // Non-trivial functions are defined elsewhere and called by the
-                    // closure with all closed variables passed as arguments Can I
-                    // automate this with a macro or something?
+                    // closure with all closed variables passed as arguments
+                    // (Can I automate this with a macro or something?)
 
                     globals.set(
                         "get_story_var",

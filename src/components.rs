@@ -13,6 +13,11 @@ use std::time::{Duration, Instant};
 
 // I think eventually components should be organized into their domains
 
+// TODO !! door component? open, closed, locked enum state. anims and sprites. interact script.
+// get_door_state command. collision updated downstream from state. (how are anims controlled?)
+
+// A name is used to refer to entities in scripts or other external data sources
+// The actual non-optional, guaranteed-unique identifier is EntityId
 #[derive(Deref)]
 pub struct Name(pub String);
 impl Component for Name {}
@@ -31,6 +36,7 @@ impl Component for Scripts {}
 
 #[derive(Derivative)]
 #[derivative(Default)]
+// TODO !! symmetries and rotations enum
 pub struct SpriteComponent {
     pub sprite: Option<Sprite>,
     pub forced_sprite: Option<Sprite>,
@@ -142,6 +148,7 @@ pub struct SineOffsetAnimation {
 }
 impl Component for SineOffsetAnimation {}
 
+// TODO separate components for general movement vs active "walking" or pathing
 #[derive(Default)]
 pub struct Walking {
     pub speed: f64,
@@ -152,6 +159,7 @@ impl Component for Walking {}
 
 #[derive(Default)]
 pub struct Camera {
+    // TODO this should actually be an Option<EntityId>
     pub target_entity_name: Option<String>,
 }
 impl Component for Camera {}
@@ -180,11 +188,8 @@ impl Component for Interaction {}
 
 #[derive(Default)]
 pub struct SfxEmitter {
-    // The name of the sfx that should be emmited, if any
     pub sfx_name: Option<String>,
-    // The channel that the emitted sfx is playing on, if any
     pub channel: Option<Channel>,
-    // Should the sfx play continuously
     pub repeat: bool,
 }
 impl Component for SfxEmitter {}

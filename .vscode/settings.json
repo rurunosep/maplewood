@@ -24,7 +24,10 @@
     "switch_dual_state_animation",
     "stop_object_animation",
     "stop_entity_sfx",
-    "set_forced_sprite"
+    "set_forced_sprite",
+    "play_sfx"
   ],
-  "Lua.diagnostics.disable": ["redefined-local"]
+  "Lua.diagnostics.disable": ["redefined-local"],
+  "todo-tree.tree.scanMode": "workspace only",
+  "todo-tree.tree.showCountsInTree": false
 }

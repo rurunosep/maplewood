@@ -1,6 +1,3 @@
-// This might want to be in a module with ldtk_json.rs and other resource loading files
-// some day, rather than here with the entity files
-
 use crate::components::{
     AnimationClip, AnimationComponent, CharacterAnimations, Collision, DualStateAnimationState,
     DualStateAnimations, Facing, Interaction, Name, Position, Scripts, Sprite, SpriteComponent,
@@ -266,6 +263,7 @@ fn load_dual_state_animation_entity(
     ecs.add_component(id, anim_comp);
 }
 
+// TODO !! interaction script
 fn load_character_entity(
     ecs: &mut Ecs,
     entity: &ldtk_json::EntityInstance,

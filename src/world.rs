@@ -1,5 +1,5 @@
 use crate::ldtk_json;
-use crate::misc::AABB;
+use crate::misc::Aabb;
 use crate::render::PixelUnits;
 use euclid::{Point2D, Size2D, Vector2D};
 use std::collections::HashMap;
@@ -213,7 +213,7 @@ impl Map {
     }
 
     // Get the collision AABBs for each of the 4 quarters of a cell at cellpos
-    pub fn collision_aabbs_for_cell(&self, cell_pos: CellPos) -> [Option<AABB>; 4] {
+    pub fn collision_aabbs_for_cell(&self, cell_pos: CellPos) -> [Option<Aabb>; 4] {
         let tlc = (cell_pos - self.offset) * 2; // "top-left coords"
         let top_left_index = tlc.y * self.dimensions.width * 2 + tlc.x;
         let top_right_index = tlc.y * self.dimensions.width * 2 + (tlc.x + 1);
@@ -221,7 +221,7 @@ impl Map {
         let bottom_right_index = (tlc.y + 1) * self.dimensions.width * 2 + (tlc.x + 1);
 
         let top_left =
-            self.collisions.get(top_left_index as usize).copied().flatten().map(|()| AABB {
+            self.collisions.get(top_left_index as usize).copied().flatten().map(|()| Aabb {
                 top: cell_pos.y as f64,
                 bottom: cell_pos.y as f64 + 0.5,
                 left: cell_pos.x as f64,
@@ -229,7 +229,7 @@ impl Map {
             });
 
         let top_right =
-            self.collisions.get(top_right_index as usize).copied().flatten().map(|()| AABB {
+            self.collisions.get(top_right_index as usize).copied().flatten().map(|()| Aabb {
                 top: cell_pos.y as f64,
                 bottom: cell_pos.y as f64 + 0.5,
                 left: cell_pos.x as f64 + 0.5,
@@ -237,7 +237,7 @@ impl Map {
             });
 
         let bottom_left =
-            self.collisions.get(bottom_left_index as usize).copied().flatten().map(|()| AABB {
+            self.collisions.get(bottom_left_index as usize).copied().flatten().map(|()| Aabb {
                 top: cell_pos.y as f64 + 0.5,
                 bottom: cell_pos.y as f64 + 1.,
                 left: cell_pos.x as f64,
@@ -245,7 +245,7 @@ impl Map {
             });
 
         let bottom_right =
-            self.collisions.get(bottom_right_index as usize).copied().flatten().map(|()| AABB {
+            self.collisions.get(bottom_right_index as usize).copied().flatten().map(|()| Aabb {
                 top: cell_pos.y as f64 + 0.5,
                 bottom: cell_pos.y as f64 + 1.,
                 left: cell_pos.x as f64 + 0.5,

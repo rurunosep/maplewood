@@ -3,7 +3,7 @@ use crate::components::{
 };
 use crate::data::PLAYER_ENTITY_NAME;
 use crate::ecs::Ecs;
-use crate::misc::{Direction, AABB};
+use crate::misc::{Direction, Aabb};
 use crate::script::{ScriptManager, Trigger};
 use crate::{GameData, MessageWindow};
 use euclid::Vector2D;
@@ -40,37 +40,36 @@ pub fn process_input(
             }
 
             // Player movement
+            // TODO player component or input component?
             Event::KeyDown { keycode: Some(keycode), .. }
                 if keycode == Keycode::Up
                     || keycode == Keycode::Down
                     || keycode == Keycode::Left
                     || keycode == Keycode::Right =>
             {
-                {
-                    let ecs: &Ecs = &ecs;
-                    let message_window: &Option<MessageWindow> = &*message_window;
-                    let (mut facing, mut walking_component) = ecs
-                        .query_one_with_name::<(&mut Facing, &mut Walking)>(PLAYER_ENTITY_NAME)
-                        .unwrap();
+                let ecs: &Ecs = &ecs;
+                let message_window: &Option<MessageWindow> = &*message_window;
+                let (mut facing, mut walking_component) = ecs
+                    .query_one_with_name::<(&mut Facing, &mut Walking)>(PLAYER_ENTITY_NAME)
+                    .unwrap();
 
-                    // Some conditions (such as a message window open, or movement being forced)
-                    // lock player movement. Scripts can also lock/unlock it
-                    // as necessary.
-                    if message_window.is_none()
-                        && walking_component.destination.is_none()
-                        && !player_movement_locked
-                    {
-                        walking_component.speed = 0.12;
-                        walking_component.direction = match keycode {
-                            Keycode::Up => Direction::Up,
-                            Keycode::Down => Direction::Down,
-                            Keycode::Left => Direction::Left,
-                            Keycode::Right => Direction::Right,
-                            _ => unreachable!(),
-                        };
-                        facing.0 = walking_component.direction;
-                    }
-                };
+                // Some conditions (such as a message window open, or movement being forced)
+                // lock player movement. Scripts can also lock/unlock it
+                // as necessary.
+                if message_window.is_none()
+                    && walking_component.destination.is_none()
+                    && !player_movement_locked
+                {
+                    walking_component.speed = 0.12;
+                    walking_component.direction = match keycode {
+                        Keycode::Up => Direction::Up,
+                        Keycode::Down => Direction::Down,
+                        Keycode::Left => Direction::Left,
+                        Keycode::Right => Direction::Right,
+                        _ => unreachable!(),
+                    };
+                    facing.0 = walking_component.direction;
+                }
             }
 
             // End player movement if key matching player direction is released
@@ -103,23 +102,21 @@ pub fn process_input(
                     || keycode == Keycode::Num3
                     || keycode == Keycode::Num4 =>
             {
+                if let Some(message_window) = message_window
+                    && message_window.is_selection
+                    && let Some(script) =
+                        script_manager.instances.get_mut(message_window.waiting_script_id)
                 {
-                    if let Some(message_window) = message_window
-                        && message_window.is_selection
-                        && let Some(script) =
-                            script_manager.instances.get_mut(message_window.waiting_script_id)
-                    {
-                        // I want to redo how window<->script communcation works
-                        script.input = match keycode {
-                            Keycode::Num1 => 1,
-                            Keycode::Num2 => 2,
-                            Keycode::Num3 => 3,
-                            Keycode::Num4 => 4,
-                            _ => unreachable!(),
-                        };
-                    }
-                    *message_window = None;
-                };
+                    // I want to redo how window<->script communcation works
+                    script.input = match keycode {
+                        Keycode::Num1 => 1,
+                        Keycode::Num2 => 2,
+                        Keycode::Num3 => 3,
+                        Keycode::Num4 => 4,
+                        _ => unreachable!(),
+                    };
+                }
+                *message_window = None;
             }
 
             // Interact with entity to start script OR advance message
@@ -128,41 +125,44 @@ pub fn process_input(
                 if message_window.is_some() {
                     *message_window = None;
                 } else {
-                    {
-                        // Select a specific point some distance in front of the player to check
-                        // for the presence of an entity with an
-                        // interaction script. This fails in some cases,
-                        // but it works okay for now.
-                        let (player_pos, player_facing) = ecs
-                            .query_one_with_name::<(&Position, &Facing)>(PLAYER_ENTITY_NAME)
-                            .unwrap();
-                        let target = player_pos.map_pos
-                            + match player_facing.0 {
-                                Direction::Up => Vector2D::new(0.0, -0.5),
-                                Direction::Down => Vector2D::new(0.0, 0.5),
-                                Direction::Left => Vector2D::new(-0.5, 0.0),
-                                Direction::Right => Vector2D::new(0.5, 0.0),
-                            };
+                    // Block interactions if movement is locked (it's really more like all player
+                    // entity control is locked)
+                    if player_movement_locked {
+                        continue;
+                    }
+                    // Select a specific point some distance in front of the player to check
+                    // for the presence of an entity with an
+                    // interaction script. This fails in some cases,
+                    // but it works okay for now.
+                    let (player_pos, player_facing) = ecs
+                        .query_one_with_name::<(&Position, &Facing)>(PLAYER_ENTITY_NAME)
+                        .unwrap();
+                    let target = player_pos.map_pos
+                        + match player_facing.0 {
+                            Direction::Up => Vector2D::new(0.0, -0.5),
+                            Direction::Down => Vector2D::new(0.0, 0.5),
+                            Direction::Left => Vector2D::new(-0.5, 0.0),
+                            Direction::Right => Vector2D::new(0.5, 0.0),
+                        };
 
-                        // Start interaction scripts for entity with interaction hitbox containing
-                        // target point
-                        for (_, _, scripts) in ecs
-                            .query::<(&Position, &Interaction, &Scripts)>()
-                            .filter(|(pos, int, _)| {
-                                pos.map == player_pos.map
-                                    && AABB::new(pos.map_pos, int.hitbox).contains(&target)
-                            })
+                    // Start interaction scripts for entity with interaction hitbox containing
+                    // target point
+                    for (_, _, scripts) in ecs
+                        .query::<(&Position, &Interaction, &Scripts)>()
+                        .filter(|(pos, int, _)| {
+                            pos.map == player_pos.map
+                                && Aabb::new(pos.map_pos, int.hitbox).contains(&target)
+                        })
+                    {
+                        for script in scripts
+                            .iter()
+                            .filter(|script| script.trigger == Some(Trigger::Interaction))
+                            .filter(|script| script.is_start_condition_fulfilled(story_vars))
+                            .collect::<Vec<_>>()
                         {
-                            for script in scripts
-                                .iter()
-                                .filter(|script| script.trigger == Some(Trigger::Interaction))
-                                .filter(|script| script.is_start_condition_fulfilled(story_vars))
-                                .collect::<Vec<_>>()
-                            {
-                                script_manager.start_script(script, story_vars);
-                            }
+                            script_manager.start_script(script, story_vars);
                         }
-                    };
+                    }
                 }
             }
 

@@ -5,14 +5,14 @@ use sdl2::pixels::Color;
 use std::time::{Duration, Instant};
 
 #[derive(Clone, Copy, Default, Debug)]
-pub struct AABB {
+pub struct Aabb {
     pub top: f64,
     pub bottom: f64,
     pub left: f64,
     pub right: f64,
 }
 
-impl AABB {
+impl Aabb {
     pub fn new(center: MapPos, dimensions: Size2D<f64, MapUnits>) -> Self {
         Self {
             top: center.y - dimensions.height / 2.0,

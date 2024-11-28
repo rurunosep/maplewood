@@ -43,8 +43,8 @@ pub fn render(render_data: &mut RenderData, world: &World, ecs: &Ecs, ui_data: &
 
     // Converts map position into screen position and optionally offsets to top left corner of
     // sprite
-    // TODO just write helper func that takes map_pos, pixel_offset, and camera_map_pos, and then
-    // pass the camera_map_pos into funcs that need it
+    // TODO !! just write helper func that takes map_pos, pixel_offset, and camera_map_pos, and
+    // then pass the camera_map_pos into funcs that need it
     let mp_to_stl = {
         move |map_pos: MapPos,
               pixel_offset: Option<Vector2D<i32, PixelUnits>>|
@@ -156,11 +156,10 @@ fn draw_entities(
         Option<Vector2D<i32, PixelUnits>>,
     ) -> Point2D<i32, PixelUnits>,
 ) {
-    // (Long for-in-query-sorted line breaks rustfmt. So this is just to split it up.)
-    let query = ecs.query::<(&Position, &SpriteComponent, Option<&SineOffsetAnimation>)>();
-    let sorted =
-        query.sorted_by(|(p1, ..), (p2, ..)| p1.map_pos.y.partial_cmp(&p2.map_pos.y).unwrap());
-    for (position, sprite_component, sine_offset_animation) in sorted {
+    for (position, sprite_component, sine_offset_animation) in ecs
+        .query::<(&Position, &SpriteComponent, Option<&SineOffsetAnimation>)>()
+        .sorted_by(|(p1, ..), (p2, ..)| p1.map_pos.y.partial_cmp(&p2.map_pos.y).unwrap())
+    {
         // Skip entities not on the current map
         if position.map != map.name {
             continue;
@@ -198,6 +197,7 @@ fn draw_entities(
             sprite.rect.height() * SCREEN_SCALE,
         );
 
+        // canvas.copy_ex(...) for rotations and symmetries
         canvas
             .copy(spritesheets.get(&sprite.spritesheet).unwrap(), sprite.rect, screen_rect)
             .unwrap();
