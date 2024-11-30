@@ -1,7 +1,12 @@
 use crate::script::ScriptId;
 use crate::world::{MapPos, MapUnits};
+use colored::*;
 use euclid::{Point2D, Size2D};
+use log::kv::Key;
+use log::{Level, Metadata, Record};
 use sdl2::pixels::Color;
+use std::collections::HashSet;
+use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 #[derive(Clone, Copy, Default, Debug)]
@@ -92,16 +97,32 @@ pub struct MapOverlayTransition {
     pub end_color: Color,
 }
 
-// TODO repeated log spam prevention
-
-pub struct Logger;
+pub struct Logger {
+    pub once_only_logs: Mutex<HashSet<String>>,
+}
 
 impl log::Log for Logger {
-    fn log(&self, record: &log::Record) {
-        println!("[{}] {}", record.level(), record.args());
+    fn log(&self, record: &Record) {
+        // Keep track of unique logs with the "once" attribute, and only ever print them once
+        // Idk if this the best way to do this, but it works good for now :)
+        if let Some(true) = record.key_values().get(Key::from("once")).and_then(|v| v.to_bool()) {
+            let mut onces = self.once_only_logs.lock().unwrap();
+            if onces.contains(&record.args().to_string()) {
+                return;
+            }
+            onces.insert(record.args().to_string());
+        }
+
+        let colored_level = match record.level() {
+            x @ Level::Error => x.as_str().red(),
+            x @ Level::Warn => x.as_str().yellow(),
+            x => x.as_str().normal(),
+        };
+
+        println!("[{}] {}", colored_level, record.args());
     }
 
-    fn enabled(&self, _metadata: &log::Metadata) -> bool {
+    fn enabled(&self, _metadata: &Metadata) -> bool {
         true
     }
 

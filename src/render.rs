@@ -114,8 +114,10 @@ fn draw_tile_layer(
 ) {
     let tileset = match tilesets.get(&layer.tileset_path) {
         Some(tileset) => tileset,
-        // Log?
-        None => return,
+        None => {
+            log::error!(once = true; "Missing tileset: {}", &layer.tileset_path);
+            return;
+        }
     };
 
     let tileset_width_in_tiles = tileset.query().width / 16;
@@ -181,8 +183,10 @@ fn draw_entities(
 
         let spritesheet = match spritesheets.get(&sprite.spritesheet) {
             Some(spritesheet) => spritesheet,
-            // Log?
-            None => continue,
+            None => {
+                log::error!(once = true; "Missing spritesheet: {}", &sprite.spritesheet);
+                continue;
+            }
         };
 
         // If entity has a SineOffsetAnimation, offset sprite position accordingly
@@ -309,7 +313,6 @@ fn draw_interaction_target(canvas: &mut WindowCanvas, ecs: &Ecs, camera_map_pos:
     let (player_pos, player_facing) =
         match ecs.query_one_with_name::<(&Position, &Facing)>(PLAYER_ENTITY_NAME) {
             Some(x) => x,
-            // Log?
             None => return,
         };
 

@@ -21,11 +21,10 @@ use script::ScriptManager;
 use sdl2::mixer::{AUDIO_S16SYS, DEFAULT_CHANNELS};
 use sdl2::pixels::Color;
 use slotmap::SlotMap;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+use std::sync::Mutex;
 use std::time::{Duration, Instant};
 use world::{Map, World};
-
-static LOGGER: Logger = Logger;
 
 pub struct GameData {
     pub world: World,
@@ -44,8 +43,10 @@ pub struct UiData {
 fn main() {
     std::env::set_var("RUST_BACKTRACE", "0");
 
-    log::set_logger(&LOGGER).unwrap();
-    log::set_max_level(log::LevelFilter::Info);
+    // How can I access the logger again to interact with it?
+    log::set_boxed_logger(Box::new(Logger { once_only_logs: Mutex::new(HashSet::new()) }))
+        .unwrap();
+    log::set_max_level(log::LevelFilter::Trace);
 
     // Prevent high DPI scaling on Windows
     #[cfg(target_os = "windows")]

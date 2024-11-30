@@ -407,6 +407,7 @@ fn update_map_overlay_color(
     }
 }
 
+// TODO !! handle no camera, no map, or no target
 fn update_camera(ecs: &Ecs, world: &World) {
     let (mut camera_position, camera_component) =
         ecs.query_one_with_name::<(&mut Position, &Camera)>("CAMERA").unwrap();
@@ -437,6 +438,7 @@ fn update_camera(ecs: &Ecs, world: &World) {
     }
 }
 
+// TODO !! handle no camera and no sfx
 fn update_sfx_emitting_entities(ecs: &Ecs, sound_effects: &HashMap<String, Chunk>) {
     let camera_map = &ecs.query_one_with_name::<&Position>("CAMERA").unwrap().map;
     for (pos, mut sfx) in ecs.query::<(&Position, &mut SfxEmitter)>() {
