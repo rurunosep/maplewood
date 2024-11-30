@@ -92,6 +92,8 @@ pub struct MapOverlayTransition {
     pub end_color: Color,
 }
 
+// TODO repeated log spam prevention
+
 pub struct Logger;
 
 impl log::Log for Logger {
