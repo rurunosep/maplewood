@@ -92,6 +92,20 @@ pub struct MapOverlayTransition {
     pub end_color: Color,
 }
 
+pub struct Logger;
+
+impl log::Log for Logger {
+    fn log(&self, record: &log::Record) {
+        println!("[{}] {}", record.level(), record.args());
+    }
+
+    fn enabled(&self, _metadata: &log::Metadata) -> bool {
+        true
+    }
+
+    fn flush(&self) {}
+}
+
 // #![warn(clippy::nursery)]
 // #![warn(clippy::pedantic)]
 // #![allow(clippy::too_many_lines)]

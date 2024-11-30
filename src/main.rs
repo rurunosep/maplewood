@@ -15,17 +15,17 @@ mod update;
 mod world;
 
 use ecs::Ecs;
-use misc::{MapOverlayTransition, MessageWindow};
+use misc::{Logger, MapOverlayTransition, MessageWindow};
 use render::{RenderData, SCREEN_COLS, SCREEN_ROWS, SCREEN_SCALE, TILE_SIZE};
 use script::ScriptManager;
-use sdl2::image::LoadTexture;
-use sdl2::mixer::{Chunk, Music, AUDIO_S16SYS, DEFAULT_CHANNELS};
+use sdl2::mixer::{AUDIO_S16SYS, DEFAULT_CHANNELS};
 use sdl2::pixels::Color;
-use sdl2::render::Texture;
 use slotmap::SlotMap;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 use world::{Map, World};
+
+static LOGGER: Logger = Logger;
 
 pub struct GameData {
     pub world: World,
@@ -42,10 +42,10 @@ pub struct UiData {
 }
 
 fn main() {
-    // --------------------------------------------------------------
-    // App Init
-    // --------------------------------------------------------------
     std::env::set_var("RUST_BACKTRACE", "0");
+
+    log::set_logger(&LOGGER).unwrap();
+    log::set_max_level(log::LevelFilter::Info);
 
     // Prevent high DPI scaling on Windows
     #[cfg(target_os = "windows")]
@@ -57,76 +57,28 @@ fn main() {
     sdl2::image::init(sdl2::image::InitFlag::PNG).unwrap();
     sdl_context.audio().unwrap();
     let ttf_context = sdl2::ttf::init().unwrap();
-    let video_subsystem = sdl_context.video().unwrap();
     let mut event_pump = sdl_context.event_pump().unwrap();
 
+    let video_subsystem = sdl_context.video().unwrap();
+    let window_width = TILE_SIZE * SCREEN_COLS * SCREEN_SCALE;
+    let window_height = TILE_SIZE * SCREEN_ROWS * SCREEN_SCALE;
     let window = video_subsystem
-        .window(
-            "Maplewood",
-            TILE_SIZE * SCREEN_COLS * SCREEN_SCALE,
-            TILE_SIZE * SCREEN_ROWS * SCREEN_SCALE,
-        )
+        .window("Maplewood", window_width, window_height)
         .position_centered()
         .build()
         .unwrap();
 
-    // --------------------------------------------------------------
-    // Graphics
-    // --------------------------------------------------------------
-
     let canvas = window.into_canvas().build().unwrap();
     let texture_creator = canvas.texture_creator();
-
-    let tilesets: HashMap<String, Texture> = std::fs::read_dir("assets/tilesets/")
-        .unwrap()
-        .map(|entry| {
-            let entry = entry.unwrap();
-            (
-                // Keyed like this because this is how ldtk layers reference them
-                format!("tilesets/{}", entry.file_name().to_str().unwrap()),
-                texture_creator.load_texture(entry.path()).unwrap(),
-            )
-        })
-        .collect();
-
-    let spritesheets: HashMap<String, Texture> = std::fs::read_dir("assets/spritesheets/")
-        .unwrap()
-        .map(|entry| {
-            let entry = entry.unwrap();
-            (
-                entry.path().file_stem().unwrap().to_str().unwrap().to_string(),
-                texture_creator.load_texture(entry.path()).unwrap(),
-            )
-        })
-        .collect();
-
+    let tilesets = loader::load_tilesets(&texture_creator);
+    let spritesheets = loader::load_spritesheets(&texture_creator);
     let font = ttf_context.load_font("assets/Grand9KPixel.ttf", 8).unwrap();
-
     let mut render_data = RenderData { canvas, tilesets, spritesheets, font };
-
-    // --------------------------------------------------------------
-    // Audio
-    // --------------------------------------------------------------
 
     sdl2::mixer::open_audio(41_100, AUDIO_S16SYS, DEFAULT_CHANNELS, 512).unwrap();
     sdl2::mixer::allocate_channels(10);
-
-    let sound_effects: HashMap<String, Chunk> = std::fs::read_dir("assets/sfx/")
-        .unwrap()
-        .map(|entry| {
-            let entry = entry.unwrap();
-            (
-                entry.path().file_stem().unwrap().to_str().unwrap().to_string(),
-                Chunk::from_file(entry.path()).unwrap(),
-            )
-        })
-        .collect();
-
-    let musics: HashMap<String, Music> = HashMap::new();
-
-    // --------------------------------------------------------------
-    // Game Data
-    // --------------------------------------------------------------
+    let sound_effects = loader::load_sound_effects();
+    let musics = loader::load_musics();
 
     let project: ldtk_json::Project =
         serde_json::from_str(&std::fs::read_to_string("assets/limezu.ldtk").unwrap()).unwrap();
@@ -135,7 +87,6 @@ fn main() {
     for ldtk_world in &project.worlds {
         // If world has level called "_world_map", then entire world is a single map
         // Otherwise, each level in the world is an individual map
-        // (Custom metadata for a world map can go in the _world_map level)
         if ldtk_world.levels.iter().any(|l| l.identifier == "_world_map") {
             world.maps.insert(ldtk_world.identifier.clone(), Map::from_ldtk_world(ldtk_world));
         } else {
@@ -155,10 +106,6 @@ fn main() {
 
     let mut game_data = GameData { world, ecs, story_vars };
 
-    // --------------------------------------------------------------
-    // Misc
-    // --------------------------------------------------------------
-
     let mut ui_data = UiData {
         message_window: None,
         map_overlay_color: Color::RGBA(0, 0, 0, 0),
@@ -169,9 +116,6 @@ fn main() {
 
     let mut script_manager = ScriptManager { instances: SlotMap::with_key() };
     let mut player_movement_locked = false;
-
-    // Scratchpad
-    {}
 
     // --------------------------------------------------------------
     // Main Loop
