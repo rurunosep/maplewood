@@ -15,6 +15,7 @@ use sdl2::render::{Texture, TextureCreator};
 use sdl2::video::WindowContext;
 use serde::de::DeserializeOwned;
 use std::collections::HashMap;
+use tap::TapFallible;
 
 pub fn load_entities_from_ldtk(ecs: &mut Ecs, project: &ldtk_json::Project) {
     for ldtk_world in &project.worlds {
@@ -407,7 +408,7 @@ pub fn load_tilesets(
     texture_creator: &TextureCreator<WindowContext>,
 ) -> HashMap<String, Texture> {
     std::fs::read_dir("assets/tilesets/")
-        .inspect_err(|_| log::error!("Couldn't open assets/tilesets/"))
+        .tap_err(|_| log::error!("Couldn't open assets/tilesets/"))
         .map_or(HashMap::new(), |dir| {
             dir.filter_map(|entry| -> Option<_> {
                 let path = entry.ok()?.path();
@@ -420,9 +421,7 @@ pub fn load_tilesets(
 
                 let spritesheet = texture_creator
                     .load_texture(&path)
-                    .inspect_err(|_| {
-                        log::error!("Couldn't load tileset: {}", path.to_string_lossy())
-                    })
+                    .tap_err(|_| log::error!("Couldn't load tileset: {}", path.to_string_lossy()))
                     .ok()?;
 
                 // Keyed like this because this is how the ldtk layers refer to them
@@ -436,7 +435,7 @@ pub fn load_spritesheets(
     texture_creator: &TextureCreator<WindowContext>,
 ) -> HashMap<String, Texture> {
     std::fs::read_dir("assets/spritesheets/")
-        .inspect_err(|_| log::error!("Couldn't open assets/spritesheets/"))
+        .tap_err(|_| log::error!("Couldn't open assets/spritesheets/"))
         .map_or(HashMap::new(), |dir| {
             dir.filter_map(|entry| -> Option<_> {
                 let path = entry.ok()?.path();
@@ -449,7 +448,7 @@ pub fn load_spritesheets(
 
                 let spritesheet = texture_creator
                     .load_texture(&path)
-                    .inspect_err(|_| {
+                    .tap_err(|_| {
                         log::error!("Couldn't load spritesheet: {}", path.to_string_lossy())
                     })
                     .ok()?;
@@ -461,9 +460,9 @@ pub fn load_spritesheets(
 }
 
 pub fn load_sound_effects() -> HashMap<String, Chunk> {
-    std::fs::read_dir("assets/sfx/")
-        .inspect_err(|_| log::error!("Couldn't open assets/sfx/"))
-        .map_or(HashMap::new(), |dir| {
+    std::fs::read_dir("assets/sfx/").tap_err(|_| log::error!("Couldn't open assets/sfx/")).map_or(
+        HashMap::new(),
+        |dir| {
             dir.filter_map(|entry| -> Option<_> {
                 let path = entry.ok()?.path();
                 let file_stem = path.file_stem()?.to_str()?.to_string();
@@ -474,18 +473,19 @@ pub fn load_sound_effects() -> HashMap<String, Chunk> {
                 };
 
                 let sfx = Chunk::from_file(&path)
-                    .inspect_err(|_| log::error!("Couldn't load sfx: {}", path.to_string_lossy()))
+                    .tap_err(|_| log::error!("Couldn't load sfx: {}", path.to_string_lossy()))
                     .ok()?;
 
                 Some((file_stem, sfx))
             })
             .collect()
-        })
+        },
+    )
 }
 
 pub fn load_musics<'m>() -> HashMap<String, Music<'m>> {
     std::fs::read_dir("assets/music/")
-        .inspect_err(|_| log::error!("Couldn't open assets/music/"))
+        .tap_err(|_| log::error!("Couldn't open assets/music/"))
         .map_or(HashMap::new(), |dir| {
             dir.filter_map(|entry| -> Option<_> {
                 let path = entry.ok()?.path();
@@ -497,9 +497,7 @@ pub fn load_musics<'m>() -> HashMap<String, Music<'m>> {
                 };
 
                 let music = Music::from_file(&path)
-                    .inspect_err(|_| {
-                        log::error!("Couldn't load music: {}", path.to_string_lossy())
-                    })
+                    .tap_err(|_| log::error!("Couldn't load music: {}", path.to_string_lossy()))
                     .ok()?;
 
                 Some((file_stem, music))

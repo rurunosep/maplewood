@@ -25,7 +25,8 @@
     "stop_object_animation",
     "stop_entity_sfx",
     "set_forced_sprite",
-    "play_sfx"
+    "play_sfx",
+    "set_camera_clamp"
   ],
   "Lua.diagnostics.disable": ["redefined-local"],
   "todo-tree.tree.scanMode": "workspace only",

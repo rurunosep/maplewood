@@ -161,6 +161,8 @@ impl Component for Walking {}
 pub struct Camera {
     // TODO this should actually be an Option<EntityId>
     pub target_entity_name: Option<String>,
+    // Not yet toggleable by script
+    pub clamp_to_map: bool,
 }
 impl Component for Camera {}
 

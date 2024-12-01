@@ -97,6 +97,8 @@ pub struct MapOverlayTransition {
     pub end_color: Color,
 }
 
+// TODO repeated log cooldown (for when "once" is not applicable, but log is still spammy)
+
 pub struct Logger {
     pub once_only_logs: Mutex<HashSet<String>>,
 }

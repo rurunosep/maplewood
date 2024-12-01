@@ -4,7 +4,7 @@ use crate::components::{
     SineOffsetAnimation, SpriteComponent, Walking,
 };
 use crate::data::PLAYER_ENTITY_NAME;
-use crate::ecs::{Ecs, EntityId};
+use crate::ecs::{Ecs, EntityId, With};
 use crate::misc::{Aabb, Direction};
 use crate::render::{SCREEN_COLS, SCREEN_ROWS};
 use crate::script::{ScriptManager, Trigger};
@@ -15,6 +15,7 @@ use sdl2::mixer::{Chunk, Music};
 use sdl2::pixels::Color;
 use std::collections::HashMap;
 use std::time::Duration;
+use tap::{TapFallible, TapOptional};
 
 pub fn update(
     game_data: &mut GameData,
@@ -273,6 +274,9 @@ fn move_entities_and_resolve_collisions(
 
             let mut new_aabb = Aabb::new(new_position, collision.hitbox);
 
+            // TODO some out of bounds positions have collision, and some do not
+            // There's something wrong with the code in out of bounds cases
+
             // Resolve collisions with the 9 cells centered around new position
             // (Currently, we get the 9 cells around the position, and then we get
             // the 4 optional collision AABBs for the 4 corners of each of those
@@ -305,6 +309,12 @@ fn move_entities_and_resolve_collisions(
             // Nested queries are only possible right now because the individual
             // components are in RefCells instead in order to support them
 
+            // It's def gonna need unsafe code, but it might not actually be that hard.
+            // Just write a function wrapping some unsafe code that mutably reborrows the
+            // component map but definitely skips the entity that is currently borrowed?
+
+            // TODO iter combinations
+
             // Resolve collisions with all solid entities except this one
             for (other_pos, other_coll, other_scripts) in
                 ecs.query_except::<(&Position, &Collision, Option<&Scripts>)>(id)
@@ -318,6 +328,9 @@ fn move_entities_and_resolve_collisions(
 
                 // Trigger HardCollision scripts
                 // (* bottom comment about event system)
+                // Alternatively, we can move, then start collision scripts, then resolve
+                // collision, all in separate systems. We just need to keep some data for the
+                // collision resolution such as last position or direction or something
                 if id == player_id
                     && new_aabb.intersects(&other_aabb)
                     && let Some(scripts) = other_scripts
@@ -407,56 +420,76 @@ fn update_map_overlay_color(
     }
 }
 
-// TODO !! handle no camera, no map, or no target
 fn update_camera(ecs: &Ecs, world: &World) {
-    let (mut camera_position, camera_component) =
-        ecs.query_one_with_name::<(&mut Position, &Camera)>("CAMERA").unwrap();
+    let Some((mut camera_position, camera_component)) =
+        ecs.query::<(&mut Position, &Camera)>().next()
+    else {
+        return;
+    };
 
     // Update camera position to follow target entity
     // (double ECS borrow)
-    if let Some(target) = &camera_component.target_entity_name {
-        *camera_position = ecs.query_one_with_name::<&Position>(target).unwrap().clone();
+    if let Some(target_name) = &camera_component.target_entity_name
+        && let Some(target_position) = ecs
+            .query_one_with_name::<&Position>(target_name)
+            .tap_none(|| log::error!(once = true; "Invalid camera target: {}", &target_name))
+    {
+        *camera_position = target_position.clone();
     }
 
-    let camera_map = world.maps.get(&camera_position.map).unwrap();
-
     // Clamp camera to map
-    // TODO !! toggle clamping
-    let viewport_dimensions = Size2D::new(SCREEN_COLS as f64, SCREEN_ROWS as f64);
-    let map_bounds: Rect<f64, MapUnits> =
-        Rect::new(camera_map.offset.to_point(), camera_map.dimensions).cast().cast_unit();
-    // (If map is smaller than viewport, skip clamping, or clamp() will panic)
-    if map_bounds.size.contains(viewport_dimensions) {
-        camera_position.map_pos.x = camera_position.map_pos.x.clamp(
-            map_bounds.min_x() + viewport_dimensions.width / 2.,
-            map_bounds.max_x() - viewport_dimensions.width / 2.,
-        );
-        camera_position.map_pos.y = camera_position.map_pos.y.clamp(
-            map_bounds.min_y() + viewport_dimensions.height / 2.,
-            map_bounds.max_y() - viewport_dimensions.height / 2.,
-        );
+    if camera_component.clamp_to_map
+        && let Some(camera_map) = world
+            .maps
+            .get(&camera_position.map)
+            .tap_none(|| log::error!(once = true; "Map doesn't exist: {}", &camera_position.map))
+    {
+        let viewport_dimensions = Size2D::new(SCREEN_COLS as f64, SCREEN_ROWS as f64);
+        let map_bounds: Rect<f64, MapUnits> =
+            Rect::new(camera_map.offset.to_point(), camera_map.dimensions).cast().cast_unit();
+
+        // (If map is smaller than viewport, skip clamping, or clamp() will panic)
+        if map_bounds.size.contains(viewport_dimensions) {
+            camera_position.map_pos.x = camera_position.map_pos.x.clamp(
+                map_bounds.min_x() + viewport_dimensions.width / 2.,
+                map_bounds.max_x() - viewport_dimensions.width / 2.,
+            );
+            camera_position.map_pos.y = camera_position.map_pos.y.clamp(
+                map_bounds.min_y() + viewport_dimensions.height / 2.,
+                map_bounds.max_y() - viewport_dimensions.height / 2.,
+            );
+        }
     }
 }
 
-// TODO !! handle no camera and no sfx
 fn update_sfx_emitting_entities(ecs: &Ecs, sound_effects: &HashMap<String, Chunk>) {
-    let camera_map = &ecs.query_one_with_name::<&Position>("CAMERA").unwrap().map;
+    let camera_map = ecs.query::<(&Position, With<Camera>)>().next().map(|(p, _)| p.map.clone());
+
     for (pos, mut sfx) in ecs.query::<(&Position, &mut SfxEmitter)>() {
-        // If entity is on camera map, and it has an sfx to emit, and sfx is not playing on
+        // If entity is on camera map, and it has an sfx to emit, and the sfx is not playing on
         // any channel, play the sfx
-        if pos.map == *camera_map
+        if let Some(camera_map) = camera_map.as_ref()
+            && pos.map == *camera_map
             && let Some(sfx_name) = &sfx.sfx_name
             && sfx.channel == None
         {
-            let chunk = sound_effects.get(sfx_name).unwrap();
-            let channel =
-                sdl2::mixer::Channel::all().play(chunk, if sfx.repeat { -1 } else { 0 }).unwrap();
-            sfx.channel = Some(channel);
+            if let Some(chunk) = sound_effects
+                .get(sfx_name)
+                .tap_none(|| log::error!(once = true; "Sound effect doesn't exist: {}", sfx_name))
+                && let Ok(channel) = sdl2::mixer::Channel::all()
+                    .play(chunk, if sfx.repeat { -1 } else { 0 })
+                    .tap_err(|e| log::error!("Failed to play sound effect (err: \"{e:}\")"))
+            {
+                sfx.channel = Some(channel);
+            }
         }
 
         // If entity is not on camera map, or it has no sfx to emit, and sfx is playing on a
         // channel, stop playing the sfx
-        if pos.map != *camera_map || sfx.sfx_name == None {
+        if camera_map.is_none()
+            || pos.map != *camera_map.as_ref().expect("")
+            || sfx.sfx_name == None
+        {
             if let Some(channel) = sfx.channel {
                 sdl2::mixer::Channel::halt(channel);
                 sfx.channel = None;
@@ -474,3 +507,7 @@ fn update_sfx_emitting_entities(ecs: &Ecs, sound_effects: &HashMap<String, Chunk
 // example, what if I want to play a sound every time the player bumps into any entity? I
 // can't attach a bump sfx script to every single entity. That's stupid. That needs an
 // event system.
+//
+// While I do still think we could use an event system, it's actually still no necessary for this.
+// We can move, then start scripts (or do anything else in response to colliding entities), then
+// resolve collisions, all in separate systems

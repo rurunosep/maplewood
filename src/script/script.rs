@@ -258,7 +258,7 @@ impl ScriptInstance {
 
                     // Non-trivial functions are defined elsewhere and called by the
                     // closure with all closed variables passed as arguments
-                    // (Can I automate this with a macro or something?)
+                    // (Can I automate this with a macro or something? It's okay for now.)
 
                     globals.set(
                         "get_story_var",
@@ -347,6 +347,12 @@ impl ScriptInstance {
                         "remove_camera_target",
                         scope.create_function_mut(|_, ()| {
                             callbacks::remove_camera_target(*ecs.borrow())
+                        })?,
+                    )?;
+                    globals.set(
+                        "set_camera_clamp",
+                        scope.create_function_mut(|_, args| {
+                            callbacks::set_camera_clamp(args, *ecs.borrow())
                         })?,
                     )?;
                     globals.set(

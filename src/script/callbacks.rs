@@ -136,6 +136,13 @@ pub fn remove_camera_target(ecs: &Ecs) -> LuaResult<()> {
     Ok(())
 }
 
+pub fn set_camera_clamp(clamp: bool, ecs: &Ecs) -> LuaResult<()> {
+    if let Some(mut camera) = ecs.query::<&mut Camera>().next() {
+        camera.clamp_to_map = clamp;
+    };
+    Ok(())
+}
+
 pub fn walk(
     (entity, direction, distance, speed): (String, String, f64, f64),
     ecs: &Ecs,

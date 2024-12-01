@@ -14,6 +14,7 @@ use sdl2::render::{Texture, TextureQuery, WindowCanvas};
 use sdl2::ttf::Font;
 use std::collections::HashMap;
 use std::f64::consts::PI;
+use tap::TapOptional;
 
 pub const TILE_SIZE: u32 = 16;
 pub const SCREEN_COLS: u32 = 16;
@@ -36,7 +37,10 @@ pub fn render(render_data: &mut RenderData, world: &World, ecs: &Ecs, ui_data: &
 
     // Draw world (tile layers, entities, in-world debug stuff)
     if let Some(camera_position) = ecs.query_one_with_name::<&Position>("CAMERA")
-        && let Some(map) = world.maps.get(&camera_position.map)
+        && let Some(map) = world
+            .maps
+            .get(&camera_position.map)
+            .tap_none(|| log::error!(once = true; "Map doesn't exist: {}", &camera_position.map))
     {
         let camera_map_pos = camera_position.map_pos;
 
@@ -112,12 +116,9 @@ fn draw_tile_layer(
     map: &Map,
     camera_map_pos: MapPos,
 ) {
-    let tileset = match tilesets.get(&layer.tileset_path) {
-        Some(tileset) => tileset,
-        None => {
-            log::error!(once = true; "Missing tileset: {}", &layer.tileset_path);
-            return;
-        }
+    let Some(tileset) = tilesets.get(&layer.tileset_path) else {
+        log::error!(once = true; "Tileset doesn't exist: {}", &layer.tileset_path);
+        return;
     };
 
     let tileset_width_in_tiles = tileset.query().width / 16;
@@ -181,12 +182,9 @@ fn draw_entities(
             continue;
         };
 
-        let spritesheet = match spritesheets.get(&sprite.spritesheet) {
-            Some(spritesheet) => spritesheet,
-            None => {
-                log::error!(once = true; "Missing spritesheet: {}", &sprite.spritesheet);
-                continue;
-            }
+        let Some(spritesheet) = spritesheets.get(&sprite.spritesheet) else {
+            log::error!(once = true; "Spritesheet doesn't exist: {}", &sprite.spritesheet);
+            continue;
         };
 
         // If entity has a SineOffsetAnimation, offset sprite position accordingly
@@ -218,6 +216,7 @@ fn draw_entities(
 
 fn draw_collision_map(canvas: &mut WindowCanvas, map: &Map, camera_map_pos: MapPos) {
     canvas.set_draw_color(Color::RGBA(255, 0, 0, (255. * 0.7) as u8));
+
     let map_bounds = Rect::new(map.offset.to_point(), map.dimensions);
     for col in map_bounds.min_x()..map_bounds.max_x() {
         for row in map_bounds.min_y()..map_bounds.max_y() {
