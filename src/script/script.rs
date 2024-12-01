@@ -1,5 +1,6 @@
 use super::callbacks;
 use crate::ecs::Ecs;
+use crate::misc::StoryVars;
 use crate::{MapOverlayTransition, MessageWindow};
 use rlua::{Error as LuaError, Function, Lua, Result as LuaResult, Thread, ThreadStatus};
 use sdl2::mixer::{Chunk, Music};
@@ -12,7 +13,6 @@ use std::error::Error as StdError;
 use std::fmt::{self, Display};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tap::TapOptional;
 
 new_key_type! { pub struct ScriptId; }
 
@@ -22,19 +22,11 @@ pub struct ScriptManager {
 }
 
 impl ScriptManager {
-    pub fn start_script(
-        &mut self,
-        script_class: &ScriptClass,
-        story_vars: &mut HashMap<String, i32>,
-    ) {
+    pub fn start_script(&mut self, script_class: &ScriptClass, story_vars: &mut StoryVars) {
         self.instances.insert_with_key(|id| ScriptInstance::new(script_class.clone(), id));
 
-        if let Some((key, value)) = &script_class.set_on_start
-            && let Some(story_var) = story_vars
-                .get_mut(key)
-                .tap_none(|| log::error!(once = true; "Story var doesn't exist: {}", key))
-        {
-            *story_var = *value;
+        if let Some((key, value)) = &script_class.set_on_start {
+            story_vars.set(key, *value);
         }
     }
 }
@@ -117,15 +109,13 @@ pub struct ScriptClass {
 }
 
 impl ScriptClass {
-    pub fn is_start_condition_fulfilled(&self, story_vars: &HashMap<String, i32>) -> bool {
-        match &self.start_condition {
-            Some(StartAbortCondition { story_var: key, value }) => story_vars
-                .get(key)
-                .tap_none(|| log::error!(once = true; "Story var doesn't exist: {}", key))
-                .map(|story_var| story_var == value)
-                .unwrap_or(false),
-            None => true,
-        }
+    pub fn is_start_condition_fulfilled(&self, story_vars: &StoryVars) -> bool {
+        self.start_condition.as_ref().map_or(
+            true,
+            |StartAbortCondition { story_var: key, value }| {
+                story_vars.check(&key, |var| var == *value).unwrap_or(false)
+            },
+        )
     }
 }
 
@@ -213,7 +203,7 @@ impl ScriptInstance {
     #[allow(clippy::too_many_arguments)]
     pub fn update(
         &mut self,
-        story_vars: &mut HashMap<String, i32>,
+        story_vars: &mut StoryVars,
         ecs: &mut Ecs,
         message_window: &mut Option<MessageWindow>,
         player_movement_locked: &mut bool,
@@ -232,10 +222,7 @@ impl ScriptInstance {
         // Abort script if abort condition is fulfilled
         if let Some(StartAbortCondition { story_var: key, value }) =
             &self.script_class.abort_condition
-            && let Some(story_var) = story_vars
-                .get(key)
-                .tap_none(|| log::error!(once = true; "Story var doesn't exist: {}", key))
-            && *story_var == *value
+            && story_vars.check(key, |var| var == *value).unwrap_or(false)
         {
             self.finished = true;
             return;
@@ -246,7 +233,7 @@ impl ScriptInstance {
             Some(WaitCondition::Time(until)) => until > Instant::now(),
             Some(WaitCondition::Message) => message_window.is_some(),
             Some(WaitCondition::StoryVar(key, val)) => {
-                story_vars.get(&key).map(|var| *var != val).unwrap_or(false)
+                story_vars.check(&key, |var| var != val).unwrap_or(false)
             }
             None => false,
         } {

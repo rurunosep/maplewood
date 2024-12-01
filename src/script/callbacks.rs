@@ -5,27 +5,23 @@ use crate::components::{
 };
 use crate::data::PLAYER_ENTITY_NAME;
 use crate::ecs::{Ecs, EntityId};
-use crate::misc::Direction;
+use crate::misc::{Direction, StoryVars};
 use crate::world::WorldPos;
 use crate::{MapOverlayTransition, MessageWindow};
 use euclid::{Point2D, Vector2D};
-use rlua::Result as LuaResult;
+use rlua::{Error as LuaError, Result as LuaResult};
 use sdl2::mixer::{Chunk, Music};
 use sdl2::pixels::Color;
 use sdl2::rect::Rect;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
-pub fn get_story_var(key: String, story_vars: &HashMap<String, i32>) -> LuaResult<i32> {
-    let val = story_vars.get(&key).copied().ok_or(Error::NoStoryVar(key))?;
-    Ok(val)
+pub fn get_story_var(key: String, story_vars: &StoryVars) -> LuaResult<i32> {
+    story_vars.get(&key).ok_or(Error::NoStoryVar(key)).map_err(LuaError::from)
 }
 
-pub fn set_story_var(
-    (key, val): (String, i32),
-    story_vars: &mut HashMap<String, i32>,
-) -> LuaResult<()> {
-    story_vars.insert(key, val);
+pub fn set_story_var((key, val): (String, i32), story_vars: &mut StoryVars) -> LuaResult<()> {
+    story_vars.set(&key, val);
     Ok(())
 }
 

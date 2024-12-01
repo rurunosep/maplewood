@@ -5,9 +5,10 @@ use euclid::{Point2D, Size2D};
 use log::kv::Key;
 use log::{Level, Metadata, Record};
 use sdl2::pixels::Color;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
+use tap::TapOptional;
 
 #[derive(Clone, Copy, Default, Debug)]
 pub struct Aabb {
@@ -108,7 +109,7 @@ impl log::Log for Logger {
         // Keep track of unique logs with the "once" attribute, and only ever print them once
         // Idk if this the best way to do this, but it works good for now :)
         if let Some(true) = record.key_values().get(Key::from("once")).and_then(|v| v.to_bool()) {
-            let mut onces = self.once_only_logs.lock().unwrap();
+            let mut onces = self.once_only_logs.lock().expect("");
             if onces.contains(&record.args().to_string()) {
                 return;
             }
@@ -129,6 +130,40 @@ impl log::Log for Logger {
     }
 
     fn flush(&self) {}
+}
+
+pub struct StoryVars(pub HashMap<String, i32>);
+
+impl StoryVars {
+    // Returns an Option<{story var value}> and logs error if None
+    // Useful when the caller wants to unwrap_or the *value* with an appropriate default
+    pub fn get(&self, key: &str) -> Option<i32> {
+        self.0
+            .get(key)
+            .tap_none(|| log::error!(once = true; "Story var doesn't exist: {}", key))
+            .copied()
+    }
+
+    // Returns an Option<{result of conditional expression}> and logs error if None
+    // Useful when the caller wants to unwrap_or the *result* with an appropriate default
+    pub fn check<F>(&self, key: &str, f: F) -> Option<bool>
+    where
+        F: FnOnce(i32) -> bool,
+    {
+        self.0
+            .get(key)
+            .tap_none(|| log::error!(once = true; "Story var doesn't exist: {}", key))
+            .map(|story_var| f(*story_var))
+    }
+
+    // Sets story var value and logs error if None
+    // Does not create a new story var if the key doesn't exist
+    pub fn set(&mut self, key: &str, val: i32) {
+        self.0
+            .get_mut(key)
+            .tap_none(|| log::error!(once = true; "Story var doesn't exist: {}", key))
+            .map(|var| *var = val);
+    }
 }
 
 // #![warn(clippy::nursery)]

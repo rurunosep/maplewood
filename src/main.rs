@@ -15,7 +15,7 @@ mod update;
 mod world;
 
 use ecs::Ecs;
-use misc::{Logger, MapOverlayTransition, MessageWindow};
+use misc::{Logger, MapOverlayTransition, MessageWindow, StoryVars};
 use render::{RenderData, SCREEN_COLS, SCREEN_ROWS, SCREEN_SCALE, TILE_SIZE};
 use script::ScriptManager;
 use sdl2::mixer::{AUDIO_S16SYS, DEFAULT_CHANNELS};
@@ -29,7 +29,7 @@ use world::{Map, World};
 pub struct GameData {
     pub world: World,
     pub ecs: Ecs,
-    pub story_vars: HashMap<String, i32>,
+    pub story_vars: StoryVars,
 }
 
 pub struct UiData {
@@ -43,7 +43,7 @@ pub struct UiData {
 fn main() {
     std::env::set_var("RUST_BACKTRACE", "0");
 
-    // How can I access the logger again to interact with it?
+    // How can I access the logger again to interact with it? Do I need to?
     log::set_boxed_logger(Box::new(Logger { once_only_logs: Mutex::new(HashSet::new()) }))
         .unwrap();
     log::set_max_level(log::LevelFilter::Trace);
@@ -102,7 +102,7 @@ fn main() {
     // After loading from ldtk so that ldtk entities may have additional components attached
     data::load_entities_from_source(&mut ecs);
 
-    let mut story_vars: HashMap<String, i32> = HashMap::new();
+    let mut story_vars = StoryVars(HashMap::new());
     data::load_story_vars(&mut story_vars);
 
     let mut game_data = GameData { world, ecs, story_vars };

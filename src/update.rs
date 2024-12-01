@@ -5,7 +5,7 @@ use crate::components::{
 };
 use crate::data::PLAYER_ENTITY_NAME;
 use crate::ecs::{Ecs, EntityId, With};
-use crate::misc::{Aabb, Direction};
+use crate::misc::{Aabb, Direction, StoryVars};
 use crate::render::{SCREEN_COLS, SCREEN_ROWS};
 use crate::script::{ScriptManager, Trigger};
 use crate::world::{CellPos, MapUnits, World};
@@ -65,11 +65,7 @@ pub fn update(
 // Scripts
 // ------------------------------------------------------------------
 
-fn start_auto_scripts(
-    script_manager: &mut ScriptManager,
-    ecs: &Ecs,
-    story_vars: &mut HashMap<String, i32>,
-) {
+fn start_auto_scripts(script_manager: &mut ScriptManager, ecs: &Ecs, story_vars: &mut StoryVars) {
     for scripts in ecs.query::<&Scripts>() {
         for script in scripts
             .iter()
@@ -85,7 +81,7 @@ fn start_auto_scripts(
 fn start_soft_collision_scripts(
     script_manager: &mut ScriptManager,
     ecs: &Ecs,
-    story_vars: &mut HashMap<String, i32>,
+    story_vars: &mut StoryVars,
 ) {
     let Some((player_aabb, player_map)) = ecs
         .query_one_with_name::<(&Position, &Collision)>(PLAYER_ENTITY_NAME)
@@ -114,7 +110,7 @@ fn start_soft_collision_scripts(
 
 fn execute_scripts(
     script_manager: &mut ScriptManager,
-    story_vars: &mut HashMap<String, i32>,
+    story_vars: &mut StoryVars,
     ecs: &mut Ecs,
     player_movement_locked: &mut bool,
     ui_data: &mut UiData,
@@ -124,20 +120,16 @@ fn execute_scripts(
 ) {
     for script in script_manager.instances.values_mut() {
         #[rustfmt::skip]
-      script.update(
-          story_vars, ecs, &mut ui_data.message_window, player_movement_locked, &mut ui_data.map_overlay_transition,
-          ui_data.map_overlay_color, &mut ui_data.show_cutscene_border,
-          &mut ui_data.displayed_card_name, running, musics, sound_effects
-      );
+        script.update(
+            story_vars, ecs, &mut ui_data.message_window, player_movement_locked, &mut ui_data.map_overlay_transition,
+            ui_data.map_overlay_color, &mut ui_data.show_cutscene_border,
+            &mut ui_data.displayed_card_name, running, musics, sound_effects
+        );
 
-        // Set set_on_finish story vars for finished scripts
         if script.finished
             && let Some((key, value)) = &script.script_class.set_on_finish
-            && let Some(story_var) = story_vars
-                .get_mut(key)
-                .tap_none(|| log::error!(once = true; "Story var doesn't exist: {}", key))
         {
-            *story_var = *value;
+            story_vars.set(key, *value);
         }
     }
     // Remove finished scripts
@@ -251,7 +243,7 @@ fn move_entities_and_resolve_collisions(
     world: &World,
     // (Only needed to start collision scripts. An event system would be ideal.)
     script_manager: &mut ScriptManager,
-    story_vars: &mut HashMap<String, i32>,
+    story_vars: &mut StoryVars,
 ) {
     let player_id = ecs.query_one_with_name::<EntityId>(PLAYER_ENTITY_NAME);
 

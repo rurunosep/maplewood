@@ -6,6 +6,7 @@ use crate::components::{
     Walking,
 };
 use crate::ecs::{Ecs, EntityId};
+use crate::misc::StoryVars;
 use crate::script::{self, ScriptClass, StartAbortCondition, Trigger};
 use crate::world::WorldPos;
 use euclid::{Point2D, Size2D};
@@ -191,7 +192,7 @@ pub fn load_entities_from_source(ecs: &mut Ecs) {
     );
 }
 
-pub fn load_story_vars(story_vars: &mut HashMap<String, i32>) {
+pub fn load_story_vars(story_vars: &mut StoryVars) {
     for (k, v) in [
         ("main::plushy_found", 0),
         ("main::pen_found", 0),
@@ -206,6 +207,6 @@ pub fn load_story_vars(story_vars: &mut HashMap<String, i32>) {
     ]
     .iter()
     {
-        story_vars.insert(k.to_string(), *v);
+        story_vars.0.insert(k.to_string(), *v);
     }
 }
