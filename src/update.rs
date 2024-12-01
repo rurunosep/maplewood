@@ -125,12 +125,6 @@ fn execute_scripts(
             ui_data.map_overlay_color, &mut ui_data.show_cutscene_border,
             &mut ui_data.displayed_card_name, running, musics, sound_effects
         );
-
-        if script.finished
-            && let Some((key, value)) = &script.script_class.set_on_finish
-        {
-            story_vars.set(key, *value);
-        }
     }
     // Remove finished scripts
     script_manager.instances.retain(|_, script| !script.finished);

@@ -82,7 +82,7 @@ fn load_simple_script_entity(
         .map(|s| {
             let (file_name, subscript_label) = s.split_once("::").unwrap();
             script::get_sub_script(
-                &std::fs::read_to_string(format!("assets/{file_name}.lua")).unwrap(),
+                &std::fs::read_to_string(format!("scripts/{file_name}.lua")).unwrap(),
                 subscript_label,
             )
         })
@@ -409,7 +409,7 @@ pub fn load_tilesets(
 ) -> HashMap<String, Texture> {
     std::fs::read_dir("assets/tilesets/")
         .tap_err(|_| log::error!("Couldn't open assets/tilesets/"))
-        .map_or(HashMap::new(), |dir| {
+        .map(|dir| {
             dir.filter_map(|entry| -> Option<_> {
                 let path = entry.ok()?.path();
                 let file_name = path.file_name()?.to_str()?.to_string();
@@ -429,6 +429,7 @@ pub fn load_tilesets(
             })
             .collect()
         })
+        .unwrap_or(HashMap::new())
 }
 
 pub fn load_spritesheets(
@@ -436,7 +437,7 @@ pub fn load_spritesheets(
 ) -> HashMap<String, Texture> {
     std::fs::read_dir("assets/spritesheets/")
         .tap_err(|_| log::error!("Couldn't open assets/spritesheets/"))
-        .map_or(HashMap::new(), |dir| {
+        .map(|dir| {
             dir.filter_map(|entry| -> Option<_> {
                 let path = entry.ok()?.path();
                 let file_stem = path.file_stem()?.to_str()?.to_string();
@@ -457,12 +458,13 @@ pub fn load_spritesheets(
             })
             .collect()
         })
+        .unwrap_or(HashMap::new())
 }
 
 pub fn load_sound_effects() -> HashMap<String, Chunk> {
-    std::fs::read_dir("assets/sfx/").tap_err(|_| log::error!("Couldn't open assets/sfx/")).map_or(
-        HashMap::new(),
-        |dir| {
+    std::fs::read_dir("assets/sfx/")
+        .tap_err(|_| log::error!("Couldn't open assets/sfx/"))
+        .map(|dir| {
             dir.filter_map(|entry| -> Option<_> {
                 let path = entry.ok()?.path();
                 let file_stem = path.file_stem()?.to_str()?.to_string();
@@ -479,14 +481,14 @@ pub fn load_sound_effects() -> HashMap<String, Chunk> {
                 Some((file_stem, sfx))
             })
             .collect()
-        },
-    )
+        })
+        .unwrap_or(HashMap::new())
 }
 
 pub fn load_musics<'m>() -> HashMap<String, Music<'m>> {
     std::fs::read_dir("assets/music/")
         .tap_err(|_| log::error!("Couldn't open assets/music/"))
-        .map_or(HashMap::new(), |dir| {
+        .map(|dir| {
             dir.filter_map(|entry| -> Option<_> {
                 let path = entry.ok()?.path();
                 let file_stem = path.file_stem()?.to_str()?.to_string();
@@ -504,4 +506,5 @@ pub fn load_musics<'m>() -> HashMap<String, Music<'m>> {
             })
             .collect()
         })
+        .unwrap_or(HashMap::new())
 }

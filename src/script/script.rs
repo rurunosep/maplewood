@@ -32,25 +32,13 @@ impl ScriptManager {
 }
 
 #[derive(Debug)]
-pub enum Error {
-    Generic(String),
-    NoEntity(String),
-    NoStoryVar(String),
-}
+pub struct Error(pub String);
 
 impl StdError for Error {}
 
 impl Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Error::Generic(message) => write!(f, "{message}"),
-            Error::NoEntity(message) => {
-                write!(f, "no entity '{message}' with necessary components")
-            }
-            Error::NoStoryVar(message) => {
-                write!(f, "no story var '{message}'")
-            }
-        }
+        write!(f, "{}", self.0)
     }
 }
 
@@ -110,12 +98,12 @@ pub struct ScriptClass {
 
 impl ScriptClass {
     pub fn is_start_condition_fulfilled(&self, story_vars: &StoryVars) -> bool {
-        self.start_condition.as_ref().map_or(
-            true,
-            |StartAbortCondition { story_var: key, value }| {
-                story_vars.check(&key, |var| var == *value).unwrap_or(false)
-            },
-        )
+        self.start_condition
+            .as_ref()
+            .map(|StartAbortCondition { story_var: key, value }| {
+                story_vars.get(&key).map(|var| var == *value).unwrap_or(false)
+            })
+            .unwrap_or(true)
     }
 }
 
@@ -193,7 +181,7 @@ impl ScriptInstance {
             .unwrap_or_else(|err| {
                 log::error!("Failed to create script\n{}", err,);
                 // If script errors during creation, set it to finished to be removed later
-                // Later, script creation should be fallible and return a result, maybe
+                // (No reason to make this better, since I'm gonna overhaul scripts anyway)
                 finished = true;
             });
 
@@ -222,7 +210,7 @@ impl ScriptInstance {
         // Abort script if abort condition is fulfilled
         if let Some(StartAbortCondition { story_var: key, value }) =
             &self.script_class.abort_condition
-            && story_vars.check(key, |var| var == *value).unwrap_or(false)
+            && story_vars.get(key).map(|var| var == *value).unwrap_or(false)
         {
             self.finished = true;
             return;
@@ -233,7 +221,7 @@ impl ScriptInstance {
             Some(WaitCondition::Time(until)) => until > Instant::now(),
             Some(WaitCondition::Message) => message_window.is_some(),
             Some(WaitCondition::StoryVar(key, val)) => {
-                story_vars.check(&key, |var| var != val).unwrap_or(false)
+                story_vars.get(&key).map(|var| var != val).unwrap_or(false)
             }
             None => false,
         } {
@@ -242,7 +230,6 @@ impl ScriptInstance {
 
         self.wait_condition = None;
 
-        // Wrap mut refs used by multiple callbacks in RefCells to copy into closures
         let story_vars = RefCell::new(story_vars);
         let ecs = RefCell::new(ecs);
         let message_window = RefCell::new(message_window);
@@ -257,14 +244,6 @@ impl ScriptInstance {
                     let globals = context.globals();
                     let wrap_yielding: Function = globals.get("wrap_yielding")?;
                     globals.set("input", self.input)?;
-
-                    // Every function that references Rust data must be recreated in this
-                    // scope each time we execute some of the script, to ensure that the
-                    // references in the closure remain valid
-
-                    // Non-trivial functions are defined elsewhere and called by the
-                    // closure with all closed variables passed as arguments
-                    // (Can I automate this with a macro or something? It's okay for now.)
 
                     globals.set(
                         "get_story_var",
@@ -558,6 +537,13 @@ impl ScriptInstance {
                 );
                 self.finished = true;
             });
+
+        // Set on-finish story var
+        if self.finished
+            && let Some((key, value)) = &self.script_class.set_on_finish
+        {
+            story_vars.borrow_mut().set(key, *value);
+        }
     }
 }
 

@@ -9,15 +9,16 @@ use crate::misc::{Direction, StoryVars};
 use crate::world::WorldPos;
 use crate::{MapOverlayTransition, MessageWindow};
 use euclid::{Point2D, Vector2D};
-use rlua::{Error as LuaError, Result as LuaResult};
+use rlua::Result as LuaResult;
 use sdl2::mixer::{Chunk, Music};
 use sdl2::pixels::Color;
 use sdl2::rect::Rect;
 use std::collections::HashMap;
+use std::format as f;
 use std::time::{Duration, Instant};
 
 pub fn get_story_var(key: String, story_vars: &StoryVars) -> LuaResult<i32> {
-    story_vars.get(&key).ok_or(Error::NoStoryVar(key)).map_err(LuaError::from)
+    story_vars.get(&key).ok_or(Error(f!("no story var '{}'", key)).into())
 }
 
 pub fn set_story_var((key, val): (String, i32), story_vars: &mut StoryVars) -> LuaResult<()> {
@@ -26,15 +27,17 @@ pub fn set_story_var((key, val): (String, i32), story_vars: &mut StoryVars) -> L
 }
 
 pub fn get_entity_map_pos(entity: String, ecs: &Ecs) -> LuaResult<(f64, f64)> {
-    let position =
-        ecs.query_one_with_name::<&Position>(&entity).ok_or(Error::NoEntity(entity))?;
+    let position = ecs
+        .query_one_with_name::<&Position>(&entity)
+        .ok_or(Error(f!("invalid entity '{}'", entity)))?;
     Ok((position.map_pos.x, position.map_pos.y))
 }
 
 // Requires entity to have a position component already, since map is omitted
 pub fn set_entity_map_pos((entity, x, y): (String, f64, f64), ecs: &Ecs) -> LuaResult<()> {
-    let mut position =
-        ecs.query_one_with_name::<&mut Position>(&entity).ok_or(Error::NoEntity(entity))?;
+    let mut position = ecs
+        .query_one_with_name::<&mut Position>(&entity)
+        .ok_or(Error(f!("invalid entity '{}'", entity)))?;
     position.map_pos = Point2D::new(x, y);
     Ok(())
 }
@@ -44,14 +47,17 @@ pub fn set_entity_world_pos(
     (entity, map, x, y): (String, String, f64, f64),
     ecs: &mut Ecs,
 ) -> LuaResult<()> {
-    let entity_id =
-        ecs.query_one_with_name::<EntityId>(&entity).ok_or(Error::NoEntity(entity))?;
+    let entity_id = ecs
+        .query_one_with_name::<EntityId>(&entity)
+        .ok_or(Error(f!("invalid entity '{}'", entity)))?;
     ecs.add_component(entity_id, Position(WorldPos::new(&map, x, y)));
     Ok(())
 }
 
 pub fn remove_entity_position(entity: String, ecs: &mut Ecs) -> LuaResult<()> {
-    let id = ecs.query_one_with_name::<EntityId>(&entity).ok_or(Error::NoEntity(entity))?;
+    let id = ecs
+        .query_one_with_name::<EntityId>(&entity)
+        .ok_or(Error(f!("invalid entity '{}'", entity)))?;
     ecs.remove_component::<Position>(id);
     Ok(())
 }
@@ -71,7 +77,7 @@ pub fn set_forced_sprite(
 ) -> LuaResult<()> {
     let mut sprite_component = ecs
         .query_one_with_name::<&mut SpriteComponent>(&entity)
-        .ok_or(Error::NoEntity(entity))?;
+        .ok_or(Error(f!("invalid entity '{}'", entity)))?;
 
     sprite_component.forced_sprite = Some(Sprite {
         spritesheet,
@@ -85,7 +91,7 @@ pub fn set_forced_sprite(
 pub fn remove_forced_sprite(entity: String, ecs: &Ecs) -> LuaResult<()> {
     let mut sprite_component = ecs
         .query_one_with_name::<&mut SpriteComponent>(&entity)
-        .ok_or(Error::NoEntity(entity))?;
+        .ok_or(Error(f!("invalid entity '{}'", entity)))?;
     sprite_component.forced_sprite = None;
     Ok(())
 }
@@ -93,14 +99,15 @@ pub fn remove_forced_sprite(entity: String, ecs: &Ecs) -> LuaResult<()> {
 pub fn set_entity_visible((entity, visible): (String, bool), ecs: &Ecs) -> LuaResult<()> {
     let mut sprite = ecs
         .query_one_with_name::<&mut SpriteComponent>(&entity)
-        .ok_or(Error::NoEntity(entity))?;
+        .ok_or(Error(f!("invalid entity '{}'", entity)))?;
     sprite.visible = visible;
     Ok(())
 }
 
 pub fn set_entity_solid((entity, enabled): (String, bool), ecs: &Ecs) -> LuaResult<()> {
-    let mut collision =
-        ecs.query_one_with_name::<&mut Collision>(&entity).ok_or(Error::NoEntity(entity))?;
+    let mut collision = ecs
+        .query_one_with_name::<&mut Collision>(&entity)
+        .ok_or(Error(f!("invalid entity '{}'", entity)))?;
     collision.solid = enabled;
     Ok(())
 }
@@ -145,14 +152,14 @@ pub fn walk(
 ) -> LuaResult<()> {
     let (position, mut facing, mut walking) = ecs
         .query_one_with_name::<(&Position, &mut Facing, &mut Walking)>(&entity)
-        .ok_or(Error::NoEntity(entity))?;
+        .ok_or(Error(f!("invalid entity '{}'", entity)))?;
 
     walking.direction = match direction.as_str() {
         "up" => Ok(Direction::Up),
         "down" => Ok(Direction::Down),
         "left" => Ok(Direction::Left),
         "right" => Ok(Direction::Right),
-        s => Err(Error::Generic(format!("{s} is not a valid direction"))),
+        s => Err(Error(f!("{s} is not a valid direction"))),
     }?;
 
     walking.speed = speed;
@@ -178,14 +185,14 @@ pub fn walk_to(
 ) -> LuaResult<()> {
     let (position, mut facing, mut walking) = ecs
         .query_one_with_name::<(&Position, &mut Facing, &mut Walking)>(&entity)
-        .ok_or(Error::NoEntity(entity))?;
+        .ok_or(Error(f!("invalid entity '{}'", entity)))?;
 
     walking.direction = match direction.as_str() {
         "up" => Ok(Direction::Up),
         "down" => Ok(Direction::Down),
         "left" => Ok(Direction::Left),
         "right" => Ok(Direction::Right),
-        s => Err(Error::Generic(format!("{s} is not a valid direction"))),
+        s => Err(Error(f!("{s} is not a valid direction"))),
     }?;
 
     walking.speed = speed;
@@ -201,14 +208,16 @@ pub fn walk_to(
 }
 
 pub fn is_entity_walking(entity: String, ecs: &Ecs) -> LuaResult<bool> {
-    let walking = ecs.query_one_with_name::<&Walking>(&entity).ok_or(Error::NoEntity(entity))?;
+    let walking = ecs
+        .query_one_with_name::<&Walking>(&entity)
+        .ok_or(Error(f!("invalid entity '{}'", entity)))?;
     Ok(walking.destination.is_some())
 }
 
 pub fn play_object_animation((entity, repeat): (String, bool), ecs: &Ecs) -> LuaResult<()> {
     let mut anim_comp = ecs
         .query_one_with_name::<&mut AnimationComponent>(&entity)
-        .ok_or(Error::NoEntity(entity))?;
+        .ok_or(Error(f!("invalid entity '{}'", entity)))?;
 
     anim_comp.start(repeat);
     Ok(())
@@ -217,7 +226,7 @@ pub fn play_object_animation((entity, repeat): (String, bool), ecs: &Ecs) -> Lua
 pub fn stop_object_animation(entity: String, ecs: &Ecs) -> LuaResult<()> {
     let mut anim_comp = ecs
         .query_one_with_name::<&mut AnimationComponent>(&entity)
-        .ok_or(Error::NoEntity(entity))?;
+        .ok_or(Error(f!("invalid entity '{}'", entity)))?;
     anim_comp.stop();
     Ok(())
 }
@@ -225,12 +234,12 @@ pub fn stop_object_animation(entity: String, ecs: &Ecs) -> LuaResult<()> {
 pub fn switch_dual_state_animation((entity, state): (String, i32), ecs: &Ecs) -> LuaResult<()> {
     let (mut anim_comp, mut dual_anims) = ecs
         .query_one_with_name::<(&mut AnimationComponent, &mut DualStateAnimations)>(&entity)
-        .ok_or(Error::NoEntity(entity))?;
+        .ok_or(Error(f!("invalid entity '{}'", entity)))?;
 
     let state = match state {
         1 => Ok(DualStateAnimationState::SecondToFirst),
         2 => Ok(DualStateAnimationState::FirstToSecond),
-        _ => Err(Error::Generic("state must be 1 or 2".to_string())),
+        _ => Err(Error("state must be 1 or 2".to_string())),
     }?;
 
     dual_anims.state = state;
@@ -245,12 +254,12 @@ pub fn play_named_animation(
 ) -> LuaResult<()> {
     let (mut anim_comp, anims) = ecs
         .query_one_with_name::<(&mut AnimationComponent, &NamedAnimations)>(&entity)
-        .ok_or(Error::NoEntity(entity.clone()))?;
+        .ok_or(Error(f!("invalid entity '{}'", entity)))?;
 
     let clip = anims
         .clips
         .get(&animation)
-        .ok_or(Error::Generic(format!("no animation '{animation}' on entity '{entity}'")))?;
+        .ok_or(Error(f!("no animation '{animation}' on entity '{entity}'")))?;
 
     anim_comp.clip = clip.clone();
     anim_comp.forced = true;
@@ -260,7 +269,9 @@ pub fn play_named_animation(
 }
 
 pub fn anim_quiver((entity, duration): (String, f64), ecs: &mut Ecs) -> LuaResult<()> {
-    let id = ecs.query_one_with_name::<EntityId>(&entity).ok_or(Error::NoEntity(entity))?;
+    let id = ecs
+        .query_one_with_name::<EntityId>(&entity)
+        .ok_or(Error(f!("invalid entity '{}'", entity)))?;
 
     ecs.add_component(
         id,
@@ -277,7 +288,9 @@ pub fn anim_quiver((entity, duration): (String, f64), ecs: &mut Ecs) -> LuaResul
 }
 
 pub fn anim_jump(entity: String, ecs: &mut Ecs) -> LuaResult<()> {
-    let id = ecs.query_one_with_name::<EntityId>(&entity).ok_or(Error::NoEntity(entity))?;
+    let id = ecs
+        .query_one_with_name::<EntityId>(&entity)
+        .ok_or(Error(f!("invalid entity '{}'", entity)))?;
 
     ecs.add_component(
         id,
@@ -308,7 +321,7 @@ pub fn play_music(
 }
 
 pub fn stop_music(fade_out_time: f64) -> LuaResult<()> {
-    Music::fade_out((fade_out_time * 1000.) as i32).map_err(Error::NoEntity)?;
+    let _ = Music::fade_out((fade_out_time * 1000.) as i32);
     Ok(())
 }
 
@@ -317,16 +330,18 @@ pub fn emit_entity_sfx(
     (entity, sfx, repeat): (String, String, bool),
     ecs: &Ecs,
 ) -> LuaResult<()> {
-    let mut sfx_comp =
-        ecs.query_one_with_name::<&mut SfxEmitter>(&entity).ok_or(Error::NoEntity(entity))?;
+    let mut sfx_comp = ecs
+        .query_one_with_name::<&mut SfxEmitter>(&entity)
+        .ok_or(Error(f!("invalid entity '{}'", entity)))?;
     sfx_comp.sfx_name = Some(sfx);
     sfx_comp.repeat = repeat;
     Ok(())
 }
 
 pub fn stop_entity_sfx(entity: String, ecs: &Ecs) -> LuaResult<()> {
-    let mut sfx_comp =
-        ecs.query_one_with_name::<&mut SfxEmitter>(&entity).ok_or(Error::NoEntity(entity))?;
+    let mut sfx_comp = ecs
+        .query_one_with_name::<&mut SfxEmitter>(&entity)
+        .ok_or(Error(f!("invalid entity '{}'", entity)))?;
     sfx_comp.sfx_name = None;
     sfx_comp.repeat = false;
     Ok(())

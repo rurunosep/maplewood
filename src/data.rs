@@ -89,7 +89,7 @@ pub fn load_entities_from_source(ecs: &mut Ecs) {
         id,
         Scripts(vec![ScriptClass {
             source: script::get_sub_script(
-                &std::fs::read_to_string("assets/scripts.lua").unwrap(),
+                &std::fs::read_to_string("scripts/scripts.lua").unwrap(),
                 "start",
             ),
             label: None,
@@ -128,7 +128,7 @@ pub fn load_entities_from_source(ecs: &mut Ecs) {
         id,
         Scripts(vec![ScriptClass {
             source: script::get_sub_script(
-                &std::fs::read_to_string("assets/scripts.lua").unwrap(),
+                &std::fs::read_to_string("scripts/scripts.lua").unwrap(),
                 "janitor",
             ),
             trigger: Some(Trigger::Interaction),
@@ -163,7 +163,7 @@ pub fn load_entities_from_source(ecs: &mut Ecs) {
         id,
         Scripts(vec![ScriptClass {
             source: script::get_sub_script(
-                &std::fs::read_to_string("assets/scripts.lua").unwrap(),
+                &std::fs::read_to_string("scripts/scripts.lua").unwrap(),
                 "school_kid",
             ),
             trigger: Some(Trigger::Interaction),
@@ -178,7 +178,7 @@ pub fn load_entities_from_source(ecs: &mut Ecs) {
         id,
         Scripts(vec![ScriptClass {
             source: script::get_sub_script(
-                &std::fs::read_to_string("assets/scripts.lua").unwrap(),
+                &std::fs::read_to_string("scripts/scripts.lua").unwrap(),
                 "bakery_girl::panic",
             ),
             trigger: Some(Trigger::Auto),

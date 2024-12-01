@@ -135,8 +135,7 @@ impl log::Log for Logger {
 pub struct StoryVars(pub HashMap<String, i32>);
 
 impl StoryVars {
-    // Returns an Option<{story var value}> and logs error if None
-    // Useful when the caller wants to unwrap_or the *value* with an appropriate default
+    // Convenience functions to wrap the error log
     pub fn get(&self, key: &str) -> Option<i32> {
         self.0
             .get(key)
@@ -144,20 +143,6 @@ impl StoryVars {
             .copied()
     }
 
-    // Returns an Option<{result of conditional expression}> and logs error if None
-    // Useful when the caller wants to unwrap_or the *result* with an appropriate default
-    pub fn check<F>(&self, key: &str, f: F) -> Option<bool>
-    where
-        F: FnOnce(i32) -> bool,
-    {
-        self.0
-            .get(key)
-            .tap_none(|| log::error!(once = true; "Story var doesn't exist: {}", key))
-            .map(|story_var| f(*story_var))
-    }
-
-    // Sets story var value and logs error if None
-    // Does not create a new story var if the key doesn't exist
     pub fn set(&mut self, key: &str, val: i32) {
         self.0
             .get_mut(key)
