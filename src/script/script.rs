@@ -12,6 +12,7 @@ use std::error::Error as StdError;
 use std::fmt::{self, Display};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
+use tap::TapOptional;
 
 new_key_type! { pub struct ScriptId; }
 
@@ -28,8 +29,12 @@ impl ScriptManager {
     ) {
         self.instances.insert_with_key(|id| ScriptInstance::new(script_class.clone(), id));
 
-        if let Some((var, value)) = &script_class.set_on_start {
-            *story_vars.get_mut(var).unwrap() = *value;
+        if let Some((key, value)) = &script_class.set_on_start
+            && let Some(story_var) = story_vars
+                .get_mut(key)
+                .tap_none(|| log::error!(once = true; "Story var doesn't exist: {}", key))
+        {
+            *story_var = *value;
         }
     }
 }
@@ -114,12 +119,11 @@ pub struct ScriptClass {
 impl ScriptClass {
     pub fn is_start_condition_fulfilled(&self, story_vars: &HashMap<String, i32>) -> bool {
         match &self.start_condition {
-            Some(StartAbortCondition { story_var, value }) => {
-                story_vars
-                    .get(story_var)
-                    .unwrap_or_else(|| panic!("no story var \"{story_var}\""))
-                    == value
-            }
+            Some(StartAbortCondition { story_var: key, value }) => story_vars
+                .get(key)
+                .tap_none(|| log::error!(once = true; "Story var doesn't exist: {}", key))
+                .map(|story_var| story_var == value)
+                .unwrap_or(false),
             None => true,
         }
     }
@@ -137,6 +141,8 @@ pub struct ScriptInstance {
 
 impl ScriptInstance {
     pub fn new(script_class: ScriptClass, id: ScriptId) -> Self {
+        let mut finished = false;
+
         let lua_instance = Lua::new();
         lua_instance
             .context(|context| -> LuaResult<()> {
@@ -195,10 +201,13 @@ impl ScriptInstance {
                 Ok(())
             })
             .unwrap_or_else(|err| {
-                panic!("lua error:\n{err}\nsource: {:?}\n", err.source().map(|e| e.to_string()))
+                log::error!("Failed to create script\n{}", err,);
+                // If script errors during creation, set it to finished to be removed later
+                // Later, script creation should be fallible and return a result, maybe
+                finished = true;
             });
 
-        Self { lua_instance, script_class, id, finished: false, wait_condition: None, input: 0 }
+        Self { lua_instance, script_class, id, finished, wait_condition: None, input: 0 }
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -216,19 +225,29 @@ impl ScriptInstance {
         musics: &HashMap<String, Music>,
         sound_effects: &HashMap<String, Chunk>,
     ) {
+        if self.finished {
+            return;
+        }
+
         // Abort script if abort condition is fulfilled
-        if let Some(condition) = &self.script_class.abort_condition {
-            if *story_vars.get(&condition.story_var).unwrap() == condition.value {
-                self.finished = true;
-                return;
-            }
+        if let Some(StartAbortCondition { story_var: key, value }) =
+            &self.script_class.abort_condition
+            && let Some(story_var) = story_vars
+                .get(key)
+                .tap_none(|| log::error!(once = true; "Story var doesn't exist: {}", key))
+            && *story_var == *value
+        {
+            self.finished = true;
+            return;
         }
 
         // Skip updating script if it is waiting
         if match self.wait_condition.clone() {
             Some(WaitCondition::Time(until)) => until > Instant::now(),
             Some(WaitCondition::Message) => message_window.is_some(),
-            Some(WaitCondition::StoryVar(key, val)) => *story_vars.get(&key).unwrap() != val,
+            Some(WaitCondition::StoryVar(key, val)) => {
+                story_vars.get(&key).map(|var| *var != val).unwrap_or(false)
+            }
             None => false,
         } {
             return;
@@ -249,7 +268,7 @@ impl ScriptInstance {
             .context(|context| -> LuaResult<()> {
                 context.scope(|scope| {
                     let globals = context.globals();
-                    let wrap_yielding: Function = globals.get("wrap_yielding").unwrap();
+                    let wrap_yielding: Function = globals.get("wrap_yielding")?;
                     globals.set("input", self.input)?;
 
                     // Every function that references Rust data must be recreated in this
@@ -544,18 +563,25 @@ impl ScriptInstance {
                     Ok(())
                 })
             })
-            // Currently panics if any error is ever encountered in a lua script.
-            // Later, just abort script and log error
             .unwrap_or_else(|err| {
-                panic!("lua error:\n{err}\nsource: {:?}\n", err.source().map(|e| e.to_string()));
+                log::error!(
+                    "Runtime script error. Aborting script.\n{}\nsource: {:?}",
+                    err,
+                    err.source().map(|source_err| source_err.to_string())
+                );
+                self.finished = true;
             });
     }
 }
 
 pub fn get_sub_script(full_source: &str, label: &str) -> String {
-    let (_, after_label) = full_source.split_once(&format!("--# {label}")).unwrap();
-    let (between_label_and_end, _) = after_label.split_once("--#").unwrap();
-    between_label_and_end.to_string()
+    if let Some((_, after_label)) = full_source.split_once(&format!("--# {label}"))
+        && let Some((between_label_and_end, _)) = after_label.split_once("--#")
+    {
+        between_label_and_end.to_string()
+    } else {
+        "".to_string()
+    }
 }
 
 // Rework eventually with the new architecture I've been thinking of:
@@ -571,3 +597,5 @@ pub fn get_sub_script(full_source: &str, label: &str) -> String {
 //      globals.set("SCRIPT_CONTEXT", script_instance.context_table);
 //      let thread = globals.get::<_, Thread>(script_instance.thread_name);
 //      thread.resume();
+// Or should context just be passed as an argument to the function?
+// How do we handle errors in this design? What happens in Lua when a coroutine errors?

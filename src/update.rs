@@ -87,12 +87,13 @@ fn start_soft_collision_scripts(
     ecs: &Ecs,
     story_vars: &mut HashMap<String, i32>,
 ) {
-    let (player_aabb, player_map) = {
-        let query_one_with_name =
-            ecs.query_one_with_name::<(&Position, &Collision)>(PLAYER_ENTITY_NAME);
-        let (pos, coll) = query_one_with_name.unwrap();
-        (Aabb::new(pos.map_pos, coll.hitbox), pos.map.clone())
+    let Some((player_aabb, player_map)) = ecs
+        .query_one_with_name::<(&Position, &Collision)>(PLAYER_ENTITY_NAME)
+        .map(|(pos, coll)| (Aabb::new(pos.map_pos, coll.hitbox), pos.map.clone()))
+    else {
+        return;
     };
+
     // For each entity colliding with the player...
     for (.., scripts) in ecs
         .query::<(&Position, &Collision, &Scripts)>()
@@ -131,9 +132,12 @@ fn execute_scripts(
 
         // Set set_on_finish story vars for finished scripts
         if script.finished
-            && let Some((var, value)) = &script.script_class.set_on_finish
+            && let Some((key, value)) = &script.script_class.set_on_finish
+            && let Some(story_var) = story_vars
+                .get_mut(key)
+                .tap_none(|| log::error!(once = true; "Story var doesn't exist: {}", key))
         {
-            *story_vars.get_mut(var).unwrap() = *value;
+            *story_var = *value;
         }
     }
     // Remove finished scripts
@@ -229,7 +233,7 @@ fn play_animations_and_set_sprites(ecs: &Ecs, delta: Duration) {
         } else {
             (elapsed % duration / clip.seconds_per_frame).floor() as usize
         };
-        let sprite = clip.frames.get(frame_index).unwrap();
+        let sprite = clip.frames.get(frame_index).expect("");
         sprite_comp.sprite = Some(sprite.clone());
 
         if finished {
@@ -249,12 +253,16 @@ fn move_entities_and_resolve_collisions(
     script_manager: &mut ScriptManager,
     story_vars: &mut HashMap<String, i32>,
 ) {
-    let player_id = ecs.query_one_with_name::<EntityId>(PLAYER_ENTITY_NAME).unwrap();
+    let player_id = ecs.query_one_with_name::<EntityId>(PLAYER_ENTITY_NAME);
 
     for (id, mut position, mut walking, collision) in
         ecs.query::<(EntityId, &mut Position, &mut Walking, Option<&Collision>)>()
     {
         let map_pos = position.map_pos;
+        let Some(map) = world.maps.get(&position.map) else {
+            log::error!(once = true; "Map doesn't exist: {}", &position.map);
+            continue;
+        };
 
         // Determine new position before collision resolution
         // TODO !! use frame delta
@@ -296,9 +304,7 @@ fn move_entities_and_resolve_collisions(
             ];
             for cell_aabb in cellposes_to_check
                 .iter()
-                .flat_map(|cp| {
-                    world.maps.get(&position.map).unwrap().collision_aabbs_for_cell(*cp)
-                })
+                .flat_map(|cp| map.collision_aabbs_for_cell(*cp))
                 .flatten()
             {
                 new_aabb.resolve_collision(&old_aabb, &cell_aabb);
@@ -331,7 +337,8 @@ fn move_entities_and_resolve_collisions(
                 // Alternatively, we can move, then start collision scripts, then resolve
                 // collision, all in separate systems. We just need to keep some data for the
                 // collision resolution such as last position or direction or something
-                if id == player_id
+                if let Some(player_id) = player_id
+                    && id == player_id
                     && new_aabb.intersects(&other_aabb)
                     && let Some(scripts) = other_scripts
                 {
