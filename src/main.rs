@@ -118,6 +118,14 @@ fn main() {
     let mut script_manager = ScriptManager { instances: SlotMap::with_key() };
     let mut player_movement_locked = false;
 
+    // Get console input
+    let (console_sender, console_receiver) = crossbeam::channel::unbounded();
+    std::thread::spawn(move || loop {
+        let mut input = String::new();
+        std::io::stdin().read_line(&mut input).unwrap();
+        let _ = console_sender.send(input.clone());
+    });
+
     // --------------------------------------------------------------
     // Main Loop
     // --------------------------------------------------------------
@@ -126,6 +134,14 @@ fn main() {
     while running {
         let delta = last_time.elapsed();
         last_time = Instant::now();
+
+        // Process console input
+        if let Ok(s) = console_receiver.try_recv() {
+            script_manager.start_script(
+                &script::ScriptClass { source: s.to_string(), ..script::ScriptClass::default() },
+                &mut game_data.story_vars,
+            );
+        }
 
         #[rustfmt::skip]
         input::process_input(
