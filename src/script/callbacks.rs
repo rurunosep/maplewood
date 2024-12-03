@@ -42,6 +42,13 @@ pub fn set_entity_map_pos((entity, x, y): (String, f64, f64), ecs: &Ecs) -> LuaR
     Ok(())
 }
 
+pub fn get_entity_world_pos(entity: String, ecs: &Ecs) -> LuaResult<(String, f64, f64)> {
+    let position = ecs
+        .query_one_with_name::<&Position>(&entity)
+        .ok_or(Error(f!("invalid entity '{}'", entity)))?;
+    Ok((position.map.clone(), position.map_pos.x, position.map_pos.y))
+}
+
 // Will attach a new position component
 pub fn set_entity_world_pos(
     (entity, map, x, y): (String, String, f64, f64),

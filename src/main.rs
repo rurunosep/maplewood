@@ -17,7 +17,7 @@ mod world;
 use ecs::Ecs;
 use misc::{Logger, MapOverlayTransition, MessageWindow, StoryVars};
 use render::{RenderData, SCREEN_COLS, SCREEN_ROWS, SCREEN_SCALE, TILE_SIZE};
-use script::ScriptManager;
+use script::{console, ScriptManager};
 use sdl2::mixer::{AUDIO_S16SYS, DEFAULT_CHANNELS};
 use sdl2::pixels::Color;
 use slotmap::SlotMap;
@@ -118,12 +118,12 @@ fn main() {
     let mut script_manager = ScriptManager { instances: SlotMap::with_key() };
     let mut player_movement_locked = false;
 
-    // Get console input
-    let (console_sender, console_receiver) = crossbeam::channel::unbounded();
+    let console_lua_instance = rlua::Lua::new();
+    let (console_input_sender, console_input_receiver) = crossbeam::channel::unbounded();
     std::thread::spawn(move || loop {
         let mut input = String::new();
         std::io::stdin().read_line(&mut input).unwrap();
-        let _ = console_sender.send(input.clone());
+        let _ = console_input_sender.send(input.clone());
     });
 
     // --------------------------------------------------------------
@@ -135,13 +135,11 @@ fn main() {
         let delta = last_time.elapsed();
         last_time = Instant::now();
 
-        // Process console input
-        if let Ok(s) = console_receiver.try_recv() {
-            script_manager.start_script(
-                &script::ScriptClass { source: s.to_string(), ..script::ScriptClass::default() },
-                &mut game_data.story_vars,
-            );
-        }
+        #[rustfmt::skip]
+        console::process_console_input(
+            &console_input_receiver, &console_lua_instance, &mut game_data, &mut ui_data,
+            &mut player_movement_locked, &mut running, &musics, &sound_effects,
+        );
 
         #[rustfmt::skip]
         input::process_input(

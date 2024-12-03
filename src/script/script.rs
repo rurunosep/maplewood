@@ -270,6 +270,12 @@ impl ScriptInstance {
                         })?,
                     )?;
                     globals.set(
+                        "get_entity_world_pos",
+                        scope.create_function(|_, args| {
+                            callbacks::get_entity_world_pos(args, *ecs.borrow())
+                        })?,
+                    )?;
+                    globals.set(
                         "set_entity_world_pos",
                         scope.create_function_mut(|_, args| {
                             callbacks::set_entity_world_pos(args, *ecs.borrow_mut())
@@ -466,6 +472,13 @@ impl ScriptInstance {
                             Ok(())
                         })?,
                     )?;
+                    globals.set(
+                        "log",
+                        scope.create_function(|_, message: String| {
+                            log::info!("{message}");
+                            Ok(())
+                        })?,
+                    )?;
 
                     globals.set(
                         "message",
@@ -548,18 +561,21 @@ impl ScriptInstance {
 }
 
 pub fn get_sub_script(full_source: &str, label: &str) -> String {
-    if let Some((_, after_label)) = full_source.split_once(&format!("--# {label}"))
-        && let Some((between_label_and_end, _)) = after_label.split_once("--#")
-    {
-        between_label_and_end.to_string()
-    } else {
-        "".to_string()
-    }
+    full_source
+        .split_once(&format!("--# {label}"))
+        .and_then(|(_, after)| after.split_once("--#"))
+        .map(|(before, _)| before.to_string())
+        .unwrap_or("".to_string())
 }
 
 // Rework eventually with the new architecture I've been thinking of:
 // ScriptClass references a function rather than holding a source string
 // ScriptInstance references a thread created from the function
+// (The thread handle, or anything else with the 'lua lifetime, can't leave the
+// context call. So ScriptInstance can't hold the thread handle itself. But apparently
+// you can move stuff in and out via the registry? Idk what that is or how it works. But
+// at the very least, a ScriptInstance can hold a String name reference to a thread.
+// This could be based on the ScriptId key data.)
 //      let thread = context.create_thread(globals.get::<_,Function>(function_name));
 //      globals.set(thread_name, thread);
 //      let script_instance = ScriptInstance::new(thread_name, ...);

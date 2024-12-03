@@ -106,8 +106,14 @@ pub struct Logger {
 
 impl log::Log for Logger {
     fn log(&self, record: &Record) {
+        // We only print our own logs. Everyone else can stfu :)
+        if let Some(module_path) = record.module_path()
+            && !module_path.starts_with("maplewood")
+        {
+            return;
+        }
+
         // Keep track of unique logs with the "once" attribute, and only ever print them once
-        // Idk if this the best way to do this, but it works good for now :)
         if let Some(true) = record.key_values().get(Key::from("once")).and_then(|v| v.to_bool()) {
             let mut onces = self.once_only_logs.lock().expect("");
             if onces.contains(&record.args().to_string()) {
