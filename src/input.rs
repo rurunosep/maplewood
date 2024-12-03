@@ -3,7 +3,7 @@ use crate::components::{
 };
 use crate::data::PLAYER_ENTITY_NAME;
 use crate::ecs::Ecs;
-use crate::misc::{Direction, Aabb};
+use crate::misc::{Aabb, Direction};
 use crate::script::{ScriptManager, Trigger};
 use crate::{GameData, MessageWindow};
 use euclid::Vector2D;

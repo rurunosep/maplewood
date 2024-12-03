@@ -20,8 +20,8 @@ pub fn process_console_input(
         return;
     }
 
-    lua.context(|context| -> rlua::Result<()> {
-        let globals = context.globals();
+    let r: rlua::Result<()> = try {
+        let globals = lua.globals();
 
         let story_vars = RefCell::new(&mut game_data.story_vars);
         let ecs = RefCell::new(&mut game_data.ecs);
@@ -30,7 +30,7 @@ pub fn process_console_input(
         let cutscene_border = RefCell::new(&mut ui_data.show_cutscene_border);
         let displayed_card_name = RefCell::new(&mut ui_data.displayed_card_name);
 
-        context.scope(|scope| -> rlua::Result<()> {
+        lua.scope(|scope| -> rlua::Result<()> {
             // For now, since we don't have a better alternative, we have to duplicate all the
             // callback binding code in here
 
@@ -273,11 +273,11 @@ pub fn process_console_input(
             )?;
 
             while let Ok(input) = receiver.try_recv() {
-                context.load(&input).exec()?;
+                lua.load(&input).exec()?;
             }
 
             Ok(())
-        })
-    })
-    .unwrap_or_else(|e| println!("{e}"));
+        })?
+    };
+    r.unwrap_or_else(|e| println!("{e}"));
 }

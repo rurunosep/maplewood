@@ -122,38 +122,37 @@ impl ScriptInstance {
         let mut finished = false;
 
         let lua_instance = Lua::new();
-        lua_instance
-            .context(|context| -> LuaResult<()> {
-                // Wrap script in a thread so that blocking functions may yield
-                context
-                    .load(&format!(
-                        "thread = coroutine.create(function () {} end)",
-                        script_class.source
-                    ))
-                    .set_name(script_class.label.as_ref().unwrap_or(&"unnamed".to_string()))?
-                    .exec()?;
+        let r: LuaResult<()> = try {
+            // Wrap script in a thread so that blocking functions may yield
+            lua_instance
+                .load(&format!(
+                    "thread = coroutine.create(function () {} end)",
+                    script_class.source
+                ))
+                .set_name(script_class.label.as_ref().unwrap_or(&"unnamed".to_string()))
+                .exec()?;
 
-                // Utility function that will wrap a function that should
-                // yield within a new one that will call the original and yield
-                // (Because you can't yield from within a rust callback)
-                context
-                    .load(
-                        r"
+            // Utility function that will wrap a function that should
+            // yield within a new one that will call the original and yield
+            // (Because you can't yield from within a rust callback)
+            lua_instance
+                .load(
+                    r"
                         wrap_yielding = function(f)
                             return function(...)
                                 f(...)
                                 coroutine.yield()
                             end
                         end",
-                    )
-                    .exec()?;
+                )
+                .exec()?;
 
-                // Create functions that don't use Rust callbacks and don't have to be
-                // recreated each update
-                // This can eventually all be loaded from a single external lua file
-                context
-                    .load(
-                        r#"
+            // Create functions that don't use Rust callbacks and don't have to be
+            // recreated each update
+            // This can eventually all be loaded from a single external lua file
+            lua_instance
+                .load(
+                    r#"
                         -- Because LDtk doesn't handle "\n" properly
                         nl = "\n"
 
@@ -173,17 +172,15 @@ impl ScriptInstance {
                             end
                         end
                         "#,
-                    )
-                    .exec()?;
-
-                Ok(())
-            })
-            .unwrap_or_else(|err| {
-                log::error!("Failed to create script\n{}", err,);
-                // If script errors during creation, set it to finished to be removed later
-                // (No reason to make this better, since I'm gonna overhaul scripts anyway)
-                finished = true;
-            });
+                )
+                .exec()?;
+        };
+        r.unwrap_or_else(|err| {
+            log::error!("Failed to create script\n{}", err,);
+            // If script errors during creation, set it to finished to be removed later
+            // (No reason to make this better, since I'm gonna overhaul scripts anyway)
+            finished = true;
+        });
 
         Self { lua_instance, script_class, id, finished, wait_condition: None, input: 0 }
     }
@@ -239,308 +236,300 @@ impl ScriptInstance {
         let displayed_card_name = RefCell::new(displayed_card_name);
 
         self.lua_instance
-            .context(|context| -> LuaResult<()> {
-                context.scope(|scope| {
-                    let globals = context.globals();
-                    let wrap_yielding: Function = globals.get("wrap_yielding")?;
-                    globals.set("input", self.input)?;
+            .scope(|scope| {
+                let globals = self.lua_instance.globals();
+                let wrap_yielding: Function = globals.get("wrap_yielding")?;
+                globals.set("input", self.input)?;
 
-                    globals.set(
-                        "get_story_var",
-                        scope.create_function(|_, args| {
-                            callbacks::get_story_var(args, *story_vars.borrow())
-                        })?,
-                    )?;
-                    globals.set(
-                        "set_story_var",
-                        scope.create_function_mut(|_, args| {
-                            callbacks::set_story_var(args, *story_vars.borrow_mut())
-                        })?,
-                    )?;
-                    globals.set(
-                        "get_entity_map_pos",
-                        scope.create_function(|_, args| {
-                            callbacks::get_entity_map_pos(args, *ecs.borrow())
-                        })?,
-                    )?;
-                    globals.set(
-                        "set_entity_map_pos",
-                        scope.create_function_mut(|_, args| {
-                            callbacks::set_entity_map_pos(args, *ecs.borrow())
-                        })?,
-                    )?;
-                    globals.set(
-                        "get_entity_world_pos",
-                        scope.create_function(|_, args| {
-                            callbacks::get_entity_world_pos(args, *ecs.borrow())
-                        })?,
-                    )?;
-                    globals.set(
-                        "set_entity_world_pos",
-                        scope.create_function_mut(|_, args| {
-                            callbacks::set_entity_world_pos(args, *ecs.borrow_mut())
-                        })?,
-                    )?;
-                    globals.set(
-                        "remove_entity_position",
-                        scope.create_function_mut(|_, args| {
-                            callbacks::remove_entity_position(args, *ecs.borrow_mut())
-                        })?,
-                    )?;
-                    globals.set(
-                        "set_forced_sprite",
-                        scope.create_function_mut(|_, args| {
-                            callbacks::set_forced_sprite(args, *ecs.borrow())
-                        })?,
-                    )?;
-                    globals.set(
-                        "remove_forced_sprite",
-                        scope.create_function_mut(|_, args| {
-                            callbacks::remove_forced_sprite(args, *ecs.borrow())
-                        })?,
-                    )?;
-                    globals.set(
-                        "set_entity_visible",
-                        scope.create_function_mut(|_, args| {
-                            callbacks::set_entity_visible(args, *ecs.borrow())
-                        })?,
-                    )?;
-                    globals.set(
-                        "set_entity_solid",
-                        scope.create_function_mut(|_, args| {
-                            callbacks::set_entity_solid(args, *ecs.borrow())
-                        })?,
-                    )?;
-                    globals.set(
-                        "lock_player_input",
-                        scope.create_function_mut(|_, args| {
-                            callbacks::lock_player_input(
+                globals.set(
+                    "get_story_var",
+                    scope.create_function(|_, args| {
+                        callbacks::get_story_var(args, *story_vars.borrow())
+                    })?,
+                )?;
+                globals.set(
+                    "set_story_var",
+                    scope.create_function_mut(|_, args| {
+                        callbacks::set_story_var(args, *story_vars.borrow_mut())
+                    })?,
+                )?;
+                globals.set(
+                    "get_entity_map_pos",
+                    scope.create_function(|_, args| {
+                        callbacks::get_entity_map_pos(args, *ecs.borrow())
+                    })?,
+                )?;
+                globals.set(
+                    "set_entity_map_pos",
+                    scope.create_function_mut(|_, args| {
+                        callbacks::set_entity_map_pos(args, *ecs.borrow())
+                    })?,
+                )?;
+                globals.set(
+                    "get_entity_world_pos",
+                    scope.create_function(|_, args| {
+                        callbacks::get_entity_world_pos(args, *ecs.borrow())
+                    })?,
+                )?;
+                globals.set(
+                    "set_entity_world_pos",
+                    scope.create_function_mut(|_, args| {
+                        callbacks::set_entity_world_pos(args, *ecs.borrow_mut())
+                    })?,
+                )?;
+                globals.set(
+                    "remove_entity_position",
+                    scope.create_function_mut(|_, args| {
+                        callbacks::remove_entity_position(args, *ecs.borrow_mut())
+                    })?,
+                )?;
+                globals.set(
+                    "set_forced_sprite",
+                    scope.create_function_mut(|_, args| {
+                        callbacks::set_forced_sprite(args, *ecs.borrow())
+                    })?,
+                )?;
+                globals.set(
+                    "remove_forced_sprite",
+                    scope.create_function_mut(|_, args| {
+                        callbacks::remove_forced_sprite(args, *ecs.borrow())
+                    })?,
+                )?;
+                globals.set(
+                    "set_entity_visible",
+                    scope.create_function_mut(|_, args| {
+                        callbacks::set_entity_visible(args, *ecs.borrow())
+                    })?,
+                )?;
+                globals.set(
+                    "set_entity_solid",
+                    scope.create_function_mut(|_, args| {
+                        callbacks::set_entity_solid(args, *ecs.borrow())
+                    })?,
+                )?;
+                globals.set(
+                    "lock_player_input",
+                    scope.create_function_mut(|_, args| {
+                        callbacks::lock_player_input(
+                            args,
+                            *player_movement_locked.borrow_mut(),
+                            *ecs.borrow(),
+                        )
+                    })?,
+                )?;
+                globals.set(
+                    "unlock_player_input",
+                    scope.create_function_mut(|_, ()| {
+                        **player_movement_locked.borrow_mut() = false;
+                        Ok(())
+                    })?,
+                )?;
+                globals.set(
+                    "set_camera_target",
+                    scope.create_function_mut(|_, args| {
+                        callbacks::set_camera_target(args, *ecs.borrow())
+                    })?,
+                )?;
+                globals.set(
+                    "remove_camera_target",
+                    scope.create_function_mut(|_, ()| {
+                        callbacks::remove_camera_target(*ecs.borrow())
+                    })?,
+                )?;
+                globals.set(
+                    "set_camera_clamp",
+                    scope.create_function_mut(|_, args| {
+                        callbacks::set_camera_clamp(args, *ecs.borrow())
+                    })?,
+                )?;
+                globals.set(
+                    "walk",
+                    scope.create_function_mut(|_, args| callbacks::walk(args, *ecs.borrow()))?,
+                )?;
+                globals.set(
+                    "walk_to",
+                    scope
+                        .create_function_mut(|_, args| callbacks::walk_to(args, *ecs.borrow()))?,
+                )?;
+                globals.set(
+                    "is_entity_walking",
+                    scope.create_function(|_, args| {
+                        callbacks::is_entity_walking(args, *ecs.borrow())
+                    })?,
+                )?;
+                globals.set(
+                    "play_object_animation",
+                    scope.create_function_mut(|_, args| {
+                        callbacks::play_object_animation(args, *ecs.borrow_mut())
+                    })?,
+                )?;
+                globals.set(
+                    "stop_object_animation",
+                    scope.create_function_mut(|_, args| {
+                        callbacks::stop_object_animation(args, *ecs.borrow_mut())
+                    })?,
+                )?;
+                globals.set(
+                    "switch_dual_state_animation",
+                    scope.create_function_mut(|_, args| {
+                        callbacks::switch_dual_state_animation(args, *ecs.borrow_mut())
+                    })?,
+                )?;
+                globals.set(
+                    "play_named_animation",
+                    scope.create_function_mut(|_, args| {
+                        callbacks::play_named_animation(args, *ecs.borrow_mut())
+                    })?,
+                )?;
+                globals.set(
+                    "anim_quiver",
+                    scope.create_function_mut(|_, args| {
+                        callbacks::anim_quiver(args, *ecs.borrow_mut())
+                    })?,
+                )?;
+                globals.set(
+                    "anim_jump",
+                    scope.create_function_mut(|_, args| {
+                        callbacks::anim_jump(args, *ecs.borrow_mut())
+                    })?,
+                )?;
+                globals.set(
+                    "play_sfx",
+                    scope.create_function(|_, args| callbacks::play_sfx(args, sound_effects))?,
+                )?;
+                globals.set(
+                    "play_music",
+                    scope.create_function_mut(|_, args| callbacks::play_music(args, musics))?,
+                )?;
+                globals.set(
+                    "stop_music",
+                    scope.create_function_mut(|_, args| callbacks::stop_music(args))?,
+                )?;
+                globals.set(
+                    "emit_entity_sfx",
+                    scope.create_function(|_, args| {
+                        callbacks::emit_entity_sfx(args, *ecs.borrow())
+                    })?,
+                )?;
+                globals.set(
+                    "stop_entity_sfx",
+                    scope.create_function(|_, args| {
+                        callbacks::stop_entity_sfx(args, *ecs.borrow())
+                    })?,
+                )?;
+                globals.set(
+                    "set_map_overlay_color",
+                    scope.create_function_mut(|_, args| {
+                        callbacks::set_map_overlay_color(
+                            args,
+                            map_overlay_color_transition,
+                            map_overlay_color,
+                        )
+                    })?,
+                )?;
+                globals.set(
+                    "close_game",
+                    scope.create_function_mut(|_, ()| {
+                        *running = false;
+                        Ok(())
+                    })?,
+                )?;
+                globals.set(
+                    "set_cutscene_border",
+                    scope.create_function_mut(|_, ()| {
+                        **cutscene_border.borrow_mut() = true;
+                        Ok(())
+                    })?,
+                )?;
+                globals.set(
+                    "remove_cutscene_border",
+                    scope.create_function_mut(|_, ()| {
+                        **cutscene_border.borrow_mut() = false;
+                        Ok(())
+                    })?,
+                )?;
+                globals.set(
+                    "show_card",
+                    scope.create_function_mut(|_, name: String| {
+                        **displayed_card_name.borrow_mut() = Some(name);
+                        Ok(())
+                    })?,
+                )?;
+                globals.set(
+                    "remove_card",
+                    scope.create_function_mut(|_, ()| {
+                        **displayed_card_name.borrow_mut() = None;
+                        Ok(())
+                    })?,
+                )?;
+                globals.set(
+                    "log",
+                    scope.create_function(|_, message: String| {
+                        log::info!("{message}");
+                        Ok(())
+                    })?,
+                )?;
+
+                globals.set(
+                    "message",
+                    wrap_yielding.call::<_, Function>(scope.create_function_mut(
+                        |_, args| {
+                            callbacks::message(
                                 args,
-                                *player_movement_locked.borrow_mut(),
-                                *ecs.borrow(),
+                                *message_window.borrow_mut(),
+                                *wait_condition.borrow_mut(),
+                                self.id,
                             )
-                        })?,
-                    )?;
-                    globals.set(
-                        "unlock_player_input",
-                        scope.create_function_mut(|_, ()| {
-                            **player_movement_locked.borrow_mut() = false;
-                            Ok(())
-                        })?,
-                    )?;
-                    globals.set(
-                        "set_camera_target",
-                        scope.create_function_mut(|_, args| {
-                            callbacks::set_camera_target(args, *ecs.borrow())
-                        })?,
-                    )?;
-                    globals.set(
-                        "remove_camera_target",
-                        scope.create_function_mut(|_, ()| {
-                            callbacks::remove_camera_target(*ecs.borrow())
-                        })?,
-                    )?;
-                    globals.set(
-                        "set_camera_clamp",
-                        scope.create_function_mut(|_, args| {
-                            callbacks::set_camera_clamp(args, *ecs.borrow())
-                        })?,
-                    )?;
-                    globals.set(
-                        "walk",
-                        scope.create_function_mut(|_, args| {
-                            callbacks::walk(args, *ecs.borrow())
-                        })?,
-                    )?;
-                    globals.set(
-                        "walk_to",
-                        scope.create_function_mut(|_, args| {
-                            callbacks::walk_to(args, *ecs.borrow())
-                        })?,
-                    )?;
-                    globals.set(
-                        "is_entity_walking",
-                        scope.create_function(|_, args| {
-                            callbacks::is_entity_walking(args, *ecs.borrow())
-                        })?,
-                    )?;
-                    globals.set(
-                        "play_object_animation",
-                        scope.create_function_mut(|_, args| {
-                            callbacks::play_object_animation(args, *ecs.borrow_mut())
-                        })?,
-                    )?;
-                    globals.set(
-                        "stop_object_animation",
-                        scope.create_function_mut(|_, args| {
-                            callbacks::stop_object_animation(args, *ecs.borrow_mut())
-                        })?,
-                    )?;
-                    globals.set(
-                        "switch_dual_state_animation",
-                        scope.create_function_mut(|_, args| {
-                            callbacks::switch_dual_state_animation(args, *ecs.borrow_mut())
-                        })?,
-                    )?;
-                    globals.set(
-                        "play_named_animation",
-                        scope.create_function_mut(|_, args| {
-                            callbacks::play_named_animation(args, *ecs.borrow_mut())
-                        })?,
-                    )?;
-                    globals.set(
-                        "anim_quiver",
-                        scope.create_function_mut(|_, args| {
-                            callbacks::anim_quiver(args, *ecs.borrow_mut())
-                        })?,
-                    )?;
-                    globals.set(
-                        "anim_jump",
-                        scope.create_function_mut(|_, args| {
-                            callbacks::anim_jump(args, *ecs.borrow_mut())
-                        })?,
-                    )?;
-                    globals.set(
-                        "play_sfx",
-                        scope.create_function(|_, args| {
-                            callbacks::play_sfx(args, sound_effects)
-                        })?,
-                    )?;
-                    globals.set(
-                        "play_music",
-                        scope
-                            .create_function_mut(|_, args| callbacks::play_music(args, musics))?,
-                    )?;
-                    globals.set(
-                        "stop_music",
-                        scope.create_function_mut(|_, args| callbacks::stop_music(args))?,
-                    )?;
-                    globals.set(
-                        "emit_entity_sfx",
-                        scope.create_function(|_, args| {
-                            callbacks::emit_entity_sfx(args, *ecs.borrow())
-                        })?,
-                    )?;
-                    globals.set(
-                        "stop_entity_sfx",
-                        scope.create_function(|_, args| {
-                            callbacks::stop_entity_sfx(args, *ecs.borrow())
-                        })?,
-                    )?;
-                    globals.set(
-                        "set_map_overlay_color",
-                        scope.create_function_mut(|_, args| {
-                            callbacks::set_map_overlay_color(
+                        },
+                    )?)?,
+                )?;
+
+                globals.set(
+                    "selection",
+                    wrap_yielding.call::<_, Function>(scope.create_function_mut(
+                        |_, args| {
+                            callbacks::selection(
                                 args,
-                                map_overlay_color_transition,
-                                map_overlay_color,
+                                *message_window.borrow_mut(),
+                                *wait_condition.borrow_mut(),
+                                self.id,
                             )
-                        })?,
-                    )?;
-                    globals.set(
-                        "close_game",
-                        scope.create_function_mut(|_, ()| {
-                            *running = false;
-                            Ok(())
-                        })?,
-                    )?;
-                    globals.set(
-                        "set_cutscene_border",
-                        scope.create_function_mut(|_, ()| {
-                            **cutscene_border.borrow_mut() = true;
-                            Ok(())
-                        })?,
-                    )?;
-                    globals.set(
-                        "remove_cutscene_border",
-                        scope.create_function_mut(|_, ()| {
-                            **cutscene_border.borrow_mut() = false;
-                            Ok(())
-                        })?,
-                    )?;
-                    globals.set(
-                        "show_card",
-                        scope.create_function_mut(|_, name: String| {
-                            **displayed_card_name.borrow_mut() = Some(name);
-                            Ok(())
-                        })?,
-                    )?;
-                    globals.set(
-                        "remove_card",
-                        scope.create_function_mut(|_, ()| {
-                            **displayed_card_name.borrow_mut() = None;
-                            Ok(())
-                        })?,
-                    )?;
-                    globals.set(
-                        "log",
-                        scope.create_function(|_, message: String| {
-                            log::info!("{message}");
-                            Ok(())
-                        })?,
-                    )?;
+                        },
+                    )?)?,
+                )?;
 
-                    globals.set(
-                        "message",
-                        wrap_yielding.call::<_, Function>(scope.create_function_mut(
-                            |_, args| {
-                                callbacks::message(
-                                    args,
-                                    *message_window.borrow_mut(),
-                                    *wait_condition.borrow_mut(),
-                                    self.id,
-                                )
-                            },
-                        )?)?,
-                    )?;
+                globals.set(
+                    "wait",
+                    wrap_yielding.call::<_, Function>(scope.create_function_mut(
+                        |_, duration: f64| {
+                            **wait_condition.borrow_mut() = Some(WaitCondition::Time(
+                                Instant::now() + Duration::from_secs_f64(duration),
+                            ));
+                            Ok(())
+                        },
+                    )?)?,
+                )?;
 
-                    globals.set(
-                        "selection",
-                        wrap_yielding.call::<_, Function>(scope.create_function_mut(
-                            |_, args| {
-                                callbacks::selection(
-                                    args,
-                                    *message_window.borrow_mut(),
-                                    *wait_condition.borrow_mut(),
-                                    self.id,
-                                )
-                            },
-                        )?)?,
-                    )?;
+                globals.set(
+                    "wait_storyvar",
+                    wrap_yielding.call::<_, Function>(scope.create_function_mut(
+                        |_, (key, val): (String, i32)| {
+                            **wait_condition.borrow_mut() =
+                                Some(WaitCondition::StoryVar(key, val));
+                            Ok(())
+                        },
+                    )?)?,
+                )?;
 
-                    globals.set(
-                        "wait",
-                        wrap_yielding.call::<_, Function>(scope.create_function_mut(
-                            |_, duration: f64| {
-                                **wait_condition.borrow_mut() = Some(WaitCondition::Time(
-                                    Instant::now() + Duration::from_secs_f64(duration),
-                                ));
-                                Ok(())
-                            },
-                        )?)?,
-                    )?;
+                // Get saved thread and execute until script yields or ends
+                let thread = globals.get::<_, Thread>("thread")?;
+                thread.resume::<_, _>(())?;
+                match thread.status() {
+                    ThreadStatus::Unresumable | ThreadStatus::Error => self.finished = true,
+                    _ => {}
+                }
 
-                    globals.set(
-                        "wait_storyvar",
-                        wrap_yielding.call::<_, Function>(scope.create_function_mut(
-                            |_, (key, val): (String, i32)| {
-                                **wait_condition.borrow_mut() =
-                                    Some(WaitCondition::StoryVar(key, val));
-                                Ok(())
-                            },
-                        )?)?,
-                    )?;
-
-                    // Get saved thread and execute until script yields or ends
-                    let thread = globals.get::<_, Thread>("thread")?;
-                    thread.resume::<_, _>(())?;
-                    match thread.status() {
-                        ThreadStatus::Unresumable | ThreadStatus::Error => self.finished = true,
-                        _ => {}
-                    }
-
-                    Ok(())
-                })
+                Ok(())
             })
             .unwrap_or_else(|err| {
                 log::error!(
@@ -576,7 +565,7 @@ pub fn get_sub_script(full_source: &str, label: &str) -> String {
 // you can move stuff in and out via the registry? Idk what that is or how it works. But
 // at the very least, a ScriptInstance can hold a String name reference to a thread.
 // This could be based on the ScriptId key data.)
-//      let thread = context.create_thread(globals.get::<_,Function>(function_name));
+//      let thread = lua_instance.create_thread(globals.get::<_,Function>(function_name));
 //      globals.set(thread_name, thread);
 //      let script_instance = ScriptInstance::new(thread_name, ...);
 // All the scripts run in a single Lua state in a single context call per frame
