@@ -9,7 +9,7 @@ use crate::misc::{Direction, StoryVars};
 use crate::world::WorldPos;
 use crate::{MapOverlayTransition, MessageWindow};
 use euclid::{Point2D, Vector2D};
-use rlua::Result as LuaResult;
+use mlua::Result as LuaResult;
 use sdl2::mixer::{Chunk, Music};
 use sdl2::pixels::Color;
 use sdl2::rect::Rect;

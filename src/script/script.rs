@@ -2,7 +2,7 @@ use super::callbacks;
 use crate::ecs::Ecs;
 use crate::misc::StoryVars;
 use crate::{MapOverlayTransition, MessageWindow};
-use rlua::{Error as LuaError, Function, Lua, Result as LuaResult, Thread, ThreadStatus};
+use mlua::{Error as LuaError, Function, Lua, Result as LuaResult, Thread, ThreadStatus};
 use sdl2::mixer::{Chunk, Music};
 use sdl2::pixels::Color;
 use serde::Deserialize;
@@ -472,35 +472,31 @@ impl ScriptInstance {
 
                 globals.set(
                     "message",
-                    wrap_yielding.call::<_, Function>(scope.create_function_mut(
-                        |_, args| {
-                            callbacks::message(
-                                args,
-                                *message_window.borrow_mut(),
-                                *wait_condition.borrow_mut(),
-                                self.id,
-                            )
-                        },
-                    )?)?,
+                    wrap_yielding.call::<Function>(scope.create_function_mut(|_, args| {
+                        callbacks::message(
+                            args,
+                            *message_window.borrow_mut(),
+                            *wait_condition.borrow_mut(),
+                            self.id,
+                        )
+                    })?)?,
                 )?;
 
                 globals.set(
                     "selection",
-                    wrap_yielding.call::<_, Function>(scope.create_function_mut(
-                        |_, args| {
-                            callbacks::selection(
-                                args,
-                                *message_window.borrow_mut(),
-                                *wait_condition.borrow_mut(),
-                                self.id,
-                            )
-                        },
-                    )?)?,
+                    wrap_yielding.call::<Function>(scope.create_function_mut(|_, args| {
+                        callbacks::selection(
+                            args,
+                            *message_window.borrow_mut(),
+                            *wait_condition.borrow_mut(),
+                            self.id,
+                        )
+                    })?)?,
                 )?;
 
                 globals.set(
                     "wait",
-                    wrap_yielding.call::<_, Function>(scope.create_function_mut(
+                    wrap_yielding.call::<Function>(scope.create_function_mut(
                         |_, duration: f64| {
                             **wait_condition.borrow_mut() = Some(WaitCondition::Time(
                                 Instant::now() + Duration::from_secs_f64(duration),
@@ -512,7 +508,7 @@ impl ScriptInstance {
 
                 globals.set(
                     "wait_storyvar",
-                    wrap_yielding.call::<_, Function>(scope.create_function_mut(
+                    wrap_yielding.call::<Function>(scope.create_function_mut(
                         |_, (key, val): (String, i32)| {
                             **wait_condition.borrow_mut() =
                                 Some(WaitCondition::StoryVar(key, val));
@@ -522,10 +518,10 @@ impl ScriptInstance {
                 )?;
 
                 // Get saved thread and execute until script yields or ends
-                let thread = globals.get::<_, Thread>("thread")?;
-                thread.resume::<_, _>(())?;
+                let thread = globals.get::<Thread>("thread")?;
+                thread.resume(())?;
                 match thread.status() {
-                    ThreadStatus::Unresumable | ThreadStatus::Error => self.finished = true,
+                    ThreadStatus::Finished | ThreadStatus::Error => self.finished = true,
                     _ => {}
                 }
 

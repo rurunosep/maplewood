@@ -119,7 +119,7 @@ fn main() {
     let mut script_manager = ScriptManager { instances: SlotMap::with_key() };
     let mut player_movement_locked = false;
 
-    let console_lua_instance = rlua::Lua::new();
+    let console_lua_instance = mlua::Lua::new();
     let (console_input_sender, console_input_receiver) = crossbeam::channel::unbounded();
     std::thread::spawn(move || loop {
         let mut input = String::new();

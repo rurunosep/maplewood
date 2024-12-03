@@ -1,7 +1,7 @@
 use super::{callbacks, ScriptId};
 use crate::{GameData, UiData};
 use crossbeam::channel::Receiver;
-use rlua::Lua;
+use mlua::{Lua, Result as LuaResult};
 use sdl2::mixer::{Chunk, Music};
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -20,7 +20,7 @@ pub fn process_console_input(
         return;
     }
 
-    let r: rlua::Result<()> = try {
+    let r: LuaResult<()> = try {
         let globals = lua.globals();
 
         let story_vars = RefCell::new(&mut game_data.story_vars);
@@ -30,7 +30,7 @@ pub fn process_console_input(
         let cutscene_border = RefCell::new(&mut ui_data.show_cutscene_border);
         let displayed_card_name = RefCell::new(&mut ui_data.displayed_card_name);
 
-        lua.scope(|scope| -> rlua::Result<()> {
+        lua.scope(|scope| -> LuaResult<()> {
             // For now, since we don't have a better alternative, we have to duplicate all the
             // callback binding code in here
 
