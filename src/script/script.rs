@@ -78,6 +78,7 @@ pub enum WaitCondition {
 // Rename (Definition?)
 #[derive(Debug, Clone, Default)]
 pub struct ScriptClass {
+    // TODO can't do much with json entity loading until "source" is a function ref
     pub source: String,
     pub label: Option<String>,
     pub trigger: Option<Trigger>,
@@ -98,6 +99,7 @@ pub struct ScriptClass {
 
 impl ScriptClass {
     pub fn is_start_condition_fulfilled(&self, story_vars: &StoryVars) -> bool {
+        // TODO option::is_some_and?
         self.start_condition
             .as_ref()
             .map(|StartAbortCondition { story_var: key, value }| {

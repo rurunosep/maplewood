@@ -1,4 +1,5 @@
-// TODO make todo tree work on script files + move script files to scripts folder
+// TODO make todo tree work on script files
+// TODO screen shake
 
 use crate::components::{
     AnimationClip, AnimationComponent, Camera, CharacterAnimations, Collision, Facing,
@@ -89,7 +90,7 @@ pub fn load_entities_from_source(ecs: &mut Ecs) {
         id,
         Scripts(vec![ScriptClass {
             source: script::get_sub_script(
-                &std::fs::read_to_string("scripts/scripts.lua").unwrap(),
+                &std::fs::read_to_string("data/scripts.lua").unwrap(),
                 "start",
             ),
             label: None,
@@ -105,10 +106,10 @@ pub fn load_entities_from_source(ecs: &mut Ecs) {
     );
 
     // Bathroom door blocker
-    let id = ecs.add_entity();
-    ecs.add_component(id, Name("bathroom::door::blocker".to_string()));
-    ecs.add_component(id, Position(WorldPos::new("bathroom", 4.5, 8.)));
-    ecs.add_component(id, Collision { hitbox: Size2D::new(1., 2.), solid: true });
+    // let id = ecs.add_entity();
+    // ecs.add_component(id, Name("bathroom::door::blocker".to_string()));
+    // ecs.add_component(id, Position(WorldPos::new("bathroom", 4.5, 8.)));
+    // ecs.add_component(id, Collision { hitbox: Size2D::new(1., 2.), solid: true });
 
     // Bathroom entrance blocker
     let id = ecs.add_entity();
@@ -128,7 +129,7 @@ pub fn load_entities_from_source(ecs: &mut Ecs) {
         id,
         Scripts(vec![ScriptClass {
             source: script::get_sub_script(
-                &std::fs::read_to_string("scripts/scripts.lua").unwrap(),
+                &std::fs::read_to_string("data/scripts.lua").unwrap(),
                 "janitor",
             ),
             trigger: Some(Trigger::Interaction),
@@ -163,7 +164,7 @@ pub fn load_entities_from_source(ecs: &mut Ecs) {
         id,
         Scripts(vec![ScriptClass {
             source: script::get_sub_script(
-                &std::fs::read_to_string("scripts/scripts.lua").unwrap(),
+                &std::fs::read_to_string("data/scripts.lua").unwrap(),
                 "school_kid",
             ),
             trigger: Some(Trigger::Interaction),
@@ -178,7 +179,7 @@ pub fn load_entities_from_source(ecs: &mut Ecs) {
         id,
         Scripts(vec![ScriptClass {
             source: script::get_sub_script(
-                &std::fs::read_to_string("scripts/scripts.lua").unwrap(),
+                &std::fs::read_to_string("data/scripts.lua").unwrap(),
                 "bakery_girl::panic",
             ),
             trigger: Some(Trigger::Auto),

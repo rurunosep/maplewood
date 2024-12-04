@@ -2,6 +2,7 @@ use crate::ldtk_json;
 use crate::misc::Aabb;
 use crate::render::PixelUnits;
 use euclid::{Point2D, Size2D, Vector2D};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 pub struct MapUnits;
@@ -10,7 +11,7 @@ pub struct CellUnits;
 pub type MapPos = Point2D<f64, MapUnits>;
 pub type CellPos = Point2D<i32, CellUnits>;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WorldPos {
     pub map: String,
     pub map_pos: MapPos,

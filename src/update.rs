@@ -455,6 +455,7 @@ fn update_camera(ecs: &Ecs, world: &World) {
     }
 }
 
+// TODO proximity sound
 fn update_sfx_emitting_entities(ecs: &Ecs, sound_effects: &HashMap<String, Chunk>) {
     let camera_map = ecs.query::<(&Position, With<Camera>)>().next().map(|(p, _)| p.map.clone());
 

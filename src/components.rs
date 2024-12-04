@@ -8,6 +8,7 @@ use derive_more::{Deref, DerefMut};
 use euclid::{Point2D, Size2D, Vector2D};
 use sdl2::mixer::Channel;
 use sdl2::rect::Rect as SdlRect;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
@@ -18,11 +19,11 @@ use std::time::{Duration, Instant};
 
 // A name is used to refer to entities in scripts or other external data sources
 // The actual non-optional, guaranteed-unique identifier is EntityId
-#[derive(Deref)]
+#[derive(Deref, Debug, Serialize, Deserialize)]
 pub struct Name(pub String);
 impl Component for Name {}
 
-#[derive(Deref, DerefMut, Default, Clone)]
+#[derive(Deref, DerefMut, Default, Clone, Debug, Serialize, Deserialize)]
 pub struct Position(pub WorldPos);
 impl Component for Position {}
 
@@ -166,7 +167,8 @@ pub struct Camera {
 }
 impl Component for Camera {}
 
-#[derive(Default)]
+#[derive(Debug, Default, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct Collision {
     pub hitbox: Size2D<f64, MapUnits>,
     pub solid: bool,

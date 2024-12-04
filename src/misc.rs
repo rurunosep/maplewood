@@ -128,6 +128,8 @@ impl log::Log for Logger {
             x => x.as_str().normal(),
         };
 
+        // TODO style multiline logs
+
         println!("[{}] {}", colored_level, record.args());
     }
 

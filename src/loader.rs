@@ -3,7 +3,7 @@ use crate::components::{
     DualStateAnimations, Facing, Interaction, Name, Position, Scripts, Sprite, SpriteComponent,
     Walking,
 };
-use crate::ecs::Ecs;
+use crate::ecs::{Ecs, EntityId};
 use crate::ldtk_json::{self};
 use crate::script::{self, ScriptClass, Trigger};
 use crate::world::WorldPos;
@@ -14,7 +14,9 @@ use sdl2::rect::Rect as SdlRect;
 use sdl2::render::{Texture, TextureCreator};
 use sdl2::video::WindowContext;
 use serde::de::DeserializeOwned;
+use serde_json::Value;
 use std::collections::HashMap;
+use std::path::Path;
 use tap::TapFallible;
 
 pub fn load_entities_from_ldtk(ecs: &mut Ecs, project: &ldtk_json::Project) {
@@ -82,7 +84,7 @@ fn load_simple_script_entity(
         .map(|s| {
             let (file_name, subscript_label) = s.split_once("::").unwrap();
             script::get_sub_script(
-                &std::fs::read_to_string(format!("scripts/{file_name}.lua")).unwrap(),
+                &std::fs::read_to_string(format!("data/{file_name}.lua")).unwrap(),
                 subscript_label,
             )
         })
@@ -394,15 +396,12 @@ fn read_field_f64(field: &str, entity: &ldtk_json::EntityInstance) -> Option<f64
         .iter()
         .find(|f| f.identifier == field)
         .and_then(|f| f.value.as_ref())
+        // TODO serde_json::from_value(v.clone).ok() ?
         .and_then(|v| match v {
             serde_json::Value::Number(n) => n.as_f64(),
             _ => None,
         })
 }
-
-// No unwraps in any of these, yay!
-// But I don't like how much repeated code there is.
-// That can be dealt with later. For now, it's all error safe and nicely put away here.
 
 pub fn load_tilesets(
     texture_creator: &TextureCreator<WindowContext>,
@@ -425,7 +424,7 @@ pub fn load_tilesets(
                     .ok()?;
 
                 // Keyed like this because this is how the ldtk layers refer to them
-                Some((format!("tilesets/{}", file_name), spritesheet))
+                Some((format!("../assets/tilesets/{}", file_name), spritesheet))
             })
             .collect()
         })
@@ -507,4 +506,80 @@ pub fn load_musics<'m>() -> HashMap<String, Music<'m>> {
             .collect()
         })
         .unwrap_or(HashMap::new())
+}
+
+pub fn load_entities_from_file<P>(ecs: &mut Ecs, path: P)
+where
+    P: AsRef<Path>,
+{
+    let Ok(json) = std::fs::read_to_string(&path) else {
+        log::error!("Could not read file: {}", path.as_ref().to_string_lossy());
+        return;
+    };
+
+    load_entities_from_json(ecs, &json).unwrap_or_else(|err| {
+        log::error!(
+            "Invalid entities JSON: {} (err: \"{}\"",
+            path.as_ref().to_string_lossy(),
+            err
+        );
+    });
+}
+
+pub fn load_entities_from_json(ecs: &mut Ecs, json: &str) -> Result<(), String> {
+    let entities_value: serde_json::Value =
+        serde_json::from_str(json).map_err(|e| e.to_string())?;
+    let entities_array = entities_value.as_array().ok_or("invalid entities json")?;
+
+    for components_value in entities_array {
+        let components_map = components_value.as_object().ok_or("invalid entities json")?;
+
+        // Try to get id from components map
+        // If none, try to get id from preexisiting entity by name
+        // If none, generate new entity
+        let id = components_map
+            .get("id")
+            .and_then(|v| serde_json::from_value(v.clone()).ok())
+            .or_else(|| {
+                components_map
+                    .get("name")
+                    .and_then(|v| serde_json::from_value(v.clone()).ok())
+                    .and_then(|n: String| ecs.query_one_with_name::<EntityId>(&n))
+            })
+            .unwrap_or_else(|| ecs.add_entity());
+
+        for (key, val) in components_map {
+            load_component_from_json_value(ecs, id, &key, &val);
+        }
+    }
+
+    Ok(())
+}
+
+// TODO load_components_from_json and add to ldtk entity loading code
+
+pub fn load_component_from_json_value(ecs: &mut Ecs, id: EntityId, name: &str, data: &Value) {
+    let r: serde_json::Result<()> = try {
+        let data = data.clone();
+        match name {
+            "name" => {
+                ecs.add_component(id, serde_json::from_value::<Name>(data)?);
+            }
+            "position" => {
+                ecs.add_component(id, serde_json::from_value::<Position>(data)?);
+            }
+            "collision" => {
+                ecs.add_component(id, serde_json::from_value::<Collision>(data)?);
+            }
+            _ => {
+                log::error!("Invalid JSON component name: {}", name)
+            }
+        };
+    };
+    r.unwrap_or_else(|e| {
+        log::error!(
+            "Invalid JSON component:\nname: {name}\ndata: {}\nerr: \"{e}\"",
+            serde_json::to_string_pretty(&data).unwrap_or("invalid json".to_string())
+        )
+    });
 }
