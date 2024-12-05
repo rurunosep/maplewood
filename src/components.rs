@@ -19,7 +19,7 @@ use std::time::{Duration, Instant};
 
 // A name is used to refer to entities in scripts or other external data sources
 // The actual non-optional, guaranteed-unique identifier is EntityId
-#[derive(Deref, Debug, Serialize, Deserialize)]
+#[derive(Deref, Debug, Clone, Serialize, Deserialize)]
 pub struct Name(pub String);
 impl Component for Name {}
 
@@ -31,13 +31,13 @@ impl Component for Position {}
 pub struct Facing(pub Direction);
 impl Component for Facing {}
 
-#[derive(Deref)]
+#[derive(Deref, Clone, Serialize, Deserialize)]
 pub struct Scripts(pub Vec<ScriptClass>);
 impl Component for Scripts {}
 
 #[derive(Derivative)]
 #[derivative(Default)]
-// TODO !! symmetries and rotations enum
+// TODO symmetries and rotations enum?
 pub struct SpriteComponent {
     pub sprite: Option<Sprite>,
     pub forced_sprite: Option<Sprite>,
@@ -46,6 +46,8 @@ pub struct SpriteComponent {
 }
 impl Component for SpriteComponent {}
 
+// SdlRect isn't serde. I dont't think it's worth to make a wrapper since I'm switching to wgpu
+// rendering anyway. Maybe just replace with something from the euclid crate
 #[derive(Clone)]
 pub struct Sprite {
     pub spritesheet: String,
@@ -68,7 +70,6 @@ impl Component for AnimationComponent {}
 impl AnimationComponent {
     // TODO better control over starting loaded clip, loading and starting new clip, swapping clip
     // while maintaining duration, forced clip, etc
-
     // TODO playback speed multiplier
 
     pub fn start(&mut self, repeat: bool) {
@@ -162,12 +163,11 @@ impl Component for Walking {}
 pub struct Camera {
     // TODO this should actually be an Option<EntityId>
     pub target_entity_name: Option<String>,
-    // Not yet toggleable by script
     pub clamp_to_map: bool,
 }
 impl Component for Camera {}
 
-#[derive(Debug, Default, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Collision {
     pub hitbox: Size2D<f64, MapUnits>,

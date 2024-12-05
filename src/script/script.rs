@@ -5,7 +5,7 @@ use crate::{MapOverlayTransition, MessageWindow};
 use mlua::{Error as LuaError, Function, Lua, Result as LuaResult, Thread, ThreadStatus};
 use sdl2::mixer::{Chunk, Music};
 use sdl2::pixels::Color;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use slotmap::{new_key_type, SlotMap};
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -48,7 +48,7 @@ impl From<Error> for LuaError {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[allow(dead_code)]
 pub enum Trigger {
     Interaction,
@@ -61,7 +61,7 @@ pub enum Trigger {
     Auto,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StartAbortCondition {
     pub story_var: String,
     pub value: i32,
@@ -76,7 +76,7 @@ pub enum WaitCondition {
 }
 
 // Rename (Definition?)
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ScriptClass {
     // TODO can't do much with json entity loading until "source" is a function ref
     pub source: String,

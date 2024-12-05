@@ -3,7 +3,7 @@ use crate::components::{
     DualStateAnimations, Facing, Interaction, Name, Position, Scripts, Sprite, SpriteComponent,
     Walking,
 };
-use crate::ecs::{Ecs, EntityId};
+use crate::ecs::{Component, Ecs, EntityId};
 use crate::ldtk_json::{self};
 use crate::script::{self, ScriptClass, Trigger};
 use crate::world::WorldPos;
@@ -14,7 +14,8 @@ use sdl2::rect::Rect as SdlRect;
 use sdl2::render::{Texture, TextureCreator};
 use sdl2::video::WindowContext;
 use serde::de::DeserializeOwned;
-use serde_json::Value;
+use serde::Serialize;
+use serde_json::{Map, Value};
 use std::collections::HashMap;
 use std::path::Path;
 use tap::TapFallible;
@@ -561,19 +562,16 @@ pub fn load_entities_from_json(ecs: &mut Ecs, json: &str) -> Result<(), String> 
 pub fn load_component_from_json_value(ecs: &mut Ecs, id: EntityId, name: &str, data: &Value) {
     let r: serde_json::Result<()> = try {
         let data = data.clone();
+
+        // To keep the match arms single line
+        use serde_json::from_value as sjfv;
+
         match name {
-            "name" => {
-                ecs.add_component(id, serde_json::from_value::<Name>(data)?);
-            }
-            "position" => {
-                ecs.add_component(id, serde_json::from_value::<Position>(data)?);
-            }
-            "collision" => {
-                ecs.add_component(id, serde_json::from_value::<Collision>(data)?);
-            }
-            _ => {
-                log::error!("Invalid JSON component name: {}", name)
-            }
+            // TODO all the components
+            "name" => ecs.add_component(id, sjfv::<Name>(data)?),
+            "position" => ecs.add_component(id, sjfv::<Position>(data)?),
+            "collision" => ecs.add_component(id, sjfv::<Collision>(data)?),
+            _ => log::error!("Invalid JSON component name: {}", name),
         };
     };
     r.unwrap_or_else(|e| {
@@ -582,4 +580,38 @@ pub fn load_component_from_json_value(ecs: &mut Ecs, id: EntityId, name: &str, d
             serde_json::to_string_pretty(&data).unwrap_or("invalid json".to_string())
         )
     });
+}
+
+#[allow(dead_code)]
+pub fn save_entities_in_json(ecs: &Ecs) -> String {
+    let mut entities = Vec::new();
+    for id in ecs.entity_ids.keys() {
+        let mut components = Map::new();
+
+        // Since id is saved, the output of this function is only suitable for saving the game or
+        // for debug. It is not suitable for defining the entities in a fresh game. For that
+        // purpose, the ids must not be included.
+        components.insert("id".to_string(), serde_json::to_value(id).expect(""));
+
+        // TODO all the components
+        insert_component::<Name>("name", &mut components, id, &ecs);
+        insert_component::<Position>("position", &mut components, id, &ecs);
+        insert_component::<Collision>("collision", &mut components, id, &ecs);
+        insert_component::<Scripts>("scripts", &mut components, id, &ecs);
+
+        entities.push(Value::Object(components));
+    }
+
+    serde_json::to_string_pretty(&Value::Array(entities)).expect("")
+}
+
+fn insert_component<C>(name: &str, components: &mut Map<String, Value>, id: EntityId, ecs: &Ecs)
+where
+    C: Component + Clone + Serialize + 'static,
+{
+    if let Some(component) = ecs.query_one_with_id::<&C>(id)
+        && let Ok(value) = serde_json::to_value(component.clone())
+    {
+        components.insert(name.to_string(), value);
+    }
 }
