@@ -1,4 +1,4 @@
-use crate::ldtk_json;
+use crate::loader::ldtk_project;
 use crate::misc::Aabb;
 use crate::render::PixelUnits;
 use euclid::{Point2D, Size2D, Vector2D};
@@ -58,7 +58,7 @@ pub struct Map {
 }
 
 impl Map {
-    pub fn from_ldtk_level(level: &ldtk_json::Level) -> Self {
+    pub fn from_ldtk_level(level: &ldtk_project::Level) -> Self {
         let name = level.identifier.clone();
 
         let dimensions = Size2D::new(level.px_wid as i32 / 16, level.px_hei as i32 / 16);
@@ -113,7 +113,7 @@ impl Map {
         Self { name, dimensions, offset, tile_layers, collisions }
     }
 
-    pub fn from_ldtk_world(world: &ldtk_json::World) -> Self {
+    pub fn from_ldtk_world(world: &ldtk_project::World) -> Self {
         let name = world.identifier.clone();
 
         let top = world.levels.iter().map(|l| l.world_y).min().unwrap() as i32 / 16;
@@ -257,7 +257,7 @@ impl Map {
     }
 }
 
-fn is_tile_layer(layer: &ldtk_json::LayerInstance) -> bool {
+fn is_tile_layer(layer: &ldtk_project::LayerInstance) -> bool {
     layer.layer_instance_type == "Tiles"
         || layer.layer_instance_type == "AutoLayer"
         || (layer.layer_instance_type == "IntGrid" && layer.tileset_rel_path.is_some())

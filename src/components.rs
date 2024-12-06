@@ -14,7 +14,7 @@ use std::time::{Duration, Instant};
 
 // I think eventually components should be organized into their domains
 
-// TODO !! door component? open, closed, locked enum state. anims and sprites. interact script.
+// TODO door component? open, closed, locked enum state. anims and sprites. interact script.
 // get_door_state command. collision updated downstream from state. (how are anims controlled?)
 
 // A name is used to refer to entities in scripts or other external data sources

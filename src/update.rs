@@ -251,7 +251,7 @@ fn move_entities_and_resolve_collisions(
         };
 
         // Determine new position before collision resolution
-        // TODO !! use frame delta
+        // TODO use frame delta
         let mut new_position = map_pos
             + match walking.direction {
                 Direction::Up => Vector2D::new(0.0, -walking.speed),

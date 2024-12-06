@@ -262,7 +262,8 @@ pub struct LayerDefinition {
     /// of this layer, creating a fake 3D (parallax) effect.
     pub parallax_factor_y: f64,
 
-    /// If true (default), a layer with a parallax factor will also be scaled up/down accordingly.
+    /// If true (default), a layer with a parallax factor will also be scaled up/down
+    /// accordingly.
     pub parallax_scaling: bool,
 
     /// X offset of the layer, in pixels (IMPORTANT: this should be added to the `LayerInstance`

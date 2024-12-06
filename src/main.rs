@@ -7,7 +7,6 @@ mod components;
 mod data;
 mod ecs;
 mod input;
-mod ldtk_json;
 mod loader;
 mod misc;
 mod render;
@@ -82,7 +81,7 @@ fn main() {
     let sound_effects = loader::load_sound_effects();
     let musics = loader::load_musics();
 
-    let project: ldtk_json::Project =
+    let project: loader::ldtk_project::Project =
         serde_json::from_str(&std::fs::read_to_string("data/world.ldtk").unwrap()).unwrap();
 
     let mut world = World::new();
@@ -99,7 +98,7 @@ fn main() {
     }
 
     let mut ecs = Ecs::new();
-    loader::load_entities_from_ldtk(&mut ecs, &project);
+    loader::ldtk_entities::load_entities_from_ldtk(&mut ecs, &project);
     // After loading from ldtk so that ldtk entities may have additional components attached
     loader::load_entities_from_file(&mut ecs, "data/entities.json");
     data::load_entities_from_source(&mut ecs);
