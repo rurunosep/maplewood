@@ -1,6 +1,6 @@
 #![feature(let_chains)]
 #![feature(try_blocks)]
-#![allow(dependency_on_unit_never_type_fallback)]
+#![feature(is_none_or)]
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod components;

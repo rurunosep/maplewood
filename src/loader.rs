@@ -18,7 +18,9 @@ use serde::Serialize;
 use serde_json::{Map, Value};
 use std::collections::HashMap;
 use std::path::Path;
-use tap::TapFallible;
+use tap::{TapFallible, TapOptional};
+
+// TODO ldtk entities in separate module
 
 pub fn load_entities_from_ldtk(ecs: &mut Ecs, project: &ldtk_json::Project) {
     for ldtk_world in &project.worlds {
@@ -26,27 +28,59 @@ pub fn load_entities_from_ldtk(ecs: &mut Ecs, project: &ldtk_json::Project) {
             for entity in level
                 .layer_instances
                 .as_ref()
-                .unwrap()
+                .expect("levels not saved separately")
                 .iter()
                 .flat_map(|layer| &layer.entity_instances)
             {
-                match entity.identifier.as_str() {
-                    "simple_script" => {
-                        load_simple_script_entity(ecs, entity, ldtk_world, level);
-                    }
-                    "simple_anim" => {
-                        load_simple_animation_entity(ecs, entity, ldtk_world, level);
-                    }
-                    "dual_state_anim" => {
-                        load_dual_state_animation_entity(ecs, entity, ldtk_world, level);
-                    }
-                    "character" => {
-                        load_character_entity(ecs, entity, ldtk_world, level);
-                    }
-
-                    _ => {}
-                }
+                let r: Result<(), String> = try {
+                    match entity.identifier.as_str() {
+                        "generic" => {
+                            load_generic_entity(ecs, entity, ldtk_world, level);
+                        }
+                        "simple_script" => {
+                            load_simple_script_entity(ecs, entity, ldtk_world, level);
+                        }
+                        "simple_anim" => {
+                            load_simple_animation_entity(ecs, entity, ldtk_world, level)?;
+                        }
+                        "dual_state_anim" => {
+                            load_dual_state_animation_entity(ecs, entity, ldtk_world, level)?;
+                        }
+                        "character" => {
+                            load_character_entity(ecs, entity, ldtk_world, level)?;
+                        }
+                        _ => {}
+                    };
+                };
+                r.unwrap_or_else(|_| log::error!("Invalid ldtk entity: {}", entity.iid))
             }
+        }
+    }
+}
+
+// --------------------------------------------------------------
+// Ldtk entities
+// --------------------------------------------------------------
+
+fn load_generic_entity(
+    ecs: &mut Ecs,
+    entity: &ldtk_json::EntityInstance,
+    ldtk_world: &ldtk_json::World,
+    level: &ldtk_json::Level,
+) {
+    let id = ecs.add_entity();
+
+    add_position_component(ecs, id, entity, ldtk_world, level);
+
+    // Name
+    if let Some(name) = read_field("name", entity) {
+        ecs.add_component(id, Name(name));
+    }
+
+    // JSON components
+    if let Some(Value::Object(components_map)) = read_field("json_components", entity) {
+        for (key, val) in components_map {
+            load_component_from_json_value(ecs, id, &key, &val);
         }
     }
 }
@@ -59,49 +93,43 @@ fn load_simple_script_entity(
 ) {
     let id = ecs.add_entity();
 
-    // Position
-    let position = if ldtk_world.levels.iter().any(|l| l.identifier == "_world_map") {
-        Position(WorldPos::new(
-            &ldtk_world.identifier,
-            (entity.px[0] + level.world_x) as f64 / 16.,
-            (entity.px[1] + level.world_y) as f64 / 16.,
-        ))
-    } else {
-        Position(WorldPos::new(
-            &level.identifier,
-            entity.px[0] as f64 / 16.,
-            entity.px[1] as f64 / 16.,
-        ))
-    };
-    ecs.add_component(id, position);
+    add_position_component(ecs, id, entity, ldtk_world, level);
 
     // Name
-    if let Some(name) = read_field_string("name", entity) {
+    if let Some(name) = read_field("name", entity) {
         ecs.add_component(id, Name(name));
     }
 
-    // Script
-    let source = read_field_string("external_source", entity)
-        .map(|s| {
-            let (file_name, subscript_label) = s.split_once("::").unwrap();
-            script::get_sub_script(
-                &std::fs::read_to_string(format!("data/{file_name}.lua")).unwrap(),
-                subscript_label,
-            )
-        })
-        .or(read_field_string("source", entity))
-        .unwrap();
+    // JSON components
+    if let Some(Value::Object(components_map)) = read_json_field("json_components", entity) {
+        for (key, val) in components_map {
+            load_component_from_json_value(ecs, id, &key, &val);
+        }
+    }
 
-    let trigger = read_field_string("trigger", entity).and_then(|f| match f.as_str() {
+    // Script
+    let source = if let Some(source_name) = read_field::<String>("external_source", entity)
+        && let Some((file_name, subscript_label)) = source_name
+            .split_once("::")
+            .tap_none(|| log::error!("Invalid script source name: {source_name}"))
+        && let Ok(file_contents) = std::fs::read_to_string(format!("data/{file_name}.lua"))
+            .tap_err(|_| log::error!("Could not read file: data/{file_name}.lua"))
+    {
+        script::get_sub_script(&file_contents, subscript_label)
+    } else {
+        read_field("source", entity).unwrap_or_default()
+    };
+
+    let trigger = read_field::<String>("trigger", entity).and_then(|f| match f.as_str() {
         "interaction" => Some(Trigger::Interaction),
         "soft_collision" => Some(Trigger::SoftCollision),
         _ => None,
     });
 
-    let start_condition = read_field_json("start_condition", entity);
-    let abort_condition = read_field_json("abort_condition", entity);
-    let set_on_start = read_field_json("set_on_start", entity);
-    let set_on_finish = read_field_json("set_on_finish", entity);
+    let start_condition = read_json_field("start_condition", entity);
+    let abort_condition = read_json_field("abort_condition", entity);
+    let set_on_start = read_json_field("set_on_start", entity);
+    let set_on_finish = read_json_field("set_on_finish", entity);
 
     ecs.add_component(
         id,
@@ -143,39 +171,25 @@ fn load_simple_animation_entity(
     entity: &ldtk_json::EntityInstance,
     ldtk_world: &ldtk_json::World,
     level: &ldtk_json::Level,
-) {
+) -> Result<(), String> {
     let id = ecs.add_entity();
 
-    // Position
-    let position = if ldtk_world.levels.iter().any(|l| l.identifier == "_world_map") {
-        Position(WorldPos::new(
-            &ldtk_world.identifier,
-            (entity.px[0] + level.world_x) as f64 / 16.,
-            (entity.px[1] + level.world_y) as f64 / 16.,
-        ))
-    } else {
-        Position(WorldPos::new(
-            &level.identifier,
-            entity.px[0] as f64 / 16.,
-            entity.px[1] as f64 / 16.,
-        ))
-    };
-    ecs.add_component(id, position);
+    add_position_component(ecs, id, entity, ldtk_world, level);
 
     // Name
-    if let Some(name) = read_field_string("name", entity) {
+    if let Some(name) = read_field("name", entity) {
         ecs.add_component(id, Name(name));
     }
 
     // Sprite
-    let visible = read_field_bool("visible", entity).unwrap();
+    let visible = read_field("visible", entity).ok_or("")?;
     ecs.add_component(id, SpriteComponent { visible, ..Default::default() });
 
     // Animation
-    let spritesheet = read_field_string("spritesheet", entity).unwrap();
-    let frame_indexes: Vec<i32> = read_field_json("frames", entity).unwrap();
-    let seconds_per_frame = read_field_f64("seconds_per_frame", entity).unwrap();
-    let repeating = read_field_bool("repeating", entity).unwrap();
+    let spritesheet = read_field::<String>("spritesheet", entity).ok_or("")?;
+    let frame_indexes: Vec<i32> = read_json_field("frames", entity).ok_or("")?;
+    let seconds_per_frame = read_field("seconds_per_frame", entity).ok_or("")?;
+    let repeating = read_field("repeating", entity).ok_or("")?;
 
     let w = entity.width;
     let h = entity.height;
@@ -198,6 +212,8 @@ fn load_simple_animation_entity(
         anim_comp.start(true);
     }
     ecs.add_component(id, anim_comp);
+
+    Ok(())
 }
 
 fn load_dual_state_animation_entity(
@@ -205,41 +221,34 @@ fn load_dual_state_animation_entity(
     entity: &ldtk_json::EntityInstance,
     ldtk_world: &ldtk_json::World,
     level: &ldtk_json::Level,
-) {
+) -> Result<(), String> {
     let id = ecs.add_entity();
 
-    // Position
-    let position = if ldtk_world.levels.iter().any(|l| l.identifier == "_world_map") {
-        Position(WorldPos::new(
-            &ldtk_world.identifier,
-            (entity.px[0] + level.world_x) as f64 / 16.,
-            (entity.px[1] + level.world_y) as f64 / 16.,
-        ))
-    } else {
-        Position(WorldPos::new(
-            &level.identifier,
-            entity.px[0] as f64 / 16.,
-            entity.px[1] as f64 / 16.,
-        ))
-    };
-    ecs.add_component(id, position);
+    add_position_component(ecs, id, entity, ldtk_world, level);
 
     // Name
-    if let Some(name) = read_field_string("name", entity) {
+    if let Some(name) = read_field("name", entity) {
         ecs.add_component(id, Name(name));
     }
 
+    // JSON components
+    if let Some(Value::Object(components_map)) = read_json_field("json_components", entity) {
+        for (key, val) in components_map {
+            load_component_from_json_value(ecs, id, &key, &val);
+        }
+    }
+
     // Sprite
-    let visible = read_field_bool("visible", entity).unwrap();
+    let visible = read_field("visible", entity).ok_or("")?;
     ecs.add_component(id, SpriteComponent { visible, ..Default::default() });
 
     // Animation
-    let spritesheet = read_field_string("spritesheet", entity).unwrap();
-    let first: Vec<i32> = read_field_json("first_state", entity).unwrap();
-    let first_to_second: Vec<i32> = read_field_json("first_to_second", entity).unwrap();
-    let second: Vec<i32> = read_field_json("second_state", entity).unwrap();
-    let second_to_first: Vec<i32> = read_field_json("second_to_first", entity).unwrap();
-    let seconds_per_frame = read_field_f64("seconds_per_frame", entity).unwrap();
+    let spritesheet = read_field::<String>("spritesheet", entity).ok_or("")?;
+    let first: Vec<i32> = read_json_field("first_state", entity).ok_or("")?;
+    let first_to_second: Vec<i32> = read_json_field("first_to_second", entity).ok_or("")?;
+    let second: Vec<i32> = read_json_field("second_state", entity).ok_or("")?;
+    let second_to_first: Vec<i32> = read_json_field("second_to_first", entity).ok_or("")?;
+    let seconds_per_frame = read_field("seconds_per_frame", entity).ok_or("")?;
 
     let w = entity.width;
     let h = entity.height;
@@ -270,43 +279,38 @@ fn load_dual_state_animation_entity(
     let mut anim_comp = AnimationComponent::default();
     anim_comp.start(true);
     ecs.add_component(id, anim_comp);
+
+    Ok(())
 }
 
-// TODO !! interaction script
+// TODO interaction script
 fn load_character_entity(
     ecs: &mut Ecs,
     entity: &ldtk_json::EntityInstance,
     ldtk_world: &ldtk_json::World,
     level: &ldtk_json::Level,
-) {
+) -> Result<(), String> {
     let id = ecs.add_entity();
 
-    // Position
-    let position = if ldtk_world.levels.iter().any(|l| l.identifier == "_world_map") {
-        Position(WorldPos::new(
-            &ldtk_world.identifier,
-            (entity.px[0] + level.world_x) as f64 / 16.,
-            (entity.px[1] + level.world_y) as f64 / 16.,
-        ))
-    } else {
-        Position(WorldPos::new(
-            &level.identifier,
-            entity.px[0] as f64 / 16.,
-            entity.px[1] as f64 / 16.,
-        ))
-    };
-    ecs.add_component(id, position);
+    add_position_component(ecs, id, entity, ldtk_world, level);
+
+    // Name
+    if let Some(name) = read_field("name", entity) {
+        ecs.add_component(id, Name(name));
+    }
+
+    // JSON components
+    if let Some(Value::Object(components_map)) = read_json_field("json_components", entity) {
+        for (key, val) in components_map {
+            load_component_from_json_value(ecs, id, &key, &val);
+        }
+    }
 
     // Collision
     ecs.add_component(id, Collision { hitbox: Size2D::new(14. / 16., 6. / 16.), solid: true });
 
-    // Name
-    if let Some(name) = read_field_string("name", entity) {
-        ecs.add_component(id, Name(name));
-    }
-
     // Animation
-    let spritesheet = read_field_string("spritesheet", entity).unwrap();
+    let spritesheet = read_field::<String>("spritesheet", entity).ok_or("")?;
 
     let clip_from_frames = |frames: Vec<(i32, i32)>| AnimationClip {
         frames: frames
@@ -335,9 +339,34 @@ fn load_character_entity(
     ecs.add_component(id, SpriteComponent::default());
     ecs.add_component(id, Facing::default());
     ecs.add_component(id, Walking::default());
+
+    Ok(())
 }
 
-fn read_field_json<F>(field: &str, entity: &ldtk_json::EntityInstance) -> Option<F>
+fn add_position_component(
+    ecs: &mut Ecs,
+    id: EntityId,
+    entity: &ldtk_json::EntityInstance,
+    ldtk_world: &ldtk_json::World,
+    level: &ldtk_json::Level,
+) {
+    let position = if ldtk_world.levels.iter().any(|l| l.identifier == "_world_map") {
+        Position(WorldPos::new(
+            &ldtk_world.identifier,
+            (entity.px[0] + level.world_x) as f64 / 16.,
+            (entity.px[1] + level.world_y) as f64 / 16.,
+        ))
+    } else {
+        Position(WorldPos::new(
+            &level.identifier,
+            entity.px[0] as f64 / 16.,
+            entity.px[1] as f64 / 16.,
+        ))
+    };
+    ecs.add_component(id, position);
+}
+
+fn read_field<F>(field: &str, entity: &ldtk_json::EntityInstance) -> Option<F>
 where
     F: DeserializeOwned,
 {
@@ -346,63 +375,22 @@ where
         .iter()
         .find(|f| f.identifier == field)
         .and_then(|f| f.value.as_ref())
-        .and_then(|v| match v {
-            serde_json::Value::String(s) => Some(s),
-            _ => None,
-        })
-        .and_then(|v| serde_json::from_str::<F>(v).ok())
+        .and_then(|v| serde_json::from_value(v.clone()).ok())
 }
 
-fn read_field_string(field: &str, entity: &ldtk_json::EntityInstance) -> Option<String> {
-    entity
-        .field_instances
-        .iter()
-        .find(|f| f.identifier == field)
-        .and_then(|f| f.value.as_ref())
-        .and_then(|v| match v {
-            serde_json::Value::String(s) => Some(s.clone()),
-            _ => None,
-        })
+// JSON fields contain a JSON string which must be deserialized once more to get the final value
+fn read_json_field<F>(field: &str, entity: &ldtk_json::EntityInstance) -> Option<F>
+where
+    F: DeserializeOwned,
+{
+    read_field::<String>(field, entity).and_then(|v| serde_json::from_str::<F>(&v).ok())
 }
 
-fn read_field_bool(field: &str, entity: &ldtk_json::EntityInstance) -> Option<bool> {
-    entity
-        .field_instances
-        .iter()
-        .find(|f| f.identifier == field)
-        .and_then(|f| f.value.as_ref())
-        .and_then(|v| match v {
-            serde_json::Value::Bool(b) => Some(*b),
-            _ => None,
-        })
-}
+// --------------------------------------------------------------
+// Assets
+// --------------------------------------------------------------
 
-#[allow(dead_code)]
-fn read_field_i32(field: &str, entity: &ldtk_json::EntityInstance) -> Option<i32> {
-    entity
-        .field_instances
-        .iter()
-        .find(|f| f.identifier == field)
-        .and_then(|f| f.value.as_ref())
-        .and_then(|v| match v {
-            serde_json::Value::Number(n) => n.as_i64(),
-            _ => None,
-        })
-        .map(|v| v as i32)
-}
-
-fn read_field_f64(field: &str, entity: &ldtk_json::EntityInstance) -> Option<f64> {
-    entity
-        .field_instances
-        .iter()
-        .find(|f| f.identifier == field)
-        .and_then(|f| f.value.as_ref())
-        // TODO serde_json::from_value(v.clone).ok() ?
-        .and_then(|v| match v {
-            serde_json::Value::Number(n) => n.as_f64(),
-            _ => None,
-        })
-}
+// TODO reduce repeated code? or nah?
 
 pub fn load_tilesets(
     texture_creator: &TextureCreator<WindowContext>,
@@ -509,6 +497,11 @@ pub fn load_musics<'m>() -> HashMap<String, Music<'m>> {
         .unwrap_or(HashMap::new())
 }
 
+// --------------------------------------------------------------
+// JSON entities and components
+// --------------------------------------------------------------
+
+// Convenience function to wrap error logging
 pub fn load_entities_from_file<P>(ecs: &mut Ecs, path: P)
 where
     P: AsRef<Path>,
@@ -527,6 +520,9 @@ where
     });
 }
 
+// Returns error if outer entity array or component maps are invalid
+// (Error handling and logging are left to caller which has more context)
+// Inner function skips and logs error if individual component is invalid
 pub fn load_entities_from_json(ecs: &mut Ecs, json: &str) -> Result<(), String> {
     let entities_value: serde_json::Value =
         serde_json::from_str(json).map_err(|e| e.to_string())?;
@@ -557,8 +553,7 @@ pub fn load_entities_from_json(ecs: &mut Ecs, json: &str) -> Result<(), String> 
     Ok(())
 }
 
-// TODO load_components_from_json and add to ldtk entity loading code
-
+// Skips and logs error if component is invalid
 pub fn load_component_from_json_value(ecs: &mut Ecs, id: EntityId, name: &str, data: &Value) {
     let r: serde_json::Result<()> = try {
         let data = data.clone();
@@ -567,7 +562,7 @@ pub fn load_component_from_json_value(ecs: &mut Ecs, id: EntityId, name: &str, d
         use serde_json::from_value as sjfv;
 
         match name {
-            // TODO all the components
+            // NOW all the components
             "name" => ecs.add_component(id, sjfv::<Name>(data)?),
             "position" => ecs.add_component(id, sjfv::<Position>(data)?),
             "collision" => ecs.add_component(id, sjfv::<Collision>(data)?),
@@ -591,9 +586,10 @@ pub fn save_entities_in_json(ecs: &Ecs) -> String {
         // Since id is saved, the output of this function is only suitable for saving the game or
         // for debug. It is not suitable for defining the entities in a fresh game. For that
         // purpose, the ids must not be included.
+        // If I ever need to do that, I can just comment this line for a sec.
         components.insert("id".to_string(), serde_json::to_value(id).expect(""));
 
-        // TODO all the components
+        // NOW all the components
         insert_component::<Name>("name", &mut components, id, &ecs);
         insert_component::<Position>("position", &mut components, id, &ecs);
         insert_component::<Collision>("collision", &mut components, id, &ecs);

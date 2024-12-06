@@ -193,6 +193,7 @@ impl Component for Interaction {}
 #[derive(Default)]
 pub struct SfxEmitter {
     pub sfx_name: Option<String>,
+    // TODO Channel is not serde
     pub channel: Option<Channel>,
     pub repeat: bool,
 }

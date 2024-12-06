@@ -99,13 +99,11 @@ pub struct ScriptClass {
 
 impl ScriptClass {
     pub fn is_start_condition_fulfilled(&self, story_vars: &StoryVars) -> bool {
-        // TODO option::is_some_and?
-        self.start_condition
-            .as_ref()
-            .map(|StartAbortCondition { story_var: key, value }| {
+        self.start_condition.as_ref().is_none_or(
+            |StartAbortCondition { story_var: key, value }| {
                 story_vars.get(&key).map(|var| var == *value).unwrap_or(false)
-            })
-            .unwrap_or(true)
+            },
+        )
     }
 }
 
@@ -521,7 +519,10 @@ impl ScriptInstance {
 
                 // Get saved thread and execute until script yields or ends
                 let thread = globals.get::<Thread>("thread")?;
-                thread.resume(())?;
+                // (Without the type annotation, the compiler assumes it's ! and then complains
+                // cause it's depending on ! falling back to () which will be denied in future
+                // versions of Rust)
+                thread.resume::<()>(())?;
                 match thread.status() {
                     ThreadStatus::Finished | ThreadStatus::Error => self.finished = true,
                     _ => {}
