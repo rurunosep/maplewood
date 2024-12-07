@@ -1,5 +1,5 @@
 use crate::components::{
-    AnimationComponent, Facing, Interaction, NamedAnimations, Position, Scripts, Walking,
+    AnimationComp, Facing, Interaction, NamedAnims, Position, Scripts, Walking,
 };
 use crate::data::PLAYER_ENTITY_NAME;
 use crate::ecs::Ecs;
@@ -25,11 +25,9 @@ pub fn process_input(
             // Arbitrary testing
             Event::KeyDown { keycode: Some(Keycode::A), .. } => {
                 let (mut ac, na) = ecs
-                    .query_one_with_name::<(&mut AnimationComponent, &NamedAnimations)>(
-                        PLAYER_ENTITY_NAME,
-                    )
+                    .query_one_with_name::<(&mut AnimationComp, &NamedAnims)>(PLAYER_ENTITY_NAME)
                     .unwrap();
-                ac.clip = na.clips.get("spin").unwrap().clone();
+                ac.clip = na.get("spin").unwrap().clone();
                 ac.forced = true;
                 ac.start(false);
             }

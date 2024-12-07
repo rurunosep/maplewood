@@ -1,7 +1,7 @@
 use crate::components::{
-    AnimationComponent, Camera, CharacterAnimations, Collision, DualStateAnimationState,
-    DualStateAnimations, Facing, PlaybackState, Position, Scripts, SfxEmitter,
-    SineOffsetAnimation, SpriteComponent, Walking,
+    AnimationComp, Camera, CharacterAnims, Collision, DualStateAnimationState,
+    DualStateAnims, Facing, PlaybackState, Position, Scripts, SfxEmitter,
+    SineOffsetAnimation, SpriteComp, Walking,
 };
 use crate::data::PLAYER_ENTITY_NAME;
 use crate::ecs::{Ecs, EntityId, With};
@@ -136,7 +136,7 @@ fn execute_scripts(
 
 fn update_character_animations(ecs: &Ecs) {
     for (mut anim_comp, char_anims, facing, walk_comp) in
-        ecs.query::<(&mut AnimationComponent, &CharacterAnimations, &Facing, &Walking)>()
+        ecs.query::<(&mut AnimationComp, &CharacterAnims, &Facing, &Walking)>()
     {
         if anim_comp.forced {
             continue;
@@ -166,7 +166,7 @@ fn update_character_animations(ecs: &Ecs) {
 
 fn update_dual_state_animations(ecs: &Ecs) {
     for (mut anim_comp, mut dual_anims) in
-        ecs.query::<(&mut AnimationComponent, &mut DualStateAnimations)>()
+        ecs.query::<(&mut AnimationComp, &mut DualStateAnims)>()
     {
         if anim_comp.forced {
             continue;
@@ -198,9 +198,7 @@ fn update_dual_state_animations(ecs: &Ecs) {
 }
 
 fn play_animations_and_set_sprites(ecs: &Ecs, delta: Duration) {
-    for (mut anim_comp, mut sprite_comp) in
-        ecs.query::<(&mut AnimationComponent, &mut SpriteComponent)>()
-    {
+    for (mut anim_comp, mut sprite_comp) in ecs.query::<(&mut AnimationComp, &mut SpriteComp)>() {
         // Should anim_comp.clip be an Option? Or is "no clip" just an empty clip?
         if anim_comp.clip.frames.is_empty() {
             continue;

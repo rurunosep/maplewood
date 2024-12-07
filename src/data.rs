@@ -2,16 +2,14 @@
 // TODO screen shake
 
 use crate::components::{
-    AnimationClip, AnimationComponent, Camera, CharacterAnimations, Collision, Facing,
-    Interaction, Name, NamedAnimations, Position, Scripts, SfxEmitter, Sprite, SpriteComponent,
-    Walking,
+    AnimationClip, AnimationComp, Camera, CharacterAnims, Collision, Facing, Interaction, Name,
+    NamedAnims, Position, Scripts, SfxEmitter, Sprite, SpriteComp, Walking,
 };
 use crate::ecs::{Ecs, EntityId};
 use crate::misc::StoryVars;
 use crate::script::{self, ScriptClass, StartAbortCondition, Trigger};
 use crate::world::WorldPos;
-use euclid::{Point2D, Size2D};
-use sdl2::rect::Rect as SdlRect;
+use euclid::{Point2D, Rect, Size2D};
 use std::collections::HashMap;
 
 // TODO rename player entity? "_PLAYER"? "PLAYER"?
@@ -22,27 +20,27 @@ pub fn load_entities_from_source(ecs: &mut Ecs) {
     let id = ecs.add_entity();
     ecs.add_component(id, Name(PLAYER_ENTITY_NAME.to_string()));
     ecs.add_component(id, Position(WorldPos::new("overworld", 1.5, 2.5)));
-    ecs.add_component(id, SpriteComponent::default());
+    ecs.add_component(id, SpriteComp::default());
     ecs.add_component(id, Facing::default());
     ecs.add_component(id, Walking::default());
     ecs.add_component(id, Collision { hitbox: Size2D::new(7. / 16., 5. / 16.), solid: true });
 
-    let clip_from_row = |row| AnimationClip {
+    let clip_from_row = |row: u32| AnimationClip {
         frames: [8, 7, 6, 7]
             .into_iter()
-            .map(|col| Sprite {
+            .map(|col: u32| Sprite {
                 spritesheet: "characters".to_string(),
-                rect: SdlRect::new(col * 16, row * 16, 16, 16),
+                rect: Rect::new(Point2D::new(col * 16, row * 16), Size2D::new(16, 16)),
                 anchor: Point2D::new(8, 13),
             })
             .collect(),
         seconds_per_frame: 0.15,
     };
 
-    ecs.add_component(id, AnimationComponent::default());
+    ecs.add_component(id, AnimationComp::default());
     ecs.add_component(
         id,
-        CharacterAnimations {
+        CharacterAnims {
             up: clip_from_row(3),
             down: clip_from_row(0),
             left: clip_from_row(1),
@@ -52,22 +50,20 @@ pub fn load_entities_from_source(ecs: &mut Ecs) {
 
     ecs.add_component(
         id,
-        NamedAnimations {
-            clips: HashMap::from([(
-                "spin".to_string(),
-                AnimationClip {
-                    frames: [(6, 0), (6, 1), (6, 2), (6, 3)]
-                        .into_iter()
-                        .map(|(col, row)| Sprite {
-                            spritesheet: "characters".to_string(),
-                            rect: SdlRect::new(col * 16, row * 16, 16, 16),
-                            anchor: Point2D::new(8, 13),
-                        })
-                        .collect(),
-                    seconds_per_frame: 0.1,
-                },
-            )]),
-        },
+        NamedAnims(HashMap::from([(
+            "spin".to_string(),
+            AnimationClip {
+                frames: [(6, 0), (6, 1), (6, 2), (6, 3)]
+                    .into_iter()
+                    .map(|(col, row)| Sprite {
+                        spritesheet: "characters".to_string(),
+                        rect: Rect::new(Point2D::new(col * 16, row * 16), Size2D::new(16, 16)),
+                        anchor: Point2D::new(8, 13),
+                    })
+                    .collect(),
+                seconds_per_frame: 0.1,
+            },
+        )])),
     );
 
     // Camera
@@ -140,22 +136,20 @@ pub fn load_entities_from_source(ecs: &mut Ecs) {
     ecs.add_component(id, SfxEmitter::default());
     ecs.add_component(
         id,
-        NamedAnimations {
-            clips: HashMap::from([(
-                "sprinting".to_string(),
-                AnimationClip {
-                    frames: [(7, 2), (1, 0), (10, 2), (1, 0)]
-                        .into_iter()
-                        .map(|(col, row)| Sprite {
-                            spritesheet: "janitor".to_string(),
-                            rect: SdlRect::new(col * 16, row * 32, 16, 32),
-                            anchor: Point2D::new(8, 29),
-                        })
-                        .collect(),
-                    seconds_per_frame: 0.08,
-                },
-            )]),
-        },
+        NamedAnims(HashMap::from([(
+            "sprinting".to_string(),
+            AnimationClip {
+                frames: [(7, 2), (1, 0), (10, 2), (1, 0)]
+                    .into_iter()
+                    .map(|(col, row)| Sprite {
+                        spritesheet: "janitor".to_string(),
+                        rect: Rect::new(Point2D::new(col * 16, row * 32), Size2D::new(16, 32)),
+                        anchor: Point2D::new(8, 29),
+                    })
+                    .collect(),
+                seconds_per_frame: 0.08,
+            },
+        )])),
     );
 
     // School kid extension

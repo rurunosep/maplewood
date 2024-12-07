@@ -49,6 +49,7 @@ impl From<Error> for LuaError {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 #[allow(dead_code)]
 pub enum Trigger {
     Interaction,
@@ -77,6 +78,7 @@ pub enum WaitCondition {
 
 // Rename (Definition?)
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct ScriptClass {
     // TODO can't do much with json entity loading until "source" is a function ref
     pub source: String,

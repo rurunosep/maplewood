@@ -1,14 +1,12 @@
 use super::ldtk_project;
 use crate::components::{
-    AnimationClip, AnimationComponent, CharacterAnimations, Collision, DualStateAnimationState,
-    DualStateAnimations, Facing, Interaction, Name, Position, Scripts, Sprite, SpriteComponent,
-    Walking,
+    AnimationClip, AnimationComp, CharacterAnims, Collision, DualStateAnimationState,
+    DualStateAnims, Facing, Interaction, Name, Position, Scripts, Sprite, SpriteComp, Walking,
 };
 use crate::ecs::{Ecs, EntityId};
 use crate::script::{self, ScriptClass, Trigger};
 use crate::world::WorldPos;
-use euclid::{Point2D, Size2D};
-use sdl2::rect::Rect as SdlRect;
+use euclid::{Point2D, Rect, Size2D};
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 use tap::{TapFallible, TapOptional};
@@ -111,12 +109,7 @@ fn load_simple_script_entity(
         read_field("source", entity).unwrap_or_default()
     };
 
-    let trigger = read_field::<String>("trigger", entity).and_then(|f| match f.as_str() {
-        "interaction" => Some(Trigger::Interaction),
-        "soft_collision" => Some(Trigger::SoftCollision),
-        _ => None,
-    });
-
+    let trigger = read_field("trigger", entity);
     let start_condition = read_json_field("start_condition", entity);
     let abort_condition = read_json_field("abort_condition", entity);
     let set_on_start = read_json_field("set_on_start", entity);
@@ -172,32 +165,42 @@ fn load_simple_animation_entity(
         ecs.add_component(id, Name(name));
     }
 
+    // JSON components
+    if let Some(Value::Object(components_map)) = read_json_field("json_components", entity) {
+        for (key, val) in components_map {
+            super::load_component_from_json_value(ecs, id, &key, &val);
+        }
+    }
+
     // Sprite
     let visible = read_field("visible", entity).ok_or("")?;
-    ecs.add_component(id, SpriteComponent { visible, ..Default::default() });
+    ecs.add_component(id, SpriteComp { visible, ..Default::default() });
 
     // Animation
     let spritesheet = read_field::<String>("spritesheet", entity).ok_or("")?;
-    let frame_indexes: Vec<i32> = read_json_field("frames", entity).ok_or("")?;
+    let frame_indexes: Vec<u32> = read_json_field("frames", entity).ok_or("")?;
     let seconds_per_frame = read_field("seconds_per_frame", entity).ok_or("")?;
     let repeating = read_field("repeating", entity).ok_or("")?;
 
     let w = entity.width;
     let h = entity.height;
 
-    let mut anim_comp = AnimationComponent {
+    let mut anim_comp = AnimationComp {
         clip: AnimationClip {
             frames: frame_indexes
                 .iter()
                 .map(|col| Sprite {
                     spritesheet: spritesheet.clone(),
-                    rect: SdlRect::new(col * w as i32, 0, w as u32, h as u32),
+                    rect: Rect::new(
+                        Point2D::new(col * w as u32, 0),
+                        Size2D::new(w as u32, h as u32),
+                    ),
                     anchor: Point2D::new(w as i32 / 2, h as i32 / 2),
                 })
                 .collect(),
             seconds_per_frame,
         },
-        ..AnimationComponent::default()
+        ..AnimationComp::default()
     };
     if repeating {
         anim_comp.start(true);
@@ -231,25 +234,25 @@ fn load_dual_state_animation_entity(
 
     // Sprite
     let visible = read_field("visible", entity).ok_or("")?;
-    ecs.add_component(id, SpriteComponent { visible, ..Default::default() });
+    ecs.add_component(id, SpriteComp { visible, ..Default::default() });
 
     // Animation
     let spritesheet = read_field::<String>("spritesheet", entity).ok_or("")?;
-    let first: Vec<i32> = read_json_field("first_state", entity).ok_or("")?;
-    let first_to_second: Vec<i32> = read_json_field("first_to_second", entity).ok_or("")?;
-    let second: Vec<i32> = read_json_field("second_state", entity).ok_or("")?;
-    let second_to_first: Vec<i32> = read_json_field("second_to_first", entity).ok_or("")?;
+    let first: Vec<u32> = read_json_field("first_state", entity).ok_or("")?;
+    let first_to_second: Vec<u32> = read_json_field("first_to_second", entity).ok_or("")?;
+    let second: Vec<u32> = read_json_field("second_state", entity).ok_or("")?;
+    let second_to_first: Vec<u32> = read_json_field("second_to_first", entity).ok_or("")?;
     let seconds_per_frame = read_field("seconds_per_frame", entity).ok_or("")?;
 
     let w = entity.width;
     let h = entity.height;
 
-    let clip_from_frame_indexes = |cols: &[i32]| AnimationClip {
+    let clip_from_frame_indexes = |cols: &[u32]| AnimationClip {
         frames: cols
             .iter()
             .map(|col| Sprite {
                 spritesheet: spritesheet.clone(),
-                rect: SdlRect::new(col * w as i32, 0, w as u32, h as u32),
+                rect: Rect::new(Point2D::new(col * w as u32, 0), Size2D::new(w as u32, h as u32)),
                 anchor: Point2D::new(w as i32 / 2, h as i32 / 2),
             })
             .collect(),
@@ -258,7 +261,7 @@ fn load_dual_state_animation_entity(
 
     ecs.add_component(
         id,
-        DualStateAnimations {
+        DualStateAnims {
             state: DualStateAnimationState::First,
             first: clip_from_frame_indexes(&first),
             first_to_second: clip_from_frame_indexes(&first_to_second),
@@ -267,7 +270,7 @@ fn load_dual_state_animation_entity(
         },
     );
 
-    let mut anim_comp = AnimationComponent::default();
+    let mut anim_comp = AnimationComp::default();
     anim_comp.start(true);
     ecs.add_component(id, anim_comp);
 
@@ -303,22 +306,22 @@ fn load_character_entity(
     // Animation
     let spritesheet = read_field::<String>("spritesheet", entity).ok_or("")?;
 
-    let clip_from_frames = |frames: Vec<(i32, i32)>| AnimationClip {
+    let clip_from_frames = |frames: Vec<(u32, u32)>| AnimationClip {
         frames: frames
             .into_iter()
             .map(|(col, row)| Sprite {
                 spritesheet: spritesheet.clone(),
-                rect: SdlRect::new(col * 16, row * 32, 16, 32),
+                rect: Rect::new(Point2D::new(col * 16, row * 16), Size2D::new(16, 16)),
                 anchor: Point2D::new(8, 29),
             })
             .collect(),
         seconds_per_frame: 0.2,
     };
 
-    ecs.add_component(id, AnimationComponent::default());
+    ecs.add_component(id, AnimationComp::default());
     ecs.add_component(
         id,
-        CharacterAnimations {
+        CharacterAnims {
             up: clip_from_frames(vec![(6, 2), (1, 0), (9, 2), (1, 0)]),
             down: clip_from_frames(vec![(18, 2), (3, 0), (21, 2), (3, 0)]),
             left: clip_from_frames(vec![(12, 2), (2, 0), (15, 2), (2, 0)]),
@@ -327,7 +330,7 @@ fn load_character_entity(
     );
 
     // Misc
-    ecs.add_component(id, SpriteComponent::default());
+    ecs.add_component(id, SpriteComp::default());
     ecs.add_component(id, Facing::default());
     ecs.add_component(id, Walking::default());
 
@@ -374,5 +377,14 @@ fn read_json_field<F>(field: &str, entity: &ldtk_project::EntityInstance) -> Opt
 where
     F: DeserializeOwned,
 {
-    read_field::<String>(field, entity).and_then(|v| serde_json::from_str::<F>(&v).ok())
+    read_field::<String>(field, entity).and_then(|v| {
+        serde_json::from_str::<F>(&v)
+            .tap_err(|err| {
+                log::error!(
+                    "Invalid ldtk entity json field: {field} in {}\n(err: \"{err}\")",
+                    entity.iid
+                )
+            })
+            .ok()
+    })
 }

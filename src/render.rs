@@ -1,5 +1,5 @@
 use crate::components::{
-    Collision, Facing, Interaction, Position, SineOffsetAnimation, SpriteComponent,
+    Collision, Facing, Interaction, Position, SineOffsetAnimation, SpriteComp,
 };
 use crate::data::PLAYER_ENTITY_NAME;
 use crate::ecs::Ecs;
@@ -163,7 +163,7 @@ fn draw_entities(
     camera_map_pos: MapPos,
 ) {
     for (position, sprite_component, sine_offset_animation) in ecs
-        .query::<(&Position, &SpriteComponent, Option<&SineOffsetAnimation>)>()
+        .query::<(&Position, &SpriteComp, Option<&SineOffsetAnimation>)>()
         .sorted_by(|(p1, ..), (p2, ..)| p1.map_pos.y.partial_cmp(&p2.map_pos.y).expect(""))
     {
         // Skip entities not on the current map
@@ -209,8 +209,15 @@ fn draw_entities(
             sprite.rect.height() * SCREEN_SCALE,
         );
 
+        let sprite_rect = SdlRect::new(
+            sprite.rect.min_x() as i32,
+            sprite.rect.min_y() as i32,
+            sprite.rect.width(),
+            sprite.rect.height(),
+        );
+
         // canvas.copy_ex(...) for rotations and symmetries
-        let _ = canvas.copy(spritesheet, sprite.rect, screen_rect);
+        let _ = canvas.copy(spritesheet, sprite_rect, screen_rect);
     }
 }
 

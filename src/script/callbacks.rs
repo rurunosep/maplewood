@@ -1,18 +1,17 @@
 use super::{Error, ScriptId, WaitCondition};
 use crate::components::{
-    AnimationComponent, Camera, Collision, DualStateAnimationState, DualStateAnimations, Facing,
-    NamedAnimations, Position, SfxEmitter, SineOffsetAnimation, Sprite, SpriteComponent, Walking,
+    AnimationComp, Camera, Collision, DualStateAnimationState, DualStateAnims, Facing,
+    NamedAnims, Position, SfxEmitter, SineOffsetAnimation, Sprite, SpriteComp, Walking,
 };
 use crate::data::PLAYER_ENTITY_NAME;
 use crate::ecs::{Ecs, EntityId};
 use crate::misc::{Direction, StoryVars};
 use crate::world::WorldPos;
 use crate::{MapOverlayTransition, MessageWindow};
-use euclid::{Point2D, Vector2D};
+use euclid::{Point2D, Rect, Size2D, Vector2D};
 use mlua::Result as LuaResult;
 use sdl2::mixer::{Chunk, Music};
 use sdl2::pixels::Color;
-use sdl2::rect::Rect;
 use std::collections::HashMap;
 use std::format as f;
 use std::time::{Duration, Instant};
@@ -73,8 +72,8 @@ pub fn set_forced_sprite(
     (entity, spritesheet, rect_x, rect_y, rect_w, rect_h, anchor_x, anchor_y): (
         String,
         String,
-        i32,
-        i32,
+        u32,
+        u32,
         u32,
         u32,
         i32,
@@ -83,12 +82,12 @@ pub fn set_forced_sprite(
     ecs: &Ecs,
 ) -> LuaResult<()> {
     let mut sprite_component = ecs
-        .query_one_with_name::<&mut SpriteComponent>(&entity)
+        .query_one_with_name::<&mut SpriteComp>(&entity)
         .ok_or(Error(f!("invalid entity '{}'", entity)))?;
 
     sprite_component.forced_sprite = Some(Sprite {
         spritesheet,
-        rect: Rect::new(rect_x, rect_y, rect_w, rect_h),
+        rect: Rect::new(Point2D::new(rect_x, rect_y), Size2D::new(rect_w, rect_h)),
         anchor: Point2D::new(anchor_x, anchor_y),
     });
 
@@ -97,7 +96,7 @@ pub fn set_forced_sprite(
 
 pub fn remove_forced_sprite(entity: String, ecs: &Ecs) -> LuaResult<()> {
     let mut sprite_component = ecs
-        .query_one_with_name::<&mut SpriteComponent>(&entity)
+        .query_one_with_name::<&mut SpriteComp>(&entity)
         .ok_or(Error(f!("invalid entity '{}'", entity)))?;
     sprite_component.forced_sprite = None;
     Ok(())
@@ -105,7 +104,7 @@ pub fn remove_forced_sprite(entity: String, ecs: &Ecs) -> LuaResult<()> {
 
 pub fn set_entity_visible((entity, visible): (String, bool), ecs: &Ecs) -> LuaResult<()> {
     let mut sprite = ecs
-        .query_one_with_name::<&mut SpriteComponent>(&entity)
+        .query_one_with_name::<&mut SpriteComp>(&entity)
         .ok_or(Error(f!("invalid entity '{}'", entity)))?;
     sprite.visible = visible;
     Ok(())
@@ -223,7 +222,7 @@ pub fn is_entity_walking(entity: String, ecs: &Ecs) -> LuaResult<bool> {
 
 pub fn play_object_animation((entity, repeat): (String, bool), ecs: &Ecs) -> LuaResult<()> {
     let mut anim_comp = ecs
-        .query_one_with_name::<&mut AnimationComponent>(&entity)
+        .query_one_with_name::<&mut AnimationComp>(&entity)
         .ok_or(Error(f!("invalid entity '{}'", entity)))?;
 
     anim_comp.start(repeat);
@@ -232,7 +231,7 @@ pub fn play_object_animation((entity, repeat): (String, bool), ecs: &Ecs) -> Lua
 
 pub fn stop_object_animation(entity: String, ecs: &Ecs) -> LuaResult<()> {
     let mut anim_comp = ecs
-        .query_one_with_name::<&mut AnimationComponent>(&entity)
+        .query_one_with_name::<&mut AnimationComp>(&entity)
         .ok_or(Error(f!("invalid entity '{}'", entity)))?;
     anim_comp.stop();
     Ok(())
@@ -240,7 +239,7 @@ pub fn stop_object_animation(entity: String, ecs: &Ecs) -> LuaResult<()> {
 
 pub fn switch_dual_state_animation((entity, state): (String, i32), ecs: &Ecs) -> LuaResult<()> {
     let (mut anim_comp, mut dual_anims) = ecs
-        .query_one_with_name::<(&mut AnimationComponent, &mut DualStateAnimations)>(&entity)
+        .query_one_with_name::<(&mut AnimationComp, &mut DualStateAnims)>(&entity)
         .ok_or(Error(f!("invalid entity '{}'", entity)))?;
 
     let state = match state {
@@ -260,11 +259,10 @@ pub fn play_named_animation(
     ecs: &Ecs,
 ) -> LuaResult<()> {
     let (mut anim_comp, anims) = ecs
-        .query_one_with_name::<(&mut AnimationComponent, &NamedAnimations)>(&entity)
+        .query_one_with_name::<(&mut AnimationComp, &NamedAnims)>(&entity)
         .ok_or(Error(f!("invalid entity '{}'", entity)))?;
 
     let clip = anims
-        .clips
         .get(&animation)
         .ok_or(Error(f!("no animation '{animation}' on entity '{entity}'")))?;
 

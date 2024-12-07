@@ -5,9 +5,8 @@ use crate::script::ScriptClass;
 use crate::world::{MapPos, MapUnits, WorldPos};
 use derivative::Derivative;
 use derive_more::{Deref, DerefMut};
-use euclid::{Point2D, Size2D, Vector2D};
+use euclid::{Point2D, Rect, Size2D, Vector2D};
 use sdl2::mixer::Channel;
-use sdl2::rect::Rect as SdlRect;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
@@ -27,7 +26,7 @@ impl Component for Name {}
 pub struct Position(pub WorldPos);
 impl Component for Position {}
 
-#[derive(Default)]
+#[derive(Default, Clone, Serialize, Deserialize)]
 pub struct Facing(pub Direction);
 impl Component for Facing {}
 
@@ -35,39 +34,42 @@ impl Component for Facing {}
 pub struct Scripts(pub Vec<ScriptClass>);
 impl Component for Scripts {}
 
-#[derive(Derivative)]
-#[derivative(Default)]
 // TODO symmetries and rotations enum?
-pub struct SpriteComponent {
+#[derive(Derivative, Clone, Serialize, Deserialize)]
+#[derivative(Default)]
+#[serde(default, deny_unknown_fields)]
+pub struct SpriteComp {
     pub sprite: Option<Sprite>,
     pub forced_sprite: Option<Sprite>,
     #[derivative(Default(value = "true"))]
     pub visible: bool,
 }
-impl Component for SpriteComponent {}
+impl Component for SpriteComp {}
 
-// SdlRect isn't serde. I dont't think it's worth to make a wrapper since I'm switching to wgpu
-// rendering anyway. Maybe just replace with something from the euclid crate
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Sprite {
     pub spritesheet: String,
-    pub rect: SdlRect,
+    pub rect: Rect<u32, PixelUnits>,
     pub anchor: Point2D<i32, PixelUnits>,
 }
 
 // Animation ------------------------------------
 
-#[derive(Default)]
-pub struct AnimationComponent {
+#[derive(Default, Clone, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct AnimationComp {
     pub clip: AnimationClip,
+    #[serde(skip)]
     pub elapsed: Duration,
+    #[serde(skip)]
     pub state: PlaybackState,
     pub repeat: bool,
     pub forced: bool,
 }
-impl Component for AnimationComponent {}
+impl Component for AnimationComp {}
 
-impl AnimationComponent {
+impl AnimationComp {
     // TODO better control over starting loaded clip, loading and starting new clip, swapping clip
     // while maintaining duration, forced clip, etc
     // TODO playback speed multiplier
@@ -94,13 +96,14 @@ impl AnimationComponent {
     }
 }
 
-#[derive(Clone, Default)]
+#[derive(Default, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct AnimationClip {
     pub frames: Vec<Sprite>,
     pub seconds_per_frame: f64,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PlaybackState {
     Playing,
     Paused,
@@ -108,25 +111,28 @@ pub enum PlaybackState {
     Stopped,
 }
 
-pub struct CharacterAnimations {
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CharacterAnims {
     pub up: AnimationClip,
     pub down: AnimationClip,
     pub left: AnimationClip,
     pub right: AnimationClip,
 }
-impl Component for CharacterAnimations {}
+impl Component for CharacterAnims {}
 
-pub struct DualStateAnimations {
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DualStateAnims {
     pub state: DualStateAnimationState,
     pub first: AnimationClip,
     pub first_to_second: AnimationClip,
     pub second: AnimationClip,
     pub second_to_first: AnimationClip,
 }
-impl Component for DualStateAnimations {}
+impl Component for DualStateAnims {}
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-// lmao
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DualStateAnimationState {
     First,
     FirstToSecond,
@@ -134,13 +140,13 @@ pub enum DualStateAnimationState {
     SecondToFirst,
 }
 
-pub struct NamedAnimations {
-    pub clips: HashMap<String, AnimationClip>,
-}
-impl Component for NamedAnimations {}
+#[derive(Deref, Clone, Serialize, Deserialize)]
+pub struct NamedAnims(pub HashMap<String, AnimationClip>);
+impl Component for NamedAnims {}
 
 // ----------------------------------------------
 
+// (Do not save or load)
 pub struct SineOffsetAnimation {
     pub start_time: Instant,
     pub duration: Duration,
@@ -151,7 +157,8 @@ pub struct SineOffsetAnimation {
 impl Component for SineOffsetAnimation {}
 
 // TODO separate components for general movement vs active "walking" or pathing
-#[derive(Default)]
+#[derive(Default, Clone, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct Walking {
     pub speed: f64,
     pub direction: Direction,
@@ -159,7 +166,8 @@ pub struct Walking {
 }
 impl Component for Walking {}
 
-#[derive(Default)]
+#[derive(Default, Clone, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct Camera {
     // TODO this should actually be an Option<EntityId>
     pub target_entity_name: Option<String>,
@@ -182,18 +190,18 @@ impl Component for Collision {}
 // entity is solid? What if we want a "personal space" script?
 // Should scripts even be kept in entities at all? Or should they be kept elsewhere and referenced
 // by entities?
-//
-// For now we will use a single interaction hitbox used by all attached interaction scripts, and
-// (as before) a single collision hitbox used by all attached soft and hard collision scripts
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Interaction {
     pub hitbox: Size2D<f64, MapUnits>,
 }
 impl Component for Interaction {}
 
-#[derive(Default)]
+#[derive(Default, Clone, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct SfxEmitter {
     pub sfx_name: Option<String>,
-    // TODO Channel is not serde
+    #[serde(skip)]
     pub channel: Option<Channel>,
     pub repeat: bool,
 }

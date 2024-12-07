@@ -5,6 +5,7 @@ use euclid::{Point2D, Size2D};
 use log::kv::Key;
 use log::{Level, Metadata, Record};
 use sdl2::pixels::Color;
+use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
@@ -76,7 +77,7 @@ impl Aabb {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
 pub enum Direction {
     Up,
     #[default]

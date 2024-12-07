@@ -1,4 +1,7 @@
-use crate::components::{Collision, Name, Position, Scripts};
+use crate::components::{
+    AnimationComp, Camera, CharacterAnims, Collision, DualStateAnims, Facing, Interaction, Name,
+    NamedAnims, Position, Scripts, SfxEmitter, SpriteComp, Walking,
+};
 use crate::ecs::{Component, Ecs, EntityId};
 use sdl2::image::LoadTexture;
 use sdl2::mixer::{Chunk, Music};
@@ -57,6 +60,9 @@ pub fn load_entities_from_json(ecs: &mut Ecs, json: &str) -> Result<(), String> 
                     .and_then(|n: String| ecs.query_one_with_name::<EntityId>(&n))
             })
             .unwrap_or_else(|| ecs.add_entity());
+        // (This doesn't actually work when loading entities with ids to restore previous state.
+        // The ids don't exist in the maps. The maps are empty. I'll figure it out when I get to
+        // saving and loading.)
 
         for (key, val) in components_map {
             load_component_from_json_value(ecs, id, &key, &val);
@@ -75,10 +81,21 @@ pub fn load_component_from_json_value(ecs: &mut Ecs, id: EntityId, name: &str, d
         use serde_json::from_value as sjfv;
 
         match name {
-            // NOW all the components
+            "id" => {}
             "name" => ecs.add_component(id, sjfv::<Name>(data)?),
             "position" => ecs.add_component(id, sjfv::<Position>(data)?),
             "collision" => ecs.add_component(id, sjfv::<Collision>(data)?),
+            "scripts" => ecs.add_component(id, sjfv::<Scripts>(data)?),
+            "sfx_emitter" => ecs.add_component(id, sjfv::<SfxEmitter>(data)?),
+            "sprite" => ecs.add_component(id, sjfv::<SpriteComp>(data)?),
+            "facing" => ecs.add_component(id, sjfv::<Facing>(data)?),
+            "walking" => ecs.add_component(id, sjfv::<Walking>(data)?),
+            "camera" => ecs.add_component(id, sjfv::<Camera>(data)?),
+            "interaction" => ecs.add_component(id, sjfv::<Interaction>(data)?),
+            "animation" => ecs.add_component(id, sjfv::<AnimationComp>(data)?),
+            "character_anims" => ecs.add_component(id, sjfv::<CharacterAnims>(data)?),
+            "dual_state_anims" => ecs.add_component(id, sjfv::<DualStateAnims>(data)?),
+            "named_anims" => ecs.add_component(id, sjfv::<NamedAnims>(data)?),
             _ => log::error!("Invalid JSON component name: {}", name),
         };
     };
@@ -96,17 +113,22 @@ pub fn save_entities_in_json(ecs: &Ecs) -> String {
     for id in ecs.entity_ids.keys() {
         let mut components = Map::new();
 
-        // Since id is saved, the output of this function is only suitable for saving the game or
-        // for debug. It is not suitable for defining the entities in a fresh game. For that
-        // purpose, the ids must not be included.
-        // If I ever need to do that, I can just comment this line for a sec.
-        components.insert("id".to_string(), serde_json::to_value(id).expect(""));
+        // components.insert("id".to_string(), serde_json::to_value(id).expect(""));
 
-        // NOW all the components
         insert_component::<Name>("name", &mut components, id, &ecs);
         insert_component::<Position>("position", &mut components, id, &ecs);
         insert_component::<Collision>("collision", &mut components, id, &ecs);
         insert_component::<Scripts>("scripts", &mut components, id, &ecs);
+        insert_component::<SfxEmitter>("sfx_emitter", &mut components, id, &ecs);
+        insert_component::<SpriteComp>("sprite", &mut components, id, &ecs);
+        insert_component::<Facing>("facing", &mut components, id, &ecs);
+        insert_component::<Walking>("walking", &mut components, id, &ecs);
+        insert_component::<Camera>("camera", &mut components, id, &ecs);
+        insert_component::<Interaction>("interaction", &mut components, id, &ecs);
+        insert_component::<AnimationComp>("animation", &mut components, id, &ecs);
+        insert_component::<CharacterAnims>("character_anims", &mut components, id, &ecs);
+        insert_component::<DualStateAnims>("dual_state_anims", &mut components, id, &ecs);
+        insert_component::<NamedAnims>("named_anims", &mut components, id, &ecs);
 
         entities.push(Value::Object(components));
     }
