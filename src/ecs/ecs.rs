@@ -116,6 +116,8 @@ impl Ecs {
         self.component_maps.get_mut::<ComponentMap<C>>().map(|cm| cm.remove(entity_id));
     }
 
+    // TODO explain all of this deferred operations code, cause it's complex and opaque af
+
     #[allow(dead_code)]
     pub fn add_entity_deferred(&self) -> DeferredEntityId {
         let def_id = self.deferred_entity_ids.borrow_mut().insert(Key::null());

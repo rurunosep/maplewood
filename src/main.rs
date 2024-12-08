@@ -127,8 +127,6 @@ fn main() {
         let _ = console_input_sender.send(input.clone());
     });
 
-    // std::fs::write("output.json", &loader::save_entities_in_json(&game_data.ecs)).unwrap();
-
     // --------------------------------------------------------------
     // Main Loop
     // --------------------------------------------------------------

@@ -263,12 +263,25 @@ pub fn process_console_input(
                     )
                 })?,
             )?;
+            globals.set(
+                "add_component",
+                scope.create_function(|_, args| {
+                    callbacks::add_component(args, *ecs.borrow_mut())
+                })?,
+            )?;
 
+            // Console only
             globals.set(
                 "print",
                 scope.create_function(|_, message: String| {
                     println!("{message}");
                     Ok(())
+                })?,
+            )?;
+            globals.set(
+                "dump_entities_to_file",
+                scope.create_function(|_, args| {
+                    callbacks::dump_entities_to_file(args, *ecs.borrow())
                 })?,
             )?;
 

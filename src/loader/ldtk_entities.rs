@@ -311,7 +311,7 @@ fn load_character_entity(
             .into_iter()
             .map(|(col, row)| Sprite {
                 spritesheet: spritesheet.clone(),
-                rect: Rect::new(Point2D::new(col * 16, row * 16), Size2D::new(16, 16)),
+                rect: Rect::new(Point2D::new(col * 16, row * 32), Size2D::new(16, 32)),
                 anchor: Point2D::new(8, 29),
             })
             .collect(),

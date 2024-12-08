@@ -7,7 +7,7 @@ use crate::data::PLAYER_ENTITY_NAME;
 use crate::ecs::{Ecs, EntityId};
 use crate::misc::{Direction, StoryVars};
 use crate::world::WorldPos;
-use crate::{MapOverlayTransition, MessageWindow};
+use crate::{loader, MapOverlayTransition, MessageWindow};
 use euclid::{Point2D, Rect, Size2D, Vector2D};
 use mlua::Result as LuaResult;
 use sdl2::mixer::{Chunk, Music};
@@ -15,6 +15,12 @@ use sdl2::pixels::Color;
 use std::collections::HashMap;
 use std::format as f;
 use std::time::{Duration, Instant};
+use tap::TapFallible;
+
+// TODO script callback error handling
+// When do we log error and continue, and when do we return error and abort the script?
+
+// TODO missing final bool params default to false. should I + how do I reject calls missing them?
 
 pub fn get_story_var(key: String, story_vars: &StoryVars) -> LuaResult<i32> {
     story_vars.get(&key).ok_or(Error(f!("no story var '{}'", key)).into())
@@ -364,6 +370,31 @@ pub fn set_map_overlay_color(
         end_color: Color::RGBA(r, g, b, a),
     });
     Ok(())
+}
+
+// TODO remove component
+
+pub fn add_component(
+    (entity_name, component_name, component_json): (String, String, String),
+    ecs: &mut Ecs,
+) -> LuaResult<()> {
+    // Returns error if entity doesn't exist, but logs error and proceeds if component json is
+    // invalid. I want to make this and script errors in general a little more consistent.
+
+    let entity_id = ecs
+        .query_one_with_name::<EntityId>(&entity_name)
+        .ok_or(Error(f!("invalid entity '{}'", entity_name)))?;
+
+    let _ = serde_json::from_str::<serde_json::Value>(&component_json)
+        .tap_err(|err| log::error!("Invalid component json (err: \"{err}\""))
+        .map(|v| loader::load_component_from_json_value(ecs, entity_id, &component_name, &v));
+
+    Ok(())
+}
+
+pub fn dump_entities_to_file(path: String, ecs: &Ecs) -> LuaResult<()> {
+    std::fs::write(&path, &loader::save_entities_in_json(ecs))
+        .map_err(|err| mlua::Error::ExternalError(std::sync::Arc::new(err)))
 }
 
 pub fn message(

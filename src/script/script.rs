@@ -465,6 +465,14 @@ impl ScriptInstance {
                     })?,
                 )?;
                 globals.set(
+                    "add_component",
+                    scope.create_function(|_, args| {
+                        callbacks::add_component(args, *ecs.borrow_mut())
+                    })?,
+                )?;
+
+                // Scripts only
+                globals.set(
                     "log",
                     scope.create_function(|_, message: String| {
                         log::info!("{message}");
@@ -472,6 +480,7 @@ impl ScriptInstance {
                     })?,
                 )?;
 
+                // Yielding
                 globals.set(
                     "message",
                     wrap_yielding.call::<Function>(scope.create_function_mut(|_, args| {
@@ -483,7 +492,6 @@ impl ScriptInstance {
                         )
                     })?)?,
                 )?;
-
                 globals.set(
                     "selection",
                     wrap_yielding.call::<Function>(scope.create_function_mut(|_, args| {
@@ -495,7 +503,6 @@ impl ScriptInstance {
                         )
                     })?)?,
                 )?;
-
                 globals.set(
                     "wait",
                     wrap_yielding.call::<Function>(scope.create_function_mut(
@@ -507,7 +514,6 @@ impl ScriptInstance {
                         },
                     )?)?,
                 )?;
-
                 globals.set(
                     "wait_storyvar",
                     wrap_yielding.call::<Function>(scope.create_function_mut(

@@ -60,9 +60,10 @@ pub struct Sprite {
 #[serde(default, deny_unknown_fields)]
 pub struct AnimationComp {
     pub clip: AnimationClip,
+    // The time that has passed since the animation started playing
+    // Currently not modulo'd to the clip duration
     #[serde(skip)]
     pub elapsed: Duration,
-    #[serde(skip)]
     pub state: PlaybackState,
     pub repeat: bool,
     pub forced: bool,
@@ -170,6 +171,7 @@ impl Component for Walking {}
 #[serde(default, deny_unknown_fields)]
 pub struct Camera {
     // TODO this should actually be an Option<EntityId>
+    // But then how do we facilitate an initial entities load?
     pub target_entity_name: Option<String>,
     pub clamp_to_map: bool,
 }

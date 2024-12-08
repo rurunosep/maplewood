@@ -47,9 +47,11 @@ pub fn load_entities_from_json(ecs: &mut Ecs, json: &str) -> Result<(), String> 
     for components_value in entities_array {
         let components_map = components_value.as_object().ok_or("invalid entities json")?;
 
-        // Try to get id from components map
+        // Try to get id from the json
         // If none, try to get id from preexisiting entity by name
         // If none, generate new entity
+        // (Getting id from the json is currently useless since we don't have game state
+        // saving and loading yet)
         let id = components_map
             .get("id")
             .and_then(|v| serde_json::from_value(v.clone()).ok())
@@ -60,9 +62,6 @@ pub fn load_entities_from_json(ecs: &mut Ecs, json: &str) -> Result<(), String> 
                     .and_then(|n: String| ecs.query_one_with_name::<EntityId>(&n))
             })
             .unwrap_or_else(|| ecs.add_entity());
-        // (This doesn't actually work when loading entities with ids to restore previous state.
-        // The ids don't exist in the maps. The maps are empty. I'll figure it out when I get to
-        // saving and loading.)
 
         for (key, val) in components_map {
             load_component_from_json_value(ecs, id, &key, &val);
@@ -107,13 +106,13 @@ pub fn load_component_from_json_value(ecs: &mut Ecs, id: EntityId, name: &str, d
     });
 }
 
+// This is only for debug or for easily generating component json
+// It doesn't include an id for restoring game state
 #[allow(dead_code)]
 pub fn save_entities_in_json(ecs: &Ecs) -> String {
     let mut entities = Vec::new();
     for id in ecs.entity_ids.keys() {
         let mut components = Map::new();
-
-        // components.insert("id".to_string(), serde_json::to_value(id).expect(""));
 
         insert_component::<Name>("name", &mut components, id, &ecs);
         insert_component::<Position>("position", &mut components, id, &ecs);
