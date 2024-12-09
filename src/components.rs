@@ -1,7 +1,7 @@
 use crate::ecs::Component;
 use crate::misc::Direction;
-use crate::render::PixelUnits;
 use crate::script::ScriptClass;
+use crate::sdl_renderer::PixelUnits;
 use crate::world::{MapPos, MapUnits, WorldPos};
 use derivative::Derivative;
 use derive_more::{Deref, DerefMut};

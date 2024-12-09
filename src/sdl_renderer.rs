@@ -5,13 +5,14 @@ use crate::data::PLAYER_ENTITY_NAME;
 use crate::ecs::Ecs;
 use crate::misc::{Direction, MessageWindow};
 use crate::world::{CellPos, Map, MapPos, TileLayer, World};
-use crate::UiData;
+use crate::{loader, UiData};
 use euclid::{Point2D, Rect, Size2D, Vector2D};
 use itertools::Itertools;
 use sdl2::pixels::Color;
 use sdl2::rect::Rect as SdlRect;
 use sdl2::render::{Texture, TextureQuery, WindowCanvas};
-use sdl2::ttf::Font;
+use sdl2::ttf::{Font, Sdl2TtfContext};
+use sdl2::video::Window;
 use std::collections::HashMap;
 use std::f64::consts::PI;
 use tap::TapOptional;
@@ -23,14 +24,24 @@ pub const SCREEN_SCALE: u32 = 4;
 
 pub struct PixelUnits;
 
-pub struct RenderData<'c, 'f> {
+pub struct SdlRenderData<'f> {
     pub canvas: WindowCanvas,
-    pub tilesets: HashMap<String, Texture<'c>>,
-    pub spritesheets: HashMap<String, Texture<'c>>,
+    pub tilesets: HashMap<String, Texture>,
+    pub spritesheets: HashMap<String, Texture>,
     pub font: Font<'f, 'f>,
 }
 
-pub fn render(render_data: &mut RenderData, world: &World, ecs: &Ecs, ui_data: &UiData) {
+pub fn init(window: Window, ttf_context: &Sdl2TtfContext) -> SdlRenderData {
+    let canvas = window.into_canvas().build().unwrap();
+    let texture_creator = canvas.texture_creator();
+    let tilesets = loader::load_tilesets(&texture_creator);
+    let spritesheets = loader::load_spritesheets(&texture_creator);
+    let font = ttf_context.load_font("assets/Grand9KPixel.ttf", 8).unwrap();
+
+    SdlRenderData { canvas, tilesets, spritesheets, font }
+}
+
+pub fn render(render_data: &mut SdlRenderData, world: &World, ecs: &Ecs, ui_data: &UiData) {
     // Clear screen
     render_data.canvas.set_draw_color(Color::RGB(0, 0, 0));
     render_data.canvas.clear();

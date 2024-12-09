@@ -9,21 +9,23 @@ mod ecs;
 mod input;
 mod loader;
 mod misc;
-mod render;
 mod script;
+mod sdl_renderer;
 mod update;
+mod wgpu_renderer;
 mod world;
 
 use ecs::Ecs;
 use misc::{Logger, MapOverlayTransition, MessageWindow, StoryVars};
-use render::{RenderData, SCREEN_COLS, SCREEN_ROWS, SCREEN_SCALE, TILE_SIZE};
 use script::{console, ScriptManager};
 use sdl2::mixer::{AUDIO_S16SYS, DEFAULT_CHANNELS};
 use sdl2::pixels::Color;
+use sdl_renderer::{SdlRenderData, SCREEN_COLS, SCREEN_ROWS, SCREEN_SCALE, TILE_SIZE};
 use slotmap::SlotMap;
 use std::collections::{HashMap, HashSet};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
+use wgpu_renderer::WgpuRenderData;
 use world::{Map, World};
 
 pub struct GameData {
@@ -38,6 +40,11 @@ pub struct UiData {
     pub map_overlay_transition: Option<MapOverlayTransition>,
     pub show_cutscene_border: bool,
     pub displayed_card_name: Option<String>,
+}
+
+pub enum RenderData<'a> {
+    Sdl(SdlRenderData<'a>),
+    Wgpu(WgpuRenderData<'a>),
 }
 
 fn main() {
@@ -69,12 +76,12 @@ fn main() {
         .build()
         .unwrap();
 
-    let canvas = window.into_canvas().build().unwrap();
-    let texture_creator = canvas.texture_creator();
-    let tilesets = loader::load_tilesets(&texture_creator);
-    let spritesheets = loader::load_spritesheets(&texture_creator);
-    let font = ttf_context.load_font("assets/Grand9KPixel.ttf", 8).unwrap();
-    let mut render_data = RenderData { canvas, tilesets, spritesheets, font };
+    let use_wgpu_renderer = false;
+    let mut render_data = if use_wgpu_renderer {
+        RenderData::Wgpu(wgpu_renderer::init(&window))
+    } else {
+        RenderData::Sdl(sdl_renderer::init(window, &ttf_context))
+    };
 
     sdl2::mixer::open_audio(41_100, AUDIO_S16SYS, DEFAULT_CHANNELS, 512).unwrap();
     sdl2::mixer::allocate_channels(10);
@@ -154,7 +161,13 @@ fn main() {
             &mut running, &musics, &sound_effects, delta,
         );
 
-        render::render(&mut render_data, &game_data.world, &game_data.ecs, &ui_data);
+        match &mut render_data {
+            RenderData::Sdl(render_data) => {
+                sdl_renderer::render(render_data, &game_data.world, &game_data.ecs, &ui_data)
+            }
+            RenderData::Wgpu(render_data) => wgpu_renderer::render(render_data),
+        }
+        // sdl_renderer::render(&mut render_data, &game_data.world, &game_data.ecs, &ui_data);
 
         // Frame duration as a percent of a full 60 fps frame:
         // println!("{:.2}%", last_time.elapsed().as_secs_f64() / (1. / 60.) * 100.);

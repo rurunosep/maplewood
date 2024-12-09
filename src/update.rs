@@ -1,13 +1,13 @@
 use crate::components::{
-    AnimationComp, Camera, CharacterAnims, Collision, DualStateAnimationState,
-    DualStateAnims, Facing, PlaybackState, Position, Scripts, SfxEmitter,
-    SineOffsetAnimation, SpriteComp, Walking,
+    AnimationComp, Camera, CharacterAnims, Collision, DualStateAnimationState, DualStateAnims,
+    Facing, PlaybackState, Position, Scripts, SfxEmitter, SineOffsetAnimation, SpriteComp,
+    Walking,
 };
 use crate::data::PLAYER_ENTITY_NAME;
 use crate::ecs::{Ecs, EntityId, With};
 use crate::misc::{Aabb, Direction, StoryVars};
-use crate::render::{SCREEN_COLS, SCREEN_ROWS};
 use crate::script::{ScriptManager, Trigger};
+use crate::sdl_renderer::{SCREEN_COLS, SCREEN_ROWS};
 use crate::world::{CellPos, MapUnits, World};
 use crate::{GameData, MapOverlayTransition, MessageWindow, UiData};
 use euclid::{Point2D, Rect, Size2D, Vector2D};
