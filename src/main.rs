@@ -76,7 +76,7 @@ fn main() {
         .build()
         .unwrap();
 
-    let use_wgpu_renderer = false;
+    let use_wgpu_renderer = true;
     let mut render_data = if use_wgpu_renderer {
         RenderData::Wgpu(wgpu_renderer::init(&window))
     } else {
