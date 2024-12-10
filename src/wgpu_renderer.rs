@@ -9,16 +9,8 @@ pub struct WgpuRenderData<'window> {
     surface: Surface<'window>,
     //
     rect_copy_pipeline: RenderPipeline,
-    rect_copy_params_buffer: Buffer,
-    rect_copy_bind_group: BindGroup,
     // tiles_pipeline: RenderPipeline,
     // tile_instance_buffer: Buffer,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy, Pod, Zeroable)]
-struct TileInstance {
-    color: [f32; 3],
 }
 
 #[repr(C)]
@@ -28,6 +20,12 @@ struct RectCopyParams {
     src_bottom_right: [f32; 2],
     dest_top_left: [f32; 2],
     dest_bottom_right: [f32; 2],
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Pod, Zeroable)]
+struct TileInstance {
+    color: [f32; 3],
 }
 
 pub fn init(window: &Window) -> WgpuRenderData {
@@ -57,8 +55,8 @@ pub fn init(window: &Window) -> WgpuRenderData {
         .request_device(
             &DeviceDescriptor {
                 label: None,
-                required_features: Features::empty(),
-                required_limits: Limits::default(),
+                required_features: Features::PUSH_CONSTANTS,
+                required_limits: Limits { max_push_constant_size: 32, ..Default::default() },
                 memory_hints: MemoryHints::default(),
             },
             None,
@@ -88,24 +86,8 @@ pub fn init(window: &Window) -> WgpuRenderData {
     };
     surface.configure(&device, &surface_config);
 
-    // Rect Copy
     let rect_copy_pipeline = create_rect_copy_pipeline(&device, &surface_format);
-    let rect_copy_params_buffer = device.create_buffer(&BufferDescriptor {
-        label: None,
-        size: std::mem::size_of::<RectCopyParams>() as u64,
-        usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
-        mapped_at_creation: false,
-    });
-    let rect_copy_bind_group = device.create_bind_group(&BindGroupDescriptor {
-        label: None,
-        layout: &rect_copy_pipeline.get_bind_group_layout(0),
-        entries: &[BindGroupEntry {
-            binding: 0,
-            resource: rect_copy_params_buffer.as_entire_binding(),
-        }],
-    });
 
-    // Tiles
     // let tiles_pipeline = create_tiles_pipeline(&device, &surface_format);
     // let tile_instance_data = &[
     //     TileInstance { color: [1.0, 0.0, 0.0] },
@@ -125,21 +107,21 @@ pub fn init(window: &Window) -> WgpuRenderData {
         queue,
         surface,
         rect_copy_pipeline,
-        rect_copy_params_buffer,
-        rect_copy_bind_group,
         // tiles_pipeline,
         // tile_instance_buffer,
     }
 }
 
 pub fn render(render_data: &WgpuRenderData) {
+    // let start = std::time::Instant::now();
+
     let output = render_data.surface.get_current_texture().unwrap();
     let view = output.texture.create_view(&TextureViewDescriptor::default());
 
     let mut encoder =
         render_data.device.create_command_encoder(&CommandEncoderDescriptor { label: None });
     {
-        let _render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
+        let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
             label: None,
             color_attachments: &[Some(RenderPassColorAttachment {
                 view: &view,
@@ -154,62 +136,40 @@ pub fn render(render_data: &WgpuRenderData) {
             occlusion_query_set: None,
         });
 
-        // Tiles
+        for i in 0..1000 {
+            let rect_copy_params_data = match i % 2 {
+                0 => RectCopyParams {
+                    src_top_left: [0.0, 0.0],
+                    src_bottom_right: [0.0, 0.0],
+                    dest_top_left: [-1.0, 1.0],
+                    dest_bottom_right: [-0.5, 0.5],
+                },
+                _ => RectCopyParams {
+                    src_top_left: [0.0, 0.0],
+                    src_bottom_right: [0.0, 0.0],
+                    dest_top_left: [0.0, 0.0],
+                    dest_bottom_right: [0.5, -0.5],
+                },
+            };
+
+            render_pass.set_pipeline(&render_data.rect_copy_pipeline);
+            render_pass.set_push_constants(
+                ShaderStages::VERTEX,
+                0,
+                bytemuck::cast_slice(&[rect_copy_params_data]),
+            );
+            render_pass.draw(0..6, 0..1);
+        }
+
         // render_pass.set_pipeline(&render_data.tiles_pipeline);
         // render_pass.set_vertex_buffer(0, render_data.instance_buffer.slice(..));
         // render_pass.draw(0..6, 0..3);
     }
+
     render_data.queue.submit([encoder.finish()]);
-
-    rect_copy(&render_data, &view, 1);
-    rect_copy(&render_data, &view, 2);
-
     output.present();
-}
 
-// TODO look into push constants
-fn rect_copy(render_data: &WgpuRenderData, view: &TextureView, params: i32) {
-    let rect_copy_params_data = match params {
-        1 => RectCopyParams {
-            src_top_left: [0.0, 0.0],
-            src_bottom_right: [0.0, 0.0],
-            dest_top_left: [-1.0, 1.0],
-            dest_bottom_right: [-0.5, 0.5],
-        },
-        _ => RectCopyParams {
-            src_top_left: [0.0, 0.0],
-            src_bottom_right: [0.0, 0.0],
-            dest_top_left: [0.0, 0.0],
-            dest_bottom_right: [0.5, -0.5],
-        },
-    };
-    render_data.queue.write_buffer(
-        &render_data.rect_copy_params_buffer,
-        0,
-        bytemuck::cast_slice(&[rect_copy_params_data]),
-    );
-
-    let mut encoder =
-        render_data.device.create_command_encoder(&CommandEncoderDescriptor { label: None });
-    {
-        let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
-            label: None,
-            color_attachments: &[Some(RenderPassColorAttachment {
-                view: &view,
-                resolve_target: None,
-                ops: Operations { load: LoadOp::Load, store: StoreOp::Store },
-            })],
-            depth_stencil_attachment: None,
-            timestamp_writes: None,
-            occlusion_query_set: None,
-        });
-
-        render_pass.set_pipeline(&render_data.rect_copy_pipeline);
-        render_pass.set_bind_group(0, &render_data.rect_copy_bind_group, &[]);
-        render_pass.draw(0..6, 0..1);
-    }
-
-    render_data.queue.submit([encoder.finish()]);
+    // println!("{:.2}%", start.elapsed().as_secs_f64() / (1. / 60.) * 100.);
 }
 
 fn create_rect_copy_pipeline(device: &Device, surface_format: &TextureFormat) -> RenderPipeline {
@@ -219,9 +179,20 @@ fn create_rect_copy_pipeline(device: &Device, surface_format: &TextureFormat) ->
             std::fs::read_to_string("rect_copy_shader.wgsl").unwrap().into(),
         ),
     });
+
+    let layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
+        label: None,
+        bind_group_layouts: &[],
+        push_constant_ranges: &[PushConstantRange {
+            stages: ShaderStages::VERTEX,
+            // Must have alignment of 4 (this struct happens to require no padding)
+            range: 0..std::mem::size_of::<RectCopyParams>() as u32,
+        }],
+    });
+
     let pipeline = device.create_render_pipeline(&RenderPipelineDescriptor {
         label: None,
-        layout: None,
+        layout: Some(&layout),
         vertex: VertexState {
             module: &shader,
             entry_point: Some("vertex_main"),

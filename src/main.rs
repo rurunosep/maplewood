@@ -167,7 +167,6 @@ fn main() {
             }
             RenderData::Wgpu(render_data) => wgpu_renderer::render(render_data),
         }
-        // sdl_renderer::render(&mut render_data, &game_data.world, &game_data.ecs, &ui_data);
 
         // Frame duration as a percent of a full 60 fps frame:
         // println!("{:.2}%", last_time.elapsed().as_secs_f64() / (1. / 60.) * 100.);

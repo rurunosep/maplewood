@@ -9,7 +9,7 @@ struct RectCopyParams {
   dest_bottom_right: vec2f,
 }
 
-@group(0) @binding(0) var<uniform> rect_copy_params: RectCopyParams;
+var<push_constant> rect_copy_params: RectCopyParams;
 
 @vertex
 fn vertex_main(
