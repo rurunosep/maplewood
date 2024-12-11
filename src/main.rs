@@ -9,23 +9,24 @@ mod ecs;
 mod input;
 mod loader;
 mod misc;
+mod render;
 mod script;
-mod sdl_renderer;
 mod update;
-mod wgpu_renderer;
 mod world;
 
 use ecs::Ecs;
 use misc::{Logger, MapOverlayTransition, MessageWindow, StoryVars};
+use render::sdl_renderer::{
+    self, SdlRenderData, SCREEN_COLS, SCREEN_ROWS, SCREEN_SCALE, TILE_SIZE,
+};
+use render::wgpu_renderer::{self, WgpuRenderData};
 use script::{console, ScriptManager};
 use sdl2::mixer::{AUDIO_S16SYS, DEFAULT_CHANNELS};
 use sdl2::pixels::Color;
-use sdl_renderer::{SdlRenderData, SCREEN_COLS, SCREEN_ROWS, SCREEN_SCALE, TILE_SIZE};
 use slotmap::SlotMap;
 use std::collections::{HashMap, HashSet};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
-use wgpu_renderer::WgpuRenderData;
 use world::{Map, World};
 
 pub struct GameData {

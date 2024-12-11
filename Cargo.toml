@@ -12,6 +12,7 @@ crossbeam = "0.8.4"
 derivative = "2.2.0"
 derive_more = {version = "1.0.0", features = ["deref", "deref_mut"]}
 euclid = {version = "0.22.9", features = ["serde"]}
+image = "0.25.5"
 itertools = "0.13.0"
 log = {version = "0.4.22", features = ["std", "kv"]}
 mlua = {version = "0.10.2", features = ["lua54", "vendored"]}
