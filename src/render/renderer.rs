@@ -23,6 +23,7 @@ pub struct WgpuRenderer<'window> {
     queue: Queue,
     surface: Surface<'window>,
     surface_size: (u32, u32),
+    egui_render_pass: egui_wgpu_backend::RenderPass,
     texture_bind_group_layout: BindGroupLayout,
     rect_copy_pipeline: RenderPipeline,
     rect_fill_pipeline: RenderPipeline,
@@ -119,6 +120,8 @@ impl WgpuRenderer<'_> {
         };
         surface.configure(&device, &surface_config);
 
+        let egui_render_pass = egui_wgpu_backend::RenderPass::new(&device, surface_format, 1);
+
         let texture_bind_group_layout =
             device.create_bind_group_layout(&BindGroupLayoutDescriptor {
                 label: None,
@@ -175,6 +178,7 @@ impl WgpuRenderer<'_> {
             queue,
             surface,
             surface_size,
+            egui_render_pass,
             texture_bind_group_layout,
             rect_copy_pipeline,
             rect_fill_pipeline,
@@ -185,8 +189,20 @@ impl WgpuRenderer<'_> {
         }
     }
 
-    pub fn render(&mut self, world: &World, ecs: &Ecs, ui_data: &UiData) {
+    pub fn render(
+        &mut self,
+        world: &World,
+        ecs: &Ecs,
+        ui_data: &UiData,
+        full_output: egui::FullOutput,
+        paint_jobs: Vec<egui::ClippedPrimitive>,
+    ) {
         // let start = std::time::Instant::now();
+
+        let output = self.surface.get_current_texture().unwrap();
+        let view = output.texture.create_view(&TextureViewDescriptor::default());
+        let mut encoder =
+            self.device.create_command_encoder(&CommandEncoderDescriptor { label: None });
 
         // Prepare the message window text
         if let Some(message_window) = &ui_data.message_window {
@@ -200,11 +216,7 @@ impl WgpuRenderer<'_> {
             self.brush.queue(&self.device, &self.queue, [section]).unwrap();
         }
 
-        let output = self.surface.get_current_texture().unwrap();
-        let view = output.texture.create_view(&TextureViewDescriptor::default());
-
-        let mut encoder =
-            self.device.create_command_encoder(&CommandEncoderDescriptor { label: None });
+        // Main render pass
         {
             let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
                 label: None,
@@ -227,6 +239,28 @@ impl WgpuRenderer<'_> {
                 self.draw_message_window(&mut render_pass);
             }
         }
+
+        // Egui render pass
+        let screen_descriptor = egui_wgpu_backend::ScreenDescriptor {
+            physical_width: self.surface_size.0,
+            physical_height: self.surface_size.1,
+            scale_factor: 1.,
+        };
+        self.egui_render_pass
+            .add_textures(&self.device, &self.queue, &full_output.textures_delta)
+            .unwrap();
+        self.egui_render_pass.update_buffers(
+            &self.device,
+            &self.queue,
+            &paint_jobs,
+            &screen_descriptor,
+        );
+        // (Apparently I can also execute as part of an existing render pass)
+        self.egui_render_pass
+            .execute(&mut encoder, &view, &paint_jobs, &screen_descriptor, None)
+            .unwrap();
+
+        self.egui_render_pass.remove_textures(full_output.textures_delta).unwrap();
 
         self.queue.submit([encoder.finish()]);
         output.present();

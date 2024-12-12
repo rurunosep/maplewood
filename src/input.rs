@@ -17,10 +17,16 @@ pub fn process_input(
     message_window: &mut Option<MessageWindow>,
     player_movement_locked: bool,
     script_manager: &mut ScriptManager,
+    egui_platform: &mut egui_sdl2_platform::Platform,
+    // egui platform needs these to handle events???
+    sdl_context: &sdl2::Sdl,
+    video_subsystem: &sdl2::VideoSubsystem,
 ) {
     let GameData { ref mut ecs, ref mut story_vars, .. } = game_data;
 
     for event in event_pump.poll_iter() {
+        egui_platform.handle_event(&event, sdl_context, video_subsystem);
+
         match event {
             // Arbitrary testing
             Event::KeyDown { keycode: Some(Keycode::A), .. } => {

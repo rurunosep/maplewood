@@ -60,7 +60,7 @@ fn main() {
     sdl_context.audio().unwrap();
     let mut event_pump = sdl_context.event_pump().unwrap();
 
-    let video_subsystem = sdl_context.video().unwrap();
+    let mut video_subsystem = sdl_context.video().unwrap();
     let window_width = TILE_SIZE * SCREEN_COLS * SCREEN_SCALE;
     let window_height = TILE_SIZE * SCREEN_ROWS * SCREEN_SCALE;
     let window = video_subsystem
@@ -72,6 +72,8 @@ fn main() {
     let mut renderer = WgpuRenderer::new(&window);
     renderer.load_tilesets();
     renderer.load_spritesheets();
+
+    let mut egui_platform = egui_sdl2_platform::Platform::new(window.size()).unwrap();
 
     sdl2::mixer::open_audio(41_100, AUDIO_S16SYS, DEFAULT_CHANNELS, 512).unwrap();
     sdl2::mixer::allocate_channels(10);
@@ -127,6 +129,7 @@ fn main() {
     // --------------------------------------------------------------
     // Main Loop
     // --------------------------------------------------------------
+    let start_time = Instant::now();
     let mut last_time = Instant::now();
     let mut running = true;
     while running {
@@ -143,7 +146,26 @@ fn main() {
         input::process_input(
             &mut game_data, &mut event_pump, &mut running, &mut ui_data.message_window,
             player_movement_locked, &mut script_manager,
+            &mut egui_platform, &sdl_context, &video_subsystem,
         );
+
+        // Do egui stuff here???
+        // Have struct holding all egui stuff like platform, full output, and paint jobs?
+        egui_platform.update_time(start_time.elapsed().as_secs_f64());
+        let ctx = egui_platform.context();
+        egui::Window::new("Hello, world!").show(&ctx, |ui| {
+            ui.label("Hello, world!");
+            if ui.button("Greet").clicked() {
+                println!("Hello, world!");
+            }
+            ui.horizontal(|ui| {
+                ui.label("Color: ");
+                ui.color_edit_button_rgba_premultiplied(&mut [0.; 4]);
+            });
+            ui.code_editor(&mut String::new());
+        });
+        let full_output = egui_platform.end_frame(&mut video_subsystem).unwrap();
+        let paint_jobs = egui_platform.tessellate(&full_output);
 
         #[rustfmt::skip]
         update::update(
@@ -151,7 +173,7 @@ fn main() {
             &mut running, &musics, &sound_effects, delta,
         );
 
-        renderer.render(&game_data.world, &game_data.ecs, &ui_data);
+        renderer.render(&game_data.world, &game_data.ecs, &ui_data, full_output, paint_jobs);
 
         // Frame duration as a percent of a full 60 fps frame:
         // println!("{:.2}%", last_time.elapsed().as_secs_f64() / (1. / 60.) * 100.);
