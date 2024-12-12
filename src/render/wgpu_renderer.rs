@@ -14,6 +14,23 @@ use std::f64::consts::PI;
 use std::path::Path;
 use tap::{Pipe, TapFallible, TapOptional};
 use wgpu::*;
+use wgpu_text::glyph_brush::ab_glyph::FontVec;
+use wgpu_text::glyph_brush::{Section, Text};
+use wgpu_text::{BrushBuilder, TextBrush};
+
+pub struct WgpuRenderer<'window> {
+    device: Device,
+    queue: Queue,
+    surface: Surface<'window>,
+    surface_size: (u32, u32),
+    texture_bind_group_layout: BindGroupLayout,
+    rect_copy_pipeline: RenderPipeline,
+    rect_fill_pipeline: RenderPipeline,
+    sampler_bind_group: BindGroup,
+    tilesets: HashMap<String, Texture>,
+    spritesheets: HashMap<String, Texture>,
+    brush: TextBrush<FontVec>,
+}
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -30,22 +47,158 @@ struct RectCopyParams {
 unsafe impl Pod for RectCopyParams {}
 unsafe impl Zeroable for RectCopyParams {}
 
-#[allow(unused)]
-pub struct WgpuRenderer<'window> {
-    device: Device,
-    queue: Queue,
-    surface: Surface<'window>,
-    surface_size: (u32, u32),
-    texture_bind_group_layout: BindGroupLayout,
-    rect_copy_pipeline: RenderPipeline,
-    sampler_bind_group: BindGroup,
-    tilesets: HashMap<String, Texture>,
-    spritesheets: HashMap<String, Texture>,
+#[repr(C)]
+#[derive(Clone, Copy)]
+struct RectFillParams {
+    top: f32,
+    left: f32,
+    bottom: f32,
+    right: f32,
+    color: [f32; 4],
 }
+unsafe impl Pod for RectFillParams {}
+unsafe impl Zeroable for RectFillParams {}
 
 impl WgpuRenderer<'_> {
-    pub fn render(&self, world: &World, ecs: &Ecs, ui_data: &UiData) {
+    pub fn new(window: &Window) -> Self {
+        let instance = Instance::new(InstanceDescriptor {
+            backends: Backends::all(),
+            flags: InstanceFlags::DEBUG | InstanceFlags::VALIDATION,
+            dx12_shader_compiler: Dx12Compiler::default(),
+            gles_minor_version: Gles3MinorVersion::default(),
+        });
+
+        let surface = unsafe {
+            instance
+                .create_surface_unsafe(wgpu::SurfaceTargetUnsafe::from_window(window).unwrap())
+                .unwrap()
+        };
+
+        let adapter = instance
+            .request_adapter(&RequestAdapterOptions {
+                power_preference: PowerPreference::None,
+                force_fallback_adapter: false,
+                compatible_surface: Some(&surface),
+            })
+            .block_on()
+            .unwrap();
+
+        let (device, queue) = adapter
+            .request_device(
+                &DeviceDescriptor {
+                    label: None,
+                    required_features: Features::PUSH_CONSTANTS,
+                    required_limits: Limits { max_push_constant_size: 32, ..Default::default() },
+                    memory_hints: MemoryHints::default(),
+                },
+                None,
+            )
+            .block_on()
+            .unwrap();
+        // For now, keep the default behavior of panicking on uncaptured wgpu errors
+        // If I don't want to panic, I can gracefully log them like this:
+        // device.on_uncaptured_error(Box::new(|e| log::error!("{e}")));
+
+        let surface_capabilities = surface.get_capabilities(&adapter);
+        let surface_format = surface_capabilities
+            .formats
+            .iter()
+            .find(|f| f.is_srgb())
+            .copied()
+            .unwrap_or(surface_capabilities.formats[0]);
+        let surface_size = window.size();
+        let surface_config = SurfaceConfiguration {
+            usage: TextureUsages::RENDER_ATTACHMENT,
+            format: surface_format,
+            width: surface_size.0,
+            height: surface_size.1,
+            present_mode: PresentMode::Fifo,
+            desired_maximum_frame_latency: 2,
+            alpha_mode: CompositeAlphaMode::Auto,
+            view_formats: vec![],
+        };
+        surface.configure(&device, &surface_config);
+
+        let texture_bind_group_layout =
+            device.create_bind_group_layout(&BindGroupLayoutDescriptor {
+                label: None,
+                entries: &[BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: ShaderStages::FRAGMENT,
+                    ty: BindingType::Texture {
+                        // What is filterable? and what's a filtering sampler?
+                        sample_type: TextureSampleType::Float { filterable: true },
+                        view_dimension: TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
+                }],
+            });
+
+        let rect_copy_pipeline =
+            create_rect_copy_pipeline(&device, &surface_format, &texture_bind_group_layout);
+        let rect_fill_pipeline = create_rect_fill_pipeline(&device, &surface_format);
+
+        let sampler = device.create_sampler(&SamplerDescriptor {
+            label: None,
+            address_mode_u: AddressMode::ClampToEdge,
+            address_mode_v: AddressMode::ClampToEdge,
+            address_mode_w: AddressMode::ClampToEdge,
+            mag_filter: FilterMode::Nearest,
+            min_filter: FilterMode::Nearest,
+            mipmap_filter: FilterMode::Nearest,
+            ..Default::default()
+        });
+        let sampler_bind_group = device.create_bind_group(&BindGroupDescriptor {
+            label: None,
+            layout: &rect_copy_pipeline.get_bind_group_layout(0),
+            entries: &[BindGroupEntry {
+                binding: 0,
+                resource: BindingResource::Sampler(&sampler),
+            }],
+        });
+
+        let tilesets = HashMap::new();
+        let spritesheets = HashMap::new();
+
+        let font_data = std::fs::read("assets/Grand9KPixel.ttf").unwrap();
+        let font = FontVec::try_from_vec(font_data).unwrap();
+        let brush = BrushBuilder::using_font(font).build(
+            &device,
+            surface_size.0,
+            surface_size.1,
+            surface_format,
+        );
+
+        Self {
+            device,
+            queue,
+            surface,
+            surface_size,
+            texture_bind_group_layout,
+            rect_copy_pipeline,
+            rect_fill_pipeline,
+            sampler_bind_group,
+            tilesets,
+            spritesheets,
+            brush,
+        }
+    }
+
+    pub fn render(&mut self, world: &World, ecs: &Ecs, ui_data: &UiData) {
         // let start = std::time::Instant::now();
+
+        // Prepare the message window text
+        if let Some(message_window) = &ui_data.message_window {
+            let section = Section::default()
+                .add_text(
+                    Text::new(&message_window.message)
+                        .with_scale(48.)
+                        .with_color([1., 1., 1., 1.]),
+                )
+                .with_screen_position((20. * 4., (16. * 12. - 56.) * 4.));
+            self.brush.queue(&self.device, &self.queue, [section]).unwrap();
+        }
 
         let output = self.surface.get_current_texture().unwrap();
         let view = output.texture.create_view(&TextureViewDescriptor::default());
@@ -65,7 +218,14 @@ impl WgpuRenderer<'_> {
                 occlusion_query_set: None,
             });
 
-            self.sdl_renderer_port(&mut render_pass, world, ecs, ui_data);
+            // Draw tile layers and entities with rect copy
+            // (Direct port of the old sdl renderer code)
+            self.sdl_renderer_port(&mut render_pass, world, ecs);
+
+            // Draw message window
+            if ui_data.message_window.is_some() {
+                self.draw_message_window(&mut render_pass);
+            }
         }
 
         self.queue.submit([encoder.finish()]);
@@ -74,12 +234,11 @@ impl WgpuRenderer<'_> {
         // println!("{:.2}%", start.elapsed().as_secs_f64() / (1. / 60.) * 100.);
     }
 
-    fn sdl_renderer_port(
-        &self,
-        render_pass: &mut RenderPass,
+    fn sdl_renderer_port<'rpass>(
+        &'rpass self,
+        render_pass: &mut RenderPass<'rpass>,
         world: &World,
         ecs: &Ecs,
-        _ui_data: &UiData,
     ) {
         if let Some(camera_position) = ecs.query_one_with_name::<&Position>("CAMERA")
             && let Some(map) = world.maps.get(&camera_position.map).tap_none(
@@ -214,6 +373,21 @@ impl WgpuRenderer<'_> {
         }
     }
 
+    fn draw_message_window<'rpass>(&'rpass self, render_pass: &mut RenderPass<'rpass>) {
+        // Draw the window itself
+        self.rect_fill(
+            render_pass,
+            10 * 4,
+            (16 * 12 - 60) * 4,
+            (16 * 16 - 20) * 4,
+            50 * 4,
+            [0.02, 0.02, 0.02, 1.],
+        );
+
+        // Draw the text
+        self.brush.draw(render_pass);
+    }
+
     fn rect_copy(
         &self,
         render_pass: &mut RenderPass,
@@ -228,10 +402,6 @@ impl WgpuRenderer<'_> {
         dest_h: u32,
     ) {
         // TODO adjust for screen scale inside rect_copy?
-        // let dest_x = dest_x * 4;
-        // let dest_y = dest_y * 4;
-        // let dest_w = dest_w * 4;
-        // let dest_h = dest_h * 4;
 
         let tex_w = texture.size.0 as f32;
         let tex_h = texture.size.1 as f32;
@@ -252,123 +422,36 @@ impl WgpuRenderer<'_> {
         };
 
         render_pass.set_pipeline(&self.rect_copy_pipeline);
-        render_pass.set_bind_group(0, &texture.bind_group, &[]);
-        render_pass.set_bind_group(1, &self.sampler_bind_group, &[]);
+        render_pass.set_bind_group(0, &self.sampler_bind_group, &[]);
+        render_pass.set_bind_group(1, &texture.bind_group, &[]);
         render_pass.set_push_constants(ShaderStages::VERTEX, 0, bytemuck::cast_slice(&[params]));
         render_pass.draw(0..6, 0..1);
     }
 
-    pub fn new(window: &Window) -> Self {
-        let instance = Instance::new(InstanceDescriptor {
-            backends: Backends::all(),
-            flags: InstanceFlags::DEBUG | InstanceFlags::VALIDATION,
-            dx12_shader_compiler: Dx12Compiler::default(),
-            gles_minor_version: Gles3MinorVersion::default(),
-        });
+    fn rect_fill(
+        &self,
+        render_pass: &mut RenderPass,
+        x: i32,
+        y: i32,
+        w: u32,
+        h: u32,
+        color: [f32; 4],
+    ) {
+        let screen_w = self.surface_size.0 as f32;
+        let screen_h = self.surface_size.1 as f32;
 
-        let surface = unsafe {
-            instance
-                .create_surface_unsafe(wgpu::SurfaceTargetUnsafe::from_window(window).unwrap())
-                .unwrap()
+        let params = RectFillParams {
+            // Map pixel coords to 0to1, invert Y, and map to -1to1 clip space coords
+            top: (y as f32 / screen_h).pipe(|x| 1. - x) * 2. - 1.,
+            left: (x as f32 / screen_w) * 2. - 1.,
+            bottom: ((y + h as i32) as f32 / screen_h).pipe(|x| 1. - x) * 2. - 1.,
+            right: ((x + w as i32) as f32 / screen_w) * 2. - 1.,
+            color,
         };
 
-        let adapter = instance
-            .request_adapter(&RequestAdapterOptions {
-                power_preference: PowerPreference::None,
-                force_fallback_adapter: false,
-                compatible_surface: Some(&surface),
-            })
-            .block_on()
-            .unwrap();
-
-        let (device, queue) = adapter
-            .request_device(
-                &DeviceDescriptor {
-                    label: None,
-                    required_features: Features::PUSH_CONSTANTS,
-                    required_limits: Limits { max_push_constant_size: 32, ..Default::default() },
-                    memory_hints: MemoryHints::default(),
-                },
-                None,
-            )
-            .block_on()
-            .unwrap();
-        // For now, keep the default behavior of panicking on uncaptured wgpu errors
-        // If I don't want to panic, I can gracefully log them like this:
-        // device.on_uncaptured_error(Box::new(|e| log::error!("{e}")));
-
-        let surface_capabilities = surface.get_capabilities(&adapter);
-        let surface_format = surface_capabilities
-            .formats
-            .iter()
-            .find(|f| f.is_srgb())
-            .copied()
-            .unwrap_or(surface_capabilities.formats[0]);
-        let surface_size = window.size();
-        let surface_config = SurfaceConfiguration {
-            usage: TextureUsages::RENDER_ATTACHMENT,
-            format: surface_format,
-            width: surface_size.0,
-            height: surface_size.1,
-            present_mode: PresentMode::Fifo,
-            desired_maximum_frame_latency: 2,
-            alpha_mode: CompositeAlphaMode::Auto,
-            view_formats: vec![],
-        };
-        surface.configure(&device, &surface_config);
-
-        let texture_bind_group_layout =
-            device.create_bind_group_layout(&BindGroupLayoutDescriptor {
-                label: None,
-                entries: &[BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: ShaderStages::FRAGMENT,
-                    ty: BindingType::Texture {
-                        sample_type: TextureSampleType::Float { filterable: true },
-                        view_dimension: TextureViewDimension::D2,
-                        multisampled: false,
-                    },
-                    count: None,
-                }],
-            });
-
-        let rect_copy_pipeline =
-            create_rect_copy_pipeline(&device, &surface_format, &texture_bind_group_layout);
-
-        // Do we really need a separate sampler per texture? I don't think so
-        let sampler = device.create_sampler(&SamplerDescriptor {
-            label: None,
-            address_mode_u: AddressMode::ClampToEdge,
-            address_mode_v: AddressMode::ClampToEdge,
-            address_mode_w: AddressMode::ClampToEdge,
-            mag_filter: FilterMode::Nearest,
-            min_filter: FilterMode::Nearest,
-            mipmap_filter: FilterMode::Nearest,
-            ..Default::default()
-        });
-        let sampler_bind_group = device.create_bind_group(&BindGroupDescriptor {
-            label: None,
-            layout: &rect_copy_pipeline.get_bind_group_layout(1),
-            entries: &[BindGroupEntry {
-                binding: 0,
-                resource: BindingResource::Sampler(&sampler),
-            }],
-        });
-
-        let tilesets = HashMap::new();
-        let spritesheets = HashMap::new();
-
-        Self {
-            device,
-            queue,
-            surface,
-            surface_size,
-            texture_bind_group_layout,
-            rect_copy_pipeline,
-            sampler_bind_group,
-            tilesets,
-            spritesheets,
-        }
+        render_pass.set_pipeline(&self.rect_fill_pipeline);
+        render_pass.set_push_constants(ShaderStages::VERTEX, 0, bytemuck::cast_slice(&[params]));
+        render_pass.draw(0..6, 0..1);
     }
 
     pub fn load_tilesets(&mut self) {
@@ -500,14 +583,14 @@ fn create_rect_copy_pipeline(
     texture_bind_group_layout: &BindGroupLayout,
 ) -> RenderPipeline {
     let shader = device.create_shader_module(ShaderModuleDescriptor {
-        label: None,
+        label: Some("rect copy shader"),
         source: ShaderSource::Wgsl(
             std::fs::read_to_string("src/render/shaders/rect_copy_shader.wgsl").unwrap().into(),
         ),
     });
 
     let sampler_bind_group_layout = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
-        label: None,
+        label: Some("sampler bind group layout"),
         entries: &[BindGroupLayoutEntry {
             binding: 0,
             visibility: ShaderStages::FRAGMENT,
@@ -517,8 +600,8 @@ fn create_rect_copy_pipeline(
     });
 
     let pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
-        label: None,
-        bind_group_layouts: &[&texture_bind_group_layout, &sampler_bind_group_layout],
+        label: Some("rect copy pipeline layout"),
+        bind_group_layouts: &[&sampler_bind_group_layout, &texture_bind_group_layout],
         push_constant_ranges: &[PushConstantRange {
             stages: ShaderStages::VERTEX,
             // Must have alignment of 4 (this struct happens to require no padding)
@@ -527,7 +610,62 @@ fn create_rect_copy_pipeline(
     });
 
     let pipeline = device.create_render_pipeline(&RenderPipelineDescriptor {
-        label: None,
+        label: Some("rect copy pipeline"),
+        layout: Some(&pipeline_layout),
+        vertex: VertexState {
+            module: &shader,
+            entry_point: Some("vertex_main"),
+            compilation_options: PipelineCompilationOptions::default(),
+            buffers: &[],
+        },
+        primitive: PrimitiveState {
+            topology: PrimitiveTopology::TriangleList,
+            strip_index_format: None,
+            front_face: FrontFace::Ccw,
+            cull_mode: Some(Face::Back),
+            unclipped_depth: false,
+            polygon_mode: PolygonMode::Fill,
+            conservative: false,
+        },
+        depth_stencil: None,
+        multisample: MultisampleState { count: 1, mask: !0, alpha_to_coverage_enabled: false },
+        fragment: Some(FragmentState {
+            module: &shader,
+            entry_point: Some("fragment_main"),
+            compilation_options: PipelineCompilationOptions::default(),
+            targets: &[Some(ColorTargetState {
+                format: surface_format.clone(),
+                blend: Some(BlendState::ALPHA_BLENDING),
+                write_mask: ColorWrites::ALL,
+            })],
+        }),
+        multiview: None,
+        cache: None,
+    });
+
+    pipeline
+}
+
+fn create_rect_fill_pipeline(device: &Device, surface_format: &TextureFormat) -> RenderPipeline {
+    let shader = device.create_shader_module(ShaderModuleDescriptor {
+        label: Some("rect fill shader"),
+        source: ShaderSource::Wgsl(
+            std::fs::read_to_string("src/render/shaders/rect_fill_shader.wgsl").unwrap().into(),
+        ),
+    });
+
+    let pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
+        label: Some("rect fill pipeline layout"),
+        bind_group_layouts: &[],
+        push_constant_ranges: &[PushConstantRange {
+            stages: ShaderStages::VERTEX,
+            // Must have alignment of 4 (this struct happens to require no padding)
+            range: 0..std::mem::size_of::<RectFillParams>() as u32,
+        }],
+    });
+
+    let pipeline = device.create_render_pipeline(&RenderPipelineDescriptor {
+        label: Some("rect fill pipeline"),
         layout: Some(&pipeline_layout),
         vertex: VertexState {
             module: &shader,

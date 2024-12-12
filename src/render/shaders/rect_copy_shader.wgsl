@@ -47,8 +47,8 @@ fn vertex_main(
   return output;
 }
 
-@group(0) @binding(0) var texture: texture_2d<f32>;
-@group(1) @binding(0) var sampler_: sampler;
+@group(0) @binding(0) var sampler_: sampler;
+@group(1) @binding(0) var texture: texture_2d<f32>;
 
 @fragment
 fn fragment_main(input: VertexOutput) -> @location(0) vec4<f32> {

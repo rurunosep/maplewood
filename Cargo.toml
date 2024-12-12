@@ -23,9 +23,12 @@ slotmap = {version = "1.0.7", features = ["serde"]}
 smart-default = "0.7.1"
 tap = "1.0.1"
 wgpu = "23.0.1"
+wgpu_text = "0.9.1"
 
 [target.'cfg(windows)'.dependencies]
 winapi = {version = "0.3.9", features = ["winuser"]}
 
-[profile.dev.package."*"]
-opt-level = 3
+[profile.dev.package]
+fdeflate.opt-level = 3
+image.opt-level = 3
+png.opt-level = 3
