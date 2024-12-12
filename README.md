@@ -32,12 +32,8 @@ Build and run with `cargo run` in the project root directory.
 
 ### Requires SDL Development Libraries
 
-[SDL2](https://github.com/libsdl-org/SDL/releases) | [SDL2_image](https://github.com/libsdl-org/SDL_image/releases) |
-[SDL2_ttf](https://github.com/libsdl-org/SDL_ttf/releases) |
-[SLD2_mixer](https://github.com/libsdl-org/SDL_mixer/releases)
+[SDL2](https://github.com/libsdl-org/SDL/releases) | [SLD2_mixer](https://github.com/libsdl-org/SDL_mixer/releases)
 
-For Windows, download `SDL2-devel-2.x.x-VC.zip` from the latest releases, copy all `.lib` files to `C:\Users\{username}\.rustup\toolchains\{toolchain}\lib\rustlib\{toolchain}\lib`, and copy all `.dll` files to the project root directory.
+For Windows, download `SDL2-devel-2.x.x-VC.zip` from the latest releases and copy all `.lib` and `.dll` files to the project root directory.
 
-For Ubuntu, run `sudo apt-get install libsdl2-dev libsdl2-image-dev libsdl2-ttf-dev libsdl2-mixer-dev`.
-
-*Requires nightly Rust with version no later than nightly-2024-08-03. (PR #128370 in nightly-2024-08-04 breaks SDL lib linking for some reason).*
+For Ubuntu, run `sudo apt-get install libsdl2-dev libsdl2-mixer-dev`.

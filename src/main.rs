@@ -1,6 +1,5 @@
 #![feature(let_chains)]
 #![feature(try_blocks)]
-#![feature(is_none_or)]
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod components;
