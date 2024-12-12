@@ -4,42 +4,41 @@ struct VertexOutput {
 }
 
 struct RectCopyParams {
-  src_top_left: vec2f,
-  src_bottom_right: vec2f,
-  dest_top_left: vec2f,
-  dest_bottom_right: vec2f,
+  src_top: f32,
+  src_left: f32,
+  src_bottom: f32,
+  src_right: f32,
+  dest_top: f32,
+  dest_left: f32,
+  dest_bottom: f32,
+  dest_right: f32,
 }
 
-var<push_constant> rect_copy_params: RectCopyParams;
+var<push_constant> params: RectCopyParams;
 
 @vertex
 fn vertex_main(
   @builtin(vertex_index) vertex_index: u32,
 ) -> VertexOutput {
-  let src_top_left = rect_copy_params.src_top_left;
-  let src_bottom_right = rect_copy_params.src_bottom_right;
-  let dest_top_left = rect_copy_params.dest_top_left;
-  let dest_bottom_right = rect_copy_params.dest_bottom_right;
-
   var tex_coords_array = array(
-    vec2f(src_top_left.x, src_bottom_right.y),
-    vec2f(src_bottom_right.x, src_top_left.y),
-    vec2f(src_top_left.x, src_top_left.y),
-    vec2f(src_top_left.x, src_bottom_right.y),
-    vec2f(src_bottom_right.x, src_bottom_right.y),
-    vec2f(src_bottom_right.x, src_top_left.y),
+    vec2f(params.src_left, params.src_bottom),
+    vec2f(params.src_right, params.src_top),
+    vec2f(params.src_left, params.src_top),
+    vec2f(params.src_left, params.src_bottom),
+    vec2f(params.src_right, params.src_bottom),
+    vec2f(params.src_right, params.src_top),
   );
   var tex_coords = tex_coords_array[vertex_index];
 
-  var positions = array(
-    vec2f(dest_top_left.x, dest_bottom_right.y),
-    vec2f(dest_bottom_right.x, dest_top_left.y),
-    vec2f(dest_top_left.x, dest_top_left.y),
-    vec2f(dest_top_left.x, dest_bottom_right.y),
-    vec2f(dest_bottom_right.x, dest_bottom_right.y),
-    vec2f(dest_bottom_right.x, dest_top_left.y),
+  var position_array = array(
+    vec2f(params.dest_left, params.dest_bottom),
+    vec2f(params.dest_right, params.dest_top),
+    vec2f(params.dest_left, params.dest_top),
+    vec2f(params.dest_left, params.dest_bottom),
+    vec2f(params.dest_right, params.dest_bottom),
+    vec2f(params.dest_right, params.dest_top),
   );
-  var position = positions[vertex_index];
+  var position = position_array[vertex_index];
 
   var output: VertexOutput;
   output.clip_position = vec4f(position, 0.0, 1.0);

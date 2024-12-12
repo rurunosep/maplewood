@@ -19,7 +19,7 @@ use misc::{Logger, MapOverlayTransition, MessageWindow, StoryVars};
 use render::sdl_renderer::{
     self, SdlRenderData, SCREEN_COLS, SCREEN_ROWS, SCREEN_SCALE, TILE_SIZE,
 };
-use render::wgpu_renderer::{self, WgpuRenderData};
+use render::wgpu_renderer::{self, WgpuRenderer};
 use script::{console, ScriptManager};
 use sdl2::mixer::{AUDIO_S16SYS, DEFAULT_CHANNELS};
 use sdl2::pixels::Color;
@@ -45,7 +45,7 @@ pub struct UiData {
 
 pub enum RenderData<'a> {
     Sdl(SdlRenderData<'a>),
-    Wgpu(WgpuRenderData<'a>),
+    Wgpu(WgpuRenderer<'a>),
 }
 
 fn main() {
@@ -79,10 +79,10 @@ fn main() {
 
     let use_wgpu_renderer = true;
     let mut render_data = if use_wgpu_renderer {
-        let mut r = wgpu_renderer::init(&window);
-        wgpu_renderer::load_tilesets(&mut r);
-        wgpu_renderer::load_spritesheets(&mut r);
-        RenderData::Wgpu(r)
+        let mut renderer = wgpu_renderer::WgpuRenderer::new(&window);
+        renderer.load_tilesets();
+        renderer.load_spritesheets();
+        RenderData::Wgpu(renderer)
     } else {
         RenderData::Sdl(sdl_renderer::init(window, &ttf_context))
     };
@@ -169,7 +169,9 @@ fn main() {
             RenderData::Sdl(render_data) => {
                 sdl_renderer::render(render_data, &game_data.world, &game_data.ecs, &ui_data)
             }
-            RenderData::Wgpu(render_data) => wgpu_renderer::render(render_data),
+            RenderData::Wgpu(renderer) => {
+                renderer.render(&game_data.world, &game_data.ecs, &ui_data)
+            }
         }
 
         // Frame duration as a percent of a full 60 fps frame:
