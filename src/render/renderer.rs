@@ -194,8 +194,9 @@ impl WgpuRenderer<'_> {
         world: &World,
         ecs: &Ecs,
         ui_data: &UiData,
-        full_output: egui::FullOutput,
+        textures_delta: egui::TexturesDelta,
         paint_jobs: Vec<egui::ClippedPrimitive>,
+        pixels_per_point: f32,
     ) {
         // let start = std::time::Instant::now();
 
@@ -244,11 +245,10 @@ impl WgpuRenderer<'_> {
         let screen_descriptor = egui_wgpu_backend::ScreenDescriptor {
             physical_width: self.surface_size.0,
             physical_height: self.surface_size.1,
-            scale_factor: 1.,
+            // scale_factor: 1.,
+            scale_factor: pixels_per_point,
         };
-        self.egui_render_pass
-            .add_textures(&self.device, &self.queue, &full_output.textures_delta)
-            .unwrap();
+        self.egui_render_pass.add_textures(&self.device, &self.queue, &textures_delta).unwrap();
         self.egui_render_pass.update_buffers(
             &self.device,
             &self.queue,
@@ -260,7 +260,7 @@ impl WgpuRenderer<'_> {
             .execute(&mut encoder, &view, &paint_jobs, &screen_descriptor, None)
             .unwrap();
 
-        self.egui_render_pass.remove_textures(full_output.textures_delta).unwrap();
+        self.egui_render_pass.remove_textures(textures_delta).unwrap();
 
         self.queue.submit([encoder.finish()]);
         output.present();

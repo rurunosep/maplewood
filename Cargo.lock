@@ -420,13 +420,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "egui_sdl2_platform"
-version = "0.3.0"
-source = "git+https://github.com/rurunosep/egui_sdl2_platform#e7d76f0c6138cb13aa1cdead3f8494c602e3d758"
+name = "egui-sdl2-event"
+version = "0.4.1"
+source = "git+https://github.com/rurunosep/egui-sdl2-event#a5471539a97471e98500337b9f0600154c28a2ae"
 dependencies = [
- "anyhow",
  "egui",
- "log",
  "sdl2",
 ]
 
@@ -939,7 +937,7 @@ dependencies = [
  "crossbeam",
  "derived-deref",
  "egui",
- "egui_sdl2_platform",
+ "egui-sdl2-event",
  "egui_wgpu_backend",
  "euclid",
  "image",

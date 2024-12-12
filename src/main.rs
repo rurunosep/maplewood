@@ -14,6 +14,7 @@ mod update;
 mod world;
 
 use ecs::Ecs;
+use egui_sdl2_event::EguiSDL2State;
 use misc::{
     Logger, MapOverlayTransition, MessageWindow, StoryVars, SCREEN_COLS, SCREEN_ROWS,
     SCREEN_SCALE, TILE_SIZE,
@@ -60,7 +61,7 @@ fn main() {
     sdl_context.audio().unwrap();
     let mut event_pump = sdl_context.event_pump().unwrap();
 
-    let mut video_subsystem = sdl_context.video().unwrap();
+    let video_subsystem = sdl_context.video().unwrap();
     let window_width = TILE_SIZE * SCREEN_COLS * SCREEN_SCALE;
     let window_height = TILE_SIZE * SCREEN_ROWS * SCREEN_SCALE;
     let window = video_subsystem
@@ -73,7 +74,12 @@ fn main() {
     renderer.load_tilesets();
     renderer.load_spritesheets();
 
-    let mut egui_platform = egui_sdl2_platform::Platform::new(window.size()).unwrap();
+    // State dpi_scaling and context pixels_per_point must remain in sync
+    // I can enforce that as well as keep all the egui stuff well organized if I wrap it
+    // up in a neat little "platform" struct
+    let mut egui_state = EguiSDL2State::new(window.size().0, window.size().1, 1.5);
+    let egui_ctx = egui::Context::default();
+    egui_ctx.set_pixels_per_point(1.5);
 
     sdl2::mixer::open_audio(41_100, AUDIO_S16SYS, DEFAULT_CHANNELS, 512).unwrap();
     sdl2::mixer::allocate_channels(10);
@@ -145,15 +151,17 @@ fn main() {
         #[rustfmt::skip]
         input::process_input(
             &mut game_data, &mut event_pump, &mut running, &mut ui_data.message_window,
-            player_movement_locked, &mut script_manager,
-            &mut egui_platform, &sdl_context, &video_subsystem,
+            player_movement_locked, &mut script_manager, &mut egui_state, &window
         );
 
-        // Do egui stuff here???
-        // Have struct holding all egui stuff like platform, full output, and paint jobs?
-        egui_platform.update_time(start_time.elapsed().as_secs_f64());
-        let ctx = egui_platform.context();
-        egui::Window::new("Hello, world!").show(&ctx, |ui| {
+        // I'm thinking process egui right here in between input and update
+
+        // NOW struct holding state, ctx, output textures delta, paint jobs, scaling, etc
+
+        egui_state.update_time(Some(start_time.elapsed().as_secs_f64()), delta.as_secs_f32());
+        egui_ctx.begin_pass(egui_state.raw_input.take());
+
+        egui::Window::new("Hello, world!").show(&egui_ctx, |ui| {
             ui.label("Hello, world!");
             if ui.button("Greet").clicked() {
                 println!("Hello, world!");
@@ -164,8 +172,11 @@ fn main() {
             });
             ui.code_editor(&mut String::new());
         });
-        let full_output = egui_platform.end_frame(&mut video_subsystem).unwrap();
-        let paint_jobs = egui_platform.tessellate(&full_output);
+
+        let full_output = egui_ctx.end_pass();
+        egui_state.process_output(&window, &full_output.platform_output);
+        let paint_jobs = egui_ctx.tessellate(full_output.shapes, egui_state.dpi_scaling);
+        let textures_delta = full_output.textures_delta;
 
         #[rustfmt::skip]
         update::update(
@@ -173,7 +184,14 @@ fn main() {
             &mut running, &musics, &sound_effects, delta,
         );
 
-        renderer.render(&game_data.world, &game_data.ecs, &ui_data, full_output, paint_jobs);
+        renderer.render(
+            &game_data.world,
+            &game_data.ecs,
+            &ui_data,
+            textures_delta,
+            paint_jobs,
+            egui_state.dpi_scaling,
+        );
 
         // Frame duration as a percent of a full 60 fps frame:
         // println!("{:.2}%", last_time.elapsed().as_secs_f64() / (1. / 60.) * 100.);
