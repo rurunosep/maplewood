@@ -2,16 +2,22 @@ use bytemuck::{Pod, Zeroable};
 use image::GenericImageView;
 use pollster::FutureExt;
 use sdl2::video::Window;
+use std::collections::HashMap;
+use std::path::Path;
+use tap::TapFallible;
 use wgpu::*;
 
+#[allow(unused)]
 pub struct WgpuRenderData<'window> {
     device: Device,
     queue: Queue,
     surface: Surface<'window>,
     surface_size: (u32, u32),
+    texture_bind_group_layout: BindGroupLayout,
     rect_copy_pipeline: RenderPipeline,
     sampler_bind_group: BindGroup,
-    texture: Texture,
+    tilesets: HashMap<String, Texture>,
+    spritesheets: HashMap<String, Texture>,
 }
 
 pub struct Texture {
@@ -91,54 +97,22 @@ pub fn init(window: &Window) -> WgpuRenderData {
     };
     surface.configure(&device, &surface_config);
 
-    let rect_copy_pipeline = create_rect_copy_pipeline(&device, &surface_format);
-
-    let image = image::open("assets/spritesheets/characters.png").unwrap();
-    let texture_size = Extent3d {
-        width: image.dimensions().0,
-        height: image.dimensions().1,
-        depth_or_array_layers: 1,
-    };
-    let wgpu_texture = device.create_texture(&TextureDescriptor {
+    let texture_bind_group_layout = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
         label: None,
-        size: texture_size,
-        mip_level_count: 1,
-        sample_count: 1,
-        dimension: TextureDimension::D2,
-        format: TextureFormat::Rgba8UnormSrgb,
-        usage: TextureUsages::TEXTURE_BINDING | TextureUsages::COPY_DST,
-        view_formats: &[],
-    });
-    queue.write_texture(
-        ImageCopyTexture {
-            texture: &wgpu_texture,
-            mip_level: 0,
-            origin: Origin3d::ZERO,
-            // What is this?
-            aspect: TextureAspect::All,
-        },
-        &image.to_rgba8(),
-        ImageDataLayout {
-            offset: 0,
-            bytes_per_row: Some(image.dimensions().0 * 4),
-            rows_per_image: Some(image.dimensions().1),
-        },
-        texture_size,
-    );
-    let texture_view = wgpu_texture.create_view(&TextureViewDescriptor::default());
-    let texture_bind_group = device.create_bind_group(&BindGroupDescriptor {
-        label: None,
-        layout: &rect_copy_pipeline.get_bind_group_layout(0),
-        entries: &[BindGroupEntry {
+        entries: &[BindGroupLayoutEntry {
             binding: 0,
-            resource: BindingResource::TextureView(&texture_view),
+            visibility: ShaderStages::FRAGMENT,
+            ty: BindingType::Texture {
+                sample_type: TextureSampleType::Float { filterable: true },
+                view_dimension: TextureViewDimension::D2,
+                multisampled: false,
+            },
+            count: None,
         }],
     });
 
-    let texture = Texture {
-        bind_group: texture_bind_group,
-        size: (texture_size.width, texture_size.height),
-    };
+    let rect_copy_pipeline =
+        create_rect_copy_pipeline(&device, &surface_format, &texture_bind_group_layout);
 
     // Do we really need a separate sampler per texture? I don't think so
     let sampler = device.create_sampler(&SamplerDescriptor {
@@ -157,14 +131,19 @@ pub fn init(window: &Window) -> WgpuRenderData {
         entries: &[BindGroupEntry { binding: 0, resource: BindingResource::Sampler(&sampler) }],
     });
 
+    let tilesets = HashMap::new();
+    let spritesheets = HashMap::new();
+
     WgpuRenderData {
         device,
         queue,
         surface,
         surface_size,
+        texture_bind_group_layout,
         rect_copy_pipeline,
         sampler_bind_group,
-        texture,
+        tilesets,
+        spritesheets,
     }
 }
 
@@ -195,15 +174,15 @@ pub fn render(render_data: &WgpuRenderData) {
         rect_copy(
             &mut render_pass,
             render_data,
-            &render_data.texture,
+            render_data.tilesets.get("../assets/tilesets/modern_interiors.png").unwrap(),
             0,
             0,
-            16,
-            16,
+            32,
+            32,
             0,
             0,
-            16,
-            16,
+            32,
+            32,
         );
     }
 
@@ -254,32 +233,80 @@ fn rect_copy(
     };
 
     render_pass.set_pipeline(&render_data.rect_copy_pipeline);
-    render_pass.set_bind_group(0, &render_data.texture.bind_group, &[]);
+    render_pass.set_bind_group(0, &texture.bind_group, &[]);
     render_pass.set_bind_group(1, &render_data.sampler_bind_group, &[]);
     render_pass.set_push_constants(ShaderStages::VERTEX, 0, bytemuck::cast_slice(&[params]));
     render_pass.draw(0..6, 0..1);
 }
 
-fn create_rect_copy_pipeline(device: &Device, surface_format: &TextureFormat) -> RenderPipeline {
+fn create_texture<P>(path: P, render_data: &WgpuRenderData) -> Texture
+where
+    P: AsRef<Path>,
+{
+    let start = std::time::Instant::now();
+    // Opening the giant tilesets with the image crate is really slow
+    // TODO look for a faster PNG decoding crate
+    let image = image::open(path.as_ref()).unwrap();
+    log::debug!(
+        "Opened {} in {:.2} secs",
+        path.as_ref().to_string_lossy(),
+        start.elapsed().as_secs_f64()
+    );
+
+    let texture_size = Extent3d {
+        width: image.dimensions().0,
+        height: image.dimensions().1,
+        depth_or_array_layers: 1,
+    };
+    let wgpu_texture = render_data.device.create_texture(&TextureDescriptor {
+        label: None,
+        size: texture_size,
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: TextureDimension::D2,
+        format: TextureFormat::Rgba8UnormSrgb,
+        usage: TextureUsages::TEXTURE_BINDING | TextureUsages::COPY_DST,
+        view_formats: &[],
+    });
+    render_data.queue.write_texture(
+        ImageCopyTexture {
+            texture: &wgpu_texture,
+            mip_level: 0,
+            origin: Origin3d::ZERO,
+            // What is this?
+            aspect: TextureAspect::All,
+        },
+        &image.to_rgba8(),
+        ImageDataLayout {
+            offset: 0,
+            bytes_per_row: Some(image.dimensions().0 * 4),
+            rows_per_image: Some(image.dimensions().1),
+        },
+        texture_size,
+    );
+    let texture_view = wgpu_texture.create_view(&TextureViewDescriptor::default());
+    let texture_bind_group = render_data.device.create_bind_group(&BindGroupDescriptor {
+        label: None,
+        layout: &render_data.texture_bind_group_layout,
+        entries: &[BindGroupEntry {
+            binding: 0,
+            resource: BindingResource::TextureView(&texture_view),
+        }],
+    });
+
+    Texture { bind_group: texture_bind_group, size: (texture_size.width, texture_size.height) }
+}
+
+fn create_rect_copy_pipeline(
+    device: &Device,
+    surface_format: &TextureFormat,
+    texture_bind_group_layout: &BindGroupLayout,
+) -> RenderPipeline {
     let shader = device.create_shader_module(ShaderModuleDescriptor {
         label: None,
         source: ShaderSource::Wgsl(
             std::fs::read_to_string("src/render/shaders/rect_copy_shader.wgsl").unwrap().into(),
         ),
-    });
-
-    let texture_bind_group_layout = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
-        label: None,
-        entries: &[BindGroupLayoutEntry {
-            binding: 0,
-            visibility: ShaderStages::FRAGMENT,
-            ty: BindingType::Texture {
-                sample_type: TextureSampleType::Float { filterable: true },
-                view_dimension: TextureViewDimension::D2,
-                multisampled: false,
-            },
-            count: None,
-        }],
     });
 
     let sampler_bind_group_layout = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
@@ -337,4 +364,50 @@ fn create_rect_copy_pipeline(device: &Device, surface_format: &TextureFormat) ->
     });
 
     pipeline
+}
+
+pub fn load_tilesets(render_data: &mut WgpuRenderData) {
+    if let Ok(dir) = std::fs::read_dir("assets/tilesets")
+        .tap_err(|_| log::error!("Couldn't open assets/tilesets/"))
+    {
+        // (map and drop so that closure can return Option so that we can use ? throughout)
+        dir.map(|entry| -> Option<()> {
+            let path = entry.ok()?.path();
+            let file_name = path.file_name()?.to_str()?.to_string();
+            let file_extension = path.extension()?;
+
+            if file_extension != "png" {
+                return None;
+            };
+
+            let texture = create_texture(path, render_data);
+            render_data.tilesets.insert(format!("../assets/tilesets/{}", file_name), texture);
+
+            Some(())
+        })
+        .for_each(drop);
+    }
+}
+
+pub fn load_spritesheets(render_data: &mut WgpuRenderData) {
+    if let Ok(dir) = std::fs::read_dir("assets/spritesheets/")
+        .tap_err(|_| log::error!("Couldn't open assets/spritesheets/"))
+    {
+        // (map and drop so that closure can return Option so that we can use ? throughout)
+        dir.map(|entry| -> Option<()> {
+            let path = entry.ok()?.path();
+            let file_stem = path.file_stem()?.to_str()?.to_string();
+            let file_extension = path.extension()?;
+
+            if file_extension != "png" {
+                return None;
+            };
+
+            let texture = create_texture(path, render_data);
+            render_data.tilesets.insert(file_stem, texture);
+
+            Some(())
+        })
+        .for_each(drop);
+    }
 }

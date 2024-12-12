@@ -26,3 +26,7 @@ wgpu = "23.0.1"
 
 [target.'cfg(windows)'.dependencies]
 winapi = {version = "0.3.9", features = ["winuser"]}
+
+# Opening giant PNGs with image crate on debug mode is giga slow
+[profile.dev.package.image]
+opt-level = 3

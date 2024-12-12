@@ -79,7 +79,10 @@ fn main() {
 
     let use_wgpu_renderer = true;
     let mut render_data = if use_wgpu_renderer {
-        RenderData::Wgpu(wgpu_renderer::init(&window))
+        let mut r = wgpu_renderer::init(&window);
+        wgpu_renderer::load_tilesets(&mut r);
+        wgpu_renderer::load_spritesheets(&mut r);
+        RenderData::Wgpu(r)
     } else {
         RenderData::Sdl(sdl_renderer::init(window, &ttf_context))
     };
