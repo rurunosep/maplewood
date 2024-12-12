@@ -54,7 +54,7 @@ fn main() {
     // How can I access the logger again to interact with it? Do I need to?
     log::set_boxed_logger(Box::new(Logger { once_only_logs: Mutex::new(HashSet::new()) }))
         .unwrap();
-    log::set_max_level(log::LevelFilter::Trace);
+    log::set_max_level(log::LevelFilter::Info);
 
     // Prevent high DPI scaling on Windows
     #[cfg(target_os = "windows")]

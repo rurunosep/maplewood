@@ -30,13 +30,15 @@ pub struct Texture {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Pod, Zeroable)]
+#[derive(Clone, Copy)]
 struct RectCopyParams {
     src_top_left: [f32; 2],
     src_bottom_right: [f32; 2],
     dest_top_left: [f32; 2],
     dest_bottom_right: [f32; 2],
 }
+unsafe impl Pod for RectCopyParams {}
+unsafe impl Zeroable for RectCopyParams {}
 
 pub fn init(window: &Window) -> WgpuRenderData {
     let instance = Instance::new(InstanceDescriptor {
@@ -171,19 +173,9 @@ pub fn render(render_data: &WgpuRenderData) {
             occlusion_query_set: None,
         });
 
-        rect_copy(
-            &mut render_pass,
-            render_data,
-            render_data.tilesets.get("../assets/tilesets/modern_interiors.png").unwrap(),
-            0,
-            0,
-            32,
-            32,
-            0,
-            0,
-            32,
-            32,
-        );
+        let texture =
+            render_data.tilesets.get("../assets/tilesets/modern_interiors.png").unwrap();
+        rect_copy(&mut render_pass, render_data, texture, 0, 0, 32, 32, 0, 0, 32, 32);
     }
 
     render_data.queue.submit([encoder.finish()]);
@@ -243,21 +235,14 @@ fn create_texture<P>(path: P, render_data: &WgpuRenderData) -> Texture
 where
     P: AsRef<Path>,
 {
-    let start = std::time::Instant::now();
-    // Opening the giant tilesets with the image crate is really slow
-    // TODO look for a faster PNG decoding crate
     let image = image::open(path.as_ref()).unwrap();
-    log::debug!(
-        "Opened {} in {:.2} secs",
-        path.as_ref().to_string_lossy(),
-        start.elapsed().as_secs_f64()
-    );
 
     let texture_size = Extent3d {
         width: image.dimensions().0,
         height: image.dimensions().1,
         depth_or_array_layers: 1,
     };
+
     let wgpu_texture = render_data.device.create_texture(&TextureDescriptor {
         label: None,
         size: texture_size,
@@ -268,6 +253,7 @@ where
         usage: TextureUsages::TEXTURE_BINDING | TextureUsages::COPY_DST,
         view_formats: &[],
     });
+
     render_data.queue.write_texture(
         ImageCopyTexture {
             texture: &wgpu_texture,
@@ -284,7 +270,9 @@ where
         },
         texture_size,
     );
+
     let texture_view = wgpu_texture.create_view(&TextureViewDescriptor::default());
+
     let texture_bind_group = render_data.device.create_bind_group(&BindGroupDescriptor {
         label: None,
         layout: &render_data.texture_bind_group_layout,
@@ -367,7 +355,7 @@ fn create_rect_copy_pipeline(
 }
 
 pub fn load_tilesets(render_data: &mut WgpuRenderData) {
-    if let Ok(dir) = std::fs::read_dir("assets/tilesets")
+    if let Ok(dir) = std::fs::read_dir("assets/tilesets/")
         .tap_err(|_| log::error!("Couldn't open assets/tilesets/"))
     {
         // (map and drop so that closure can return Option so that we can use ? throughout)
@@ -380,7 +368,14 @@ pub fn load_tilesets(render_data: &mut WgpuRenderData) {
                 return None;
             };
 
-            let texture = create_texture(path, render_data);
+            let start = std::time::Instant::now();
+            let texture = create_texture(&path, render_data);
+            log::debug!(
+                "Loaded {} in {:.2} secs",
+                path.to_string_lossy(),
+                start.elapsed().as_secs_f64()
+            );
+
             render_data.tilesets.insert(format!("../assets/tilesets/{}", file_name), texture);
 
             Some(())
@@ -403,7 +398,14 @@ pub fn load_spritesheets(render_data: &mut WgpuRenderData) {
                 return None;
             };
 
-            let texture = create_texture(path, render_data);
+            let start = std::time::Instant::now();
+            let texture = create_texture(&path, render_data);
+            log::debug!(
+                "Loaded {} in {:.2} secs",
+                path.to_string_lossy(),
+                start.elapsed().as_secs_f64()
+            );
+
             render_data.tilesets.insert(file_stem, texture);
 
             Some(())

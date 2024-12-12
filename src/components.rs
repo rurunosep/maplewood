@@ -3,11 +3,11 @@ use crate::misc::Direction;
 use crate::script::ScriptClass;
 use crate::sdl_renderer::PixelUnits;
 use crate::world::{MapPos, MapUnits, WorldPos};
-use derivative::Derivative;
-use derive_more::{Deref, DerefMut};
+use derived_deref::{Deref, DerefMut};
 use euclid::{Point2D, Rect, Size2D, Vector2D};
 use sdl2::mixer::Channel;
 use serde::{Deserialize, Serialize};
+use smart_default::SmartDefault;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
@@ -34,14 +34,12 @@ impl Component for Facing {}
 pub struct Scripts(pub Vec<ScriptClass>);
 impl Component for Scripts {}
 
-// TODO symmetries and rotations enum?
-#[derive(Derivative, Clone, Serialize, Deserialize)]
-#[derivative(Default)]
+#[derive(SmartDefault, Clone, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct SpriteComp {
     pub sprite: Option<Sprite>,
     pub forced_sprite: Option<Sprite>,
-    #[derivative(Default(value = "true"))]
+    #[default = true]
     pub visible: bool,
 }
 impl Component for SpriteComp {}

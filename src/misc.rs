@@ -123,7 +123,7 @@ impl log::Log for Logger {
             onces.insert(record.args().to_string());
         }
 
-        let colored_level = match record.level() {
+        let colored_level_label = match record.level() {
             x @ Level::Error => x.as_str().red(),
             x @ Level::Warn => x.as_str().yellow(),
             x => x.as_str().normal(),
@@ -131,7 +131,7 @@ impl log::Log for Logger {
 
         // TODO style multiline logs
 
-        println!("[{}] {}", colored_level, record.args());
+        println!("[{}] {}", colored_level_label, record.args());
     }
 
     fn enabled(&self, _metadata: &Metadata) -> bool {
