@@ -3,10 +3,7 @@ use crate::components::{
     NamedAnims, Position, Scripts, SfxEmitter, SpriteComp, Walking,
 };
 use crate::ecs::{Component, Ecs, EntityId};
-use sdl2::image::LoadTexture;
 use sdl2::mixer::{Chunk, Music};
-use sdl2::render::{Texture, TextureCreator};
-use sdl2::video::WindowContext;
 use serde::Serialize;
 use serde_json::{Map, Value};
 use std::collections::HashMap;
@@ -149,65 +146,6 @@ where
 // --------------------------------------------------------------
 // Assets
 // --------------------------------------------------------------
-
-// TODO reduce repeated code? or nah?
-
-pub fn load_tilesets(
-    texture_creator: &TextureCreator<WindowContext>,
-) -> HashMap<String, Texture> {
-    std::fs::read_dir("assets/tilesets/")
-        .tap_err(|_| log::error!("Couldn't open assets/tilesets/"))
-        .map(|dir| {
-            dir.filter_map(|entry| -> Option<_> {
-                let path = entry.ok()?.path();
-                let file_name = path.file_name()?.to_str()?.to_string();
-
-                let file_extension = path.extension()?;
-                if file_extension != "png" {
-                    return None;
-                };
-
-                let spritesheet = texture_creator
-                    .load_texture(&path)
-                    .tap_err(|_| log::error!("Couldn't load tileset: {}", path.to_string_lossy()))
-                    .ok()?;
-
-                // Keyed like this because this is how the ldtk layers refer to them
-                Some((format!("../assets/tilesets/{}", file_name), spritesheet))
-            })
-            .collect()
-        })
-        .unwrap_or(HashMap::new())
-}
-
-pub fn load_spritesheets(
-    texture_creator: &TextureCreator<WindowContext>,
-) -> HashMap<String, Texture> {
-    std::fs::read_dir("assets/spritesheets/")
-        .tap_err(|_| log::error!("Couldn't open assets/spritesheets/"))
-        .map(|dir| {
-            dir.filter_map(|entry| -> Option<_> {
-                let path = entry.ok()?.path();
-                let file_stem = path.file_stem()?.to_str()?.to_string();
-
-                let file_extension = path.extension()?;
-                if file_extension != "png" {
-                    return None;
-                };
-
-                let spritesheet = texture_creator
-                    .load_texture(&path)
-                    .tap_err(|_| {
-                        log::error!("Couldn't load spritesheet: {}", path.to_string_lossy())
-                    })
-                    .ok()?;
-
-                Some((file_stem, spritesheet))
-            })
-            .collect()
-        })
-        .unwrap_or(HashMap::new())
-}
 
 pub fn load_sound_effects() -> HashMap<String, Chunk> {
     std::fs::read_dir("assets/sfx/")

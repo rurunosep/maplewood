@@ -11,6 +11,13 @@ use std::sync::Mutex;
 use std::time::{Duration, Instant};
 use tap::TapOptional;
 
+pub const TILE_SIZE: u32 = 16;
+pub const SCREEN_COLS: u32 = 16;
+pub const SCREEN_ROWS: u32 = 12;
+pub const SCREEN_SCALE: u32 = 4;
+
+pub struct PixelUnits;
+
 #[derive(Clone, Copy, Default, Debug)]
 pub struct Aabb {
     pub top: f64,

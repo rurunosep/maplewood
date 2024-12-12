@@ -1,6 +1,6 @@
-use super::sdl_renderer::{PixelUnits, SCREEN_COLS, SCREEN_ROWS, SCREEN_SCALE, TILE_SIZE};
 use crate::components::{Position, SineOffsetAnimation, SpriteComp};
 use crate::ecs::Ecs;
+use crate::misc::{PixelUnits, SCREEN_COLS, SCREEN_ROWS, SCREEN_SCALE, TILE_SIZE};
 use crate::world::{CellPos, Map, MapPos, TileLayer, World};
 use crate::UiData;
 use bytemuck::{Pod, Zeroable};

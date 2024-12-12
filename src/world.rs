@@ -1,6 +1,5 @@
 use crate::loader::ldtk_project;
-use crate::misc::Aabb;
-use crate::sdl_renderer::PixelUnits;
+use crate::misc::{Aabb, PixelUnits};
 use euclid::{Point2D, Size2D, Vector2D};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

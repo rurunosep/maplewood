@@ -16,7 +16,7 @@ itertools = "0.13.0"
 log = {version = "0.4.22", features = ["std", "kv"]}
 mlua = {version = "0.10.2", features = ["lua54", "vendored"]}
 pollster = "0.4.0"
-sdl2 = {version = "0.37.0", features = ["image", "ttf", "mixer", "raw-window-handle", "unsafe_textures"]}
+sdl2 = {version = "0.37.0", features = ["mixer", "raw-window-handle"]}
 serde = {version = "1.0.215", features = ["derive"]}
 serde_json = {version = "1.0.133", features = ["preserve_order"]}
 slotmap = {version = "1.0.7", features = ["serde"]}

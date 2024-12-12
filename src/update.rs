@@ -5,9 +5,8 @@ use crate::components::{
 };
 use crate::data::PLAYER_ENTITY_NAME;
 use crate::ecs::{Ecs, EntityId, With};
-use crate::misc::{Aabb, Direction, StoryVars};
+use crate::misc::{Aabb, Direction, StoryVars, SCREEN_COLS, SCREEN_ROWS};
 use crate::script::{ScriptManager, Trigger};
-use crate::sdl_renderer::{SCREEN_COLS, SCREEN_ROWS};
 use crate::world::{CellPos, MapUnits, World};
 use crate::{GameData, MapOverlayTransition, MessageWindow, UiData};
 use euclid::{Point2D, Rect, Size2D, Vector2D};

@@ -1,7 +1,6 @@
 use crate::ecs::Component;
-use crate::misc::Direction;
+use crate::misc::{Direction, PixelUnits};
 use crate::script::ScriptClass;
-use crate::sdl_renderer::PixelUnits;
 use crate::world::{MapPos, MapUnits, WorldPos};
 use derived_deref::{Deref, DerefMut};
 use euclid::{Point2D, Rect, Size2D, Vector2D};

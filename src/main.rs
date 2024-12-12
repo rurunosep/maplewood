@@ -15,11 +15,11 @@ mod update;
 mod world;
 
 use ecs::Ecs;
-use misc::{Logger, MapOverlayTransition, MessageWindow, StoryVars};
-use render::sdl_renderer::{
-    self, SdlRenderData, SCREEN_COLS, SCREEN_ROWS, SCREEN_SCALE, TILE_SIZE,
+use misc::{
+    Logger, MapOverlayTransition, MessageWindow, StoryVars, SCREEN_COLS, SCREEN_ROWS,
+    SCREEN_SCALE, TILE_SIZE,
 };
-use render::wgpu_renderer::{self, WgpuRenderer};
+use render::renderer::WgpuRenderer;
 use script::{console, ScriptManager};
 use sdl2::mixer::{AUDIO_S16SYS, DEFAULT_CHANNELS};
 use sdl2::pixels::Color;
@@ -43,11 +43,6 @@ pub struct UiData {
     pub displayed_card_name: Option<String>,
 }
 
-pub enum RenderData<'a> {
-    Sdl(SdlRenderData<'a>),
-    Wgpu(WgpuRenderer<'a>),
-}
-
 fn main() {
     std::env::set_var("RUST_BACKTRACE", "0");
 
@@ -63,9 +58,7 @@ fn main() {
     }
 
     let sdl_context = sdl2::init().unwrap();
-    sdl2::image::init(sdl2::image::InitFlag::PNG).unwrap();
     sdl_context.audio().unwrap();
-    let ttf_context = sdl2::ttf::init().unwrap();
     let mut event_pump = sdl_context.event_pump().unwrap();
 
     let video_subsystem = sdl_context.video().unwrap();
@@ -77,15 +70,9 @@ fn main() {
         .build()
         .unwrap();
 
-    let use_wgpu_renderer = true;
-    let mut render_data = if use_wgpu_renderer {
-        let mut renderer = wgpu_renderer::WgpuRenderer::new(&window);
-        renderer.load_tilesets();
-        renderer.load_spritesheets();
-        RenderData::Wgpu(renderer)
-    } else {
-        RenderData::Sdl(sdl_renderer::init(window, &ttf_context))
-    };
+    let mut renderer = WgpuRenderer::new(&window);
+    renderer.load_tilesets();
+    renderer.load_spritesheets();
 
     sdl2::mixer::open_audio(41_100, AUDIO_S16SYS, DEFAULT_CHANNELS, 512).unwrap();
     sdl2::mixer::allocate_channels(10);
@@ -165,14 +152,7 @@ fn main() {
             &mut running, &musics, &sound_effects, delta,
         );
 
-        match &mut render_data {
-            RenderData::Sdl(render_data) => {
-                sdl_renderer::render(render_data, &game_data.world, &game_data.ecs, &ui_data)
-            }
-            RenderData::Wgpu(renderer) => {
-                renderer.render(&game_data.world, &game_data.ecs, &ui_data)
-            }
-        }
+        renderer.render(&game_data.world, &game_data.ecs, &ui_data);
 
         // Frame duration as a percent of a full 60 fps frame:
         // println!("{:.2}%", last_time.elapsed().as_secs_f64() / (1. / 60.) * 100.);
