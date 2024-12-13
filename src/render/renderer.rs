@@ -2,7 +2,7 @@ use crate::components::{Position, SineOffsetAnimation, SpriteComp};
 use crate::ecs::Ecs;
 use crate::misc::{PixelUnits, SCREEN_COLS, SCREEN_ROWS, SCREEN_SCALE, TILE_SIZE};
 use crate::world::{CellPos, Map, MapPos, TileLayer, World};
-use crate::UiData;
+use crate::{EguiData, UiData};
 use bytemuck::{Pod, Zeroable};
 use euclid::{Point2D, Rect, Size2D, Vector2D};
 use image::GenericImageView;
@@ -18,7 +18,7 @@ use wgpu_text::glyph_brush::ab_glyph::FontVec;
 use wgpu_text::glyph_brush::{Section, Text};
 use wgpu_text::{BrushBuilder, TextBrush};
 
-pub struct WgpuRenderer<'window> {
+pub struct Renderer<'window> {
     device: Device,
     queue: Queue,
     surface: Surface<'window>,
@@ -60,7 +60,7 @@ struct RectFillParams {
 unsafe impl Pod for RectFillParams {}
 unsafe impl Zeroable for RectFillParams {}
 
-impl WgpuRenderer<'_> {
+impl Renderer<'_> {
     pub fn new(window: &Window) -> Self {
         let instance = Instance::new(InstanceDescriptor {
             backends: Backends::all(),
@@ -120,6 +120,8 @@ impl WgpuRenderer<'_> {
         };
         surface.configure(&device, &surface_config);
 
+        // (I can actually reference the egui_wgpu_backend::RenderPass code to see how it
+        // structures and solves several problems. It looks pretty informative.)
         let egui_render_pass = egui_wgpu_backend::RenderPass::new(&device, surface_format, 1);
 
         let texture_bind_group_layout =
@@ -194,9 +196,8 @@ impl WgpuRenderer<'_> {
         world: &World,
         ecs: &Ecs,
         ui_data: &UiData,
-        textures_delta: egui::TexturesDelta,
-        paint_jobs: Vec<egui::ClippedPrimitive>,
-        pixels_per_point: f32,
+        // &mut cause we need to consume full_output.textures_delta
+        egui_data: &mut EguiData,
     ) {
         // let start = std::time::Instant::now();
 
@@ -242,25 +243,35 @@ impl WgpuRenderer<'_> {
         }
 
         // Egui render pass
-        let screen_descriptor = egui_wgpu_backend::ScreenDescriptor {
-            physical_width: self.surface_size.0,
-            physical_height: self.surface_size.1,
-            // scale_factor: 1.,
-            scale_factor: pixels_per_point,
-        };
-        self.egui_render_pass.add_textures(&self.device, &self.queue, &textures_delta).unwrap();
-        self.egui_render_pass.update_buffers(
-            &self.device,
-            &self.queue,
-            &paint_jobs,
-            &screen_descriptor,
-        );
-        // (Apparently I can also execute as part of an existing render pass)
-        self.egui_render_pass
-            .execute(&mut encoder, &view, &paint_jobs, &screen_descriptor, None)
-            .unwrap();
+        // (May also be done in the same render pass with
+        // egui_wgpu_backend::RenderPass::execute_with_render_pass)
+        if let Some(full_output) = egui_data.full_output.take() {
+            let paint_jobs =
+                egui_data.ctx.tessellate(full_output.shapes, egui_data.ctx.pixels_per_point());
+            let textures_delta = full_output.textures_delta;
 
-        self.egui_render_pass.remove_textures(textures_delta).unwrap();
+            let screen_descriptor = egui_wgpu_backend::ScreenDescriptor {
+                physical_width: self.surface_size.0,
+                physical_height: self.surface_size.1,
+                scale_factor: egui_data.ctx.pixels_per_point(),
+            };
+
+            self.egui_render_pass
+                .add_textures(&self.device, &self.queue, &textures_delta)
+                .unwrap();
+            self.egui_render_pass.update_buffers(
+                &self.device,
+                &self.queue,
+                &paint_jobs,
+                &screen_descriptor,
+            );
+
+            self.egui_render_pass
+                .execute(&mut encoder, &view, &paint_jobs, &screen_descriptor, None)
+                .unwrap();
+
+            self.egui_render_pass.remove_textures(textures_delta).unwrap();
+        }
 
         self.queue.submit([encoder.finish()]);
         output.present();
@@ -418,7 +429,7 @@ impl WgpuRenderer<'_> {
             [0.02, 0.02, 0.02, 1.],
         );
 
-        // Draw the text
+        // Draw the prepared text
         self.brush.draw(render_pass);
     }
 

@@ -19,10 +19,11 @@ use misc::{
     Logger, MapOverlayTransition, MessageWindow, StoryVars, SCREEN_COLS, SCREEN_ROWS,
     SCREEN_SCALE, TILE_SIZE,
 };
-use render::renderer::WgpuRenderer;
+use render::renderer::Renderer;
 use script::{console, ScriptManager};
 use sdl2::mixer::{AUDIO_S16SYS, DEFAULT_CHANNELS};
 use sdl2::pixels::Color;
+use sdl2::video::Window;
 use slotmap::SlotMap;
 use std::collections::{HashMap, HashSet};
 use std::sync::Mutex;
@@ -43,10 +44,27 @@ pub struct UiData {
     pub displayed_card_name: Option<String>,
 }
 
+pub struct EguiData<'window> {
+    pub ctx: egui::Context,
+    pub state: EguiSDL2State,
+    pub window: &'window Window,
+    // Stored intermediately between processing and rendering for convenience
+    pub full_output: Option<egui::FullOutput>,
+}
+
+impl EguiData<'_> {
+    // Keeps egui context zoom_factor and egui state dpi_scaling in sync
+    pub fn set_zoom_factor(&mut self, zoom_factor: f32) {
+        self.ctx.set_zoom_factor(zoom_factor);
+        self.state.dpi_scaling = zoom_factor;
+    }
+}
+
 fn main() {
     std::env::set_var("RUST_BACKTRACE", "0");
 
-    // How can I access the logger again to interact with it? Do I need to?
+    // Logger
+    // (How can I access the logger again to interact with it? Do I need to?)
     log::set_boxed_logger(Box::new(Logger { once_only_logs: Mutex::new(HashSet::new()) }))
         .unwrap();
     log::set_max_level(log::LevelFilter::Info);
@@ -57,10 +75,12 @@ fn main() {
         winapi::um::winuser::SetProcessDPIAware();
     }
 
+    // Sdl
     let sdl_context = sdl2::init().unwrap();
     sdl_context.audio().unwrap();
     let mut event_pump = sdl_context.event_pump().unwrap();
 
+    // Window
     let video_subsystem = sdl_context.video().unwrap();
     let window_width = TILE_SIZE * SCREEN_COLS * SCREEN_SCALE;
     let window_height = TILE_SIZE * SCREEN_ROWS * SCREEN_SCALE;
@@ -70,22 +90,26 @@ fn main() {
         .build()
         .unwrap();
 
-    let mut renderer = WgpuRenderer::new(&window);
+    // Renderer
+    let mut renderer = Renderer::new(&window);
     renderer.load_tilesets();
     renderer.load_spritesheets();
 
-    // State dpi_scaling and context pixels_per_point must remain in sync
-    // I can enforce that as well as keep all the egui stuff well organized if I wrap it
-    // up in a neat little "platform" struct
-    let mut egui_state = EguiSDL2State::new(window.size().0, window.size().1, 1.5);
+    // Egui
     let egui_ctx = egui::Context::default();
-    egui_ctx.set_pixels_per_point(1.5);
+    let egui_state = EguiSDL2State::new(window.size().0, window.size().1, 1.);
+    let mut egui_data =
+        EguiData { state: egui_state, ctx: egui_ctx, window: &window, full_output: None };
+    // This happens to be my exact dpi scaling. Should I always just query and use the users?
+    egui_data.set_zoom_factor(1.5);
 
+    // Audio
     sdl2::mixer::open_audio(41_100, AUDIO_S16SYS, DEFAULT_CHANNELS, 512).unwrap();
     sdl2::mixer::allocate_channels(10);
     let sound_effects = loader::load_sound_effects();
     let musics = loader::load_musics();
 
+    // Game data (maps, entities, story vars)
     let project: loader::ldtk_project::Project =
         serde_json::from_str(&std::fs::read_to_string("data/world.ldtk").unwrap()).unwrap();
 
@@ -103,16 +127,19 @@ fn main() {
     }
 
     let mut ecs = Ecs::new();
+    // Load in order of ldtk > file > source, so that entities defined in previous steps may be
+    // extended by components defined in following steps
     loader::ldtk_entities::load_entities_from_ldtk(&mut ecs, &project);
-    // After loading from ldtk so that ldtk entities may have additional components attached
     loader::load_entities_from_file(&mut ecs, "data/entities.json");
     data::load_entities_from_source(&mut ecs);
 
     let mut story_vars = StoryVars(HashMap::new());
+    // TODO story vars from file
     data::load_story_vars(&mut story_vars);
 
     let mut game_data = GameData { world, ecs, story_vars };
 
+    // Misc
     let mut ui_data = UiData {
         message_window: None,
         map_overlay_color: Color::RGBA(0, 0, 0, 0),
@@ -120,10 +147,10 @@ fn main() {
         show_cutscene_border: false,
         displayed_card_name: None,
     };
-
     let mut script_manager = ScriptManager { instances: SlotMap::with_key() };
     let mut player_movement_locked = false;
 
+    // Console
     let console_lua_instance = mlua::Lua::new();
     let (console_input_sender, console_input_receiver) = crossbeam::channel::unbounded();
     std::thread::spawn(move || loop {
@@ -151,32 +178,10 @@ fn main() {
         #[rustfmt::skip]
         input::process_input(
             &mut game_data, &mut event_pump, &mut running, &mut ui_data.message_window,
-            player_movement_locked, &mut script_manager, &mut egui_state, &window
+            player_movement_locked, &mut script_manager, &mut egui_data
         );
 
-        // I'm thinking process egui right here in between input and update
-
-        // NOW struct holding state, ctx, output textures delta, paint jobs, scaling, etc
-
-        egui_state.update_time(Some(start_time.elapsed().as_secs_f64()), delta.as_secs_f32());
-        egui_ctx.begin_pass(egui_state.raw_input.take());
-
-        egui::Window::new("Hello, world!").show(&egui_ctx, |ui| {
-            ui.label("Hello, world!");
-            if ui.button("Greet").clicked() {
-                println!("Hello, world!");
-            }
-            ui.horizontal(|ui| {
-                ui.label("Color: ");
-                ui.color_edit_button_rgba_premultiplied(&mut [0.; 4]);
-            });
-            ui.code_editor(&mut String::new());
-        });
-
-        let full_output = egui_ctx.end_pass();
-        egui_state.process_output(&window, &full_output.platform_output);
-        let paint_jobs = egui_ctx.tessellate(full_output.shapes, egui_state.dpi_scaling);
-        let textures_delta = full_output.textures_delta;
+        run_egui(&mut egui_data, &start_time);
 
         #[rustfmt::skip]
         update::update(
@@ -184,18 +189,38 @@ fn main() {
             &mut running, &musics, &sound_effects, delta,
         );
 
-        renderer.render(
-            &game_data.world,
-            &game_data.ecs,
-            &ui_data,
-            textures_delta,
-            paint_jobs,
-            egui_state.dpi_scaling,
-        );
+        renderer.render(&game_data.world, &game_data.ecs, &ui_data, &mut egui_data);
 
         // Frame duration as a percent of a full 60 fps frame:
         // println!("{:.2}%", last_time.elapsed().as_secs_f64() / (1. / 60.) * 100.);
 
         std::thread::sleep(Duration::from_secs_f64(1. / 60.).saturating_sub(last_time.elapsed()));
     }
+}
+
+// Show egui, process output and app state updates (nothing for now), and save intermediate
+// full_output for rendering later
+// (Eventually move to a debug_ui module)
+fn run_egui(egui_data: &mut EguiData<'_>, start_time: &Instant) {
+    let EguiData { state, ctx, window, .. } = egui_data;
+
+    state.update_time(Some(start_time.elapsed().as_secs_f64()), 1. / 60.);
+    ctx.begin_pass(state.raw_input.take());
+
+    egui::Window::new("Hello, world!").show(&ctx, |ui| {
+        ui.label("Hello, world!");
+        if ui.button("Greet").clicked() {
+            println!("Hello, world!");
+        }
+        ui.horizontal(|ui| {
+            ui.label("Color: ");
+            ui.color_edit_button_rgba_premultiplied(&mut [0.; 4]);
+        });
+        ui.code_editor(&mut String::new());
+    });
+
+    let full_output = ctx.end_pass();
+    // (Looks like this just updates the cursor and the clipboard text)
+    state.process_output(window, &full_output.platform_output);
+    egui_data.full_output = Some(full_output);
 }

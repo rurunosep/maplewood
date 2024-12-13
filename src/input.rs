@@ -5,12 +5,10 @@ use crate::data::PLAYER_ENTITY_NAME;
 use crate::ecs::Ecs;
 use crate::misc::{Aabb, Direction};
 use crate::script::{ScriptManager, Trigger};
-use crate::{GameData, MessageWindow};
-use egui_sdl2_event::EguiSDL2State;
+use crate::{EguiData, GameData, MessageWindow};
 use euclid::Vector2D;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
-use sdl2::video::Window;
 
 pub fn process_input(
     game_data: &mut GameData,
@@ -19,15 +17,13 @@ pub fn process_input(
     message_window: &mut Option<MessageWindow>,
     player_movement_locked: bool,
     script_manager: &mut ScriptManager,
-    //
-    egui_state: &mut EguiSDL2State,
-    window: &Window,
+    egui_data: &mut EguiData,
 ) {
     let GameData { ref mut ecs, ref mut story_vars, .. } = game_data;
 
     for event in event_pump.poll_iter() {
-        // egui_platform.handle_event(&event, sdl_context, video_subsystem);
-        egui_state.sdl2_input_to_egui(&window, &event);
+        // Update egui state with new input
+        egui_data.state.sdl2_input_to_egui(egui_data.window, &event);
 
         match event {
             // Arbitrary testing
