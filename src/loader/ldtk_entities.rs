@@ -69,7 +69,7 @@ fn load_generic_entity(
     // JSON components
     if let Some(Value::Object(components_map)) = read_field("json_components", entity) {
         for (key, val) in components_map {
-            super::load_component_from_json_value(ecs, id, &key, &val);
+            super::load_single_component_from_value(ecs, id, &key, &val);
         }
     }
 }
@@ -92,7 +92,7 @@ fn load_simple_script_entity(
     // JSON components
     if let Some(Value::Object(components_map)) = read_json_field("json_components", entity) {
         for (key, val) in components_map {
-            super::load_component_from_json_value(ecs, id, &key, &val);
+            super::load_single_component_from_value(ecs, id, &key, &val);
         }
     }
 
@@ -168,7 +168,7 @@ fn load_simple_animation_entity(
     // JSON components
     if let Some(Value::Object(components_map)) = read_json_field("json_components", entity) {
         for (key, val) in components_map {
-            super::load_component_from_json_value(ecs, id, &key, &val);
+            super::load_single_component_from_value(ecs, id, &key, &val);
         }
     }
 
@@ -228,7 +228,7 @@ fn load_dual_state_animation_entity(
     // JSON components
     if let Some(Value::Object(components_map)) = read_json_field("json_components", entity) {
         for (key, val) in components_map {
-            super::load_component_from_json_value(ecs, id, &key, &val);
+            super::load_single_component_from_value(ecs, id, &key, &val);
         }
     }
 
@@ -296,7 +296,7 @@ fn load_character_entity(
     // JSON components
     if let Some(Value::Object(components_map)) = read_json_field("json_components", entity) {
         for (key, val) in components_map {
-            super::load_component_from_json_value(ecs, id, &key, &val);
+            super::load_single_component_from_value(ecs, id, &key, &val);
         }
     }
 

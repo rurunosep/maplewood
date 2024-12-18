@@ -421,8 +421,9 @@ dependencies = [
 
 [[package]]
 name = "egui-sdl2-event"
-version = "0.4.1"
-source = "git+https://github.com/rurunosep/egui-sdl2-event#e0007d18d9c324876d963503404e3854cf09a144"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "748bb886f2857aa628a356dfa78c63e981df8b3896468c07f2fba2e99d527528"
 dependencies = [
  "egui",
  "sdl2",

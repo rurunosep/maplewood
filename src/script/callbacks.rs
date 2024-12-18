@@ -1,7 +1,8 @@
 use super::{Error, ScriptId, WaitCondition};
 use crate::components::{
-    AnimationComp, Camera, Collision, DualStateAnimationState, DualStateAnims, Facing,
-    NamedAnims, Position, SfxEmitter, SineOffsetAnimation, Sprite, SpriteComp, Walking,
+    AnimationComp, Camera, CharacterAnims, Collision, DualStateAnimationState, DualStateAnims,
+    Facing, Interaction, Name, NamedAnims, Position, Scripts, SfxEmitter, SineOffsetAnimation,
+    Sprite, SpriteComp, Walking,
 };
 use crate::data::PLAYER_ENTITY_NAME;
 use crate::ecs::{Ecs, EntityId};
@@ -372,7 +373,37 @@ pub fn set_map_overlay_color(
     Ok(())
 }
 
-// TODO remove component
+// Internals of this function may want to be pulled out so that components referenced by
+// json name can be removed by other code, not just scripts
+// (for example, the debug ui will likely be removing components by json name)
+pub fn remove_component(
+    (entity_name, component_name): (String, String),
+    ecs: &mut Ecs,
+) -> LuaResult<()> {
+    let id = ecs
+        .query_one_with_name::<EntityId>(&entity_name)
+        .ok_or(Error(f!("invalid entity '{}'", entity_name)))?;
+
+    match component_name.as_str() {
+        "name" => ecs.remove_component::<Name>(id),
+        "position" => ecs.remove_component::<Position>(id),
+        "collision" => ecs.remove_component::<Collision>(id),
+        "scripts" => ecs.remove_component::<Scripts>(id),
+        "sfx_emitter" => ecs.remove_component::<SfxEmitter>(id),
+        "sprite" => ecs.remove_component::<SpriteComp>(id),
+        "facing" => ecs.remove_component::<Facing>(id),
+        "walking" => ecs.remove_component::<Walking>(id),
+        "camera" => ecs.remove_component::<Camera>(id),
+        "interaction" => ecs.remove_component::<Interaction>(id),
+        "animation" => ecs.remove_component::<AnimationComp>(id),
+        "character_anims" => ecs.remove_component::<CharacterAnims>(id),
+        "dual_state_anims" => ecs.remove_component::<DualStateAnims>(id),
+        "named_anims" => ecs.remove_component::<NamedAnims>(id),
+        _ => Err(Error(f!("invalid component '{}'", component_name)))?,
+    };
+
+    Ok(())
+}
 
 pub fn add_component(
     (entity_name, component_name, component_json): (String, String, String),
@@ -387,14 +418,17 @@ pub fn add_component(
 
     let _ = serde_json::from_str::<serde_json::Value>(&component_json)
         .tap_err(|err| log::error!("Invalid component json (err: \"{err}\""))
-        .map(|v| loader::load_component_from_json_value(ecs, entity_id, &component_name, &v));
+        .map(|v| loader::load_single_component_from_value(ecs, entity_id, &component_name, &v));
 
     Ok(())
 }
 
 pub fn dump_entities_to_file(path: String, ecs: &Ecs) -> LuaResult<()> {
-    std::fs::write(&path, &loader::save_entities_in_json(ecs))
-        .map_err(|err| mlua::Error::ExternalError(std::sync::Arc::new(err)))
+    std::fs::write(
+        &path,
+        &serde_json::to_string_pretty(&loader::save_entities_to_value(ecs)).expect(""),
+    )
+    .map_err(|err| mlua::Error::ExternalError(std::sync::Arc::new(err)))
 }
 
 pub fn message(

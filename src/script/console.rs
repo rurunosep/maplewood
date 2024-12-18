@@ -269,6 +269,12 @@ pub fn process_console_input(
                     callbacks::add_component(args, *ecs.borrow_mut())
                 })?,
             )?;
+            globals.set(
+                "remove_component",
+                scope.create_function(|_, args| {
+                    callbacks::remove_component(args, *ecs.borrow_mut())
+                })?,
+            )?;
 
             // Console only
             globals.set(

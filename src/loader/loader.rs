@@ -14,6 +14,11 @@ use tap::TapFallible;
 // JSON entities and components
 // --------------------------------------------------------------
 
+// TODO json component keys use CamelCase name of the struct itself
+// Why keep separate names for json and rust?
+// (one consideration is conflicts for components with same name in distinct modules)
+// TODO component serde code is part of Component trait impl (gen with proc macro)
+
 // Convenience function to wrap error logging
 pub fn load_entities_from_file<P>(ecs: &mut Ecs, path: P)
 where
@@ -61,7 +66,7 @@ pub fn load_entities_from_json(ecs: &mut Ecs, json: &str) -> Result<(), String> 
             .unwrap_or_else(|| ecs.add_entity());
 
         for (key, val) in components_map {
-            load_component_from_json_value(ecs, id, &key, &val);
+            load_single_component_from_value(ecs, id, &key, &val);
         }
     }
 
@@ -69,11 +74,10 @@ pub fn load_entities_from_json(ecs: &mut Ecs, json: &str) -> Result<(), String> 
 }
 
 // Skips and logs error if component is invalid
-pub fn load_component_from_json_value(ecs: &mut Ecs, id: EntityId, name: &str, data: &Value) {
+pub fn load_single_component_from_value(ecs: &mut Ecs, id: EntityId, name: &str, data: &Value) {
     let r: serde_json::Result<()> = try {
         let data = data.clone();
 
-        // To keep the match arms single line
         use serde_json::from_value as sjfv;
 
         match name {
@@ -103,44 +107,47 @@ pub fn load_component_from_json_value(ecs: &mut Ecs, id: EntityId, name: &str, d
     });
 }
 
-// This is only for debug or for easily generating component json
-// It doesn't include an id for restoring game state
-#[allow(dead_code)]
-pub fn save_entities_in_json(ecs: &Ecs) -> String {
+pub fn save_entities_to_value(ecs: &Ecs) -> Value {
     let mut entities = Vec::new();
     for id in ecs.entity_ids.keys() {
-        let mut components = Map::new();
-
-        insert_component::<Name>("name", &mut components, id, &ecs);
-        insert_component::<Position>("position", &mut components, id, &ecs);
-        insert_component::<Collision>("collision", &mut components, id, &ecs);
-        insert_component::<Scripts>("scripts", &mut components, id, &ecs);
-        insert_component::<SfxEmitter>("sfx_emitter", &mut components, id, &ecs);
-        insert_component::<SpriteComp>("sprite", &mut components, id, &ecs);
-        insert_component::<Facing>("facing", &mut components, id, &ecs);
-        insert_component::<Walking>("walking", &mut components, id, &ecs);
-        insert_component::<Camera>("camera", &mut components, id, &ecs);
-        insert_component::<Interaction>("interaction", &mut components, id, &ecs);
-        insert_component::<AnimationComp>("animation", &mut components, id, &ecs);
-        insert_component::<CharacterAnims>("character_anims", &mut components, id, &ecs);
-        insert_component::<DualStateAnims>("dual_state_anims", &mut components, id, &ecs);
-        insert_component::<NamedAnims>("named_anims", &mut components, id, &ecs);
-
-        entities.push(Value::Object(components));
+        entities.push(save_components_to_value(ecs, id));
     }
 
-    serde_json::to_string_pretty(&Value::Array(entities)).expect("")
+    Value::Array(entities)
 }
 
-fn insert_component<C>(name: &str, components: &mut Map<String, Value>, id: EntityId, ecs: &Ecs)
-where
-    C: Component + Clone + Serialize + 'static,
-{
-    if let Some(component) = ecs.query_one_with_id::<&C>(id)
-        && let Ok(value) = serde_json::to_value(component.clone())
+// This is only for debug or for easily generating component json
+// It doesn't include an id for restoring game state
+pub fn save_components_to_value(ecs: &Ecs, id: EntityId) -> Value {
+    let mut components = Map::new();
+
+    insert::<Name>("name", &mut components, id, &ecs);
+    insert::<Position>("position", &mut components, id, &ecs);
+    insert::<Collision>("collision", &mut components, id, &ecs);
+    insert::<Scripts>("scripts", &mut components, id, &ecs);
+    insert::<SfxEmitter>("sfx_emitter", &mut components, id, &ecs);
+    insert::<SpriteComp>("sprite", &mut components, id, &ecs);
+    insert::<Facing>("facing", &mut components, id, &ecs);
+    insert::<Walking>("walking", &mut components, id, &ecs);
+    insert::<Camera>("camera", &mut components, id, &ecs);
+    insert::<Interaction>("interaction", &mut components, id, &ecs);
+    insert::<AnimationComp>("animation", &mut components, id, &ecs);
+    insert::<CharacterAnims>("character_anims", &mut components, id, &ecs);
+    insert::<DualStateAnims>("dual_state_anims", &mut components, id, &ecs);
+    insert::<NamedAnims>("named_anims", &mut components, id, &ecs);
+
+    fn insert<C>(name: &str, components: &mut Map<String, Value>, id: EntityId, ecs: &Ecs)
+    where
+        C: Component + Clone + Serialize + 'static,
     {
-        components.insert(name.to_string(), value);
+        if let Some(component) = ecs.query_one_with_id::<&C>(id)
+            && let Ok(value) = serde_json::to_value(component.clone())
+        {
+            components.insert(name.to_string(), value);
+        }
     }
+
+    Value::Object(components)
 }
 
 // --------------------------------------------------------------

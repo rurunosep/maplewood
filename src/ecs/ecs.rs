@@ -72,6 +72,8 @@ impl Ecs {
         )
     }
 
+    // DOES filter in a way that avoids double borrow in a nested query
+    // (Because it filters by id first, then runs the query)
     pub fn query_one_with_id<Q>(&self, id: EntityId) -> Option<Q::Result<'_>>
     where
         Q: Query,
@@ -81,6 +83,10 @@ impl Ecs {
             .map(|id| Q::borrow(id, &self.component_maps))
     }
 
+    // Does NOT filter in a way that avoids double borrow in a nested query
+    // (Because it filters by name during the query)
+    // TODO query_one_with_name filters by name before querying
+    // Or just leave it since I'm reworking the ecs later anyway?
     pub fn query_one_with_name<Q>(&self, name: &str) -> Option<Q::Result<'_>>
     where
         Q: Query + 'static,

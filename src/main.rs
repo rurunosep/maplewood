@@ -48,8 +48,11 @@ pub struct EguiData<'window> {
     pub ctx: egui::Context,
     pub state: EguiSDL2State,
     pub window: &'window Window,
+    pub active: bool,
     // Stored intermediately between processing and rendering for convenience
     pub full_output: Option<egui::FullOutput>,
+    //
+    pub player_position_window: Option<PlayerPositionWindow>,
 }
 
 impl EguiData<'_> {
@@ -98,9 +101,15 @@ fn main() {
     // Egui
     let egui_ctx = egui::Context::default();
     let egui_state = EguiSDL2State::new(window.size().0, window.size().1, 1.);
-    let mut egui_data =
-        EguiData { state: egui_state, ctx: egui_ctx, window: &window, full_output: None };
-    // This happens to be my exact dpi scaling. Should I always just query and use the users?
+    let mut egui_data = EguiData {
+        state: egui_state,
+        ctx: egui_ctx,
+        window: &window,
+        active: true,
+        full_output: None,
+        player_position_window: None,
+    };
+    // This happens to be my exact dpi scaling. Should I always just query and use the user's?
     egui_data.set_zoom_factor(1.5);
 
     // Audio
@@ -159,11 +168,16 @@ fn main() {
         let _ = console_input_sender.send(input.clone());
     });
 
+    // Scratchpad
+    {}
+
     // --------------------------------------------------------------
     // Main Loop
     // --------------------------------------------------------------
     let start_time = Instant::now();
     let mut last_time = Instant::now();
+    // Pre-sleep duration of last frame as a percent of a full 60fps frame
+    let mut frame_duration: f32 = 0.;
     let mut running = true;
     while running {
         let delta = last_time.elapsed();
@@ -181,7 +195,7 @@ fn main() {
             player_movement_locked, &mut script_manager, &mut egui_data
         );
 
-        run_egui(&mut egui_data, &start_time);
+        run_egui(&mut egui_data, &start_time, frame_duration, &game_data.ecs);
 
         #[rustfmt::skip]
         update::update(
@@ -191,36 +205,71 @@ fn main() {
 
         renderer.render(&game_data.world, &game_data.ecs, &ui_data, &mut egui_data);
 
-        // Frame duration as a percent of a full 60 fps frame:
-        // println!("{:.2}%", last_time.elapsed().as_secs_f64() / (1. / 60.) * 100.);
-
-        std::thread::sleep(Duration::from_secs_f64(1. / 60.).saturating_sub(last_time.elapsed()));
+        frame_duration = last_time.elapsed().as_secs_f32() / (1. / 60.) * 100.;
+        std::thread::sleep(Duration::from_secs_f32(1. / 60.).saturating_sub(last_time.elapsed()));
     }
 }
 
 // Show egui, process output and app state updates (nothing for now), and save intermediate
 // full_output for rendering later
 // (Eventually move to a debug_ui module)
-fn run_egui(egui_data: &mut EguiData<'_>, start_time: &Instant) {
+fn run_egui(
+    egui_data: &mut EguiData<'_>,
+    start_time: &Instant,
+    //
+    frame_duration: f32,
+    ecs: &Ecs,
+) {
+    if !egui_data.active {
+        return;
+    }
+
     let EguiData { state, ctx, window, .. } = egui_data;
 
     state.update_time(Some(start_time.elapsed().as_secs_f64()), 1. / 60.);
     ctx.begin_pass(state.raw_input.take());
 
-    egui::Window::new("Hello, world!").show(&ctx, |ui| {
-        ui.label("Hello, world!");
-        if ui.button("Greet").clicked() {
-            println!("Hello, world!");
-        }
-        ui.horizontal(|ui| {
-            ui.label("Color: ");
-            ui.color_edit_button_rgba_premultiplied(&mut [0.; 4]);
-        });
-        ui.code_editor(&mut String::new());
+    egui::Window::new("Debug").show(&ctx, |ui| {
+        ui.label(format!("Frame Duration: {frame_duration:.2}%"));
+
+        let mut is_open = egui_data.player_position_window.is_some();
+        ui.toggle_value(&mut is_open, "Player Position");
+        match (is_open, &egui_data.player_position_window) {
+            (true, None) => {
+                egui_data.player_position_window = Some(PlayerPositionWindow::new(&ecs))
+            }
+            (false, Some(_)) => egui_data.player_position_window = None,
+            _ => {}
+        };
     });
+
+    if let Some(window) = &mut egui_data.player_position_window {
+        window.show(ctx);
+    }
 
     let full_output = ctx.end_pass();
     // (Looks like this just updates the cursor and the clipboard text)
     state.process_output(window, &full_output.platform_output);
     egui_data.full_output = Some(full_output);
+}
+
+pub struct PlayerPositionWindow {
+    pub text: String,
+}
+
+impl PlayerPositionWindow {
+    fn new(ecs: &Ecs) -> Self {
+        Self {
+            text: serde_json::to_string_pretty(
+                &*ecs.query_one_with_name::<&components::Position>("player").unwrap(),
+            )
+            .unwrap(),
+        }
+    }
+
+    fn show(&mut self, ctx: &egui::Context) {
+        egui::Window::new("Player Position").show(&ctx, |ui| {
+            ui.text_edit_multiline(&mut self.text);
+        });
+    }
 }

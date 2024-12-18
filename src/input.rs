@@ -41,6 +41,11 @@ pub fn process_input(
                 *running = false;
             }
 
+            // Toggle debug ui
+            Event::KeyDown { keycode: Some(Keycode::Backquote), .. } => {
+                egui_data.active = !egui_data.active;
+            }
+
             // Player movement
             // TODO player component or input component?
             Event::KeyDown { keycode: Some(keycode), .. }

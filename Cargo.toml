@@ -11,7 +11,7 @@ colored = "2.1.0"
 crossbeam = "0.8.4"
 derived-deref = "2.1.0"
 egui = "0.29.1"
-egui-sdl2-event = "0.4.1"
+egui-sdl2-event = "0.5.0"
 egui_wgpu_backend = "0.32.0"
 euclid = {version = "0.22.9", features = ["serde"]}
 image = {version = "0.25.5", default-features = false, features = ["png", "rayon"]}
@@ -30,9 +30,6 @@ wgpu_text = "0.9.1"
 
 [target.'cfg(windows)'.dependencies]
 winapi = {version = "0.3.9", features = ["winuser"]}
-
-[patch.crates-io]
-egui-sdl2-event = {git = "https://github.com/rurunosep/egui-sdl2-event"}
 
 [profile.dev.package]
 fdeflate.opt-level = 3

@@ -21,6 +21,7 @@ use std::time::{Duration, Instant};
 pub struct Name(pub String);
 impl Component for Name {}
 
+// TODO serialize with truncated floats
 #[derive(Deref, DerefMut, Default, Clone, Debug, Serialize, Deserialize)]
 pub struct Position(pub WorldPos);
 impl Component for Position {}

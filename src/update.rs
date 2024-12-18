@@ -1,6 +1,6 @@
 use crate::components::{
     AnimationComp, Camera, CharacterAnims, Collision, DualStateAnimationState, DualStateAnims,
-    Facing, PlaybackState, Position, Scripts, SfxEmitter, SineOffsetAnimation, SpriteComp,
+    Facing, Name, PlaybackState, Position, Scripts, SfxEmitter, SineOffsetAnimation, SpriteComp,
     Walking,
 };
 use crate::data::PLAYER_ENTITY_NAME;
@@ -411,8 +411,8 @@ fn update_map_overlay_color(
 }
 
 fn update_camera(ecs: &Ecs, world: &World) {
-    let Some((mut camera_position, camera_component)) =
-        ecs.query::<(&mut Position, &Camera)>().next()
+    let Some((camera_id, mut camera_position, camera_component)) =
+        ecs.query::<(EntityId, &mut Position, &Camera)>().next()
     else {
         return;
     };
@@ -420,8 +420,12 @@ fn update_camera(ecs: &Ecs, world: &World) {
     // Update camera position to follow target entity
     // (double ECS borrow)
     if let Some(target_name) = &camera_component.target_entity_name
-        && let Some(target_position) = ecs
-            .query_one_with_name::<&Position>(target_name)
+        && let Some((target_position, _)) = ecs
+            // query_one_with_name does NOT avoid a double borrow
+            // Only query_except and query_one_with_id filter in ways that avoid a double borrow
+            // So we have to query_except(camera_id), then filter results by name
+            .query_except::<(&Position, &Name)>(camera_id)
+            .find(|(_, name)| name.eq(target_name))
             .tap_none(|| log::error!(once = true; "Invalid camera target: {}", &target_name))
     {
         *camera_position = target_position.clone();

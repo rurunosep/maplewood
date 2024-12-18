@@ -470,6 +470,12 @@ impl ScriptInstance {
                         callbacks::add_component(args, *ecs.borrow_mut())
                     })?,
                 )?;
+                globals.set(
+                    "remove_component",
+                    scope.create_function(|_, args| {
+                        callbacks::remove_component(args, *ecs.borrow_mut())
+                    })?,
+                )?;
 
                 // Scripts only
                 globals.set(

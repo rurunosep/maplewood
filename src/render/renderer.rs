@@ -18,21 +18,6 @@ use wgpu_text::glyph_brush::ab_glyph::FontVec;
 use wgpu_text::glyph_brush::{Section, Text};
 use wgpu_text::{BrushBuilder, TextBrush};
 
-pub struct Renderer<'window> {
-    device: Device,
-    queue: Queue,
-    surface: Surface<'window>,
-    surface_size: (u32, u32),
-    egui_render_pass: egui_wgpu_backend::RenderPass,
-    texture_bind_group_layout: BindGroupLayout,
-    rect_copy_pipeline: RenderPipeline,
-    rect_fill_pipeline: RenderPipeline,
-    sampler_bind_group: BindGroup,
-    tilesets: HashMap<String, Texture>,
-    spritesheets: HashMap<String, Texture>,
-    brush: TextBrush<FontVec>,
-}
-
 #[repr(C)]
 #[derive(Clone, Copy)]
 struct RectCopyParams {
@@ -59,6 +44,26 @@ struct RectFillParams {
 }
 unsafe impl Pod for RectFillParams {}
 unsafe impl Zeroable for RectFillParams {}
+
+pub struct Texture {
+    bind_group: BindGroup,
+    size: (u32, u32),
+}
+
+pub struct Renderer<'window> {
+    device: Device,
+    queue: Queue,
+    surface: Surface<'window>,
+    surface_size: (u32, u32),
+    egui_render_pass: egui_wgpu_backend::RenderPass,
+    texture_bind_group_layout: BindGroupLayout,
+    rect_copy_pipeline: RenderPipeline,
+    rect_fill_pipeline: RenderPipeline,
+    sampler_bind_group: BindGroup,
+    tilesets: HashMap<String, Texture>,
+    spritesheets: HashMap<String, Texture>,
+    brush: TextBrush<FontVec>,
+}
 
 impl Renderer<'_> {
     pub fn new(window: &Window) -> Self {
@@ -88,7 +93,9 @@ impl Renderer<'_> {
             .request_device(
                 &DeviceDescriptor {
                     label: None,
+                    // Push constants are only available on native. Can't target wasm.
                     required_features: Features::PUSH_CONSTANTS,
+                    // Limits should be kept to exactly what we need and no more
                     required_limits: Limits { max_push_constant_size: 32, ..Default::default() },
                     memory_hints: MemoryHints::default(),
                 },
@@ -245,7 +252,9 @@ impl Renderer<'_> {
         // Egui render pass
         // (May also be done in the same render pass with
         // egui_wgpu_backend::RenderPass::execute_with_render_pass)
-        if let Some(full_output) = egui_data.full_output.take() {
+        if egui_data.active
+            && let Some(full_output) = egui_data.full_output.take()
+        {
             let paint_jobs =
                 egui_data.ctx.tessellate(full_output.shapes, egui_data.ctx.pixels_per_point());
             let textures_delta = full_output.textures_delta;
@@ -615,11 +624,6 @@ impl Renderer<'_> {
             size: (texture_size.width, texture_size.height),
         }
     }
-}
-
-pub struct Texture {
-    bind_group: BindGroup,
-    size: (u32, u32),
 }
 
 fn create_rect_copy_pipeline(
