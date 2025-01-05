@@ -30,6 +30,7 @@ type QueryResultIter<'r, Q> = Box<dyn Iterator<Item = <Q as Query>::Result<'r>> 
 pub type ComponentMap<C> = SecondaryMap<EntityId, RefCell<C>>;
 
 pub struct Ecs {
+    // TODO implement slotmap myself so that I can control its serde functionality (and more)
     pub entity_ids: SlotMap<EntityId, ()>,
     pub component_maps: AnyMap,
     #[allow(clippy::type_complexity)]
@@ -122,7 +123,7 @@ impl Ecs {
         self.component_maps.get_mut::<ComponentMap<C>>().map(|cm| cm.remove(entity_id));
     }
 
-    // TODO explain all of this deferred operations code, cause it's complex and opaque af
+    // TODO explain all of this deferred operations code, cause it's confusing af
 
     #[allow(dead_code)]
     pub fn add_entity_deferred(&self) -> DeferredEntityId {

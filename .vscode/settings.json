@@ -29,7 +29,5 @@
     "set_camera_clamp",
     "add_component"
   ],
-  "Lua.diagnostics.disable": ["redefined-local"],
-  "todo-tree.tree.scanMode": "workspace only",
-  "todo-tree.tree.showCountsInTree": false
+  "Lua.diagnostics.disable": ["redefined-local"]
 }

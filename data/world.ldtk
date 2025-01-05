@@ -3800,7 +3800,7 @@
 									}] },
 									{ "__identifier": "start_condition", "__type": "String", "__value": "{\n  \"story_var\": \"bathroom::exit::running\",\n  \"value\": 0\n}", "__tile": null, "defUid": 757, "realEditorValues": [{
 										"id": "V_String",
-										"params": ["{\\n  \"story_var\": \"bathroom::exit::running\",\\n  \"value\": 0\\n}"]
+										"params": ["{\n  \"story_var\": \"bathroom::exit::running\",\n  \"value\": 0\n}"]
 									}] },
 									{ "__identifier": "abort_condition", "__type": "String", "__value": null, "__tile": null, "defUid": 789, "realEditorValues": [] },
 									{ "__identifier": "set_on_start", "__type": "String", "__value": "[\"bathroom::exit::running\", 1]", "__tile": null, "defUid": 758, "realEditorValues": [{
@@ -5400,7 +5400,7 @@
 								"__smartColor": "#0099DB",
 								"iid": "99f45640-9b00-11ef-8c25-572ccf0698ae",
 								"width": 32,
-								"height": 32,
+								"height": 16,
 								"defUid": 806,
 								"px": [160,40],
 								"fieldInstances": [
@@ -8069,9 +8069,9 @@
 								"__smartColor": "#0099DB",
 								"iid": "7a229740-b0a0-11ee-9b54-4b42618087e7",
 								"width": 32,
-								"height": 32,
+								"height": 16,
 								"defUid": 806,
-								"px": [152,32],
+								"px": [152,40],
 								"fieldInstances": [
 									{ "__identifier": "name", "__type": "String", "__value": "hallway::bakery_fire", "__tile": null, "defUid": 815, "realEditorValues": [{
 										"id": "V_String",
@@ -8097,7 +8097,7 @@
 									{ "__identifier": "json_components", "__type": "String", "__value": null, "__tile": null, "defUid": 846, "realEditorValues": [] }
 								],
 								"__worldX": 424,
-								"__worldY": 288
+								"__worldY": 296
 							},
 							{
 								"__identifier": "simple_script",
@@ -8263,9 +8263,9 @@
 								"__smartColor": "#0099DB",
 								"iid": "c6126090-9b00-11ef-99d4-170c414c9e3b",
 								"width": 32,
-								"height": 32,
+								"height": 16,
 								"defUid": 806,
-								"px": [56,48],
+								"px": [56,56],
 								"fieldInstances": [
 									{ "__identifier": "name", "__type": "String", "__value": "hallway::bathroom_fire", "__tile": null, "defUid": 815, "realEditorValues": [{
 										"id": "V_String",
@@ -8291,7 +8291,7 @@
 									{ "__identifier": "json_components", "__type": "String", "__value": null, "__tile": null, "defUid": 846, "realEditorValues": [] }
 								],
 								"__worldX": 328,
-								"__worldY": 304
+								"__worldY": 312
 							},
 							{
 								"__identifier": "simple_anim",

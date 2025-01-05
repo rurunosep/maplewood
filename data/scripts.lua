@@ -111,6 +111,7 @@ local stages = {
     message("\"Here's your bun.\"")
     wait(1)
     set_entity_visible("bakery::fire", true)
+    play_sfx("flame")
     wait(1)
     walk("CAMERA", "down", 4, 0.05)
     wait(2)
@@ -255,7 +256,7 @@ end
 
 stop_object_animation("janitor")
 stop_entity_sfx("janitor")
-set_forced_sprite("janitor", "janitor_down", 0, 0, 32, 16, 16, 8)
+set_forced_sprite("janitor", "janitor_down", 0, 0, 32, 16, 8, 8)
 set_entity_map_pos("janitor", 7, 14.8)
 set_entity_solid("janitor", false)
 

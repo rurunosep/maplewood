@@ -5,7 +5,7 @@ use crate::data::PLAYER_ENTITY_NAME;
 use crate::ecs::Ecs;
 use crate::misc::{Aabb, Direction};
 use crate::script::{ScriptManager, Trigger};
-use crate::{EguiData, GameData, MessageWindow};
+use crate::{DevUiData, GameData, MessageWindow};
 use euclid::Vector2D;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
@@ -17,7 +17,7 @@ pub fn process_input(
     message_window: &mut Option<MessageWindow>,
     player_movement_locked: bool,
     script_manager: &mut ScriptManager,
-    egui_data: &mut EguiData,
+    egui_data: &mut DevUiData,
 ) {
     let GameData { ref mut ecs, ref mut story_vars, .. } = game_data;
 

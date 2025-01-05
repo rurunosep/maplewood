@@ -37,8 +37,8 @@ pub fn update(
       player_movement_locked, ui_data, running, musics, sound_effects
     );
 
-    // Entity (Movement)
     stop_player_movement_when_message_window_open(&game_data.ecs, &ui_data.message_window);
+    // TODO move (don't resolve collisions) > start collision scripts > resolve collisions
     move_entities_and_resolve_collisions(
         &game_data.ecs,
         &game_data.world,
@@ -47,16 +47,13 @@ pub fn update(
     );
     update_camera(&game_data.ecs, &game_data.world);
 
-    // Entity (Animation)
     update_character_animations(&game_data.ecs);
     update_dual_state_animations(&game_data.ecs);
     play_animations_and_set_sprites(&game_data.ecs, delta);
 
-    // Entity (Misc)
     update_sfx_emitting_entities(&game_data.ecs, sound_effects);
     end_sine_offset_animations(&mut game_data.ecs);
 
-    // Misc (UI)
     update_map_overlay_color(&mut ui_data.map_overlay_color, &mut ui_data.map_overlay_transition);
 }
 
@@ -397,6 +394,8 @@ fn update_map_overlay_color(
     if let Some(MapOverlayTransition { start_time, duration, start_color, end_color }) =
         &*map_overlay_transition
     {
+        // TODO reusable simple lerp function
+
         let interp = start_time.elapsed().div_duration_f64(*duration).min(1.0);
         let r = ((end_color.r - start_color.r) as f64 * interp + start_color.r as f64) as u8;
         let g = ((end_color.g - start_color.g) as f64 * interp + start_color.g as f64) as u8;

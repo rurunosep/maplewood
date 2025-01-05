@@ -4,6 +4,7 @@
 
 mod components;
 mod data;
+mod dev_ui;
 mod ecs;
 mod input;
 mod loader;
@@ -13,6 +14,7 @@ mod script;
 mod update;
 mod world;
 
+use dev_ui::DevUiData;
 use ecs::Ecs;
 use egui_sdl2_event::EguiSDL2State;
 use misc::{
@@ -23,7 +25,6 @@ use render::renderer::Renderer;
 use script::{console, ScriptManager};
 use sdl2::mixer::{AUDIO_S16SYS, DEFAULT_CHANNELS};
 use sdl2::pixels::Color;
-use sdl2::video::Window;
 use slotmap::SlotMap;
 use std::collections::{HashMap, HashSet};
 use std::sync::Mutex;
@@ -42,25 +43,6 @@ pub struct UiData {
     pub map_overlay_transition: Option<MapOverlayTransition>,
     pub show_cutscene_border: bool,
     pub displayed_card_name: Option<String>,
-}
-
-pub struct EguiData<'window> {
-    pub ctx: egui::Context,
-    pub state: EguiSDL2State,
-    pub window: &'window Window,
-    pub active: bool,
-    // Stored intermediately between processing and rendering for convenience
-    pub full_output: Option<egui::FullOutput>,
-    //
-    pub player_position_window: Option<PlayerPositionWindow>,
-}
-
-impl EguiData<'_> {
-    // Keeps egui context zoom_factor and egui state dpi_scaling in sync
-    pub fn set_zoom_factor(&mut self, zoom_factor: f32) {
-        self.ctx.set_zoom_factor(zoom_factor);
-        self.state.dpi_scaling = zoom_factor;
-    }
 }
 
 fn main() {
@@ -98,19 +80,19 @@ fn main() {
     renderer.load_tilesets();
     renderer.load_spritesheets();
 
-    // Egui
+    // Dev Ui
     let egui_ctx = egui::Context::default();
     let egui_state = EguiSDL2State::new(window.size().0, window.size().1, 1.);
-    let mut egui_data = EguiData {
-        state: egui_state,
+    let mut dev_ui_data = DevUiData {
         ctx: egui_ctx,
+        state: egui_state,
         window: &window,
-        active: true,
+        active: false,
         full_output: None,
         player_position_window: None,
     };
     // This happens to be my exact dpi scaling. Should I always just query and use the user's?
-    egui_data.set_zoom_factor(1.5);
+    dev_ui_data.set_zoom_factor(1.5);
 
     // Audio
     sdl2::mixer::open_audio(41_100, AUDIO_S16SYS, DEFAULT_CHANNELS, 512).unwrap();
@@ -192,10 +174,10 @@ fn main() {
         #[rustfmt::skip]
         input::process_input(
             &mut game_data, &mut event_pump, &mut running, &mut ui_data.message_window,
-            player_movement_locked, &mut script_manager, &mut egui_data
+            player_movement_locked, &mut script_manager, &mut dev_ui_data
         );
 
-        run_egui(&mut egui_data, &start_time, frame_duration, &game_data.ecs);
+        dev_ui::run_dev_ui(&mut dev_ui_data, &start_time, frame_duration, &game_data.ecs);
 
         #[rustfmt::skip]
         update::update(
@@ -203,73 +185,9 @@ fn main() {
             &mut running, &musics, &sound_effects, delta,
         );
 
-        renderer.render(&game_data.world, &game_data.ecs, &ui_data, &mut egui_data);
+        renderer.render(&game_data.world, &game_data.ecs, &ui_data, &mut dev_ui_data);
 
         frame_duration = last_time.elapsed().as_secs_f32() / (1. / 60.) * 100.;
         std::thread::sleep(Duration::from_secs_f32(1. / 60.).saturating_sub(last_time.elapsed()));
-    }
-}
-
-// Show egui, process output and app state updates (nothing for now), and save intermediate
-// full_output for rendering later
-// (Eventually move to a debug_ui module)
-fn run_egui(
-    egui_data: &mut EguiData<'_>,
-    start_time: &Instant,
-    //
-    frame_duration: f32,
-    ecs: &Ecs,
-) {
-    if !egui_data.active {
-        return;
-    }
-
-    let EguiData { state, ctx, window, .. } = egui_data;
-
-    state.update_time(Some(start_time.elapsed().as_secs_f64()), 1. / 60.);
-    ctx.begin_pass(state.raw_input.take());
-
-    egui::Window::new("Debug").show(&ctx, |ui| {
-        ui.label(format!("Frame Duration: {frame_duration:.2}%"));
-
-        let mut is_open = egui_data.player_position_window.is_some();
-        ui.toggle_value(&mut is_open, "Player Position");
-        match (is_open, &egui_data.player_position_window) {
-            (true, None) => {
-                egui_data.player_position_window = Some(PlayerPositionWindow::new(&ecs))
-            }
-            (false, Some(_)) => egui_data.player_position_window = None,
-            _ => {}
-        };
-    });
-
-    if let Some(window) = &mut egui_data.player_position_window {
-        window.show(ctx);
-    }
-
-    let full_output = ctx.end_pass();
-    // (Looks like this just updates the cursor and the clipboard text)
-    state.process_output(window, &full_output.platform_output);
-    egui_data.full_output = Some(full_output);
-}
-
-pub struct PlayerPositionWindow {
-    pub text: String,
-}
-
-impl PlayerPositionWindow {
-    fn new(ecs: &Ecs) -> Self {
-        Self {
-            text: serde_json::to_string_pretty(
-                &*ecs.query_one_with_name::<&components::Position>("player").unwrap(),
-            )
-            .unwrap(),
-        }
-    }
-
-    fn show(&mut self, ctx: &egui::Context) {
-        egui::Window::new("Player Position").show(&ctx, |ui| {
-            ui.text_edit_multiline(&mut self.text);
-        });
     }
 }

@@ -2,7 +2,7 @@ use crate::components::{Position, SineOffsetAnimation, SpriteComp};
 use crate::ecs::Ecs;
 use crate::misc::{PixelUnits, SCREEN_COLS, SCREEN_ROWS, SCREEN_SCALE, TILE_SIZE};
 use crate::world::{CellPos, Map, MapPos, TileLayer, World};
-use crate::{EguiData, UiData};
+use crate::{DevUiData, UiData};
 use bytemuck::{Pod, Zeroable};
 use euclid::{Point2D, Rect, Size2D, Vector2D};
 use image::GenericImageView;
@@ -204,7 +204,7 @@ impl Renderer<'_> {
         ecs: &Ecs,
         ui_data: &UiData,
         // &mut cause we need to consume full_output.textures_delta
-        egui_data: &mut EguiData,
+        egui_data: &mut DevUiData,
     ) {
         // let start = std::time::Instant::now();
 
