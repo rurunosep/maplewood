@@ -4,6 +4,7 @@ use crate::misc::{PixelUnits, SCREEN_COLS, SCREEN_ROWS, SCREEN_SCALE, TILE_SIZE}
 use crate::world::{CellPos, Map, MapPos, TileLayer, World};
 use crate::{DevUiData, UiData};
 use bytemuck::{Pod, Zeroable};
+use egui::TexturesDelta;
 use euclid::{Point2D, Rect, Size2D, Vector2D};
 use image::GenericImageView;
 use itertools::Itertools;
@@ -206,8 +207,6 @@ impl Renderer<'_> {
         // &mut cause we need to consume full_output.textures_delta
         egui_data: &mut DevUiData,
     ) {
-        // let start = std::time::Instant::now();
-
         let output = self.surface.get_current_texture().unwrap();
         let view = output.texture.create_view(&TextureViewDescriptor::default());
         let mut encoder =
@@ -284,8 +283,12 @@ impl Renderer<'_> {
 
         self.queue.submit([encoder.finish()]);
         output.present();
+    }
 
-        // println!("{:.2}%", start.elapsed().as_secs_f64() / (1. / 60.) * 100.);
+    // Part of the hack to make egui properly set initial screen_rect
+    pub fn update_egui_textures_without_rendering(&mut self, textures_delta: TexturesDelta) {
+        self.egui_render_pass.add_textures(&self.device, &self.queue, &textures_delta).unwrap();
+        self.egui_render_pass.remove_textures(textures_delta).unwrap();
     }
 
     fn sdl_renderer_port<'rpass>(

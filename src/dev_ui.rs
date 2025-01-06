@@ -1,6 +1,8 @@
-use crate::components;
-use crate::ecs::Ecs;
+use crate::components::{Collision, Facing, Position};
+use crate::ecs::{Component, Ecs, EntityId};
+use crate::loader::load_single_component_from_value;
 use sdl2::video::Window;
+use serde::Serialize;
 use std::time::Instant;
 
 pub struct DevUiData<'window> {
@@ -11,28 +13,17 @@ pub struct DevUiData<'window> {
     // Stored intermediately between processing and rendering for convenience
     pub full_output: Option<egui::FullOutput>,
     //
-    pub player_position_window: Option<PlayerPositionWindow>,
+    pub player_components_window: Option<PlayerComponentsWindow>,
 }
-
-impl DevUiData<'_> {
-    // Keeps egui context zoom_factor and egui state dpi_scaling in sync
-    pub fn set_zoom_factor(&mut self, zoom_factor: f32) {
-        self.ctx.set_zoom_factor(zoom_factor);
-        self.state.dpi_scaling = zoom_factor;
-    }
-}
-
-// NOW list some entities and components in egui
 
 // Show egui, process output and app state updates (nothing for now), and save intermediate
 // full_output for rendering later
-// (Eventually move to a debug_ui module)
 pub fn run_dev_ui(
     dev_ui_data: &mut DevUiData<'_>,
     start_time: &Instant,
     //
     frame_duration: f32,
-    ecs: &Ecs,
+    ecs: &mut Ecs,
 ) {
     if !dev_ui_data.active {
         return;
@@ -43,23 +34,28 @@ pub fn run_dev_ui(
     state.update_time(Some(start_time.elapsed().as_secs_f64()), 1. / 60.);
     ctx.begin_pass(state.raw_input.take());
 
-    egui::Window::new("Debug").show(&ctx, |ui| {
-        ui.label(format!("Frame Duration: {frame_duration:.2}%"));
+    let mut player_components_window_open = dev_ui_data.player_components_window.is_some();
 
-        let mut is_open = dev_ui_data.player_position_window.is_some();
-        ui.toggle_value(&mut is_open, "Player Position");
-        match (is_open, &dev_ui_data.player_position_window) {
-            (true, None) => {
-                dev_ui_data.player_position_window = Some(PlayerPositionWindow::new(&ecs))
-            }
-            (false, Some(_)) => dev_ui_data.player_position_window = None,
-            _ => {}
-        };
-    });
+    egui::Window::new("Debug")
+        .pivot(egui::Align2::RIGHT_TOP)
+        .default_pos(ctx.screen_rect().shrink(16.).right_top())
+        .default_width(150.)
+        .show(&ctx, |ui| {
+            ui.label(format!("Frame Duration: {frame_duration:.2}%"));
+            ui.toggle_value(&mut player_components_window_open, "Player Components");
+            ui.allocate_space([ui.available_width(), 0.].into());
+        });
 
-    if let Some(window) = &mut dev_ui_data.player_position_window {
-        window.show(ctx);
+    if let Some(window) = &mut dev_ui_data.player_components_window {
+        window.show(ctx, &mut player_components_window_open, ecs);
     }
+    match (player_components_window_open, &dev_ui_data.player_components_window) {
+        (true, None) => {
+            dev_ui_data.player_components_window = Some(PlayerComponentsWindow::new())
+        }
+        (false, Some(_)) => dev_ui_data.player_components_window = None,
+        _ => {}
+    };
 
     let full_output = ctx.end_pass();
     // (Looks like this just updates the cursor and the clipboard text)
@@ -67,23 +63,132 @@ pub fn run_dev_ui(
     dev_ui_data.full_output = Some(full_output);
 }
 
-pub struct PlayerPositionWindow {
-    pub text: String,
+pub struct PlayerComponentsWindow {
+    pub position_collapsible: Option<ComponentCollapsible<Position>>,
+    pub collision_collapsible: Option<ComponentCollapsible<Collision>>,
+    pub facing_collapsible: Option<ComponentCollapsible<Facing>>,
 }
 
-impl PlayerPositionWindow {
-    fn new(ecs: &Ecs) -> Self {
+impl PlayerComponentsWindow {
+    pub fn new() -> Self {
+        Self { position_collapsible: None, collision_collapsible: None, facing_collapsible: None }
+    }
+
+    pub fn show(&mut self, ctx: &egui::Context, open: &mut bool, ecs: &mut Ecs) {
+        egui::Window::new("Player Components").default_width(250.).open(open).show(&ctx, |ui| {
+            egui::ScrollArea::vertical().show(ui, |ui| {
+                let player_id = ecs.query_one_with_name::<EntityId>("player").unwrap();
+
+                // These are pretty verbose
+                match (ecs.query_one_with_id::<&Position>(player_id), &self.position_collapsible)
+                {
+                    (Some(_), None) => {
+                        self.position_collapsible =
+                            Some(ComponentCollapsible::<Position>::new(player_id, "position"));
+                    }
+                    (None, Some(_)) => {
+                        self.position_collapsible = None;
+                    }
+                    _ => {}
+                };
+
+                match (
+                    ecs.query_one_with_id::<&Collision>(player_id),
+                    &self.collision_collapsible,
+                ) {
+                    (Some(_), None) => {
+                        self.collision_collapsible =
+                            Some(ComponentCollapsible::<Collision>::new(player_id, "collision"));
+                    }
+                    (None, Some(_)) => {
+                        self.collision_collapsible = None;
+                    }
+                    _ => {}
+                };
+
+                match (ecs.query_one_with_id::<&Facing>(player_id), &self.facing_collapsible) {
+                    (Some(_), None) => {
+                        self.facing_collapsible =
+                            Some(ComponentCollapsible::<Facing>::new(player_id, "facing"));
+                    }
+                    (None, Some(_)) => {
+                        self.facing_collapsible = None;
+                    }
+                    _ => {}
+                };
+
+                if let Some(c) = &mut self.position_collapsible {
+                    c.show(ui, ecs);
+                }
+                if let Some(c) = &mut self.collision_collapsible {
+                    c.show(ui, ecs);
+                }
+                if let Some(c) = &mut self.facing_collapsible {
+                    c.show(ui, ecs);
+                }
+            });
+        });
+    }
+}
+
+pub struct ComponentCollapsible<C> {
+    pub entity_id: EntityId,
+    pub name: &'static str,
+    pub text: String,
+    pub editable: bool,
+    pub _component: std::marker::PhantomData<C>,
+}
+
+impl<C> ComponentCollapsible<C>
+where
+    C: Component + Serialize + 'static,
+{
+    pub fn new(entity_id: EntityId, name: &'static str) -> Self {
         Self {
-            text: serde_json::to_string_pretty(
-                &*ecs.query_one_with_name::<&components::Position>("player").unwrap(),
-            )
-            .unwrap(),
+            entity_id,
+            name,
+            text: String::new(),
+            editable: false,
+            _component: std::marker::PhantomData::<C>,
         }
     }
 
-    fn show(&mut self, ctx: &egui::Context) {
-        egui::Window::new("Player Position").show(&ctx, |ui| {
-            ui.text_edit_multiline(&mut self.text);
+    pub fn show(&mut self, ui: &mut egui::Ui, ecs: &mut Ecs) {
+        ui.collapsing(self.name, |ui| {
+            if !self.editable {
+                self.text = serde_json::to_string_pretty(
+                    &*ecs.query_one_with_id::<&C>(self.entity_id).unwrap(),
+                )
+                .unwrap();
+            }
+
+            ui.add_enabled(
+                self.editable,
+                egui::TextEdit::multiline(&mut self.text).code_editor().desired_rows(1),
+            );
+
+            ui.horizontal(|ui| {
+                if self.editable {
+                    if ui.button("Cancel").clicked() {
+                        self.editable = false;
+                    };
+
+                    if ui.button("Save").clicked() {
+                        load_single_component_from_value(
+                            ecs,
+                            self.entity_id,
+                            self.name,
+                            &serde_json::from_str::<serde_json::Value>(&self.text).unwrap(),
+                        );
+
+                        self.editable = false;
+                    };
+                } else {
+                    if ui.button("Edit").clicked() {
+                        self.editable = true;
+                    };
+                }
+            });
         });
     }
 }

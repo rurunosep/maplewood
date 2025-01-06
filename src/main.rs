@@ -82,6 +82,7 @@ fn main() {
 
     // Dev Ui
     let egui_ctx = egui::Context::default();
+    // (state dpi scaling must be initally set to 1 to set the initial screen_rect correctly)
     let egui_state = EguiSDL2State::new(window.size().0, window.size().1, 1.);
     let mut dev_ui_data = DevUiData {
         ctx: egui_ctx,
@@ -89,10 +90,16 @@ fn main() {
         window: &window,
         active: false,
         full_output: None,
-        player_position_window: None,
+        player_components_window: None,
     };
-    // This happens to be my exact dpi scaling. Should I always just query and use the user's?
-    dev_ui_data.set_zoom_factor(1.5);
+
+    // Nasty hack to make egui take the initial screen_rect before setting zoom_factor
+    let DevUiData { ctx, state, .. } = &mut dev_ui_data;
+    ctx.begin_pass(state.raw_input.take());
+    let full_output = ctx.end_pass();
+    renderer.update_egui_textures_without_rendering(full_output.textures_delta);
+    ctx.set_zoom_factor(1.5);
+    state.dpi_scaling = 1.5;
 
     // Audio
     sdl2::mixer::open_audio(41_100, AUDIO_S16SYS, DEFAULT_CHANNELS, 512).unwrap();
@@ -177,7 +184,7 @@ fn main() {
             player_movement_locked, &mut script_manager, &mut dev_ui_data
         );
 
-        dev_ui::run_dev_ui(&mut dev_ui_data, &start_time, frame_duration, &game_data.ecs);
+        dev_ui::run_dev_ui(&mut dev_ui_data, &start_time, frame_duration, &mut game_data.ecs);
 
         #[rustfmt::skip]
         update::update(

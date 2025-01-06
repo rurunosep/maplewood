@@ -80,6 +80,10 @@ pub fn load_single_component_from_value(ecs: &mut Ecs, id: EntityId, name: &str,
 
         use serde_json::from_value as sjfv;
 
+        // TODO use exact same name as rust struct
+        // Use std::any::type_name? Or add get_name function to Component trait?
+        // So that we can freely change component names without changing all the strings where the
+        // name occurs
         match name {
             "id" => {}
             "name" => ecs.add_component(id, sjfv::<Name>(data)?),

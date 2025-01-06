@@ -4,6 +4,9 @@ use anymap::AnyMap;
 use slotmap::{new_key_type, Key, SecondaryMap, SlotMap};
 use std::cell::RefCell;
 
+// TODO get_name trait member?
+// Or just use std::any::type_name::<{Component}>() and only use the last part of the qualified
+// path?
 pub trait Component {}
 
 new_key_type! { pub struct EntityId; }
