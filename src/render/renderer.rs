@@ -2,7 +2,7 @@ use crate::components::{Position, SineOffsetAnimation, SpriteComp};
 use crate::ecs::Ecs;
 use crate::misc::{PixelUnits, SCREEN_COLS, SCREEN_ROWS, SCREEN_SCALE, TILE_SIZE};
 use crate::world::{CellPos, Map, MapPos, TileLayer, World};
-use crate::{DevUiData, UiData};
+use crate::{DevUi, UiData};
 use bytemuck::{Pod, Zeroable};
 use egui::TexturesDelta;
 use euclid::{Point2D, Rect, Size2D, Vector2D};
@@ -205,7 +205,7 @@ impl Renderer<'_> {
         ecs: &Ecs,
         ui_data: &UiData,
         // &mut cause we need to consume full_output.textures_delta
-        egui_data: &mut DevUiData,
+        egui_data: &mut DevUi,
     ) {
         let output = self.surface.get_current_texture().unwrap();
         let view = output.texture.create_view(&TextureViewDescriptor::default());

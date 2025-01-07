@@ -14,9 +14,8 @@ mod script;
 mod update;
 mod world;
 
-use dev_ui::DevUiData;
+use dev_ui::DevUi;
 use ecs::Ecs;
-use egui_sdl2_event::EguiSDL2State;
 use misc::{
     Logger, MapOverlayTransition, MessageWindow, StoryVars, SCREEN_COLS, SCREEN_ROWS,
     SCREEN_SCALE, TILE_SIZE,
@@ -81,20 +80,10 @@ fn main() {
     renderer.load_spritesheets();
 
     // Dev Ui
-    let egui_ctx = egui::Context::default();
-    // (state dpi scaling must be initally set to 1 to set the initial screen_rect correctly)
-    let egui_state = EguiSDL2State::new(window.size().0, window.size().1, 1.);
-    let mut dev_ui_data = DevUiData {
-        ctx: egui_ctx,
-        state: egui_state,
-        window: &window,
-        active: false,
-        full_output: None,
-        player_components_window: None,
-    };
+    let mut dev_ui = DevUi::new(&window);
 
     // Nasty hack to make egui take the initial screen_rect before setting zoom_factor
-    let DevUiData { ctx, state, .. } = &mut dev_ui_data;
+    let DevUi { ctx, state, .. } = &mut dev_ui;
     ctx.begin_pass(state.raw_input.take());
     let full_output = ctx.end_pass();
     renderer.update_egui_textures_without_rendering(full_output.textures_delta);
@@ -181,10 +170,10 @@ fn main() {
         #[rustfmt::skip]
         input::process_input(
             &mut game_data, &mut event_pump, &mut running, &mut ui_data.message_window,
-            player_movement_locked, &mut script_manager, &mut dev_ui_data
+            player_movement_locked, &mut script_manager, &mut dev_ui
         );
 
-        dev_ui::run_dev_ui(&mut dev_ui_data, &start_time, frame_duration, &mut game_data.ecs);
+        dev_ui.run(&start_time, frame_duration, &mut game_data.ecs);
 
         #[rustfmt::skip]
         update::update(
@@ -192,7 +181,7 @@ fn main() {
             &mut running, &musics, &sound_effects, delta,
         );
 
-        renderer.render(&game_data.world, &game_data.ecs, &ui_data, &mut dev_ui_data);
+        renderer.render(&game_data.world, &game_data.ecs, &ui_data, &mut dev_ui);
 
         frame_duration = last_time.elapsed().as_secs_f32() / (1. / 60.) * 100.;
         std::thread::sleep(Duration::from_secs_f32(1. / 60.).saturating_sub(last_time.elapsed()));
