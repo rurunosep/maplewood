@@ -4,6 +4,7 @@ use crate::loader::load_single_component_from_value;
 use sdl2::video::Window;
 use serde::Serialize;
 use std::time::Instant;
+use tap::TapFallible;
 
 pub struct DevUi<'window> {
     pub ctx: egui::Context,
@@ -161,12 +162,12 @@ impl EntityComponentsWindow {
 
         let name = ecs.query_one_with_id::<&Name>(self.entity_id).map(|n| n.0.clone());
         let has_name = name.is_some();
-        let window_title = name.unwrap_or(serde_json::to_string(&self.entity_id).unwrap());
+        let window_title = name.unwrap_or(serde_json::to_string(&self.entity_id).expect(""));
 
         egui::Window::new(window_title).default_width(250.).open(open).show(&ctx, |ui| {
             egui::ScrollArea::vertical().show(ui, |ui| {
                 if has_name {
-                    ui.label(serde_json::to_string(&self.entity_id).unwrap());
+                    ui.label(serde_json::to_string(&self.entity_id).expect(""));
                 }
 
                 if let Some(c) = &mut self.position_collapsible {
@@ -186,13 +187,11 @@ impl EntityComponentsWindow {
     }
 }
 
-// NOW: non editable components
-
 pub struct ComponentCollapsible<C> {
     pub entity_id: EntityId,
-    pub name: &'static str,
+    pub component_name: &'static str,
     pub text: String,
-    pub editable: bool,
+    pub is_being_edited: bool,
     pub _component: std::marker::PhantomData<C>,
 }
 
@@ -200,52 +199,88 @@ impl<C> ComponentCollapsible<C>
 where
     C: Component + Serialize + 'static,
 {
-    pub fn new(entity_id: EntityId, name: &'static str) -> Self {
+    pub fn new(entity_id: EntityId, component_name: &'static str) -> Self {
         Self {
             entity_id,
-            name,
+            component_name,
             text: String::new(),
-            editable: false,
+            is_being_edited: false,
             _component: std::marker::PhantomData::<C>,
         }
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui, ecs: &mut Ecs) {
-        ui.collapsing(self.name, |ui| {
-            if !self.editable {
-                self.text = serde_json::to_string_pretty(
-                    &*ecs.query_one_with_id::<&C>(self.entity_id).unwrap(),
-                )
-                .unwrap();
+        ui.collapsing(self.component_name, |ui| {
+            if !self.is_being_edited {
+                self.text = ecs
+                    .query_one_with_id::<&C>(self.entity_id)
+                    .map(|c| serde_json::to_string_pretty(&*c).expect(""))
+                    .unwrap_or_default();
             }
 
             ui.add_enabled(
-                self.editable,
+                self.is_being_edited,
                 egui::TextEdit::multiline(&mut self.text).code_editor().desired_rows(1),
             );
 
             ui.horizontal(|ui| {
-                if self.editable {
+                if self.is_being_edited {
                     if ui.button("Cancel").clicked() {
-                        self.editable = false;
+                        self.is_being_edited = false;
                     };
 
                     if ui.button("Save").clicked() {
-                        load_single_component_from_value(
-                            ecs,
-                            self.entity_id,
-                            self.name,
-                            &serde_json::from_str::<serde_json::Value>(&self.text).unwrap(),
-                        );
+                        if let Ok(v) = serde_json::from_str::<serde_json::Value>(&self.text)
+                            .tap_err(|e| log::error!("Invalid component JSON (err: \"{e}\")"))
+                        {
+                            load_single_component_from_value(
+                                ecs,
+                                self.entity_id,
+                                self.component_name,
+                                &v,
+                            );
+                        }
 
-                        self.editable = false;
+                        self.is_being_edited = false;
                     };
                 } else {
                     if ui.button("Edit").clicked() {
-                        self.editable = true;
+                        self.is_being_edited = true;
                     };
                 }
             });
+        });
+    }
+}
+
+pub struct ImmutableComponentCollapsible<C> {
+    pub entity_id: EntityId,
+    pub component_name: &'static str,
+    pub _component: std::marker::PhantomData<C>,
+}
+
+#[allow(unused)]
+impl<C> ImmutableComponentCollapsible<C>
+where
+    C: Component + Serialize + 'static,
+{
+    pub fn new(entity_id: EntityId, name: &'static str) -> Self {
+        Self { entity_id, component_name: name, _component: std::marker::PhantomData::<C> }
+    }
+
+    pub fn show(&mut self, ui: &mut egui::Ui, ecs: &mut Ecs) {
+        ui.collapsing(self.component_name, |ui| {
+            ui.add_enabled(
+                false,
+                egui::TextEdit::multiline(
+                    &mut ecs
+                        .query_one_with_id::<&C>(self.entity_id)
+                        .map(|c| serde_json::to_string_pretty(&*c).expect(""))
+                        .unwrap_or_default(),
+                )
+                .code_editor()
+                .desired_rows(1),
+            );
         });
     }
 }

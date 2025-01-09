@@ -11,6 +11,7 @@ pub type MapPos = Point2D<f64, MapUnits>;
 pub type CellPos = Point2D<i32, CellUnits>;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct WorldPos {
     pub map: String,
     pub map_pos: MapPos,
