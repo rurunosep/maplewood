@@ -384,21 +384,22 @@ pub fn remove_component(
         .query_one_with_name::<EntityId>(&entity_name)
         .ok_or(Error(f!("invalid entity '{}'", entity_name)))?;
 
+    // TODO use Component::name() somehow?
     match component_name.as_str() {
-        "name" => ecs.remove_component::<Name>(id),
-        "position" => ecs.remove_component::<Position>(id),
-        "collision" => ecs.remove_component::<Collision>(id),
-        "scripts" => ecs.remove_component::<Scripts>(id),
-        "sfx_emitter" => ecs.remove_component::<SfxEmitter>(id),
-        "sprite" => ecs.remove_component::<SpriteComp>(id),
-        "facing" => ecs.remove_component::<Facing>(id),
-        "walking" => ecs.remove_component::<Walking>(id),
-        "camera" => ecs.remove_component::<Camera>(id),
-        "interaction" => ecs.remove_component::<Interaction>(id),
-        "animation" => ecs.remove_component::<AnimationComp>(id),
-        "character_anims" => ecs.remove_component::<CharacterAnims>(id),
-        "dual_state_anims" => ecs.remove_component::<DualStateAnims>(id),
-        "named_anims" => ecs.remove_component::<NamedAnims>(id),
+        "Name" => ecs.remove_component::<Name>(id),
+        "Position" => ecs.remove_component::<Position>(id),
+        "Collision" => ecs.remove_component::<Collision>(id),
+        "Scripts" => ecs.remove_component::<Scripts>(id),
+        "SfxEmitter" => ecs.remove_component::<SfxEmitter>(id),
+        "SpriteComp" => ecs.remove_component::<SpriteComp>(id),
+        "Facing" => ecs.remove_component::<Facing>(id),
+        "Walking" => ecs.remove_component::<Walking>(id),
+        "Camera" => ecs.remove_component::<Camera>(id),
+        "Interaction" => ecs.remove_component::<Interaction>(id),
+        "AnimationComp" => ecs.remove_component::<AnimationComp>(id),
+        "CharacterAnims" => ecs.remove_component::<CharacterAnims>(id),
+        "DualStateAnims" => ecs.remove_component::<DualStateAnims>(id),
+        "NamedAnims" => ecs.remove_component::<NamedAnims>(id),
         _ => Err(Error(f!("invalid component '{}'", component_name)))?,
     };
 

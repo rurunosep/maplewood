@@ -1,11 +1,11 @@
 [
   {
-    "name": "bathroom::door::blocker",
-    "position": {
+    "Name": "bathroom::door::blocker",
+    "Position": {
       "map": "bathroom",
       "map_pos": [4.5, 8]
     },
-    "collision": {
+    "Collision": {
       "hitbox": [1, 2],
       "solid": true
     }

@@ -4,10 +4,13 @@ use anymap::AnyMap;
 use slotmap::{new_key_type, Key, SecondaryMap, SlotMap};
 use std::cell::RefCell;
 
-// TODO get_name trait member?
-// Or just use std::any::type_name::<{Component}>() and only use the last part of the qualified
-// path?
-pub trait Component {}
+pub trait Component {
+    // Unique name of the component
+    // By default, it's the unqualified type name
+    fn name() -> &'static str {
+        std::any::type_name::<Self>().split("::").last().unwrap()
+    }
+}
 
 new_key_type! { pub struct EntityId; }
 new_key_type! { pub struct DeferredEntityId; }

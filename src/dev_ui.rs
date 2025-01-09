@@ -119,7 +119,7 @@ impl EntityComponentsWindow {
         match (ecs.query_one_with_id::<&Position>(self.entity_id), &self.position_collapsible) {
             (Some(_), None) => {
                 self.position_collapsible =
-                    Some(ComponentCollapsible::<Position>::new(self.entity_id, "position"));
+                    Some(ComponentCollapsible::<Position>::new(self.entity_id));
             }
             (None, Some(_)) => {
                 self.position_collapsible = None;
@@ -130,7 +130,7 @@ impl EntityComponentsWindow {
         match (ecs.query_one_with_id::<&Collision>(self.entity_id), &self.collision_collapsible) {
             (Some(_), None) => {
                 self.collision_collapsible =
-                    Some(ComponentCollapsible::<Collision>::new(self.entity_id, "collision"));
+                    Some(ComponentCollapsible::<Collision>::new(self.entity_id));
             }
             (None, Some(_)) => {
                 self.collision_collapsible = None;
@@ -141,7 +141,7 @@ impl EntityComponentsWindow {
         match (ecs.query_one_with_id::<&Facing>(self.entity_id), &self.facing_collapsible) {
             (Some(_), None) => {
                 self.facing_collapsible =
-                    Some(ComponentCollapsible::<Facing>::new(self.entity_id, "facing"));
+                    Some(ComponentCollapsible::<Facing>::new(self.entity_id));
             }
             (None, Some(_)) => {
                 self.facing_collapsible = None;
@@ -152,7 +152,7 @@ impl EntityComponentsWindow {
         match (ecs.query_one_with_id::<&Camera>(self.entity_id), &self.camera_collapsible) {
             (Some(_), None) => {
                 self.camera_collapsible =
-                    Some(ComponentCollapsible::<Camera>::new(self.entity_id, "camera"));
+                    Some(ComponentCollapsible::<Camera>::new(self.entity_id));
             }
             (None, Some(_)) => {
                 self.facing_collapsible = None;
@@ -189,7 +189,6 @@ impl EntityComponentsWindow {
 
 pub struct ComponentCollapsible<C> {
     pub entity_id: EntityId,
-    pub component_name: &'static str,
     pub text: String,
     pub is_being_edited: bool,
     pub _component: std::marker::PhantomData<C>,
@@ -199,10 +198,9 @@ impl<C> ComponentCollapsible<C>
 where
     C: Component + Serialize + 'static,
 {
-    pub fn new(entity_id: EntityId, component_name: &'static str) -> Self {
+    pub fn new(entity_id: EntityId) -> Self {
         Self {
             entity_id,
-            component_name,
             text: String::new(),
             is_being_edited: false,
             _component: std::marker::PhantomData::<C>,
@@ -210,7 +208,7 @@ where
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui, ecs: &mut Ecs) {
-        ui.collapsing(self.component_name, |ui| {
+        ui.collapsing(C::name(), |ui| {
             if !self.is_being_edited {
                 self.text = ecs
                     .query_one_with_id::<&C>(self.entity_id)
@@ -233,12 +231,7 @@ where
                         if let Ok(v) = serde_json::from_str::<serde_json::Value>(&self.text)
                             .tap_err(|e| log::error!("Invalid component JSON (err: \"{e}\")"))
                         {
-                            load_single_component_from_value(
-                                ecs,
-                                self.entity_id,
-                                self.component_name,
-                                &v,
-                            );
+                            load_single_component_from_value(ecs, self.entity_id, C::name(), &v);
                         }
 
                         self.is_being_edited = false;
@@ -255,7 +248,6 @@ where
 
 pub struct ImmutableComponentCollapsible<C> {
     pub entity_id: EntityId,
-    pub component_name: &'static str,
     pub _component: std::marker::PhantomData<C>,
 }
 
@@ -264,12 +256,12 @@ impl<C> ImmutableComponentCollapsible<C>
 where
     C: Component + Serialize + 'static,
 {
-    pub fn new(entity_id: EntityId, name: &'static str) -> Self {
-        Self { entity_id, component_name: name, _component: std::marker::PhantomData::<C> }
+    pub fn new(entity_id: EntityId) -> Self {
+        Self { entity_id, _component: std::marker::PhantomData::<C> }
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui, ecs: &mut Ecs) {
-        ui.collapsing(self.component_name, |ui| {
+        ui.collapsing(C::name(), |ui| {
             ui.add_enabled(
                 false,
                 egui::TextEdit::multiline(

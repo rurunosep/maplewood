@@ -55,11 +55,11 @@ pub fn load_entities_from_json(ecs: &mut Ecs, json: &str) -> Result<(), String> 
         // (Getting id from the json is currently useless since we don't have game state
         // saving and loading yet)
         let id = components_map
-            .get("id")
+            .get("EntityId")
             .and_then(|v| serde_json::from_value(v.clone()).ok())
             .or_else(|| {
                 components_map
-                    .get("name")
+                    .get("Name")
                     .and_then(|v| serde_json::from_value(v.clone()).ok())
                     .and_then(|n: String| ecs.query_one_with_name::<EntityId>(&n))
             })
@@ -80,26 +80,27 @@ pub fn load_single_component_from_value(ecs: &mut Ecs, id: EntityId, name: &str,
 
         use serde_json::from_value as sjfv;
 
-        // TODO use exact same name as rust struct
-        // Use std::any::type_name? Or add get_name function to Component trait?
-        // So that we can freely change component names without changing all the strings where the
-        // name occurs
+        // TODO get name using Component::name()?
+        // problem is that it's not const, and I don't think I can make it const,
+        // and I think the match patterns need to be const
+        // I could try to implement the loading code on Component, but then how do we handle
+        // components that are not serde?
         match name {
-            "id" => {}
-            "name" => ecs.add_component(id, sjfv::<Name>(data)?),
-            "position" => ecs.add_component(id, sjfv::<Position>(data)?),
-            "collision" => ecs.add_component(id, sjfv::<Collision>(data)?),
-            "scripts" => ecs.add_component(id, sjfv::<Scripts>(data)?),
-            "sfx_emitter" => ecs.add_component(id, sjfv::<SfxEmitter>(data)?),
-            "sprite" => ecs.add_component(id, sjfv::<SpriteComp>(data)?),
-            "facing" => ecs.add_component(id, sjfv::<Facing>(data)?),
-            "walking" => ecs.add_component(id, sjfv::<Walking>(data)?),
-            "camera" => ecs.add_component(id, sjfv::<Camera>(data)?),
-            "interaction" => ecs.add_component(id, sjfv::<Interaction>(data)?),
-            "animation" => ecs.add_component(id, sjfv::<AnimationComp>(data)?),
-            "character_anims" => ecs.add_component(id, sjfv::<CharacterAnims>(data)?),
-            "dual_state_anims" => ecs.add_component(id, sjfv::<DualStateAnims>(data)?),
-            "named_anims" => ecs.add_component(id, sjfv::<NamedAnims>(data)?),
+            "Name" => ecs.add_component(id, sjfv::<Name>(data)?),
+            "Position" => ecs.add_component(id, sjfv::<Position>(data)?),
+            "Collision" => ecs.add_component(id, sjfv::<Collision>(data)?),
+            "Scripts" => ecs.add_component(id, sjfv::<Scripts>(data)?),
+            "SfxEmitter" => ecs.add_component(id, sjfv::<SfxEmitter>(data)?),
+            "SpriteComp" => ecs.add_component(id, sjfv::<SpriteComp>(data)?),
+            "Facing" => ecs.add_component(id, sjfv::<Facing>(data)?),
+            "Walking" => ecs.add_component(id, sjfv::<Walking>(data)?),
+            "Camera" => ecs.add_component(id, sjfv::<Camera>(data)?),
+            "Interaction" => ecs.add_component(id, sjfv::<Interaction>(data)?),
+            "AnimationComp" => ecs.add_component(id, sjfv::<AnimationComp>(data)?),
+            "CharacterAnims" => ecs.add_component(id, sjfv::<CharacterAnims>(data)?),
+            "DualStateAnims" => ecs.add_component(id, sjfv::<DualStateAnims>(data)?),
+            "NamedAnims" => ecs.add_component(id, sjfv::<NamedAnims>(data)?),
+            "EntityId" => {}
             _ => log::error!("Invalid JSON component name: {}", name),
         };
     };
@@ -125,29 +126,29 @@ pub fn save_entities_to_value(ecs: &Ecs) -> Value {
 pub fn save_components_to_value(ecs: &Ecs, id: EntityId) -> Value {
     let mut components = Map::new();
 
-    insert::<Name>("name", &mut components, id, &ecs);
-    insert::<Position>("position", &mut components, id, &ecs);
-    insert::<Collision>("collision", &mut components, id, &ecs);
-    insert::<Scripts>("scripts", &mut components, id, &ecs);
-    insert::<SfxEmitter>("sfx_emitter", &mut components, id, &ecs);
-    insert::<SpriteComp>("sprite", &mut components, id, &ecs);
-    insert::<Facing>("facing", &mut components, id, &ecs);
-    insert::<Walking>("walking", &mut components, id, &ecs);
-    insert::<Camera>("camera", &mut components, id, &ecs);
-    insert::<Interaction>("interaction", &mut components, id, &ecs);
-    insert::<AnimationComp>("animation", &mut components, id, &ecs);
-    insert::<CharacterAnims>("character_anims", &mut components, id, &ecs);
-    insert::<DualStateAnims>("dual_state_anims", &mut components, id, &ecs);
-    insert::<NamedAnims>("named_anims", &mut components, id, &ecs);
+    insert::<Name>(&mut components, id, &ecs);
+    insert::<Position>(&mut components, id, &ecs);
+    insert::<Collision>(&mut components, id, &ecs);
+    insert::<Scripts>(&mut components, id, &ecs);
+    insert::<SfxEmitter>(&mut components, id, &ecs);
+    insert::<SpriteComp>(&mut components, id, &ecs);
+    insert::<Facing>(&mut components, id, &ecs);
+    insert::<Walking>(&mut components, id, &ecs);
+    insert::<Camera>(&mut components, id, &ecs);
+    insert::<Interaction>(&mut components, id, &ecs);
+    insert::<AnimationComp>(&mut components, id, &ecs);
+    insert::<CharacterAnims>(&mut components, id, &ecs);
+    insert::<DualStateAnims>(&mut components, id, &ecs);
+    insert::<NamedAnims>(&mut components, id, &ecs);
 
-    fn insert<C>(name: &str, components: &mut Map<String, Value>, id: EntityId, ecs: &Ecs)
+    fn insert<C>(components: &mut Map<String, Value>, id: EntityId, ecs: &Ecs)
     where
         C: Component + Clone + Serialize + 'static,
     {
         if let Some(component) = ecs.query_one_with_id::<&C>(id)
             && let Ok(value) = serde_json::to_value(component.clone())
         {
-            components.insert(name.to_string(), value);
+            components.insert(C::name().to_string(), value);
         }
     }
 
