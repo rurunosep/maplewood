@@ -17,6 +17,7 @@ use std::time::{Duration, Instant};
 
 // A name is used to refer to entities in scripts or other external data sources
 // The actual non-optional, guaranteed-unique identifier is EntityId
+// Name is expected to be unique and immutable
 #[derive(Deref, Debug, Clone, Serialize, Deserialize)]
 pub struct Name(pub String);
 impl Component for Name {}
