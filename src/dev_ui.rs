@@ -1,8 +1,10 @@
 use crate::components::{Camera, Collision, Facing, Name, Position};
 use crate::ecs::{Component, Ecs, EntityId};
 use crate::loader::load_single_component_from_value;
+use itertools::Itertools;
 use sdl2::video::Window;
 use serde::Serialize;
+use std::collections::HashMap;
 use std::time::Instant;
 use tap::TapFallible;
 
@@ -14,8 +16,8 @@ pub struct DevUi<'window> {
     // Stored intermediately between processing and rendering for convenience
     pub full_output: Option<egui::FullOutput>,
     //
-    pub player_components_window: Option<EntityComponentsWindow>,
-    pub camera_components_window: Option<EntityComponentsWindow>,
+    pub entities_list_window: EntitiesListWindow,
+    pub entity_windows: HashMap<EntityId, EntityWindow>,
 }
 
 impl<'window> DevUi<'window> {
@@ -30,8 +32,8 @@ impl<'window> DevUi<'window> {
             window,
             active: false,
             full_output: None,
-            player_components_window: None,
-            camera_components_window: None,
+            entities_list_window: EntitiesListWindow::new(),
+            entity_windows: HashMap::new(),
         }
     }
 }
@@ -48,45 +50,36 @@ impl DevUi<'_> {
         state.update_time(Some(start_time.elapsed().as_secs_f64()), 1. / 60.);
         ctx.begin_pass(state.raw_input.take());
 
-        let player_id = ecs.query_one_with_name::<EntityId>("player").unwrap();
-        let camera_id = ecs.query_one_with_name::<EntityId>("CAMERA").unwrap();
+        // Create entity windows for new entities
+        for id in ecs.entity_ids.keys() {
+            if !self.entity_windows.contains_key(&id) {
+                self.entity_windows.insert(id, EntityWindow::new(id));
+            };
+        }
+        // NOW remove windows for entities that don't exist anymore
 
-        let mut player_components_window_open = self.player_components_window.is_some();
-        let mut camera_components_window_open = self.camera_components_window.is_some();
-
+        // Main debug window
         egui::Window::new("Debug")
             .pivot(egui::Align2::RIGHT_TOP)
             .default_pos(ctx.screen_rect().shrink(16.).right_top())
             .default_width(150.)
             .show(&ctx, |ui| {
                 ui.label(format!("Frame Duration: {frame_duration:.2}%"));
-                ui.toggle_value(&mut player_components_window_open, "Player Components");
-                ui.toggle_value(&mut camera_components_window_open, "Camera Components");
+
+                ui.toggle_value(&mut self.entities_list_window.open, "Entities");
+
                 ui.allocate_space([ui.available_width(), 0.].into());
             });
 
-        // NOW: compress this
-        if let Some(window) = &mut self.player_components_window {
-            window.show(ctx, &mut player_components_window_open, ecs);
+        // Entities list window
+        if self.entities_list_window.open {
+            self.entities_list_window.show(ctx, &mut self.entity_windows, ecs);
         }
-        match (player_components_window_open, &self.player_components_window) {
-            (true, None) => {
-                self.player_components_window = Some(EntityComponentsWindow::new(player_id))
-            }
-            (false, Some(_)) => self.player_components_window = None,
-            _ => {}
-        };
 
-        if let Some(window) = &mut self.camera_components_window {
-            window.show(ctx, &mut camera_components_window_open, ecs);
+        // Entity windows
+        for window in self.entity_windows.values_mut().filter(|w| w.open) {
+            window.show(ctx, ecs);
         }
-        match (camera_components_window_open, &self.camera_components_window) {
-            (true, None) => {
-                self.camera_components_window = Some(EntityComponentsWindow::new(camera_id))
-            }
-            (false, Some(_)) => self.camera_components_window = None,
-            _ => {}
-        };
 
         let full_output = ctx.end_pass();
         // (Looks like this just updates the cursor and the clipboard text)
@@ -95,18 +88,50 @@ impl DevUi<'_> {
     }
 }
 
-pub struct EntityComponentsWindow {
+pub struct EntitiesListWindow {
+    pub open: bool,
+}
+
+impl EntitiesListWindow {
+    pub fn new() -> Self {
+        Self { open: false }
+    }
+
+    pub fn show(
+        &mut self,
+        ctx: &egui::Context,
+        entity_windows: &mut HashMap<EntityId, EntityWindow>,
+        ecs: &Ecs,
+    ) {
+        egui::Window::new("Entities").open(&mut self.open).show(&ctx, |ui| {
+            egui::ScrollArea::vertical().show(ui, |ui| {
+                for window in entity_windows.values_mut().sorted_by_key(|w| w.entity_id) {
+                    let title = ecs
+                        .query_one_with_id::<&Name>(window.entity_id)
+                        .map(|n| n.0.clone())
+                        .unwrap_or(serde_json::to_string(&window.entity_id).expect(""));
+
+                    ui.toggle_value(&mut window.open, title);
+                }
+            });
+        });
+    }
+}
+
+pub struct EntityWindow {
     pub entity_id: EntityId,
+    pub open: bool,
     pub position_collapsible: Option<ComponentCollapsible<Position>>,
     pub collision_collapsible: Option<ComponentCollapsible<Collision>>,
     pub facing_collapsible: Option<ComponentCollapsible<Facing>>,
     pub camera_collapsible: Option<ComponentCollapsible<Camera>>,
 }
 
-impl EntityComponentsWindow {
+impl EntityWindow {
     pub fn new(entity_id: EntityId) -> Self {
         Self {
             entity_id,
+            open: false,
             position_collapsible: None,
             collision_collapsible: None,
             facing_collapsible: None,
@@ -114,7 +139,7 @@ impl EntityComponentsWindow {
         }
     }
 
-    pub fn show(&mut self, ctx: &egui::Context, open: &mut bool, ecs: &mut Ecs) {
+    pub fn show(&mut self, ctx: &egui::Context, ecs: &mut Ecs) {
         // NOW: compress this
         match (ecs.query_one_with_id::<&Position>(self.entity_id), &self.position_collapsible) {
             (Some(_), None) => {
@@ -162,9 +187,9 @@ impl EntityComponentsWindow {
 
         let name = ecs.query_one_with_id::<&Name>(self.entity_id).map(|n| n.0.clone());
         let has_name = name.is_some();
-        let window_title = name.unwrap_or(serde_json::to_string(&self.entity_id).expect(""));
+        let title = name.unwrap_or(serde_json::to_string(&self.entity_id).expect(""));
 
-        egui::Window::new(window_title).default_width(250.).open(open).show(&ctx, |ui| {
+        egui::Window::new(title).default_width(250.).open(&mut self.open).show(&ctx, |ui| {
             egui::ScrollArea::vertical().show(ui, |ui| {
                 if has_name {
                     ui.label(serde_json::to_string(&self.entity_id).expect(""));
