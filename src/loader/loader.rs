@@ -14,10 +14,7 @@ use tap::TapFallible;
 // JSON entities and components
 // --------------------------------------------------------------
 
-// TODO json component keys use CamelCase name of the struct itself
-// Why keep separate names for json and rust?
-// (one consideration is conflicts for components with same name in distinct modules)
-// TODO component serde code is part of Component trait impl (gen with proc macro)
+// TODO component serde code is part of Component trait impl? gen with proc macro?
 
 // Convenience function to wrap error logging
 pub fn load_entities_from_file<P>(ecs: &mut Ecs, path: P)

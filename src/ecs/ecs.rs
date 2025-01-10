@@ -4,6 +4,11 @@ use anymap::AnyMap;
 use slotmap::{new_key_type, Key, SecondaryMap, SlotMap};
 use std::cell::RefCell;
 
+// TODO entity identifier enum that can be String (name) or EntityId
+// String and EntityId implement Into<{Identifier}>
+// query_one can take Into<{Identifier}>
+// camera target can be an {Identifier}, etc
+
 pub trait Component {
     // Unique name of the component
     // By default, it's the unqualified type name

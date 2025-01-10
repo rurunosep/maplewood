@@ -146,16 +146,6 @@ impl Component for NamedAnims {}
 
 // ----------------------------------------------
 
-// (Do not save or load)
-pub struct SineOffsetAnimation {
-    pub start_time: Instant,
-    pub duration: Duration,
-    pub amplitude: f64,
-    pub frequency: f64,
-    pub direction: Vector2D<f64, MapUnits>,
-}
-impl Component for SineOffsetAnimation {}
-
 // TODO separate components for general movement vs active "walking" or pathing
 #[derive(Default, Clone, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
@@ -171,6 +161,7 @@ impl Component for Walking {}
 pub struct Camera {
     // TODO this should actually be an Option<EntityId>
     // But then how do we facilitate an initial entities load?
+    // Probably using the new entity identifier enum idea
     pub target_entity_name: Option<String>,
     pub clamp_to_map: bool,
 }
@@ -207,3 +198,13 @@ pub struct SfxEmitter {
     pub repeat: bool,
 }
 impl Component for SfxEmitter {}
+
+// Not serde (can't save or load, and doesn't appear in dev ui)
+pub struct SineOffsetAnimation {
+    pub start_time: Instant,
+    pub duration: Duration,
+    pub amplitude: f64,
+    pub frequency: f64,
+    pub direction: Vector2D<f64, MapUnits>,
+}
+impl Component for SineOffsetAnimation {}

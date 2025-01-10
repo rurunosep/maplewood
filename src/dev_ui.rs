@@ -1,6 +1,5 @@
-use crate::components::{Camera, Collision, Facing, Name, Position, SpriteComp};
 use crate::ecs::{Component, Ecs, EntityId};
-use crate::loader;
+use crate::{components, loader};
 use itertools::Itertools;
 use sdl2::video::Window;
 use serde::Serialize;
@@ -52,13 +51,13 @@ impl DevUi<'_> {
         state.update_time(Some(start_time.elapsed().as_secs_f64()), 1. / 60.);
         ctx.begin_pass(state.raw_input.take());
 
-        // Create entity windows for new entities
+        // Create entity windows for new entities, and delete for deleted entities
         for id in ecs.entity_ids.keys() {
             if !self.entity_windows.contains_key(&id) {
                 self.entity_windows.insert(id, EntityWindow::new(id, &ecs));
             };
         }
-        // NOW remove windows for entities that don't exist anymore
+        self.entity_windows.retain(|&k, _| ecs.entity_ids.contains_key(k));
 
         // Main dev ui window
         egui::Window::new("Dev UI")
@@ -133,92 +132,54 @@ impl EntitiesListWindow {
     }
 }
 
-// NOW all components
 pub struct EntityWindow {
     pub entity_id: EntityId,
     pub name: Option<String>,
     pub open: bool,
-    pub position_collapsible: Option<ComponentCollapsible<Position>>,
-    pub collision_collapsible: Option<ComponentCollapsible<Collision>>,
-    pub facing_collapsible: Option<ComponentCollapsible<Facing>>,
-    pub camera_collapsible: Option<ComponentCollapsible<Camera>>,
-    pub sprite_collapsible: Option<ComponentCollapsible<SpriteComp>>,
+    // TODO vec box dyn?
+    pub position: ComponentCollapsible<components::Position>,
+    pub collision: ComponentCollapsible<components::Collision>,
+    pub facing: ComponentCollapsible<components::Facing>,
+    pub camera: ComponentCollapsible<components::Camera>,
+    pub sprite: ComponentCollapsible<components::SpriteComp>,
+    pub scripts: ComponentCollapsible<components::Scripts>,
+    pub animation: ComponentCollapsible<components::AnimationComp>,
+    pub char_anims: ComponentCollapsible<components::CharacterAnims>,
+    pub dual_anims: ComponentCollapsible<components::DualStateAnims>,
+    pub named_anims: ComponentCollapsible<components::NamedAnims>,
+    pub walking: ComponentCollapsible<components::Walking>,
+    pub interaction: ComponentCollapsible<components::Interaction>,
+    pub sfx: ComponentCollapsible<components::SfxEmitter>,
+    // (Does not include SineOffsetAnimation)
 }
 
 impl EntityWindow {
     pub fn new(entity_id: EntityId, ecs: &Ecs) -> Self {
         // Name is expected to be immutable, so we only have to set it once
-        let name = ecs.query_one_with_id::<&Name>(entity_id).map(|n| n.0.clone());
+        let name = ecs.query_one_with_id::<&components::Name>(entity_id).map(|n| n.0.clone());
 
         Self {
             entity_id,
             name,
             open: false,
-            position_collapsible: None,
-            collision_collapsible: None,
-            facing_collapsible: None,
-            camera_collapsible: None,
-            sprite_collapsible: None,
+            //
+            position: ComponentCollapsible::new(entity_id),
+            collision: ComponentCollapsible::new(entity_id),
+            facing: ComponentCollapsible::new(entity_id),
+            camera: ComponentCollapsible::new(entity_id),
+            sprite: ComponentCollapsible::new(entity_id),
+            scripts: ComponentCollapsible::new(entity_id),
+            animation: ComponentCollapsible::new(entity_id),
+            char_anims: ComponentCollapsible::new(entity_id),
+            dual_anims: ComponentCollapsible::new(entity_id),
+            named_anims: ComponentCollapsible::new(entity_id),
+            walking: ComponentCollapsible::new(entity_id),
+            interaction: ComponentCollapsible::new(entity_id),
+            sfx: ComponentCollapsible::new(entity_id),
         }
     }
 
     pub fn show(&mut self, ctx: &egui::Context, ecs: &mut Ecs) {
-        // NOW compress this
-        match (ecs.query_one_with_id::<&Position>(self.entity_id), &self.position_collapsible) {
-            (Some(_), None) => {
-                self.position_collapsible =
-                    Some(ComponentCollapsible::<Position>::new(self.entity_id));
-            }
-            (None, Some(_)) => {
-                self.position_collapsible = None;
-            }
-            _ => {}
-        };
-
-        match (ecs.query_one_with_id::<&Collision>(self.entity_id), &self.collision_collapsible) {
-            (Some(_), None) => {
-                self.collision_collapsible =
-                    Some(ComponentCollapsible::<Collision>::new(self.entity_id));
-            }
-            (None, Some(_)) => {
-                self.collision_collapsible = None;
-            }
-            _ => {}
-        };
-
-        match (ecs.query_one_with_id::<&Facing>(self.entity_id), &self.facing_collapsible) {
-            (Some(_), None) => {
-                self.facing_collapsible =
-                    Some(ComponentCollapsible::<Facing>::new(self.entity_id));
-            }
-            (None, Some(_)) => {
-                self.facing_collapsible = None;
-            }
-            _ => {}
-        };
-
-        match (ecs.query_one_with_id::<&Camera>(self.entity_id), &self.camera_collapsible) {
-            (Some(_), None) => {
-                self.camera_collapsible =
-                    Some(ComponentCollapsible::<Camera>::new(self.entity_id));
-            }
-            (None, Some(_)) => {
-                self.camera_collapsible = None;
-            }
-            _ => {}
-        };
-
-        match (ecs.query_one_with_id::<&SpriteComp>(self.entity_id), &self.sprite_collapsible) {
-            (Some(_), None) => {
-                self.sprite_collapsible =
-                    Some(ComponentCollapsible::<SpriteComp>::new(self.entity_id));
-            }
-            (None, Some(_)) => {
-                self.sprite_collapsible = None;
-            }
-            _ => {}
-        };
-
         egui::Window::new(self.title()).default_width(300.).open(&mut self.open).show(
             &ctx,
             |ui| {
@@ -227,21 +188,19 @@ impl EntityWindow {
                         ui.label(serde_json::to_string(&self.entity_id).expect(""));
                     }
 
-                    if let Some(c) = &mut self.position_collapsible {
-                        c.show(ui, ecs);
-                    }
-                    if let Some(c) = &mut self.collision_collapsible {
-                        c.show(ui, ecs);
-                    }
-                    if let Some(c) = &mut self.facing_collapsible {
-                        c.show(ui, ecs);
-                    }
-                    if let Some(c) = &mut self.camera_collapsible {
-                        c.show(ui, ecs);
-                    }
-                    if let Some(c) = &mut self.sprite_collapsible {
-                        c.show(ui, ecs);
-                    }
+                    self.position.show(ui, ecs);
+                    self.collision.show(ui, ecs);
+                    self.facing.show(ui, ecs);
+                    self.camera.show(ui, ecs);
+                    self.sprite.show(ui, ecs);
+                    self.scripts.show(ui, ecs);
+                    self.animation.show(ui, ecs);
+                    self.char_anims.show(ui, ecs);
+                    self.dual_anims.show(ui, ecs);
+                    self.named_anims.show(ui, ecs);
+                    self.walking.show(ui, ecs);
+                    self.interaction.show(ui, ecs);
+                    self.sfx.show(ui, ecs);
                 });
             },
         );
@@ -276,18 +235,28 @@ where
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui, ecs: &mut Ecs) {
-        ui.collapsing(C::name(), |ui| {
-            if !self.is_being_edited {
-                self.text = ecs
-                    .query_one_with_id::<&C>(self.entity_id)
-                    .map(|c| serde_json::to_string_pretty(&*c).expect(""))
-                    .unwrap_or_default();
-            }
+        let component = ecs.query_one_with_id::<&C>(self.entity_id);
+        if component.is_none() {
+            self.text.clear();
+            self.is_being_edited = false;
+            return;
+        }
 
-            // TODO two space tab
-            ui.add_enabled(
-                self.is_being_edited,
-                egui::TextEdit::multiline(&mut self.text).code_editor().desired_rows(1),
+        if !self.is_being_edited {
+            self.text = component
+                .as_deref()
+                .map(|c| serde_json::to_string_pretty(c).expect(""))
+                .expect("");
+        }
+
+        drop(component);
+
+        ui.collapsing(C::name(), |ui| {
+            ui.add(
+                egui::TextEdit::multiline(&mut self.text)
+                    .code_editor()
+                    .desired_rows(1)
+                    .interactive(self.is_being_edited),
             );
 
             ui.horizontal(|ui| {
@@ -316,37 +285,6 @@ where
                     };
                 }
             });
-        });
-    }
-}
-
-pub struct ImmutableComponentCollapsible<C> {
-    pub entity_id: EntityId,
-    pub _component: std::marker::PhantomData<C>,
-}
-
-#[allow(unused)]
-impl<C> ImmutableComponentCollapsible<C>
-where
-    C: Component + Serialize + 'static,
-{
-    pub fn new(entity_id: EntityId) -> Self {
-        Self { entity_id, _component: std::marker::PhantomData::<C> }
-    }
-
-    pub fn show(&mut self, ui: &mut egui::Ui, ecs: &mut Ecs) {
-        ui.collapsing(C::name(), |ui| {
-            ui.add_enabled(
-                false,
-                egui::TextEdit::multiline(
-                    &mut ecs
-                        .query_one_with_id::<&C>(self.entity_id)
-                        .map(|c| serde_json::to_string_pretty(&*c).expect(""))
-                        .unwrap_or_default(),
-                )
-                .code_editor()
-                .desired_rows(1),
-            );
         });
     }
 }
