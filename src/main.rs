@@ -173,7 +173,7 @@ fn main() {
             player_movement_locked, &mut script_manager, &mut dev_ui
         );
 
-        dev_ui.run(&start_time, frame_duration, &mut game_data.ecs);
+        dev_ui.run(&start_time, frame_duration, &mut game_data.ecs, &mut game_data.story_vars);
 
         #[rustfmt::skip]
         update::update(

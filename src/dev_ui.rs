@@ -1,29 +1,33 @@
 use crate::ecs::{Component, Ecs, EntityId};
+use crate::misc::StoryVars;
 use crate::{components, loader};
+use egui::{Context, Grid, ScrollArea, TextEdit, Ui, Window};
+use egui_sdl2_event::EguiSDL2State;
 use itertools::Itertools;
-use sdl2::video::Window;
+use sdl2::video::Window as SdlWindow;
 use serde::Serialize;
 use std::collections::HashMap;
 use std::time::Instant;
 use tap::TapFallible;
 
 pub struct DevUi<'window> {
-    pub ctx: egui::Context,
-    pub state: egui_sdl2_event::EguiSDL2State,
-    pub window: &'window Window,
+    pub ctx: Context,
+    pub state: EguiSDL2State,
+    pub window: &'window SdlWindow,
     pub active: bool,
     // Stored intermediately between processing and rendering for convenience
     pub full_output: Option<egui::FullOutput>,
     //
     pub entities_list_window: EntitiesListWindow,
     pub entity_windows: HashMap<EntityId, EntityWindow>,
+    pub story_vars_window: StoryVarsWindow,
 }
 
 impl<'window> DevUi<'window> {
-    pub fn new(window: &'window Window) -> Self {
-        let ctx = egui::Context::default();
+    pub fn new(window: &'window SdlWindow) -> Self {
+        let ctx = Context::default();
         // (state dpi scaling must be initally set to 1 to set the initial screen_rect correctly)
-        let state = egui_sdl2_event::EguiSDL2State::new(window.size().0, window.size().1, 1.);
+        let state = EguiSDL2State::new(window.size().0, window.size().1, 1.);
 
         // TODO transparent windows
 
@@ -35,13 +39,20 @@ impl<'window> DevUi<'window> {
             full_output: None,
             entities_list_window: EntitiesListWindow::new(),
             entity_windows: HashMap::new(),
+            story_vars_window: StoryVarsWindow::new(),
         }
     }
 }
 
 impl DevUi<'_> {
     // Process egui, process output, and save intermediate full_output for rendering later
-    pub fn run(&mut self, start_time: &Instant, frame_duration: f32, ecs: &mut Ecs) {
+    pub fn run(
+        &mut self,
+        start_time: &Instant,
+        frame_duration: f32,
+        ecs: &mut Ecs,
+        story_vars: &mut StoryVars,
+    ) {
         if !self.active {
             return;
         }
@@ -60,7 +71,7 @@ impl DevUi<'_> {
         self.entity_windows.retain(|&k, _| ecs.entity_ids.contains_key(k));
 
         // Main dev ui window
-        egui::Window::new("Dev UI")
+        Window::new("Dev UI")
             .title_bar(false)
             .pivot(egui::Align2::RIGHT_TOP)
             .default_pos(ctx.screen_rect().shrink(16.).right_top())
@@ -69,9 +80,12 @@ impl DevUi<'_> {
                 ui.label(format!("Frame Duration: {frame_duration:.2}%"));
 
                 ui.toggle_value(&mut self.entities_list_window.open, "Entities");
+                ui.toggle_value(&mut self.story_vars_window.open, "Story Vars");
 
                 ui.allocate_space([ui.available_width(), 0.].into());
             });
+
+        // TODO windows check their open status inside their show
 
         // Entities list window
         if self.entities_list_window.open {
@@ -81,6 +95,11 @@ impl DevUi<'_> {
         // Entity windows
         for window in self.entity_windows.values_mut().filter(|w| w.open) {
             window.show(ctx, ecs);
+        }
+
+        // Story vars window
+        if self.story_vars_window.open {
+            self.story_vars_window.show(ctx, story_vars);
         }
 
         let full_output = ctx.end_pass();
@@ -100,18 +119,14 @@ impl EntitiesListWindow {
         Self { open: false, filter_string: String::new() }
     }
 
-    pub fn show(
-        &mut self,
-        ctx: &egui::Context,
-        entity_windows: &mut HashMap<EntityId, EntityWindow>,
-    ) {
-        egui::Window::new("Entities").default_width(250.).open(&mut self.open).show(&ctx, |ui| {
-            ui.add(egui::TextEdit::singleline(&mut self.filter_string).hint_text("Filter"));
+    pub fn show(&mut self, ctx: &Context, entity_windows: &mut HashMap<EntityId, EntityWindow>) {
+        Window::new("Entities").default_width(250.).open(&mut self.open).show(&ctx, |ui| {
+            ui.add(TextEdit::singleline(&mut self.filter_string).hint_text("Filter"));
 
             // TODO filter with special terms such as "has:{Component}"
             // filter with multiple space-separated terms
 
-            egui::ScrollArea::vertical().show(ui, |ui| {
+            ScrollArea::vertical().show(ui, |ui| {
                 for window in entity_windows
                     .values_mut()
                     .filter(|w| {
@@ -162,7 +177,6 @@ impl EntityWindow {
             entity_id,
             name,
             open: false,
-            //
             position: ComponentCollapsible::new(entity_id),
             collision: ComponentCollapsible::new(entity_id),
             facing: ComponentCollapsible::new(entity_id),
@@ -179,31 +193,28 @@ impl EntityWindow {
         }
     }
 
-    pub fn show(&mut self, ctx: &egui::Context, ecs: &mut Ecs) {
-        egui::Window::new(self.title()).default_width(300.).open(&mut self.open).show(
-            &ctx,
-            |ui| {
-                egui::ScrollArea::vertical().show(ui, |ui| {
-                    if self.name.is_some() {
-                        ui.label(serde_json::to_string(&self.entity_id).expect(""));
-                    }
+    pub fn show(&mut self, ctx: &Context, ecs: &mut Ecs) {
+        Window::new(self.title()).default_width(300.).open(&mut self.open).show(&ctx, |ui| {
+            ScrollArea::vertical().show(ui, |ui| {
+                if self.name.is_some() {
+                    ui.label(serde_json::to_string(&self.entity_id).expect(""));
+                }
 
-                    self.position.show(ui, ecs);
-                    self.collision.show(ui, ecs);
-                    self.facing.show(ui, ecs);
-                    self.camera.show(ui, ecs);
-                    self.sprite.show(ui, ecs);
-                    self.scripts.show(ui, ecs);
-                    self.animation.show(ui, ecs);
-                    self.char_anims.show(ui, ecs);
-                    self.dual_anims.show(ui, ecs);
-                    self.named_anims.show(ui, ecs);
-                    self.walking.show(ui, ecs);
-                    self.interaction.show(ui, ecs);
-                    self.sfx.show(ui, ecs);
-                });
-            },
-        );
+                self.position.show(ui, ecs);
+                self.collision.show(ui, ecs);
+                self.facing.show(ui, ecs);
+                self.camera.show(ui, ecs);
+                self.sprite.show(ui, ecs);
+                self.scripts.show(ui, ecs);
+                self.animation.show(ui, ecs);
+                self.char_anims.show(ui, ecs);
+                self.dual_anims.show(ui, ecs);
+                self.named_anims.show(ui, ecs);
+                self.walking.show(ui, ecs);
+                self.interaction.show(ui, ecs);
+                self.sfx.show(ui, ecs);
+            });
+        });
     }
 
     pub fn title(&self) -> String {
@@ -234,7 +245,7 @@ where
         }
     }
 
-    pub fn show(&mut self, ui: &mut egui::Ui, ecs: &mut Ecs) {
+    pub fn show(&mut self, ui: &mut Ui, ecs: &mut Ecs) {
         let component = ecs.query_one_with_id::<&C>(self.entity_id);
         if component.is_none() {
             self.text.clear();
@@ -253,7 +264,7 @@ where
 
         ui.collapsing(C::name(), |ui| {
             ui.add(
-                egui::TextEdit::multiline(&mut self.text)
+                TextEdit::multiline(&mut self.text)
                     .code_editor()
                     .desired_rows(1)
                     .interactive(self.is_being_edited),
@@ -284,6 +295,89 @@ where
                         self.is_being_edited = true;
                     };
                 }
+            });
+        });
+    }
+}
+
+// StoryVarsWindow is implemented with a different philosophy to EntityWindow.
+// In EntityWindow, the window stores an instance of ComponentCollapsible for each component type,
+// and each ComponentCollapsible stores and manages its own is_being_edited and edit_text.
+// In StoryVarsWindow, the window stores a single Option<{key}> referencing the story var being
+// edited and the edit_text of that one story var. It does not store a struct for each story var.
+// Is one generally better than the other? Is the choice conditional?
+
+pub struct StoryVarsWindow {
+    pub open: bool,
+    pub filter_string: String,
+    pub var_being_edited: Option<String>,
+    pub edit_text: String,
+}
+
+impl StoryVarsWindow {
+    pub fn new() -> Self {
+        Self {
+            open: false,
+            filter_string: String::new(),
+            var_being_edited: None,
+            edit_text: String::new(),
+        }
+    }
+
+    pub fn show(&mut self, ctx: &Context, story_vars: &mut StoryVars) {
+        Window::new("Story Vars").default_width(250.).open(&mut self.open).show(&ctx, |ui| {
+            ui.add(TextEdit::singleline(&mut self.filter_string).hint_text("Filter"));
+
+            ScrollArea::vertical().show(ui, |ui| {
+                Grid::new("grid").show(ui, |ui| {
+                    for (key, val) in story_vars
+                        .0
+                        .iter_mut()
+                        .filter(|(k, _)| k.contains(&self.filter_string))
+                        .sorted()
+                    {
+                        let is_being_edited =
+                            self.var_being_edited.as_ref().is_some_and(|k| k == key);
+
+                        ui.label(key);
+
+                        ui.horizontal(|ui| {
+                            let mut val_as_string = val.to_string();
+                            let text_ref = if is_being_edited {
+                                &mut self.edit_text
+                            } else {
+                                &mut val_as_string
+                            };
+                            ui.add_enabled(
+                                is_being_edited,
+                                TextEdit::singleline(text_ref).desired_width(10.),
+                            );
+
+                            if is_being_edited {
+                                if ui.button("Cancel").clicked() {
+                                    self.var_being_edited = None;
+                                    self.edit_text.clear();
+                                }
+                                if ui.button("Save").clicked() {
+                                    if let Ok(i32) = self.edit_text.parse::<i32>() {
+                                        *val = i32;
+                                    }
+                                    self.var_being_edited = None;
+                                    self.edit_text.clear();
+                                }
+                            } else {
+                                if ui.button("Edit").clicked() {
+                                    self.var_being_edited = Some(key.clone());
+                                    self.edit_text = val_as_string.to_string();
+                                }
+                            }
+                        });
+
+                        ui.end_row();
+                    }
+                });
+
+                ui.allocate_space([ui.available_width(), 0.].into());
             });
         });
     }
