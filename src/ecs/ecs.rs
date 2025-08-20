@@ -1,7 +1,7 @@
 use super::query::Query;
 use crate::components::Name;
 use anymap::AnyMap;
-use slotmap::{new_key_type, Key, SecondaryMap, SlotMap};
+use slotmap::{Key, SecondaryMap, SlotMap, new_key_type};
 use std::cell::RefCell;
 
 // TODO entity identifier enum that can be String (name) or EntityId
@@ -59,21 +59,21 @@ impl Ecs {
         }
     }
 
-    fn filter<Q>(&self) -> Box<dyn Iterator<Item = EntityId> + '_>
+    fn filter<'ecs, Q>(&'ecs self) -> Box<dyn Iterator<Item = EntityId> + 'ecs>
     where
         Q: Query,
     {
         Box::new(self.entity_ids.keys().filter(|id| Q::filter(*id, &self.component_maps)))
     }
 
-    pub fn query<Q>(&self) -> QueryResultIter<Q>
+    pub fn query<'ecs, Q>(&'ecs self) -> QueryResultIter<'ecs, Q>
     where
         Q: Query,
     {
         Box::new(self.filter::<Q>().map(|id| Q::borrow(id, &self.component_maps)))
     }
 
-    pub fn query_except<Q>(&self, except: EntityId) -> QueryResultIter<Q>
+    pub fn query_except<'ecs, Q>(&'ecs self, except: EntityId) -> QueryResultIter<'ecs, Q>
     where
         Q: Query,
     {
@@ -86,7 +86,7 @@ impl Ecs {
 
     // DOES filter in a way that avoids double borrow in a nested query
     // (Because it filters by id first, then runs the query)
-    pub fn query_one_with_id<Q>(&self, id: EntityId) -> Option<Q::Result<'_>>
+    pub fn query_one_with_id<'ecs, Q>(&'ecs self, id: EntityId) -> Option<Q::Result<'ecs>>
     where
         Q: Query,
     {
@@ -99,7 +99,7 @@ impl Ecs {
     // (Because it filters by name during the query)
     // TODO query_one_with_name filters by name before querying
     // Or just leave it since I'm reworking the ecs later anyway?
-    pub fn query_one_with_name<Q>(&self, name: &str) -> Option<Q::Result<'_>>
+    pub fn query_one_with_name<'ecs, Q>(&'ecs self, name: &str) -> Option<Q::Result<'ecs>>
     where
         Q: Query + 'static,
     {

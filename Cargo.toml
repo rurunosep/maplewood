@@ -1,6 +1,6 @@
 [package]
 authors = ["Kevin Hernandez-Rives <rurunosep@gmail.com>"]
-edition = "2021"
+edition = "2024"
 name = "maplewood"
 version = "0.2.1"
 

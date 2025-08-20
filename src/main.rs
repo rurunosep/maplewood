@@ -1,4 +1,3 @@
-#![feature(let_chains)]
 #![feature(try_blocks)]
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
@@ -17,11 +16,11 @@ mod world;
 use dev_ui::DevUi;
 use ecs::Ecs;
 use misc::{
-    Logger, MapOverlayTransition, MessageWindow, StoryVars, SCREEN_COLS, SCREEN_ROWS,
-    SCREEN_SCALE, TILE_SIZE,
+    Logger, MapOverlayTransition, MessageWindow, SCREEN_COLS, SCREEN_ROWS, SCREEN_SCALE,
+    StoryVars, TILE_SIZE,
 };
 use render::renderer::Renderer;
-use script::{console, ScriptManager};
+use script::{ScriptManager, console};
 use sdl2::mixer::{AUDIO_S16SYS, DEFAULT_CHANNELS};
 use sdl2::pixels::Color;
 use slotmap::SlotMap;
@@ -45,7 +44,7 @@ pub struct UiData {
 }
 
 fn main() {
-    std::env::set_var("RUST_BACKTRACE", "0");
+    unsafe { std::env::set_var("RUST_BACKTRACE", "0") };
 
     // Logger
     // (How can I access the logger again to interact with it? Do I need to?)
@@ -140,10 +139,12 @@ fn main() {
     // Console
     let console_lua_instance = mlua::Lua::new();
     let (console_input_sender, console_input_receiver) = crossbeam::channel::unbounded();
-    std::thread::spawn(move || loop {
-        let mut input = String::new();
-        std::io::stdin().read_line(&mut input).unwrap();
-        let _ = console_input_sender.send(input.clone());
+    std::thread::spawn(move || {
+        loop {
+            let mut input = String::new();
+            std::io::stdin().read_line(&mut input).unwrap();
+            let _ = console_input_sender.send(input.clone());
+        }
     });
 
     // Scratchpad

@@ -19,7 +19,7 @@ pub fn process_input(
     script_manager: &mut ScriptManager,
     egui_data: &mut DevUi,
 ) {
-    let GameData { ref mut ecs, ref mut story_vars, .. } = game_data;
+    let GameData { ecs, story_vars, .. } = game_data;
 
     for event in event_pump.poll_iter() {
         // Update egui state with new input
