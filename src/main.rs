@@ -138,12 +138,15 @@ fn main() {
 
     // Console
     let console_lua_instance = mlua::Lua::new();
-    let (console_input_sender, console_input_receiver) = crossbeam::channel::unbounded();
+    let (_console_input_sender, console_input_receiver) = crossbeam::channel::unbounded();
+    // In release mode, with windows_subsystem="windows", stdin().read_line() will continuously
+    // read empty strings and place the console input processing in an infinite loop
+    #[cfg(debug_assertions)]
     std::thread::spawn(move || {
         loop {
             let mut input = String::new();
             std::io::stdin().read_line(&mut input).unwrap();
-            let _ = console_input_sender.send(input.clone());
+            let _ = _console_input_sender.send(input.clone());
         }
     });
 
