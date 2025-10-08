@@ -2,38 +2,40 @@
 
 --# start
 
-message("You're sleepy.")
-message("But you need a plushy.")
-message("Legend tells that the kid in the classroom has a plushy.")
+message("You're sooo sleepy.")
+message("But you can't sleep without a plushy.")
+message("Legend says the kid in the classroom has a plushy.")
+message("(Press ~ to check out the dev UI.)")
 
 --# school_kid
 
 local stages = {
   [1] = function()
-    message("You need a plushy?\n" ..
-      "I have one.\n" ..
-      "But I need your help.")
-    message("I skipped class yesterday, and I need you to write my\n" ..
-      "name in the attendance book.")
-    message("Get the teacher's pen from the toilet.")
+    message("\"You need a plushy?\n" ..
+      "I have one hidden somewhere.\n" ..
+      "But I need your help.\"")
+    message("\"I skipped class yesterday, and I need to write my\n" ..
+      "name in the attendance book.\"")
+    message("\"Bring me the teacher's special pen from the broken\n" ..
+      "toilet in the bathroom.\"")
 
     set_story_var("school_kid::stage", 2)
   end,
 
   [2] = function()
-    message("I'll tell you where the plushy is when you put my name\n" ..
-      "in the book.")
+    message("\"I'll tell you where the plushy is when you get me the\n" ..
+      "pen.\"")
   end,
 
   [3] = function()
-    message("Thanks a lot!")
-    message("The plushy is in the gym.")
+    message("\"Thanks a lot!\"")
+    message("\"The plushy is behind a punching bag in the gym.\"")
 
     set_story_var("school_kid::stage", 4)
   end,
 
   [4] = function()
-    message("The plushy is in the gym.")
+    message("\"The plushy is behind a punching bag in the gym.\"")
   end
 }
 
@@ -43,33 +45,33 @@ stages[get_story_var("school_kid::stage")]()
 
 local stages = {
   [1] = function()
-    message("So tired.")
+    message("\"I'm so tired today...\"")
   end,
 
   [2] = function()
-    message("You need the key?")
-    message("I need energy to workout.")
-    message("Get me a Super Sugar Bun from the bakery and I'll\n" ..
-      "give you the key.")
+    message("\"You need the key to the bathroom?\"")
+    message("\"I need some carbs for my workout.\"")
+    message("\"Get me a Super Sugar Bun from the bakery and I'll\n" ..
+      "give you the key.\"")
 
     set_story_var("janitor::stage", 3)
     set_story_var("bakery_girl::stage", 2)
   end,
 
   [3] = function()
-    message("I need that bun.")
+    message("\"I need that bun.\"")
   end,
 
   [4] = function()
-    message("Thanks a bunch! Now I can run.")
-    message("Here's the key.")
+    message("\"Thanks a bunch! Now I can run.\"")
+    message("\"Here's the key.\"")
 
     set_story_var("janitor::stage", 5)
     set_story_var("bathroom::door::have_key", 1)
   end,
 
   [5] = function()
-    message("Now I can run.")
+    message("\"Now I can run.\"")
   end,
 
   -- is running, but can't crash yet
@@ -86,11 +88,11 @@ stages[get_story_var("janitor::stage")]()
 
 local stages = {
   [1] = function()
-    message("I sell buns.")
+    message("\"I sell buns!\"")
   end,
 
   [2] = function()
-    message("\"I'll get you your bun.\"")
+    message("\"You need a Super Sugar Bun? Coming right up!\"")
 
     set_cutscene_border()
     lock_player_input()
@@ -108,7 +110,7 @@ local stages = {
     walk_wait("bakery_girl", "right", 8, 0.08)
     walk_wait("bakery_girl", "down", 0.4, 0.08)
     wait(0.5)
-    message("\"Here's your bun.\"")
+    message("\"Here's your bun!\"")
     wait(1)
     set_entity_visible("bakery::fire", true)
     play_sfx("flame")
@@ -126,7 +128,7 @@ local stages = {
   end,
 
   [3] = function()
-    message("Have a nice day.")
+    message("\"Have a nice day.\"")
   end,
 
   -- may start panicking
@@ -149,7 +151,9 @@ end
 if get_story_var("bathroom::door::open") == 0 then
   if get_story_var("bathroom::door::have_key") == 0 then
     if get_story_var("school_kid::stage") == 2 then
-      message("Get the key from the janitor in the gym.")
+      message("There's a note on the door:")
+      message("\"Closed for repairs. If you need to get in, find me\n" ..
+        "in the gym.\" - Janitor")
 
       if get_story_var("janitor::stage") == 1 then
         set_story_var("janitor::stage", 2)
@@ -166,7 +170,7 @@ end
 --# bathroom::toilet
 
 if get_story_var("main::pen_found") == 0 then
-  message("You find the pen.")
+  message("You found the pen.")
 
   set_story_var("main::pen_found", 1)
   set_story_var("school_kid::stage", 3)
@@ -229,7 +233,7 @@ end
 
 if get_story_var("school_kid::stage") == 4 and get_story_var("main::plushy_found") == 0 then
   message("You found the plushy!")
-  message("Now go outside and find somewhere to sleep.")
+  message("Now go outside and find somewhere cozy to sleep.")
 
   set_story_var("main::plushy_found", 1)
 
@@ -246,7 +250,7 @@ end
 --# overworld::garbage_bin
 
 if get_story_var("main::plushy_found") == 1 then
-  message("This is a great place to sleep.")
+  message("This place is perfect to sleep!")
   message("Goodnight!")
 
   close_game()

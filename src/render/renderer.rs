@@ -637,7 +637,8 @@ fn create_rect_copy_pipeline(
     let shader = device.create_shader_module(ShaderModuleDescriptor {
         label: Some("rect copy shader"),
         source: ShaderSource::Wgsl(
-            std::fs::read_to_string("src/render/shaders/rect_copy_shader.wgsl").unwrap().into(),
+            // TODO error handle missing
+            std::fs::read_to_string("assets/shaders/rect_copy_shader.wgsl").unwrap().into(),
         ),
     });
 
@@ -702,7 +703,8 @@ fn create_rect_fill_pipeline(device: &Device, surface_format: &TextureFormat) ->
     let shader = device.create_shader_module(ShaderModuleDescriptor {
         label: Some("rect fill shader"),
         source: ShaderSource::Wgsl(
-            std::fs::read_to_string("src/render/shaders/rect_fill_shader.wgsl").unwrap().into(),
+            // TODO error handle missing
+            std::fs::read_to_string("assets/shaders/rect_fill_shader.wgsl").unwrap().into(),
         ),
     });
 

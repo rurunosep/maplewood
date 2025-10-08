@@ -102,10 +102,10 @@ pub fn load_entities_from_source(ecs: &mut Ecs) {
     );
 
     // Bathroom door blocker
-    // let id = ecs.add_entity();
-    // ecs.add_component(id, Name("bathroom::door::blocker".to_string()));
-    // ecs.add_component(id, Position(WorldPos::new("bathroom", 4.5, 8.)));
-    // ecs.add_component(id, Collision { hitbox: Size2D::new(1., 2.), solid: true });
+    let id = ecs.add_entity();
+    ecs.add_component(id, Name("bathroom::door::blocker".to_string()));
+    ecs.add_component(id, Position(WorldPos::new("bathroom", 4.5, 8.)));
+    ecs.add_component(id, Collision { hitbox: Size2D::new(1., 2.), solid: true });
 
     // Bathroom entrance blocker
     let id = ecs.add_entity();

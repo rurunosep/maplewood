@@ -159,9 +159,8 @@ impl Component for Walking {}
 #[derive(Default, Clone, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Camera {
-    // TODO this should actually be an Option<EntityId>
-    // But then how do we facilitate an initial entities load?
-    // Probably using the new entity identifier enum idea
+    // This should be an Option<EntityIdentifier> when the time comes
+    // For now, that serves no purpose
     pub target_entity_name: Option<String>,
     pub clamp_to_map: bool,
 }

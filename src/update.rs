@@ -5,7 +5,7 @@ use crate::components::{
 };
 use crate::data::PLAYER_ENTITY_NAME;
 use crate::ecs::{Ecs, EntityId, With};
-use crate::misc::{Aabb, Direction, StoryVars, SCREEN_COLS, SCREEN_ROWS};
+use crate::misc::{Aabb, Direction, SCREEN_COLS, SCREEN_ROWS, StoryVars};
 use crate::script::{ScriptManager, Trigger};
 use crate::world::{CellPos, MapUnits, World};
 use crate::{GameData, MapOverlayTransition, MessageWindow, UiData};
