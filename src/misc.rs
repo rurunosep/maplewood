@@ -11,15 +11,10 @@ use std::sync::Mutex;
 use std::time::{Duration, Instant};
 use tap::TapOptional;
 
-pub const WINDOW_WIDTH: u32 = 1920;
-pub const WINDOW_HEIGHT: u32 = 1080;
+// TODO func to convert between pixel units and map units
+
+pub const WINDOW_SIZE: Size2D<u32, PixelUnits> = Size2D::new(1920, 1080);
 pub const TILE_SIZE: u32 = 16;
-pub const RENDER_SCALE: u32 = 4;
-pub const VIEWPORT_SIZE: Size2D<u32, PixelUnits> = Size2D::new(WINDOW_WIDTH, WINDOW_HEIGHT);
-pub const CAMERA_SIZE: Size2D<f64, MapUnits> = Size2D::new(
-    VIEWPORT_SIZE.width as f64 / RENDER_SCALE as f64 / TILE_SIZE as f64,
-    VIEWPORT_SIZE.height as f64 / RENDER_SCALE as f64 / TILE_SIZE as f64,
-);
 
 pub struct PixelUnits;
 

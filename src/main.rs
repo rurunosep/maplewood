@@ -13,7 +13,7 @@ mod script;
 mod update;
 mod world;
 
-use crate::misc::{WINDOW_HEIGHT, WINDOW_WIDTH};
+use crate::misc::WINDOW_SIZE;
 use dev_ui::DevUi;
 use ecs::Ecs;
 use misc::{Logger, MapOverlayTransition, MessageWindow, StoryVars};
@@ -63,8 +63,8 @@ fn main() {
 
     // Window
     let video_subsystem = sdl_context.video().unwrap();
-    let window_width = WINDOW_WIDTH;
-    let window_height = WINDOW_HEIGHT;
+    let window_width = WINDOW_SIZE.width;
+    let window_height = WINDOW_SIZE.height;
     let window = video_subsystem
         .window("Maplewood", window_width, window_height)
         .position_centered()

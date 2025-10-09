@@ -6,7 +6,7 @@ use crate::components::{
     NamedAnims, Position, Scripts, SfxEmitter, Sprite, SpriteComp, Walking,
 };
 use crate::ecs::{Ecs, EntityId};
-use crate::misc::StoryVars;
+use crate::misc::{StoryVars, TILE_SIZE, WINDOW_SIZE};
 use crate::script::{self, ScriptClass, StartAbortCondition, Trigger};
 use crate::world::WorldPos;
 use euclid::{Point2D, Rect, Size2D};
@@ -71,7 +71,15 @@ pub fn load_entities_from_source(ecs: &mut Ecs) {
     ecs.add_component(id, Name("CAMERA".to_string()));
     ecs.add_component(
         id,
-        Camera { target_entity: Some(PLAYER_ENTITY_NAME.to_string()), clamp_to_map: true },
+        Camera {
+            target_entity: Some(PLAYER_ENTITY_NAME.to_string()),
+            size: Size2D::new(
+                // TODO zoom variable
+                WINDOW_SIZE.width as f64 / TILE_SIZE as f64 / 4.,
+                WINDOW_SIZE.height as f64 / TILE_SIZE as f64 / 4.,
+            ),
+            clamp_to_map: true,
+        },
     );
     ecs.add_component(id, Position::default());
     // Needs "walking" component to be pathed. Needs "facing" for walking code to work.

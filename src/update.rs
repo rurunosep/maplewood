@@ -5,7 +5,7 @@ use crate::components::{
 };
 use crate::data::PLAYER_ENTITY_NAME;
 use crate::ecs::{Ecs, EntityId, With};
-use crate::misc::{Aabb, CAMERA_SIZE, Direction, StoryVars};
+use crate::misc::{Aabb, Direction, StoryVars};
 use crate::script::{ScriptManager, Trigger};
 use crate::world::{CellPos, MapUnits, World};
 use crate::{GameData, MapOverlayTransition, MessageWindow, UiData};
@@ -437,20 +437,18 @@ fn update_camera(ecs: &Ecs, world: &World) {
             .get(&camera_position.map)
             .tap_none(|| log::error!(once = true; "Map doesn't exist: {}", &camera_position.map))
     {
-        // TODO camera size is property of camera component
-        let camera_size = CAMERA_SIZE;
         let map_bounds: Rect<f64, MapUnits> =
             Rect::new(camera_map.offset.to_point(), camera_map.dimensions).cast().cast_unit();
 
         // (If map is smaller than viewport, skip clamping, or clamp() will panic)
-        if map_bounds.size.contains(camera_size) {
+        if map_bounds.size.contains(camera_component.size) {
             camera_position.map_pos.x = camera_position.map_pos.x.clamp(
-                map_bounds.min_x() + camera_size.width / 2.,
-                map_bounds.max_x() - camera_size.width / 2.,
+                map_bounds.min_x() + camera_component.size.width / 2.,
+                map_bounds.max_x() - camera_component.size.width / 2.,
             );
             camera_position.map_pos.y = camera_position.map_pos.y.clamp(
-                map_bounds.min_y() + camera_size.height / 2.,
-                map_bounds.max_y() - camera_size.height / 2.,
+                map_bounds.min_y() + camera_component.size.height / 2.,
+                map_bounds.max_y() - camera_component.size.height / 2.,
             );
         }
     }

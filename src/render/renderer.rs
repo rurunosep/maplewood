@@ -1,11 +1,11 @@
-use crate::components::{Position, SineOffsetAnimation, SpriteComp};
+use crate::components::{Camera, Position, SineOffsetAnimation, SpriteComp};
 use crate::ecs::Ecs;
-use crate::misc::{CAMERA_SIZE, PixelUnits, RENDER_SCALE, TILE_SIZE};
-use crate::world::{CellPos, Map, MapPos, TileLayer, World};
+use crate::misc::{PixelUnits, TILE_SIZE};
+use crate::world::{CellPos, Map, MapPos, MapUnits, TileLayer, World};
 use crate::{DevUi, UiData};
 use bytemuck::{Pod, Zeroable};
 use egui::TexturesDelta;
-use euclid::{Point2D, Rect, Vector2D};
+use euclid::{Point2D, Rect, Size2D, Vector2D};
 use image::GenericImageView;
 use itertools::Itertools;
 use pollster::FutureExt;
@@ -207,8 +207,9 @@ impl Renderer<'_> {
         // &mut cause we need to consume full_output.textures_delta
         egui_data: &mut DevUi,
     ) {
-        let output = self.surface.get_current_texture().unwrap();
-        let view = output.texture.create_view(&TextureViewDescriptor::default());
+        let surface_texture = self.surface.get_current_texture().unwrap();
+        let surface_texture_view =
+            surface_texture.texture.create_view(&TextureViewDescriptor::default());
         let mut encoder =
             self.device.create_command_encoder(&CommandEncoderDescriptor { label: None });
 
@@ -224,12 +225,47 @@ impl Renderer<'_> {
             self.brush.queue(&self.device, &self.queue, [section]).unwrap();
         }
 
-        // Main render pass
+        // Does this texture have to be recreated every frame? The view? The bind group? Can I
+        // just keep one and update it when the camera size changes? Do I have to recreate it when
+        // the camera size changes, or can I just resize it? Do I need to recreate the view and
+        // bind group, or will they still work after a resize?
+        let camera_component = ecs.query_one_with_name::<&Camera>("CAMERA").unwrap();
+        let camera_texture_size = (
+            (camera_component.size.width * TILE_SIZE as f64) as u32,
+            (camera_component.size.height * TILE_SIZE as f64) as u32,
+        );
+        let camera_texture = self.device.create_texture(&TextureDescriptor {
+            label: None,
+            size: Extent3d {
+                width: camera_texture_size.0,
+                height: camera_texture_size.1,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: TextureDimension::D2,
+            format: surface_texture.texture.format(),
+            usage: TextureUsages::RENDER_ATTACHMENT | TextureUsages::TEXTURE_BINDING,
+            view_formats: &[],
+        });
+        let camera_texture_view = camera_texture.create_view(&TextureViewDescriptor::default());
+        let camera_texture_bind_group = self.device.create_bind_group(&BindGroupDescriptor {
+            label: None,
+            layout: &self.texture_bind_group_layout,
+            entries: &[BindGroupEntry {
+                binding: 0,
+                resource: BindingResource::TextureView(&camera_texture_view),
+            }],
+        });
+
+        // Camera render pass
+        // Render the world as seen by the camera onto a texture to be later rendered onto the
+        // surface at the appropriate scale
         {
             let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
                 label: None,
                 color_attachments: &[Some(RenderPassColorAttachment {
-                    view: &view,
+                    view: &camera_texture_view,
                     resolve_target: None,
                     ops: Operations { load: LoadOp::Clear(Color::BLACK), store: StoreOp::Store },
                 })],
@@ -240,11 +276,41 @@ impl Renderer<'_> {
 
             // Draw tile layers and entities with rect copy
             // (Direct port of the old sdl renderer code)
-            self.sdl_renderer_port(&mut render_pass, world, ecs);
+            self.sdl_renderer_port(&mut render_pass, camera_texture_size, world, ecs);
+        }
+
+        // Main render pass
+        {
+            let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
+                label: None,
+                color_attachments: &[Some(RenderPassColorAttachment {
+                    view: &surface_texture_view,
+                    resolve_target: None,
+                    ops: Operations { load: LoadOp::Clear(Color::BLACK), store: StoreOp::Store },
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            });
+
+            // Draw world texture to screen
+            self.rect_copy(
+                &mut render_pass,
+                self.surface_size,
+                &Texture { bind_group: camera_texture_bind_group, size: camera_texture_size },
+                0,
+                0,
+                camera_texture_size.0,
+                camera_texture_size.1,
+                0,
+                0,
+                1920,
+                1080,
+            );
 
             // Draw message window
             if ui_data.message_window.is_some() {
-                self.draw_message_window(&mut render_pass);
+                self.draw_message_window(&mut render_pass, self.surface_size);
             }
         }
 
@@ -275,14 +341,20 @@ impl Renderer<'_> {
             );
 
             self.egui_render_pass
-                .execute(&mut encoder, &view, &paint_jobs, &screen_descriptor, None)
+                .execute(
+                    &mut encoder,
+                    &surface_texture_view,
+                    &paint_jobs,
+                    &screen_descriptor,
+                    None,
+                )
                 .unwrap();
 
             self.egui_render_pass.remove_textures(textures_delta).unwrap();
         }
 
         self.queue.submit([encoder.finish()]);
-        output.present();
+        surface_texture.present();
     }
 
     // Part of the hack to make egui properly set initial screen_rect
@@ -294,28 +366,52 @@ impl Renderer<'_> {
     fn sdl_renderer_port<'rpass>(
         &'rpass self,
         render_pass: &mut RenderPass<'rpass>,
+        render_target_size: (u32, u32),
         world: &World,
         ecs: &Ecs,
     ) {
-        if let Some(camera_position) = ecs.query_one_with_name::<&Position>("CAMERA")
+        if let Some((camera_position, camera_component)) =
+            ecs.query_one_with_name::<(&Position, &Camera)>("CAMERA")
             && let Some(map) = world.maps.get(&camera_position.map).tap_none(
                 || log::error!(once = true; "Map doesn't exist: {}", &camera_position.map),
             )
         {
             let camera_map_pos = camera_position.map_pos;
+            let camera_size = camera_component.size;
 
             // Draw tile layers below entities
             for layer in map.tile_layers.iter().take_while_inclusive(|l| l.name != "interiors_3")
             {
-                self.draw_tile_layer(render_pass, layer, map, camera_map_pos);
+                self.draw_tile_layer(
+                    render_pass,
+                    render_target_size,
+                    layer,
+                    map,
+                    camera_map_pos,
+                    camera_size,
+                );
             }
 
             // Draw entities
-            self.draw_entities(render_pass, ecs, map, camera_map_pos);
+            self.draw_entities(
+                render_pass,
+                render_target_size,
+                ecs,
+                map,
+                camera_map_pos,
+                camera_size,
+            );
 
             // Draw tile layers above entities
             for layer in map.tile_layers.iter().skip_while(|l| l.name != "exteriors_4") {
-                self.draw_tile_layer(render_pass, layer, map, camera_map_pos);
+                self.draw_tile_layer(
+                    render_pass,
+                    render_target_size,
+                    layer,
+                    map,
+                    camera_map_pos,
+                    camera_size,
+                );
             }
         }
     }
@@ -323,16 +419,18 @@ impl Renderer<'_> {
     fn draw_tile_layer(
         &self,
         render_pass: &mut RenderPass,
+        render_target_size: (u32, u32),
         layer: &TileLayer,
         map: &Map,
         camera_map_pos: MapPos,
+        camera_size: Size2D<f64, MapUnits>,
     ) {
         let Some(tileset) = self.tilesets.get(&layer.tileset_path) else {
             log::error!(once = true; "Tileset doesn't exist: {}", &layer.tileset_path);
             return;
         };
 
-        let tileset_width_in_tiles = tileset.size.0 / 16;
+        let tileset_width_in_tiles = tileset.size.0 / TILE_SIZE;
 
         let map_bounds = Rect::new(map.offset.to_point(), map.dimensions);
         for col in map_bounds.min_x()..map_bounds.max_x() {
@@ -342,26 +440,28 @@ impl Renderer<'_> {
                 let vec_index = vec_coords.y * map.dimensions.width + vec_coords.x;
 
                 if let Some(tile_id) = layer.tile_ids.get(vec_index as usize).expect("") {
-                    let top_left_in_screen = map_pos_to_screen_top_left(
+                    let top_left_in_screen = map_pos_to_top_left_in_viewport(
                         cell_pos.cast().cast_unit(),
-                        Some(layer.offset * RENDER_SCALE as i32),
+                        Some(layer.offset),
                         camera_map_pos,
+                        camera_size,
                     );
 
-                    let tile_y_in_tileset = (tile_id / tileset_width_in_tiles) * 16;
-                    let tile_x_in_tileset = (tile_id % tileset_width_in_tiles) * 16;
+                    let tile_y_in_tileset = (tile_id / tileset_width_in_tiles) * TILE_SIZE;
+                    let tile_x_in_tileset = (tile_id % tileset_width_in_tiles) * TILE_SIZE;
 
                     self.rect_copy(
                         render_pass,
+                        render_target_size,
                         tileset,
                         tile_x_in_tileset,
                         tile_y_in_tileset,
-                        16,
-                        16,
+                        TILE_SIZE,
+                        TILE_SIZE,
                         top_left_in_screen.x,
                         top_left_in_screen.y,
-                        16 * 4,
-                        16 * 4,
+                        TILE_SIZE,
+                        TILE_SIZE,
                     );
                 }
             }
@@ -371,9 +471,11 @@ impl Renderer<'_> {
     fn draw_entities(
         &self,
         render_pass: &mut RenderPass,
+        render_target_size: (u32, u32),
         ecs: &Ecs,
         map: &Map,
         camera_map_pos: MapPos,
+        camera_size: Size2D<f64, MapUnits>,
     ) {
         for (position, sprite_component, sine_offset_animation) in ecs
             .query::<(&Position, &SpriteComp, Option<&SineOffsetAnimation>)>()
@@ -409,14 +511,16 @@ impl Renderer<'_> {
                 position += offset;
             }
 
-            let top_left_in_screen = map_pos_to_screen_top_left(
+            let top_left_in_screen = map_pos_to_top_left_in_viewport(
                 position,
-                Some(sprite.anchor.to_vector() * -1 * RENDER_SCALE as i32),
+                Some(sprite.anchor.to_vector() * -1),
                 camera_map_pos,
+                camera_size,
             );
 
             self.rect_copy(
                 render_pass,
+                render_target_size,
                 spritesheet,
                 sprite.rect.min_x(),
                 sprite.rect.min_y(),
@@ -424,16 +528,21 @@ impl Renderer<'_> {
                 sprite.rect.height(),
                 top_left_in_screen.x,
                 top_left_in_screen.y,
-                sprite.rect.width() * 4,
-                sprite.rect.height() * 4,
+                sprite.rect.width(),
+                sprite.rect.height(),
             );
         }
     }
 
-    fn draw_message_window<'rpass>(&'rpass self, render_pass: &mut RenderPass<'rpass>) {
+    fn draw_message_window<'rpass>(
+        &'rpass self,
+        render_pass: &mut RenderPass<'rpass>,
+        render_target_size: (u32, u32),
+    ) {
         // Draw the window itself
         self.rect_fill(
             render_pass,
+            render_target_size,
             10 * 4,
             (16 * 12 - 60) * 4,
             (16 * 16 - 20) * 4,
@@ -448,7 +557,8 @@ impl Renderer<'_> {
     fn rect_copy(
         &self,
         render_pass: &mut RenderPass,
-        texture: &Texture,
+        render_target_size: (u32, u32),
+        src_texture: &Texture,
         src_x: u32,
         src_y: u32,
         src_w: u32,
@@ -460,27 +570,27 @@ impl Renderer<'_> {
     ) {
         // TODO adjust for screen scale inside rect_copy?
 
-        let tex_w = texture.size.0 as f32;
-        let tex_h = texture.size.1 as f32;
-        let screen_w = self.surface_size.0 as f32;
-        let screen_h = self.surface_size.1 as f32;
+        let src_tex_w = src_texture.size.0 as f32;
+        let src_tex_h = src_texture.size.1 as f32;
+        let target_w = render_target_size.0 as f32;
+        let target_h = render_target_size.1 as f32;
 
         let params = RectCopyParams {
             // Map pixel coords to 0to1 tex coords
-            src_top: src_y as f32 / tex_h,
-            src_left: src_x as f32 / tex_w,
-            src_bottom: (src_y + src_h) as f32 / tex_h,
-            src_right: (src_x + src_w) as f32 / tex_w,
+            src_top: src_y as f32 / src_tex_h,
+            src_left: src_x as f32 / src_tex_w,
+            src_bottom: (src_y + src_h) as f32 / src_tex_h,
+            src_right: (src_x + src_w) as f32 / src_tex_w,
             // Map pixel coords to 0to1, invert Y, and map to -1to1 clip space coords
-            dest_top: (dest_y as f32 / screen_h).pipe(|x| 1. - x) * 2. - 1.,
-            dest_left: (dest_x as f32 / screen_w) * 2. - 1.,
-            dest_bottom: ((dest_y + dest_h as i32) as f32 / screen_h).pipe(|x| 1. - x) * 2. - 1.,
-            dest_right: ((dest_x + dest_w as i32) as f32 / screen_w) * 2. - 1.,
+            dest_top: (dest_y as f32 / target_h).pipe(|x| 1. - x) * 2. - 1.,
+            dest_left: (dest_x as f32 / target_w) * 2. - 1.,
+            dest_bottom: ((dest_y + dest_h as i32) as f32 / target_h).pipe(|x| 1. - x) * 2. - 1.,
+            dest_right: ((dest_x + dest_w as i32) as f32 / target_w) * 2. - 1.,
         };
 
         render_pass.set_pipeline(&self.rect_copy_pipeline);
         render_pass.set_bind_group(0, &self.sampler_bind_group, &[]);
-        render_pass.set_bind_group(1, &texture.bind_group, &[]);
+        render_pass.set_bind_group(1, &src_texture.bind_group, &[]);
         render_pass.set_push_constants(ShaderStages::VERTEX, 0, bytemuck::cast_slice(&[params]));
         render_pass.draw(0..6, 0..1);
     }
@@ -488,21 +598,22 @@ impl Renderer<'_> {
     fn rect_fill(
         &self,
         render_pass: &mut RenderPass,
+        render_target_size: (u32, u32),
         x: i32,
         y: i32,
         w: u32,
         h: u32,
         color: [f32; 4],
     ) {
-        let screen_w = self.surface_size.0 as f32;
-        let screen_h = self.surface_size.1 as f32;
+        let target_w = render_target_size.0 as f32;
+        let target_h = render_target_size.1 as f32;
 
         let params = RectFillParams {
             // Map pixel coords to 0to1, invert Y, and map to -1to1 clip space coords
-            top: (y as f32 / screen_h).pipe(|x| 1. - x) * 2. - 1.,
-            left: (x as f32 / screen_w) * 2. - 1.,
-            bottom: ((y + h as i32) as f32 / screen_h).pipe(|x| 1. - x) * 2. - 1.,
-            right: ((x + w as i32) as f32 / screen_w) * 2. - 1.,
+            top: (y as f32 / target_h).pipe(|x| 1. - x) * 2. - 1.,
+            left: (x as f32 / target_w) * 2. - 1.,
+            bottom: ((y + h as i32) as f32 / target_h).pipe(|x| 1. - x) * 2. - 1.,
+            right: ((x + w as i32) as f32 / target_w) * 2. - 1.,
             color,
         };
 
@@ -629,6 +740,23 @@ impl Renderer<'_> {
     }
 }
 
+// TODO more accurate terminology
+fn map_pos_to_top_left_in_viewport(
+    map_pos: MapPos,
+    pixel_offset: Option<Vector2D<i32, PixelUnits>>,
+    camera_map_pos: MapPos,
+    camera_size: Size2D<f64, MapUnits>,
+) -> Point2D<i32, PixelUnits> {
+    let camera_top_left_in_map = camera_map_pos - camera_size / 2.0;
+    let map_pos_relative_to_camera_top_left = map_pos - camera_top_left_in_map.to_vector();
+    let position_in_viewport =
+        (map_pos_relative_to_camera_top_left * TILE_SIZE as f64).cast().cast_unit();
+    let top_left_in_viewport =
+        position_in_viewport + pixel_offset.unwrap_or_default().cast_unit();
+
+    return top_left_in_viewport;
+}
+
 fn create_rect_copy_pipeline(
     device: &Device,
     surface_format: &TextureFormat,
@@ -753,20 +881,4 @@ fn create_rect_fill_pipeline(device: &Device, surface_format: &TextureFormat) ->
     });
 
     pipeline
-}
-
-fn map_pos_to_screen_top_left(
-    map_pos: MapPos,
-    pixel_offset: Option<Vector2D<i32, PixelUnits>>,
-    camera_map_pos: MapPos,
-) -> Point2D<i32, PixelUnits> {
-    let camera_size = CAMERA_SIZE;
-    let camera_top_left = camera_map_pos - camera_size / 2.0;
-    let position_in_camera = map_pos - camera_top_left.to_vector();
-    let position_in_viewport =
-        (position_in_camera * (TILE_SIZE * RENDER_SCALE) as f64).cast().cast_unit();
-    let top_left_in_viewport =
-        position_in_viewport + pixel_offset.unwrap_or_default().cast_unit();
-
-    return top_left_in_viewport;
 }
