@@ -1,14 +1,8 @@
 use crate::loader::ldtk_project;
-use crate::misc::{Aabb, PixelUnits};
-use euclid::{Point2D, Size2D, Vector2D};
+use crate::math::{CellPos, CellUnits, MapPos, PixelUnits, Vec2};
+use crate::misc::Aabb;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-
-pub struct MapUnits;
-pub struct CellUnits;
-
-pub type MapPos = Point2D<f64, MapUnits>;
-pub type CellPos = Point2D<i32, CellUnits>;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -19,13 +13,13 @@ pub struct WorldPos {
 
 impl Default for WorldPos {
     fn default() -> Self {
-        Self { map: "overworld".to_string(), map_pos: Point2D::default() }
+        Self { map: "overworld".to_string(), map_pos: Vec2::default() }
     }
 }
 
 impl WorldPos {
     pub fn new(map_name: &str, x: f64, y: f64) -> Self {
-        Self { map: map_name.to_string(), map_pos: Point2D::new(x, y) }
+        Self { map: map_name.to_string(), map_pos: Vec2::new(x, y) }
     }
 }
 
@@ -45,13 +39,13 @@ pub struct TileLayer {
     pub name: String,
     pub tileset_path: String,
     pub tile_ids: Vec<Option<TileId>>,
-    pub offset: Vector2D<i32, PixelUnits>,
+    pub offset: Vec2<i32, PixelUnits>,
 }
 
 pub struct Map {
     pub name: String,
-    pub dimensions: Size2D<i32, CellUnits>,
-    pub offset: Vector2D<i32, CellUnits>,
+    pub dimensions: Vec2<i32, CellUnits>,
+    pub offset: Vec2<i32, CellUnits>,
     pub tile_layers: Vec<TileLayer>,
     // Option<()> so I can maybe later use an enum for different values
     pub collisions: Vec<Option<()>>,
@@ -61,8 +55,8 @@ impl Map {
     pub fn from_ldtk_level(level: &ldtk_project::Level) -> Self {
         let name = level.identifier.clone();
 
-        let dimensions = Size2D::new(level.px_wid as i32 / 16, level.px_hei as i32 / 16);
-        let offset = Vector2D::new(0, 0);
+        let dimensions = Vec2::new(level.px_wid as i32 / 16, level.px_hei as i32 / 16);
+        let offset = Vec2::new(0, 0);
 
         let mut tile_layers: Vec<TileLayer> = Vec::new();
         for layer in level
@@ -77,10 +71,11 @@ impl Map {
                     && layer.identifier != "exteriors_objects_guide"
             })
         {
-            let mut tiles: Vec<Option<TileId>> = vec![None; dimensions.area() as usize];
+            let mut tiles: Vec<Option<TileId>> =
+                vec![None; (dimensions.x * dimensions.y) as usize];
             for tile in layer.grid_tiles.iter().chain(layer.auto_layer_tiles.iter()) {
                 let vec_index =
-                    (tile.px[0] as i32 / 16) + (tile.px[1] as i32 / 16) * dimensions.width;
+                    (tile.px[0] as i32 / 16) + (tile.px[1] as i32 / 16) * dimensions.x;
                 *tiles.get_mut(vec_index as usize).unwrap() = Some(tile.t as u32);
             }
 
@@ -88,10 +83,7 @@ impl Map {
                 name: layer.identifier.clone(),
                 tileset_path: layer.tileset_rel_path.as_ref().unwrap().clone(),
                 tile_ids: tiles,
-                offset: Vector2D::new(
-                    layer.px_total_offset_x as i32,
-                    layer.px_total_offset_y as i32,
-                ),
+                offset: Vec2::new(layer.px_total_offset_x as i32, layer.px_total_offset_y as i32),
             });
         }
 
@@ -121,8 +113,8 @@ impl Map {
         let bottom = world.levels.iter().map(|l| l.world_y + l.px_hei).max().unwrap() as i32 / 16;
         let right = world.levels.iter().map(|l| l.world_x + l.px_wid).max().unwrap() as i32 / 16;
 
-        let dimensions = Size2D::new(right - left, bottom - top);
-        let offset = Vector2D::new(left, top);
+        let dimensions = Vec2::new(right - left, bottom - top);
+        let offset = Vec2::new(left, top);
 
         // Create all the empty combined tile layers based on those of the first level.
         // It's assumed that all instances of the same definition have the same tileset
@@ -138,15 +130,12 @@ impl Map {
             .map(|layer| TileLayer {
                 name: layer.identifier.clone(),
                 tileset_path: layer.tileset_rel_path.as_ref().unwrap().clone(),
-                tile_ids: vec![None; dimensions.area() as usize],
-                offset: Vector2D::new(
-                    layer.px_total_offset_x as i32,
-                    layer.px_total_offset_y as i32,
-                ),
+                tile_ids: vec![None; (dimensions.x * dimensions.y) as usize],
+                offset: Vec2::new(layer.px_total_offset_x as i32, layer.px_total_offset_y as i32),
             })
             .collect::<Vec<_>>();
 
-        let mut collisions = vec![None; (dimensions.area() * 2 * 2) as usize];
+        let mut collisions = vec![None; (dimensions.x * dimensions.y * 2 * 2) as usize];
 
         for level in &world.levels {
             // Populate tile layers
@@ -164,11 +153,11 @@ impl Map {
                 .enumerate()
             {
                 for tile in layer.grid_tiles.iter().chain(layer.auto_layer_tiles.iter()) {
-                    let pos_in_level = Vector2D::new(tile.px[0] as i32, tile.px[1] as i32) / 16;
-                    let pos_in_world = pos_in_level
-                        + Vector2D::new(level.world_x as i32, level.world_y as i32) / 16;
+                    let pos_in_level = Vec2::new(tile.px[0] as i32, tile.px[1] as i32) / 16;
+                    let pos_in_world =
+                        pos_in_level + Vec2::new(level.world_x as i32, level.world_y as i32) / 16;
                     let vec_coords = pos_in_world - offset;
-                    let vec_index = vec_coords.y * dimensions.width + vec_coords.x;
+                    let vec_index = vec_coords.y * dimensions.x + vec_coords.x;
 
                     *tile_layers
                         .get_mut(i)
@@ -193,14 +182,14 @@ impl Map {
                     .iter()
                     .enumerate()
                 {
-                    let pos_in_level = Vector2D::new(
+                    let pos_in_level = Vec2::new(
                         i as i32 % (level.px_wid as i32 / 16 * 2),
                         i as i32 / (level.px_wid as i32 / 16 * 2),
                     );
                     let pos_in_world = pos_in_level
-                        + Vector2D::new(level.world_x as i32, level.world_y as i32) / 16 * 2;
+                        + Vec2::new(level.world_x as i32, level.world_y as i32) / 16 * 2;
                     let vec_coords = pos_in_world - offset * 2;
-                    let vec_index = vec_coords.y * dimensions.width * 2 + vec_coords.x;
+                    let vec_index = vec_coords.y * dimensions.x * 2 + vec_coords.x;
 
                     *collisions.get_mut(vec_index as usize).unwrap() = match v {
                         1 => Some(()),
@@ -216,10 +205,10 @@ impl Map {
     // Get the collision AABBs for each of the 4 quarters of a cell at cellpos
     pub fn collision_aabbs_for_cell(&self, cell_pos: CellPos) -> [Option<Aabb>; 4] {
         let tlc = (cell_pos - self.offset) * 2; // "top-left coords"
-        let top_left_index = tlc.y * self.dimensions.width * 2 + tlc.x;
-        let top_right_index = tlc.y * self.dimensions.width * 2 + (tlc.x + 1);
-        let bottom_left_index = (tlc.y + 1) * self.dimensions.width * 2 + tlc.x;
-        let bottom_right_index = (tlc.y + 1) * self.dimensions.width * 2 + (tlc.x + 1);
+        let top_left_index = tlc.y * self.dimensions.x * 2 + tlc.x;
+        let top_right_index = tlc.y * self.dimensions.x * 2 + (tlc.x + 1);
+        let bottom_left_index = (tlc.y + 1) * self.dimensions.x * 2 + tlc.x;
+        let bottom_right_index = (tlc.y + 1) * self.dimensions.x * 2 + (tlc.x + 1);
 
         let top_left =
             self.collisions.get(top_left_index as usize).copied().flatten().map(|()| Aabb {

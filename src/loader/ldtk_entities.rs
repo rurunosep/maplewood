@@ -4,6 +4,7 @@ use crate::components::{
     DualStateAnims, Facing, Interaction, Name, Position, Scripts, Sprite, SpriteComp, Walking,
 };
 use crate::ecs::{Ecs, EntityId};
+use crate::math::Vec2;
 use crate::script::{self, ScriptClass, Trigger};
 use crate::world::WorldPos;
 use euclid::{Point2D, Rect, Size2D};
@@ -133,7 +134,7 @@ fn load_simple_script_entity(
         ecs.add_component(
             id,
             Collision {
-                hitbox: Size2D::new(entity.width as f64 / 16., entity.height as f64 / 16.),
+                hitbox: Vec2::new(entity.width as f64 / 16., entity.height as f64 / 16.),
                 solid: false,
             },
         );
@@ -144,7 +145,7 @@ fn load_simple_script_entity(
         ecs.add_component(
             id,
             Interaction {
-                hitbox: Size2D::new(entity.width as f64 / 16., entity.height as f64 / 16.),
+                hitbox: Vec2::new(entity.width as f64 / 16., entity.height as f64 / 16.),
             },
         );
     }
@@ -195,7 +196,7 @@ fn load_simple_animation_entity(
                         Point2D::new(col * w as u32, 0),
                         Size2D::new(w as u32, h as u32),
                     ),
-                    anchor: Point2D::new(w as i32 / 2, h as i32 / 2),
+                    anchor: Vec2::new(w as i32 / 2, h as i32 / 2),
                 })
                 .collect(),
             seconds_per_frame,
@@ -253,7 +254,7 @@ fn load_dual_state_animation_entity(
             .map(|col| Sprite {
                 spritesheet: spritesheet.clone(),
                 rect: Rect::new(Point2D::new(col * w as u32, 0), Size2D::new(w as u32, h as u32)),
-                anchor: Point2D::new(w as i32 / 2, h as i32 / 2),
+                anchor: Vec2::new(w as i32 / 2, h as i32 / 2),
             })
             .collect(),
         seconds_per_frame,
@@ -301,7 +302,7 @@ fn load_character_entity(
     }
 
     // Collision
-    ecs.add_component(id, Collision { hitbox: Size2D::new(14. / 16., 6. / 16.), solid: true });
+    ecs.add_component(id, Collision { hitbox: Vec2::new(14. / 16., 6. / 16.), solid: true });
 
     // Animation
     let spritesheet = read_field::<String>("spritesheet", entity).ok_or("")?;
@@ -312,7 +313,7 @@ fn load_character_entity(
             .map(|(col, row)| Sprite {
                 spritesheet: spritesheet.clone(),
                 rect: Rect::new(Point2D::new(col * 16, row * 32), Size2D::new(16, 32)),
-                anchor: Point2D::new(8, 29),
+                anchor: Vec2::new(8, 29),
             })
             .collect(),
         seconds_per_frame: 0.2,

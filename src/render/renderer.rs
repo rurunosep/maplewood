@@ -1,11 +1,12 @@
 use crate::components::{Camera, Position, SineOffsetAnimation, SpriteComp};
 use crate::ecs::Ecs;
-use crate::misc::{PixelUnits, TILE_SIZE};
-use crate::world::{CellPos, Map, MapPos, MapUnits, TileLayer, World};
+use crate::math::{CellPos, CellUnits, MapPos, MapUnits, PixelUnits, Vec2};
+use crate::misc::TILE_SIZE;
+use crate::world::{Map, TileLayer, World};
 use crate::{DevUi, UiData};
 use bytemuck::{Pod, Zeroable};
 use egui::TexturesDelta;
-use euclid::{Point2D, Rect, Size2D, Vector2D};
+use euclid::{Point2D, Rect, Size2D};
 use image::GenericImageView;
 use itertools::Itertools;
 use pollster::FutureExt;
@@ -231,8 +232,8 @@ impl Renderer<'_> {
         // bind group, or will they still work after a resize?
         let camera_component = ecs.query_one_with_name::<&Camera>("CAMERA").unwrap();
         let camera_texture_size = (
-            (camera_component.size.width * TILE_SIZE as f64) as u32,
-            (camera_component.size.height * TILE_SIZE as f64) as u32,
+            (camera_component.size.x * TILE_SIZE as f64) as u32,
+            (camera_component.size.y * TILE_SIZE as f64) as u32,
         );
         let camera_texture = self.device.create_texture(&TextureDescriptor {
             label: None,
@@ -275,7 +276,6 @@ impl Renderer<'_> {
             });
 
             // Draw tile layers and entities with rect copy
-            // (Direct port of the old sdl renderer code)
             self.sdl_renderer_port(&mut render_pass, camera_texture_size, world, ecs);
         }
 
@@ -304,8 +304,8 @@ impl Renderer<'_> {
                 camera_texture_size.1,
                 0,
                 0,
-                1920,
-                1080,
+                self.surface_size.0,
+                self.surface_size.1,
             );
 
             // Draw message window
@@ -315,8 +315,6 @@ impl Renderer<'_> {
         }
 
         // Egui render pass
-        // (May also be done in the same render pass with
-        // egui_wgpu_backend::RenderPass::execute_with_render_pass)
         if egui_data.active
             && let Some(full_output) = egui_data.full_output.take()
         {
@@ -423,7 +421,7 @@ impl Renderer<'_> {
         layer: &TileLayer,
         map: &Map,
         camera_map_pos: MapPos,
-        camera_size: Size2D<f64, MapUnits>,
+        camera_size: Vec2<f64, MapUnits>,
     ) {
         let Some(tileset) = self.tilesets.get(&layer.tileset_path) else {
             log::error!(once = true; "Tileset doesn't exist: {}", &layer.tileset_path);
@@ -432,16 +430,19 @@ impl Renderer<'_> {
 
         let tileset_width_in_tiles = tileset.size.0 / TILE_SIZE;
 
-        let map_bounds = Rect::new(map.offset.to_point(), map.dimensions);
+        let map_bounds = Rect::<i32, CellUnits>::new(
+            Point2D::new(map.offset.x, map.offset.y),
+            Size2D::new(map.dimensions.x, map.dimensions.y),
+        );
         for col in map_bounds.min_x()..map_bounds.max_x() {
             for row in map_bounds.min_y()..map_bounds.max_y() {
                 let cell_pos = CellPos::new(col, row);
                 let vec_coords = cell_pos - map.offset;
-                let vec_index = vec_coords.y * map.dimensions.width + vec_coords.x;
+                let vec_index = vec_coords.y * map.dimensions.x + vec_coords.x;
 
                 if let Some(tile_id) = layer.tile_ids.get(vec_index as usize).expect("") {
                     let top_left_in_screen = map_pos_to_top_left_in_viewport(
-                        cell_pos.cast().cast_unit(),
+                        Vec2::new(cell_pos.x as f64, cell_pos.y as f64),
                         Some(layer.offset),
                         camera_map_pos,
                         camera_size,
@@ -475,7 +476,7 @@ impl Renderer<'_> {
         ecs: &Ecs,
         map: &Map,
         camera_map_pos: MapPos,
-        camera_size: Size2D<f64, MapUnits>,
+        camera_size: Vec2<f64, MapUnits>,
     ) {
         for (position, sprite_component, sine_offset_animation) in ecs
             .query::<(&Position, &SpriteComp, Option<&SineOffsetAnimation>)>()
@@ -508,12 +509,12 @@ impl Renderer<'_> {
                 let offset = soa.direction
                     * (soa.start_time.elapsed().as_secs_f64() * soa.frequency * (PI * 2.)).sin()
                     * soa.amplitude;
-                position += offset;
+                position += Vec2::new(offset.x, offset.y);
             }
 
             let top_left_in_screen = map_pos_to_top_left_in_viewport(
                 position,
-                Some(sprite.anchor.to_vector() * -1),
+                Some(sprite.anchor * -1),
                 camera_map_pos,
                 camera_size,
             );
@@ -568,8 +569,6 @@ impl Renderer<'_> {
         dest_w: u32,
         dest_h: u32,
     ) {
-        // TODO adjust for screen scale inside rect_copy?
-
         let src_tex_w = src_texture.size.0 as f32;
         let src_tex_h = src_texture.size.1 as f32;
         let target_w = render_target_size.0 as f32;
@@ -743,16 +742,17 @@ impl Renderer<'_> {
 // TODO more accurate terminology
 fn map_pos_to_top_left_in_viewport(
     map_pos: MapPos,
-    pixel_offset: Option<Vector2D<i32, PixelUnits>>,
+    pixel_offset: Option<Vec2<i32, PixelUnits>>,
     camera_map_pos: MapPos,
-    camera_size: Size2D<f64, MapUnits>,
-) -> Point2D<i32, PixelUnits> {
+    camera_size: Vec2<f64, MapUnits>,
+) -> Vec2<i32, PixelUnits> {
     let camera_top_left_in_map = camera_map_pos - camera_size / 2.0;
-    let map_pos_relative_to_camera_top_left = map_pos - camera_top_left_in_map.to_vector();
-    let position_in_viewport =
-        (map_pos_relative_to_camera_top_left * TILE_SIZE as f64).cast().cast_unit();
-    let top_left_in_viewport =
-        position_in_viewport + pixel_offset.unwrap_or_default().cast_unit();
+    let map_pos_relative_to_camera_top_left = map_pos - camera_top_left_in_map;
+    // TODO map units to pixel units conversion function
+    let position_in_viewport_f64 = map_pos_relative_to_camera_top_left * TILE_SIZE as f64;
+    let position_in_viewport_i32 =
+        Vec2::new(position_in_viewport_f64.x as i32, position_in_viewport_f64.y as i32);
+    let top_left_in_viewport = position_in_viewport_i32 + pixel_offset.unwrap_or_default();
 
     return top_left_in_viewport;
 }

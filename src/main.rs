@@ -7,6 +7,7 @@ mod dev_ui;
 mod ecs;
 mod input;
 mod loader;
+mod math;
 mod misc;
 mod render;
 mod script;
@@ -63,10 +64,8 @@ fn main() {
 
     // Window
     let video_subsystem = sdl_context.video().unwrap();
-    let window_width = WINDOW_SIZE.width;
-    let window_height = WINDOW_SIZE.height;
     let window = video_subsystem
-        .window("Maplewood", window_width, window_height)
+        .window("Maplewood", WINDOW_SIZE.x, WINDOW_SIZE.y)
         .position_centered()
         .build()
         .unwrap();

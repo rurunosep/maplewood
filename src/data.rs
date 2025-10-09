@@ -1,19 +1,16 @@
-// TODO make todo tree work on script files
-// TODO screen shake
-
 use crate::components::{
     AnimationClip, AnimationComp, Camera, CharacterAnims, Collision, Facing, Interaction, Name,
     NamedAnims, Position, Scripts, SfxEmitter, Sprite, SpriteComp, Walking,
 };
 use crate::ecs::{Ecs, EntityId};
+use crate::math::Vec2;
 use crate::misc::{StoryVars, TILE_SIZE, WINDOW_SIZE};
 use crate::script::{self, ScriptClass, StartAbortCondition, Trigger};
 use crate::world::WorldPos;
 use euclid::{Point2D, Rect, Size2D};
 use std::collections::HashMap;
 
-// TODO rename player entity? "_PLAYER"? "PLAYER"?
-pub const PLAYER_ENTITY_NAME: &str = "player";
+pub const PLAYER_ENTITY_NAME: &str = "PLAYER";
 
 pub fn load_entities_from_source(ecs: &mut Ecs) {
     // Player
@@ -23,7 +20,7 @@ pub fn load_entities_from_source(ecs: &mut Ecs) {
     ecs.add_component(id, SpriteComp::default());
     ecs.add_component(id, Facing::default());
     ecs.add_component(id, Walking::default());
-    ecs.add_component(id, Collision { hitbox: Size2D::new(7. / 16., 5. / 16.), solid: true });
+    ecs.add_component(id, Collision { hitbox: Vec2::new(7. / 16., 5. / 16.), solid: true });
 
     let clip_from_row = |row: u32| AnimationClip {
         frames: [8, 7, 6, 7]
@@ -31,7 +28,7 @@ pub fn load_entities_from_source(ecs: &mut Ecs) {
             .map(|col: u32| Sprite {
                 spritesheet: "characters".to_string(),
                 rect: Rect::new(Point2D::new(col * 16, row * 16), Size2D::new(16, 16)),
-                anchor: Point2D::new(8, 13),
+                anchor: Vec2::new(8, 13),
             })
             .collect(),
         seconds_per_frame: 0.15,
@@ -58,7 +55,7 @@ pub fn load_entities_from_source(ecs: &mut Ecs) {
                     .map(|(col, row)| Sprite {
                         spritesheet: "characters".to_string(),
                         rect: Rect::new(Point2D::new(col * 16, row * 16), Size2D::new(16, 16)),
-                        anchor: Point2D::new(8, 13),
+                        anchor: Vec2::new(8, 13),
                     })
                     .collect(),
                 seconds_per_frame: 0.1,
@@ -73,20 +70,17 @@ pub fn load_entities_from_source(ecs: &mut Ecs) {
         id,
         Camera {
             target_entity: Some(PLAYER_ENTITY_NAME.to_string()),
-            size: Size2D::new(
+            size: Vec2::new(
                 // TODO zoom variable
-                WINDOW_SIZE.width as f64 / TILE_SIZE as f64 / 4.,
-                WINDOW_SIZE.height as f64 / TILE_SIZE as f64 / 4.,
+                WINDOW_SIZE.x as f64 / TILE_SIZE as f64 / 4.,
+                WINDOW_SIZE.y as f64 / TILE_SIZE as f64 / 4.,
             ),
             clamp_to_map: true,
         },
     );
     ecs.add_component(id, Position::default());
-    // Needs "walking" component to be pathed. Needs "facing" for walking code to work.
-    // TODO make Facing component optional in Walking update code
-    // (Complete reworking "walking" soon anyway)
+    // Needs "walking" component to be pathed
     ecs.add_component(id, Walking::default());
-    ecs.add_component(id, Facing::default());
 
     // Start script entity
     let id = ecs.add_entity();
@@ -113,19 +107,19 @@ pub fn load_entities_from_source(ecs: &mut Ecs) {
     let id = ecs.add_entity();
     ecs.add_component(id, Name("bathroom::door::blocker".to_string()));
     ecs.add_component(id, Position(WorldPos::new("bathroom", 4.5, 8.)));
-    ecs.add_component(id, Collision { hitbox: Size2D::new(1., 2.), solid: true });
+    ecs.add_component(id, Collision { hitbox: Vec2::new(1., 2.), solid: true });
 
     // Bathroom entrance blocker
     let id = ecs.add_entity();
     ecs.add_component(id, Name("hallway::bathroom_entrance_blocker".to_string()));
     ecs.add_component(id, Position(WorldPos::new("hallway", 3.5, 2.5)));
-    ecs.add_component(id, Collision { hitbox: Size2D::new(1., 1.), solid: false });
+    ecs.add_component(id, Collision { hitbox: Vec2::new(1., 1.), solid: false });
 
     // Bakery entrance blocker
     let id = ecs.add_entity();
     ecs.add_component(id, Name("hallway::bakery_entrance_blocker".to_string()));
     ecs.add_component(id, Position(WorldPos::new("hallway", 9.5, 2.5)));
-    ecs.add_component(id, Collision { hitbox: Size2D::new(1., 1.), solid: false });
+    ecs.add_component(id, Collision { hitbox: Vec2::new(1., 1.), solid: false });
 
     // Janitor extension
     let id = ecs.query_one_with_name::<EntityId>("janitor").unwrap();
@@ -140,7 +134,7 @@ pub fn load_entities_from_source(ecs: &mut Ecs) {
             ..ScriptClass::default()
         }]),
     );
-    ecs.add_component(id, Interaction { hitbox: Size2D::new(1., 1.) });
+    ecs.add_component(id, Interaction { hitbox: Vec2::new(1., 1.) });
     ecs.add_component(id, SfxEmitter::default());
     ecs.add_component(
         id,
@@ -152,7 +146,7 @@ pub fn load_entities_from_source(ecs: &mut Ecs) {
                     .map(|(col, row)| Sprite {
                         spritesheet: "janitor".to_string(),
                         rect: Rect::new(Point2D::new(col * 16, row * 32), Size2D::new(16, 32)),
-                        anchor: Point2D::new(8, 29),
+                        anchor: Vec2::new(8, 29),
                     })
                     .collect(),
                 seconds_per_frame: 0.08,
@@ -173,7 +167,7 @@ pub fn load_entities_from_source(ecs: &mut Ecs) {
             ..ScriptClass::default()
         }]),
     );
-    ecs.add_component(id, Interaction { hitbox: Size2D::new(1., 1.) });
+    ecs.add_component(id, Interaction { hitbox: Vec2::new(1., 1.) });
 
     // Bakery girl extension
     let id = ecs.query_one_with_name::<EntityId>("bakery_girl").unwrap();

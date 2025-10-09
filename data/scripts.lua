@@ -119,7 +119,7 @@ local stages = {
     wait(2)
     message("\"Take care!\"")
 
-    set_camera_target("player")
+    set_camera_target("PLAYER")
     unlock_player_input()
     remove_cutscene_border()
 
@@ -199,7 +199,7 @@ if get_story_var("main::pen_found") == 1 and get_story_var("bathroom::flooded") 
   lock_player_input()
   remove_camera_target()
 
-  set_entity_world_pos("player", "hallway", 3.5, 3.5)
+  set_entity_world_pos("PLAYER", "hallway", 3.5, 3.5)
 
   wait(1)
   walk_to_wait("CAMERA", "up", 6.01, 0.05)
@@ -214,11 +214,11 @@ if get_story_var("main::pen_found") == 1 and get_story_var("bathroom::flooded") 
   play_sfx("faucet")
   wait(4)
 
-  set_camera_target("player")
+  set_camera_target("PLAYER")
   unlock_player_input()
   remove_cutscene_border()
 else
-  set_entity_world_pos("player", "hallway", 3.5, 3.5)
+  set_entity_world_pos("PLAYER", "hallway", 3.5, 3.5)
 end
 
 --# overworld::shopping_cart

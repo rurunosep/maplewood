@@ -6,10 +6,11 @@ use crate::components::{
 };
 use crate::data::PLAYER_ENTITY_NAME;
 use crate::ecs::{Ecs, EntityId};
+use crate::math::Vec2;
 use crate::misc::{Direction, StoryVars};
 use crate::world::WorldPos;
 use crate::{MapOverlayTransition, MessageWindow, loader};
-use euclid::{Point2D, Rect, Size2D, Vector2D};
+use euclid::{Point2D, Rect, Size2D};
 use mlua::Result as LuaResult;
 use sdl2::mixer::{Chunk, Music};
 use sdl2::pixels::Color;
@@ -44,7 +45,7 @@ pub fn set_entity_map_pos((entity, x, y): (String, f64, f64), ecs: &Ecs) -> LuaR
     let mut position = ecs
         .query_one_with_name::<&mut Position>(&entity)
         .ok_or(Error(f!("invalid entity '{}'", entity)))?;
-    position.map_pos = Point2D::new(x, y);
+    position.map_pos = Vec2::new(x, y);
     Ok(())
 }
 
@@ -95,7 +96,7 @@ pub fn set_forced_sprite(
     sprite_component.forced_sprite = Some(Sprite {
         spritesheet,
         rect: Rect::new(Point2D::new(rect_x, rect_y), Size2D::new(rect_w, rect_h)),
-        anchor: Point2D::new(anchor_x, anchor_y),
+        anchor: Vec2::new(anchor_x, anchor_y),
     });
 
     Ok(())
@@ -180,10 +181,10 @@ pub fn walk(
     walking.destination = Some(
         position.map_pos
             + match walking.direction {
-                Direction::Up => Vector2D::new(0., -distance),
-                Direction::Down => Vector2D::new(0., distance),
-                Direction::Left => Vector2D::new(-distance, 0.),
-                Direction::Right => Vector2D::new(distance, 0.),
+                Direction::Up => Vec2::new(0., -distance),
+                Direction::Down => Vec2::new(0., distance),
+                Direction::Left => Vec2::new(-distance, 0.),
+                Direction::Right => Vec2::new(distance, 0.),
             },
     );
 
@@ -211,8 +212,8 @@ pub fn walk_to(
     walking.speed = speed;
 
     walking.destination = Some(match walking.direction {
-        Direction::Up | Direction::Down => Point2D::new(position.map_pos.x, destination),
-        Direction::Left | Direction::Right => Point2D::new(destination, position.map_pos.y),
+        Direction::Up | Direction::Down => Vec2::new(position.map_pos.x, destination),
+        Direction::Left | Direction::Right => Vec2::new(destination, position.map_pos.y),
     });
 
     facing.0 = walking.direction;
@@ -292,7 +293,7 @@ pub fn anim_quiver((entity, duration): (String, f64), ecs: &mut Ecs) -> LuaResul
             duration: Duration::from_secs_f64(duration),
             amplitude: 0.03,
             frequency: 10.,
-            direction: Vector2D::new(1., 0.),
+            direction: Vec2::new(1., 0.),
         },
     );
 
@@ -311,7 +312,7 @@ pub fn anim_jump(entity: String, ecs: &mut Ecs) -> LuaResult<()> {
             duration: Duration::from_secs_f64(0.3),
             amplitude: 0.5,
             frequency: 1. / 2. / 0.3,
-            direction: Vector2D::new(0., -1.),
+            direction: Vec2::new(0., -1.),
         },
     );
 

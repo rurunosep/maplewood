@@ -1,7 +1,6 @@
+use crate::math::{MapPos, MapUnits, PixelUnits, Vec2};
 use crate::script::ScriptId;
-use crate::world::{MapPos, MapUnits};
 use colored::*;
-use euclid::{Point2D, Size2D};
 use log::kv::Key;
 use log::{Level, Metadata, Record};
 use sdl2::pixels::Color;
@@ -13,10 +12,8 @@ use tap::TapOptional;
 
 // TODO func to convert between pixel units and map units
 
-pub const WINDOW_SIZE: Size2D<u32, PixelUnits> = Size2D::new(1920, 1080);
+pub const WINDOW_SIZE: Vec2<u32, PixelUnits> = Vec2::new(1920, 1080);
 pub const TILE_SIZE: u32 = 16;
-
-pub struct PixelUnits;
 
 #[derive(Clone, Copy, Default, Debug)]
 pub struct Aabb {
@@ -27,12 +24,12 @@ pub struct Aabb {
 }
 
 impl Aabb {
-    pub fn new(center: MapPos, dimensions: Size2D<f64, MapUnits>) -> Self {
+    pub fn new(center: MapPos, dimensions: Vec2<f64, MapUnits>) -> Self {
         Self {
-            top: center.y - dimensions.height / 2.0,
-            bottom: center.y + dimensions.height / 2.0,
-            left: center.x - dimensions.width / 2.0,
-            right: center.x + dimensions.width / 2.0,
+            top: center.y - dimensions.y / 2.0,
+            bottom: center.y + dimensions.y / 2.0,
+            left: center.x - dimensions.x / 2.0,
+            right: center.x + dimensions.x / 2.0,
         }
     }
 
@@ -43,7 +40,7 @@ impl Aabb {
             && self.right > other.left
     }
 
-    pub fn contains(&self, point: &Point2D<f64, MapUnits>) -> bool {
+    pub fn contains(&self, point: &Vec2<f64, MapUnits>) -> bool {
         self.top < point.y && self.bottom > point.y && self.left < point.x && self.right > point.x
     }
 
@@ -80,7 +77,7 @@ impl Aabb {
     }
 
     pub fn center(&self) -> MapPos {
-        Point2D::new((self.left + self.right) / 2., (self.top + self.bottom) / 2.)
+        Vec2::new((self.left + self.right) / 2., (self.top + self.bottom) / 2.)
     }
 }
 

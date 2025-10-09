@@ -1,9 +1,10 @@
 use crate::ecs::Component;
-use crate::misc::{Direction, PixelUnits};
+use crate::math::{MapPos, MapUnits, PixelUnits, Vec2};
+use crate::misc::Direction;
 use crate::script::ScriptClass;
-use crate::world::{MapPos, MapUnits, WorldPos};
+use crate::world::WorldPos;
 use derived_deref::{Deref, DerefMut};
-use euclid::{Point2D, Rect, Size2D, Vector2D};
+use euclid::Rect;
 use sdl2::mixer::Channel;
 use serde::{Deserialize, Serialize};
 use smart_default::SmartDefault;
@@ -50,7 +51,7 @@ impl Component for SpriteComp {}
 pub struct Sprite {
     pub spritesheet: String,
     pub rect: Rect<u32, PixelUnits>,
-    pub anchor: Point2D<i32, PixelUnits>,
+    pub anchor: Vec2<i32, PixelUnits>,
 }
 
 // Animation ------------------------------------
@@ -162,7 +163,7 @@ pub struct Camera {
     // This should be an Option<EntityIdentifier> when the time comes
     // For now, that serves no purpose
     pub target_entity: Option<String>,
-    pub size: Size2D<f64, MapUnits>,
+    pub size: Vec2<f64, MapUnits>,
     pub clamp_to_map: bool,
 }
 impl Component for Camera {}
@@ -170,7 +171,7 @@ impl Component for Camera {}
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Collision {
-    pub hitbox: Size2D<f64, MapUnits>,
+    pub hitbox: Vec2<f64, MapUnits>,
     pub solid: bool,
 }
 impl Component for Collision {}
@@ -185,7 +186,7 @@ impl Component for Collision {}
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Interaction {
-    pub hitbox: Size2D<f64, MapUnits>,
+    pub hitbox: Vec2<f64, MapUnits>,
 }
 impl Component for Interaction {}
 
@@ -205,6 +206,6 @@ pub struct SineOffsetAnimation {
     pub duration: Duration,
     pub amplitude: f64,
     pub frequency: f64,
-    pub direction: Vector2D<f64, MapUnits>,
+    pub direction: Vec2<f64, MapUnits>,
 }
 impl Component for SineOffsetAnimation {}

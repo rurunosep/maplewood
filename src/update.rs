@@ -5,11 +5,12 @@ use crate::components::{
 };
 use crate::data::PLAYER_ENTITY_NAME;
 use crate::ecs::{Ecs, EntityId, With};
+use crate::math::{CellPos, CellUnits, MapUnits, Vec2};
 use crate::misc::{Aabb, Direction, StoryVars};
 use crate::script::{ScriptManager, Trigger};
-use crate::world::{CellPos, MapUnits, World};
+use crate::world::World;
 use crate::{GameData, MapOverlayTransition, MessageWindow, UiData};
-use euclid::{Point2D, Rect, Vector2D};
+use euclid::{Point2D, Rect, Size2D};
 use sdl2::mixer::{Chunk, Music};
 use sdl2::pixels::Color;
 use std::collections::HashMap;
@@ -248,10 +249,10 @@ fn move_entities_and_resolve_collisions(
         // TODO use frame delta
         let mut new_position = map_pos
             + match walking.direction {
-                Direction::Up => Vector2D::new(0.0, -walking.speed),
-                Direction::Down => Vector2D::new(0.0, walking.speed),
-                Direction::Left => Vector2D::new(-walking.speed, 0.0),
-                Direction::Right => Vector2D::new(walking.speed, 0.0),
+                Direction::Up => Vec2::new(0.0, -walking.speed),
+                Direction::Down => Vec2::new(0.0, walking.speed),
+                Direction::Left => Vec2::new(-walking.speed, 0.0),
+                Direction::Right => Vec2::new(walking.speed, 0.0),
             };
 
         // Resolve collisions and update new position
@@ -270,17 +271,18 @@ fn move_entities_and_resolve_collisions(
             // the 4 optional collision AABBs for the 4 corners of each of those
             // cells. It got this way iteratively and could probably
             // be reworked much simpler?)
-            let new_cellpos: CellPos = new_position.floor().cast().cast_unit();
+            let new_cellpos: CellPos =
+                Vec2::new(new_position.x.floor() as i32, new_position.y.floor() as i32);
             let cellposes_to_check: [CellPos; 9] = [
-                Point2D::new(new_cellpos.x - 1, new_cellpos.y - 1),
-                Point2D::new(new_cellpos.x, new_cellpos.y - 1),
-                Point2D::new(new_cellpos.x + 1, new_cellpos.y - 1),
-                Point2D::new(new_cellpos.x - 1, new_cellpos.y),
-                Point2D::new(new_cellpos.x, new_cellpos.y),
-                Point2D::new(new_cellpos.x + 1, new_cellpos.y),
-                Point2D::new(new_cellpos.x - 1, new_cellpos.y + 1),
-                Point2D::new(new_cellpos.x, new_cellpos.y + 1),
-                Point2D::new(new_cellpos.x + 1, new_cellpos.y + 1),
+                Vec2::new(new_cellpos.x - 1, new_cellpos.y - 1),
+                Vec2::new(new_cellpos.x, new_cellpos.y - 1),
+                Vec2::new(new_cellpos.x + 1, new_cellpos.y - 1),
+                Vec2::new(new_cellpos.x - 1, new_cellpos.y),
+                Vec2::new(new_cellpos.x, new_cellpos.y),
+                Vec2::new(new_cellpos.x + 1, new_cellpos.y),
+                Vec2::new(new_cellpos.x - 1, new_cellpos.y + 1),
+                Vec2::new(new_cellpos.x, new_cellpos.y + 1),
+                Vec2::new(new_cellpos.x + 1, new_cellpos.y + 1),
             ];
             for cell_aabb in cellposes_to_check
                 .iter()
@@ -437,18 +439,23 @@ fn update_camera(ecs: &Ecs, world: &World) {
             .get(&camera_position.map)
             .tap_none(|| log::error!(once = true; "Map doesn't exist: {}", &camera_position.map))
     {
-        let map_bounds: Rect<f64, MapUnits> =
-            Rect::new(camera_map.offset.to_point(), camera_map.dimensions).cast().cast_unit();
+        let map_bounds: Rect<f64, MapUnits> = Rect::<i32, CellUnits>::new(
+            Point2D::new(camera_map.offset.x, camera_map.offset.y),
+            Size2D::new(camera_map.dimensions.x, camera_map.dimensions.y),
+        )
+        .cast()
+        .cast_unit();
 
         // (If map is smaller than viewport, skip clamping, or clamp() will panic)
-        if map_bounds.size.contains(camera_component.size) {
+        let camera_size = Size2D::new(camera_component.size.x, camera_component.size.y);
+        if map_bounds.size.contains(camera_size) {
             camera_position.map_pos.x = camera_position.map_pos.x.clamp(
-                map_bounds.min_x() + camera_component.size.width / 2.,
-                map_bounds.max_x() - camera_component.size.width / 2.,
+                map_bounds.min_x() + camera_size.width / 2.,
+                map_bounds.max_x() - camera_size.width / 2.,
             );
             camera_position.map_pos.y = camera_position.map_pos.y.clamp(
-                map_bounds.min_y() + camera_component.size.height / 2.,
-                map_bounds.max_y() - camera_component.size.height / 2.,
+                map_bounds.min_y() + camera_size.height / 2.,
+                map_bounds.max_y() - camera_size.height / 2.,
             );
         }
     }

@@ -3,10 +3,10 @@ use crate::components::{
 };
 use crate::data::PLAYER_ENTITY_NAME;
 use crate::ecs::Ecs;
+use crate::math::Vec2;
 use crate::misc::{Aabb, Direction};
 use crate::script::{ScriptManager, Trigger};
 use crate::{DevUi, GameData, MessageWindow};
-use euclid::Vector2D;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 
@@ -146,10 +146,10 @@ pub fn process_input(
                         .unwrap();
                     let target = player_pos.map_pos
                         + match player_facing.0 {
-                            Direction::Up => Vector2D::new(0.0, -0.5),
-                            Direction::Down => Vector2D::new(0.0, 0.5),
-                            Direction::Left => Vector2D::new(-0.5, 0.0),
-                            Direction::Right => Vector2D::new(0.5, 0.0),
+                            Direction::Up => Vec2::new(0.0, -0.5),
+                            Direction::Down => Vec2::new(0.0, 0.5),
+                            Direction::Left => Vec2::new(-0.5, 0.0),
+                            Direction::Right => Vec2::new(0.5, 0.0),
                         };
 
                     // Start interaction scripts for entity with interaction hitbox containing
