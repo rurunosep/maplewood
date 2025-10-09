@@ -161,7 +161,7 @@ impl Component for Walking {}
 pub struct Camera {
     // This should be an Option<EntityIdentifier> when the time comes
     // For now, that serves no purpose
-    pub target_entity_name: Option<String>,
+    pub target_entity: Option<String>,
     pub clamp_to_map: bool,
 }
 impl Component for Camera {}

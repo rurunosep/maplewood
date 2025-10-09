@@ -71,7 +71,7 @@ pub fn load_entities_from_source(ecs: &mut Ecs) {
     ecs.add_component(id, Name("CAMERA".to_string()));
     ecs.add_component(
         id,
-        Camera { target_entity_name: Some(PLAYER_ENTITY_NAME.to_string()), clamp_to_map: true },
+        Camera { target_entity: Some(PLAYER_ENTITY_NAME.to_string()), clamp_to_map: true },
     );
     ecs.add_component(id, Position::default());
     // Needs "walking" component to be pathed. Needs "facing" for walking code to work.

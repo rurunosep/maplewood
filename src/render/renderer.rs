@@ -1,11 +1,11 @@
 use crate::components::{Position, SineOffsetAnimation, SpriteComp};
 use crate::ecs::Ecs;
-use crate::misc::{PixelUnits, SCREEN_COLS, SCREEN_ROWS, SCREEN_SCALE, TILE_SIZE};
+use crate::misc::{CAMERA_SIZE, PixelUnits, RENDER_SCALE, TILE_SIZE};
 use crate::world::{CellPos, Map, MapPos, TileLayer, World};
 use crate::{DevUi, UiData};
 use bytemuck::{Pod, Zeroable};
 use egui::TexturesDelta;
-use euclid::{Point2D, Rect, Size2D, Vector2D};
+use euclid::{Point2D, Rect, Vector2D};
 use image::GenericImageView;
 use itertools::Itertools;
 use pollster::FutureExt;
@@ -344,7 +344,7 @@ impl Renderer<'_> {
                 if let Some(tile_id) = layer.tile_ids.get(vec_index as usize).expect("") {
                     let top_left_in_screen = map_pos_to_screen_top_left(
                         cell_pos.cast().cast_unit(),
-                        Some(layer.offset * SCREEN_SCALE as i32),
+                        Some(layer.offset * RENDER_SCALE as i32),
                         camera_map_pos,
                     );
 
@@ -411,7 +411,7 @@ impl Renderer<'_> {
 
             let top_left_in_screen = map_pos_to_screen_top_left(
                 position,
-                Some(sprite.anchor.to_vector() * -1 * SCREEN_SCALE as i32),
+                Some(sprite.anchor.to_vector() * -1 * RENDER_SCALE as i32),
                 camera_map_pos,
             );
 
@@ -760,12 +760,13 @@ fn map_pos_to_screen_top_left(
     pixel_offset: Option<Vector2D<i32, PixelUnits>>,
     camera_map_pos: MapPos,
 ) -> Point2D<i32, PixelUnits> {
-    let viewport_size_in_map = Size2D::new(SCREEN_COLS as f64, SCREEN_ROWS as f64);
-    let viewport_map_offset = (camera_map_pos - viewport_size_in_map / 2.0).to_vector();
-    let position_in_viewport = map_pos - viewport_map_offset;
-    let position_on_screen =
-        (position_in_viewport * (TILE_SIZE * SCREEN_SCALE) as f64).cast().cast_unit();
-    let top_left_in_screen = position_on_screen + pixel_offset.unwrap_or_default().cast_unit();
+    let camera_size = CAMERA_SIZE;
+    let camera_top_left = camera_map_pos - camera_size / 2.0;
+    let position_in_camera = map_pos - camera_top_left.to_vector();
+    let position_in_viewport =
+        (position_in_camera * (TILE_SIZE * RENDER_SCALE) as f64).cast().cast_unit();
+    let top_left_in_viewport =
+        position_in_viewport + pixel_offset.unwrap_or_default().cast_unit();
 
-    return top_left_in_screen;
+    return top_left_in_viewport;
 }

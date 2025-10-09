@@ -8,7 +8,7 @@ use crate::data::PLAYER_ENTITY_NAME;
 use crate::ecs::{Ecs, EntityId};
 use crate::misc::{Direction, StoryVars};
 use crate::world::WorldPos;
-use crate::{loader, MapOverlayTransition, MessageWindow};
+use crate::{MapOverlayTransition, MessageWindow, loader};
 use euclid::{Point2D, Rect, Size2D, Vector2D};
 use mlua::Result as LuaResult;
 use sdl2::mixer::{Chunk, Music};
@@ -143,12 +143,12 @@ pub fn lock_player_input(
 }
 
 pub fn set_camera_target(entity: String, ecs: &Ecs) -> LuaResult<()> {
-    ecs.query_one_with_name::<&mut Camera>("CAMERA").unwrap().target_entity_name = Some(entity);
+    ecs.query_one_with_name::<&mut Camera>("CAMERA").unwrap().target_entity = Some(entity);
     Ok(())
 }
 
 pub fn remove_camera_target(ecs: &Ecs) -> LuaResult<()> {
-    ecs.query_one_with_name::<&mut Camera>("CAMERA").unwrap().target_entity_name = None;
+    ecs.query_one_with_name::<&mut Camera>("CAMERA").unwrap().target_entity = None;
     Ok(())
 }
 

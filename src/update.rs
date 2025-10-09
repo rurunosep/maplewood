@@ -5,11 +5,11 @@ use crate::components::{
 };
 use crate::data::PLAYER_ENTITY_NAME;
 use crate::ecs::{Ecs, EntityId, With};
-use crate::misc::{Aabb, Direction, SCREEN_COLS, SCREEN_ROWS, StoryVars};
+use crate::misc::{Aabb, CAMERA_SIZE, Direction, StoryVars};
 use crate::script::{ScriptManager, Trigger};
 use crate::world::{CellPos, MapUnits, World};
 use crate::{GameData, MapOverlayTransition, MessageWindow, UiData};
-use euclid::{Point2D, Rect, Size2D, Vector2D};
+use euclid::{Point2D, Rect, Vector2D};
 use sdl2::mixer::{Chunk, Music};
 use sdl2::pixels::Color;
 use std::collections::HashMap;
@@ -418,7 +418,7 @@ fn update_camera(ecs: &Ecs, world: &World) {
 
     // Update camera position to follow target entity
     // (double ECS borrow)
-    if let Some(target_name) = &camera_component.target_entity_name
+    if let Some(target_name) = &camera_component.target_entity
         && let Some((target_position, _)) = ecs
             // query_one_with_name does NOT avoid a double borrow
             // Only query_except and query_one_with_id filter in ways that avoid a double borrow
@@ -437,19 +437,20 @@ fn update_camera(ecs: &Ecs, world: &World) {
             .get(&camera_position.map)
             .tap_none(|| log::error!(once = true; "Map doesn't exist: {}", &camera_position.map))
     {
-        let viewport_dimensions = Size2D::new(SCREEN_COLS as f64, SCREEN_ROWS as f64);
+        // TODO camera size is property of camera component
+        let camera_size = CAMERA_SIZE;
         let map_bounds: Rect<f64, MapUnits> =
             Rect::new(camera_map.offset.to_point(), camera_map.dimensions).cast().cast_unit();
 
         // (If map is smaller than viewport, skip clamping, or clamp() will panic)
-        if map_bounds.size.contains(viewport_dimensions) {
+        if map_bounds.size.contains(camera_size) {
             camera_position.map_pos.x = camera_position.map_pos.x.clamp(
-                map_bounds.min_x() + viewport_dimensions.width / 2.,
-                map_bounds.max_x() - viewport_dimensions.width / 2.,
+                map_bounds.min_x() + camera_size.width / 2.,
+                map_bounds.max_x() - camera_size.width / 2.,
             );
             camera_position.map_pos.y = camera_position.map_pos.y.clamp(
-                map_bounds.min_y() + viewport_dimensions.height / 2.,
-                map_bounds.max_y() - viewport_dimensions.height / 2.,
+                map_bounds.min_y() + camera_size.height / 2.,
+                map_bounds.max_y() - camera_size.height / 2.,
             );
         }
     }

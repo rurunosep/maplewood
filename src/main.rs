@@ -13,12 +13,10 @@ mod script;
 mod update;
 mod world;
 
+use crate::misc::{WINDOW_HEIGHT, WINDOW_WIDTH};
 use dev_ui::DevUi;
 use ecs::Ecs;
-use misc::{
-    Logger, MapOverlayTransition, MessageWindow, SCREEN_COLS, SCREEN_ROWS, SCREEN_SCALE,
-    StoryVars, TILE_SIZE,
-};
+use misc::{Logger, MapOverlayTransition, MessageWindow, StoryVars};
 use render::renderer::Renderer;
 use script::{ScriptManager, console};
 use sdl2::mixer::{AUDIO_S16SYS, DEFAULT_CHANNELS};
@@ -65,8 +63,8 @@ fn main() {
 
     // Window
     let video_subsystem = sdl_context.video().unwrap();
-    let window_width = TILE_SIZE * SCREEN_COLS * SCREEN_SCALE;
-    let window_height = TILE_SIZE * SCREEN_ROWS * SCREEN_SCALE;
+    let window_width = WINDOW_WIDTH;
+    let window_height = WINDOW_HEIGHT;
     let window = video_subsystem
         .window("Maplewood", window_width, window_height)
         .position_centered()
