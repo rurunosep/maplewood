@@ -123,6 +123,15 @@ impl<T, U> Rect<T, U> {
     }
 }
 
+impl<T, U> Rect<T, U>
+where
+    T: Sub<Output = T> + Div<Output = T> + From<f64> + Copy,
+{
+    pub fn new_from_center(x: T, y: T, width: T, height: T) -> Self {
+        Self::new(x - width / 2.0.into(), y - height / 2.0.into(), width, height)
+    }
+}
+
 impl<T: Default, U> Default for Rect<T, U> {
     fn default() -> Self {
         Self::new(T::default(), T::default(), T::default(), T::default())
@@ -163,6 +172,10 @@ impl<T: Copy + Add<Output = T>, U> Rect<T, U> {
 
     pub fn bottom(&self) -> T {
         self.y + self.height
+    }
+
+    pub fn top_left(&self) -> Vec2<T, U> {
+        Vec2::new(self.x, self.y)
     }
 }
 
