@@ -4,10 +4,9 @@ use crate::components::{
     DualStateAnims, Facing, Interaction, Name, Position, Scripts, Sprite, SpriteComp, Walking,
 };
 use crate::ecs::{Ecs, EntityId};
-use crate::math::Vec2;
+use crate::math::{Rect, Vec2};
 use crate::script::{self, ScriptClass, Trigger};
 use crate::world::WorldPos;
-use euclid::{Point2D, Rect, Size2D};
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 use tap::{TapFallible, TapOptional};
@@ -192,10 +191,7 @@ fn load_simple_animation_entity(
                 .iter()
                 .map(|col| Sprite {
                     spritesheet: spritesheet.clone(),
-                    rect: Rect::new(
-                        Point2D::new(col * w as u32, 0),
-                        Size2D::new(w as u32, h as u32),
-                    ),
+                    rect: Rect::new(col * w as u32, 0, w as u32, h as u32),
                     anchor: Vec2::new(w as i32 / 2, h as i32 / 2),
                 })
                 .collect(),
@@ -253,7 +249,7 @@ fn load_dual_state_animation_entity(
             .iter()
             .map(|col| Sprite {
                 spritesheet: spritesheet.clone(),
-                rect: Rect::new(Point2D::new(col * w as u32, 0), Size2D::new(w as u32, h as u32)),
+                rect: Rect::new(col * w as u32, 0, w as u32, h as u32),
                 anchor: Vec2::new(w as i32 / 2, h as i32 / 2),
             })
             .collect(),
@@ -312,7 +308,7 @@ fn load_character_entity(
             .into_iter()
             .map(|(col, row)| Sprite {
                 spritesheet: spritesheet.clone(),
-                rect: Rect::new(Point2D::new(col * 16, row * 32), Size2D::new(16, 32)),
+                rect: Rect::new(col * 16, row * 32, 16, 32),
                 anchor: Vec2::new(8, 29),
             })
             .collect(),

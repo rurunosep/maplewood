@@ -6,11 +6,10 @@ use crate::components::{
 };
 use crate::data::PLAYER_ENTITY_NAME;
 use crate::ecs::{Ecs, EntityId};
-use crate::math::Vec2;
+use crate::math::{Rect, Vec2};
 use crate::misc::{Direction, StoryVars};
 use crate::world::WorldPos;
 use crate::{MapOverlayTransition, MessageWindow, loader};
-use euclid::{Point2D, Rect, Size2D};
 use mlua::Result as LuaResult;
 use sdl2::mixer::{Chunk, Music};
 use sdl2::pixels::Color;
@@ -95,7 +94,7 @@ pub fn set_forced_sprite(
 
     sprite_component.forced_sprite = Some(Sprite {
         spritesheet,
-        rect: Rect::new(Point2D::new(rect_x, rect_y), Size2D::new(rect_w, rect_h)),
+        rect: Rect::new(rect_x, rect_y, rect_w, rect_h),
         anchor: Vec2::new(anchor_x, anchor_y),
     });
 

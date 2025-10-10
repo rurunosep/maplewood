@@ -1,12 +1,11 @@
 use crate::components::{Camera, Position, SineOffsetAnimation, SpriteComp};
 use crate::ecs::Ecs;
-use crate::math::{CellPos, CellUnits, MapPos, MapUnits, PixelUnits, Vec2};
+use crate::math::{CellPos, CellUnits, MapPos, MapUnits, PixelUnits, Rect, Vec2};
 use crate::misc::TILE_SIZE;
 use crate::world::{Map, TileLayer, World};
 use crate::{DevUi, UiData};
 use bytemuck::{Pod, Zeroable};
 use egui::TexturesDelta;
-use euclid::{Point2D, Rect, Size2D};
 use image::GenericImageView;
 use itertools::Itertools;
 use pollster::FutureExt;
@@ -430,12 +429,10 @@ impl Renderer<'_> {
 
         let tileset_width_in_tiles = tileset.size.0 / TILE_SIZE;
 
-        let map_bounds = Rect::<i32, CellUnits>::new(
-            Point2D::new(map.offset.x, map.offset.y),
-            Size2D::new(map.dimensions.x, map.dimensions.y),
-        );
-        for col in map_bounds.min_x()..map_bounds.max_x() {
-            for row in map_bounds.min_y()..map_bounds.max_y() {
+        let map_bounds: Rect<i32, CellUnits> =
+            Rect::new(map.offset.x, map.offset.y, map.dimensions.x, map.dimensions.y);
+        for col in map_bounds.left()..map_bounds.right() {
+            for row in map_bounds.top()..map_bounds.bottom() {
                 let cell_pos = CellPos::new(col, row);
                 let vec_coords = cell_pos - map.offset;
                 let vec_index = vec_coords.y * map.dimensions.x + vec_coords.x;
@@ -523,14 +520,14 @@ impl Renderer<'_> {
                 render_pass,
                 render_target_size,
                 spritesheet,
-                sprite.rect.min_x(),
-                sprite.rect.min_y(),
-                sprite.rect.width(),
-                sprite.rect.height(),
+                sprite.rect.left(),
+                sprite.rect.top(),
+                sprite.rect.width,
+                sprite.rect.height,
                 top_left_in_screen.x,
                 top_left_in_screen.y,
-                sprite.rect.width(),
-                sprite.rect.height(),
+                sprite.rect.width,
+                sprite.rect.height,
             );
         }
     }

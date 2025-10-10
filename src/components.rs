@@ -1,10 +1,9 @@
 use crate::ecs::Component;
-use crate::math::{MapPos, MapUnits, PixelUnits, Vec2};
+use crate::math::{MapPos, MapUnits, PixelUnits, Rect, Vec2};
 use crate::misc::Direction;
 use crate::script::ScriptClass;
 use crate::world::WorldPos;
 use derived_deref::{Deref, DerefMut};
-use euclid::Rect;
 use sdl2::mixer::Channel;
 use serde::{Deserialize, Serialize};
 use smart_default::SmartDefault;

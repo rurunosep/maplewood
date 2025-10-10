@@ -3,11 +3,10 @@ use crate::components::{
     NamedAnims, Position, Scripts, SfxEmitter, Sprite, SpriteComp, Walking,
 };
 use crate::ecs::{Ecs, EntityId};
-use crate::math::Vec2;
+use crate::math::{Rect, Vec2};
 use crate::misc::{StoryVars, TILE_SIZE, WINDOW_SIZE};
 use crate::script::{self, ScriptClass, StartAbortCondition, Trigger};
 use crate::world::WorldPos;
-use euclid::{Point2D, Rect, Size2D};
 use std::collections::HashMap;
 
 pub const PLAYER_ENTITY_NAME: &str = "PLAYER";
@@ -27,7 +26,7 @@ pub fn load_entities_from_source(ecs: &mut Ecs) {
             .into_iter()
             .map(|col: u32| Sprite {
                 spritesheet: "characters".to_string(),
-                rect: Rect::new(Point2D::new(col * 16, row * 16), Size2D::new(16, 16)),
+                rect: Rect::new(col * 16, row * 16, 16, 16),
                 anchor: Vec2::new(8, 13),
             })
             .collect(),
@@ -54,7 +53,7 @@ pub fn load_entities_from_source(ecs: &mut Ecs) {
                     .into_iter()
                     .map(|(col, row)| Sprite {
                         spritesheet: "characters".to_string(),
-                        rect: Rect::new(Point2D::new(col * 16, row * 16), Size2D::new(16, 16)),
+                        rect: Rect::new(col * 16, row * 16, 16, 16),
                         anchor: Vec2::new(8, 13),
                     })
                     .collect(),
@@ -145,7 +144,7 @@ pub fn load_entities_from_source(ecs: &mut Ecs) {
                     .into_iter()
                     .map(|(col, row)| Sprite {
                         spritesheet: "janitor".to_string(),
-                        rect: Rect::new(Point2D::new(col * 16, row * 32), Size2D::new(16, 32)),
+                        rect: Rect::new(col * 16, row * 32, 16, 32),
                         anchor: Vec2::new(8, 29),
                     })
                     .collect(),

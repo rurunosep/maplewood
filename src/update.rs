@@ -5,12 +5,11 @@ use crate::components::{
 };
 use crate::data::PLAYER_ENTITY_NAME;
 use crate::ecs::{Ecs, EntityId, With};
-use crate::math::{CellPos, CellUnits, MapUnits, Vec2};
+use crate::math::{CellPos, MapUnits, Rect, Vec2};
 use crate::misc::{Aabb, Direction, StoryVars};
 use crate::script::{ScriptManager, Trigger};
 use crate::world::World;
 use crate::{GameData, MapOverlayTransition, MessageWindow, UiData};
-use euclid::{Point2D, Rect, Size2D};
 use sdl2::mixer::{Chunk, Music};
 use sdl2::pixels::Color;
 use std::collections::HashMap;
@@ -439,23 +438,24 @@ fn update_camera(ecs: &Ecs, world: &World) {
             .get(&camera_position.map)
             .tap_none(|| log::error!(once = true; "Map doesn't exist: {}", &camera_position.map))
     {
-        let map_bounds: Rect<f64, MapUnits> = Rect::<i32, CellUnits>::new(
-            Point2D::new(camera_map.offset.x, camera_map.offset.y),
-            Size2D::new(camera_map.dimensions.x, camera_map.dimensions.y),
-        )
-        .cast()
-        .cast_unit();
+        let map_bounds: Rect<f64, MapUnits> = Rect::new(
+            camera_map.offset.x as f64,
+            camera_map.offset.y as f64,
+            camera_map.dimensions.x as f64,
+            camera_map.dimensions.y as f64,
+        );
 
         // (If map is smaller than viewport, skip clamping, or clamp() will panic)
-        let camera_size = Size2D::new(camera_component.size.x, camera_component.size.y);
-        if map_bounds.size.contains(camera_size) {
+        let camera_size: Vec2<f64, MapUnits> =
+            Vec2::new(camera_component.size.x, camera_component.size.y);
+        if map_bounds.width >= camera_size.x && map_bounds.height >= camera_size.y {
             camera_position.map_pos.x = camera_position.map_pos.x.clamp(
-                map_bounds.min_x() + camera_size.width / 2.,
-                map_bounds.max_x() - camera_size.width / 2.,
+                map_bounds.left() + camera_size.x / 2.,
+                map_bounds.right() - camera_size.x / 2.,
             );
             camera_position.map_pos.y = camera_position.map_pos.y.clamp(
-                map_bounds.min_y() + camera_size.height / 2.,
-                map_bounds.max_y() - camera_size.height / 2.,
+                map_bounds.top() + camera_size.y / 2.,
+                map_bounds.bottom() - camera_size.y / 2.,
             );
         }
     }
