@@ -3,12 +3,36 @@ use crate::components::{
     NamedAnims, Position, Scripts, SfxEmitter, SpriteComp, Velocity, Walking,
 };
 use crate::ecs::{Component, Ecs, EntityId};
+use crate::misc::StoryVars;
+use anyhow::Context;
 use sdl2::mixer::{Chunk, Music};
 use serde::Serialize;
 use serde_json::{Map, Value};
 use std::collections::HashMap;
 use std::path::Path;
 use tap::TapFallible;
+
+pub fn load_story_vars_from_file<P>(story_vars: &mut StoryVars, path: P)
+where
+    P: AsRef<Path>,
+{
+    let Ok(json) = std::fs::read_to_string(&path) else {
+        log::error!("Could not read file: {}", path.as_ref().to_string_lossy());
+        return;
+    };
+
+    let r: anyhow::Result<()> = try {
+        for (key, val) in serde_json::from_str::<serde_json::Value>(&json)?
+            .as_object()
+            .context("not an object")?
+        {
+            story_vars.0.insert(key.clone(), val.as_i64().context("invalid value")? as i32);
+        }
+    };
+    r.unwrap_or_else(|e| {
+        log::error!("Invalid story vars JSON: {} (err: {e})", path.as_ref().to_string_lossy())
+    });
+}
 
 // --------------------------------------------------------------
 // JSON entities and components
@@ -28,7 +52,7 @@ where
 
     load_entities_from_json(ecs, &json).unwrap_or_else(|err| {
         log::error!(
-            "Invalid entities JSON: {} (err: \"{}\"",
+            "Invalid entities JSON: {} (err: \"{}\")",
             path.as_ref().to_string_lossy(),
             err
         );

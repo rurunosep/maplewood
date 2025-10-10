@@ -4,7 +4,7 @@ use crate::components::{
 };
 use crate::ecs::{Ecs, EntityId};
 use crate::math::{Rect, Vec2};
-use crate::misc::{CELL_SIZE, StoryVars, WINDOW_SIZE};
+use crate::misc::{CELL_SIZE, WINDOW_SIZE};
 use crate::script::{self, ScriptClass, StartAbortCondition, Trigger};
 use crate::world::WorldPos;
 use std::collections::HashMap;
@@ -189,23 +189,4 @@ pub fn load_entities_from_source(ecs: &mut Ecs) {
             ..ScriptClass::default()
         }]),
     );
-}
-
-pub fn load_story_vars(story_vars: &mut StoryVars) {
-    for (k, v) in [
-        ("main::plushy_found", 0),
-        ("main::pen_found", 0),
-        ("start_script::started", 0),
-        ("bathroom::door::have_key", 0),
-        ("bathroom::door::open", 0),
-        ("bathroom::flooded", 0),
-        ("bathroom::exit::running", 0),
-        ("school_kid::stage", 1),
-        ("janitor::stage", 1),
-        ("bakery_girl::stage", 1),
-    ]
-    .iter()
-    {
-        story_vars.0.insert(k.to_string(), *v);
-    }
 }

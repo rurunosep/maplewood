@@ -5,6 +5,7 @@ name = "maplewood"
 version = "0.3.0"
 
 [dependencies]
+anyhow = "1.0.100"
 anymap = "0.12.1"
 bytemuck = "1.20.0"
 colored = "2.1.0"

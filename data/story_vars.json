@@ -1,0 +1,12 @@
+{
+  "main::plushy_found": 0,
+  "main::pen_found": 0,
+  "start_script::started": 0,
+  "bathroom::door::have_key": 0,
+  "bathroom::door::open": 0,
+  "bathroom::flooded": 0,
+  "bathroom::exit::running": 0,
+  "school_kid::stage": 1,
+  "janitor::stage": 1,
+  "bakery_girl::stage": 1
+}

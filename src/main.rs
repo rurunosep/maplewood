@@ -117,8 +117,7 @@ fn main() {
     data::load_entities_from_source(&mut ecs);
 
     let mut story_vars = StoryVars(HashMap::new());
-    // TODO story vars from file
-    data::load_story_vars(&mut story_vars);
+    loader::load_story_vars_from_file(&mut story_vars, "data/story_vars.json");
 
     let mut game_data = GameData { world, ecs, story_vars };
 
