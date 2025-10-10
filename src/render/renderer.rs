@@ -1,7 +1,7 @@
 use crate::components::{Camera, Position, SineOffsetAnimation, SpriteComp};
 use crate::ecs::Ecs;
 use crate::math::{CellPos, CellUnits, MapPos, MapUnits, PixelUnits, Rect, Vec2};
-use crate::misc::TILE_SIZE;
+use crate::misc::CELL_SIZE;
 use crate::world::{Map, TileLayer, World};
 use crate::{DevUi, UiData};
 use bytemuck::{Pod, Zeroable};
@@ -231,8 +231,8 @@ impl Renderer<'_> {
         // bind group, or will they still work after a resize?
         let camera_component = ecs.query_one_with_name::<&Camera>("CAMERA").unwrap();
         let camera_texture_size = (
-            (camera_component.size.x * TILE_SIZE as f64) as u32,
-            (camera_component.size.y * TILE_SIZE as f64) as u32,
+            (camera_component.size.x * CELL_SIZE as f64) as u32,
+            (camera_component.size.y * CELL_SIZE as f64) as u32,
         );
         let camera_texture = self.device.create_texture(&TextureDescriptor {
             label: None,
@@ -427,7 +427,7 @@ impl Renderer<'_> {
             return;
         };
 
-        let tileset_width_in_tiles = tileset.size.0 / TILE_SIZE;
+        let tileset_width_in_tiles = tileset.size.0 / CELL_SIZE;
 
         let map_bounds: Rect<i32, CellUnits> =
             Rect::new(map.offset.x, map.offset.y, map.dimensions.x, map.dimensions.y);
@@ -439,14 +439,14 @@ impl Renderer<'_> {
 
                 if let Some(tile_id) = layer.tile_ids.get(vec_index as usize).expect("") {
                     let top_left_in_screen = map_pos_to_top_left_in_viewport(
-                        Vec2::new(cell_pos.x as f64, cell_pos.y as f64),
+                        cell_pos.to_map_units(),
                         Some(layer.offset),
                         camera_map_pos,
                         camera_size,
                     );
 
-                    let tile_y_in_tileset = (tile_id / tileset_width_in_tiles) * TILE_SIZE;
-                    let tile_x_in_tileset = (tile_id % tileset_width_in_tiles) * TILE_SIZE;
+                    let tile_y_in_tileset = (tile_id / tileset_width_in_tiles) * CELL_SIZE;
+                    let tile_x_in_tileset = (tile_id % tileset_width_in_tiles) * CELL_SIZE;
 
                     self.rect_copy(
                         render_pass,
@@ -454,12 +454,12 @@ impl Renderer<'_> {
                         tileset,
                         tile_x_in_tileset,
                         tile_y_in_tileset,
-                        TILE_SIZE,
-                        TILE_SIZE,
+                        CELL_SIZE,
+                        CELL_SIZE,
                         top_left_in_screen.x,
                         top_left_in_screen.y,
-                        TILE_SIZE,
-                        TILE_SIZE,
+                        CELL_SIZE,
+                        CELL_SIZE,
                     );
                 }
             }
@@ -506,7 +506,7 @@ impl Renderer<'_> {
                 let offset = soa.direction
                     * (soa.start_time.elapsed().as_secs_f64() * soa.frequency * (PI * 2.)).sin()
                     * soa.amplitude;
-                position += Vec2::new(offset.x, offset.y);
+                position += offset;
             }
 
             let top_left_in_screen = map_pos_to_top_left_in_viewport(
@@ -736,21 +736,16 @@ impl Renderer<'_> {
     }
 }
 
-// TODO more accurate terminology
 fn map_pos_to_top_left_in_viewport(
     map_pos: MapPos,
-    pixel_offset: Option<Vec2<i32, PixelUnits>>,
+    sprite_offset: Option<Vec2<i32, PixelUnits>>,
     camera_map_pos: MapPos,
     camera_size: Vec2<f64, MapUnits>,
 ) -> Vec2<i32, PixelUnits> {
     let camera_top_left_in_map = camera_map_pos - camera_size / 2.0;
     let map_pos_relative_to_camera_top_left = map_pos - camera_top_left_in_map;
-    // TODO map units to pixel units conversion function
-    let position_in_viewport_f64 = map_pos_relative_to_camera_top_left * TILE_SIZE as f64;
-    let position_in_viewport_i32 =
-        Vec2::new(position_in_viewport_f64.x as i32, position_in_viewport_f64.y as i32);
-    let top_left_in_viewport = position_in_viewport_i32 + pixel_offset.unwrap_or_default();
-
+    let position_in_viewport = map_pos_relative_to_camera_top_left.to_pixel_units();
+    let top_left_in_viewport = position_in_viewport + sprite_offset.unwrap_or_default();
     return top_left_in_viewport;
 }
 

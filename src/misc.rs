@@ -10,10 +10,8 @@ use std::sync::Mutex;
 use std::time::{Duration, Instant};
 use tap::TapOptional;
 
-// TODO func to convert between pixel units and map units
-
 pub const WINDOW_SIZE: Vec2<u32, PixelUnits> = Vec2::new(1920, 1080);
-pub const TILE_SIZE: u32 = 16;
+pub const CELL_SIZE: u32 = 16;
 
 #[derive(Clone, Copy, Default, Debug)]
 pub struct Aabb {

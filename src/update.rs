@@ -270,8 +270,7 @@ fn move_entities_and_resolve_collisions(
             // the 4 optional collision AABBs for the 4 corners of each of those
             // cells. It got this way iteratively and could probably
             // be reworked much simpler?)
-            let new_cellpos: CellPos =
-                Vec2::new(new_position.x.floor() as i32, new_position.y.floor() as i32);
+            let new_cellpos = new_position.to_cell_units();
             let cellposes_to_check: [CellPos; 9] = [
                 Vec2::new(new_cellpos.x - 1, new_cellpos.y - 1),
                 Vec2::new(new_cellpos.x, new_cellpos.y - 1),
@@ -446,16 +445,16 @@ fn update_camera(ecs: &Ecs, world: &World) {
         );
 
         // (If map is smaller than viewport, skip clamping, or clamp() will panic)
-        let camera_size: Vec2<f64, MapUnits> =
-            Vec2::new(camera_component.size.x, camera_component.size.y);
-        if map_bounds.width >= camera_size.x && map_bounds.height >= camera_size.y {
+        if map_bounds.width >= camera_component.size.x
+            && map_bounds.height >= camera_component.size.y
+        {
             camera_position.map_pos.x = camera_position.map_pos.x.clamp(
-                map_bounds.left() + camera_size.x / 2.,
-                map_bounds.right() - camera_size.x / 2.,
+                map_bounds.left() + camera_component.size.x / 2.,
+                map_bounds.right() - camera_component.size.x / 2.,
             );
             camera_position.map_pos.y = camera_position.map_pos.y.clamp(
-                map_bounds.top() + camera_size.y / 2.,
-                map_bounds.bottom() - camera_size.y / 2.,
+                map_bounds.top() + camera_component.size.y / 2.,
+                map_bounds.bottom() - camera_component.size.y / 2.,
             );
         }
     }

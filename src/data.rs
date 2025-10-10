@@ -4,7 +4,7 @@ use crate::components::{
 };
 use crate::ecs::{Ecs, EntityId};
 use crate::math::{Rect, Vec2};
-use crate::misc::{StoryVars, TILE_SIZE, WINDOW_SIZE};
+use crate::misc::{CELL_SIZE, StoryVars, WINDOW_SIZE};
 use crate::script::{self, ScriptClass, StartAbortCondition, Trigger};
 use crate::world::WorldPos;
 use std::collections::HashMap;
@@ -71,8 +71,8 @@ pub fn load_entities_from_source(ecs: &mut Ecs) {
             target_entity: Some(PLAYER_ENTITY_NAME.to_string()),
             size: Vec2::new(
                 // TODO zoom variable
-                WINDOW_SIZE.x as f64 / TILE_SIZE as f64 / 4.,
-                WINDOW_SIZE.y as f64 / TILE_SIZE as f64 / 4.,
+                WINDOW_SIZE.x as f64 / CELL_SIZE as f64 / 4.,
+                WINDOW_SIZE.y as f64 / CELL_SIZE as f64 / 4.,
             ),
             clamp_to_map: true,
         },
