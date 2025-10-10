@@ -154,6 +154,7 @@ pub struct EntityWindow {
     // TODO vec box dyn?
     pub position: ComponentCollapsible<components::Position>,
     pub collision: ComponentCollapsible<components::Collision>,
+    pub velocity: ComponentCollapsible<components::Velocity>,
     pub facing: ComponentCollapsible<components::Facing>,
     pub camera: ComponentCollapsible<components::Camera>,
     pub sprite: ComponentCollapsible<components::SpriteComp>,
@@ -179,6 +180,7 @@ impl EntityWindow {
             open: false,
             position: ComponentCollapsible::new(entity_id),
             collision: ComponentCollapsible::new(entity_id),
+            velocity: ComponentCollapsible::new(entity_id),
             facing: ComponentCollapsible::new(entity_id),
             camera: ComponentCollapsible::new(entity_id),
             sprite: ComponentCollapsible::new(entity_id),
@@ -202,6 +204,7 @@ impl EntityWindow {
 
                 self.position.show(ui, ecs);
                 self.collision.show(ui, ecs);
+                self.velocity.show(ui, ecs);
                 self.facing.show(ui, ecs);
                 self.camera.show(ui, ecs);
                 self.sprite.show(ui, ecs);

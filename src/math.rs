@@ -14,9 +14,11 @@ pub type CellPos = Vec2<i32, CellUnits>;
 // Vec2
 
 #[derive(Serialize, Deserialize)]
+#[serde(default)]
 pub struct Vec2<T, U> {
     pub x: T,
     pub y: T,
+    #[serde(skip)]
     _unit: PhantomData<U>,
 }
 
@@ -105,11 +107,13 @@ impl<T: Div<Output = T> + Copy, U> DivAssign<T> for Vec2<T, U> {
 // Rect
 
 #[derive(Serialize, Deserialize)]
+#[serde(default)]
 pub struct Rect<T, U> {
     pub x: T,
     pub y: T,
     pub width: T,
     pub height: T,
+    #[serde(skip)]
     _unit: PhantomData<U>,
 }
 

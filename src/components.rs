@@ -27,6 +27,11 @@ impl Component for Name {}
 pub struct Position(pub WorldPos);
 impl Component for Position {}
 
+// TODO serde and dev ui
+#[derive(Default, Clone, Serialize, Deserialize)]
+pub struct Velocity(pub Vec2<f64, MapUnits>);
+impl Component for Velocity {}
+
 #[derive(Default, Clone, Serialize, Deserialize)]
 pub struct Facing(pub Direction);
 impl Component for Facing {}

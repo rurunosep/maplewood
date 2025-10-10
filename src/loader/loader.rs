@@ -1,6 +1,6 @@
 use crate::components::{
     AnimationComp, Camera, CharacterAnims, Collision, DualStateAnims, Facing, Interaction, Name,
-    NamedAnims, Position, Scripts, SfxEmitter, SpriteComp, Walking,
+    NamedAnims, Position, Scripts, SfxEmitter, SpriteComp, Velocity, Walking,
 };
 use crate::ecs::{Component, Ecs, EntityId};
 use sdl2::mixer::{Chunk, Music};
@@ -85,6 +85,7 @@ pub fn load_single_component_from_value(ecs: &mut Ecs, id: EntityId, name: &str,
         match name {
             "Name" => ecs.add_component(id, sjfv::<Name>(data)?),
             "Position" => ecs.add_component(id, sjfv::<Position>(data)?),
+            "Velocity" => ecs.add_component(id, sjfv::<Velocity>(data)?),
             "Collision" => ecs.add_component(id, sjfv::<Collision>(data)?),
             "Scripts" => ecs.add_component(id, sjfv::<Scripts>(data)?),
             "SfxEmitter" => ecs.add_component(id, sjfv::<SfxEmitter>(data)?),
@@ -125,6 +126,7 @@ pub fn save_components_to_value(ecs: &Ecs, id: EntityId) -> Value {
 
     insert::<Name>(&mut components, id, &ecs);
     insert::<Position>(&mut components, id, &ecs);
+    insert::<Velocity>(&mut components, id, &ecs);
     insert::<Collision>(&mut components, id, &ecs);
     insert::<Scripts>(&mut components, id, &ecs);
     insert::<SfxEmitter>(&mut components, id, &ecs);

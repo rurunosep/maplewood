@@ -10,7 +10,8 @@ use std::sync::Mutex;
 use std::time::{Duration, Instant};
 use tap::TapOptional;
 
-pub const WINDOW_SIZE: Vec2<u32, PixelUnits> = Vec2::new(1920, 1080);
+// pub const WINDOW_SIZE: Vec2<u32, PixelUnits> = Vec2::new(1920, 1080);
+pub const WINDOW_SIZE: Vec2<u32, PixelUnits> = Vec2::new(1920 / 2, 1080 / 2);
 pub const CELL_SIZE: u32 = 16;
 
 #[derive(Clone, Copy, Default, Debug)]
@@ -42,31 +43,27 @@ impl Aabb {
         self.top < point.y && self.bottom > point.y && self.left < point.x && self.right > point.x
     }
 
-    // The old AABB is required to determine the direction of motion
-    // And what the collision resolution really needs is just the direction
-    // So collision resolution could instead eventually take a direction enum
-    // or vector and use that directly
-    pub fn resolve_collision(&mut self, old_self: &Self, other: &Self) {
+    pub fn resolve_collision(&mut self, other: &Self, velocity: Vec2<f64, MapUnits>) {
         if self.intersects(other) {
-            if self.top < other.bottom && old_self.top > other.bottom {
+            if self.top < other.bottom && velocity.y < 0. {
                 let depth = other.bottom - self.top + 0.01;
                 self.top += depth;
                 self.bottom += depth;
             }
 
-            if self.bottom > other.top && old_self.bottom < other.top {
+            if self.bottom > other.top && velocity.y > 0. {
                 let depth = self.bottom - other.top + 0.01;
                 self.top -= depth;
                 self.bottom -= depth;
             }
 
-            if self.left < other.right && old_self.left > other.right {
+            if self.left < other.right && velocity.x < 0. {
                 let depth = other.right - self.left + 0.01;
                 self.left += depth;
                 self.right += depth;
             }
 
-            if self.right > other.left && old_self.right < other.left {
+            if self.right > other.left && velocity.x > 0. {
                 let depth = self.right - other.left + 0.01;
                 self.left -= depth;
                 self.right -= depth;

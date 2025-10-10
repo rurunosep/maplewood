@@ -1,6 +1,6 @@
 use crate::components::{
     AnimationClip, AnimationComp, Camera, CharacterAnims, Collision, Facing, Interaction, Name,
-    NamedAnims, Position, Scripts, SfxEmitter, Sprite, SpriteComp, Walking,
+    NamedAnims, Position, Scripts, SfxEmitter, Sprite, SpriteComp, Velocity, Walking,
 };
 use crate::ecs::{Ecs, EntityId};
 use crate::math::{Rect, Vec2};
@@ -16,6 +16,7 @@ pub fn load_entities_from_source(ecs: &mut Ecs) {
     let id = ecs.add_entity();
     ecs.add_component(id, Name(PLAYER_ENTITY_NAME.to_string()));
     ecs.add_component(id, Position(WorldPos::new("overworld", 1.5, 2.5)));
+    ecs.add_component(id, Velocity::default());
     ecs.add_component(id, SpriteComp::default());
     ecs.add_component(id, Facing::default());
     ecs.add_component(id, Walking::default());
@@ -78,6 +79,7 @@ pub fn load_entities_from_source(ecs: &mut Ecs) {
         },
     );
     ecs.add_component(id, Position::default());
+    ecs.add_component(id, Velocity::default());
     // Needs "walking" component to be pathed
     ecs.add_component(id, Walking::default());
 
@@ -170,6 +172,7 @@ pub fn load_entities_from_source(ecs: &mut Ecs) {
 
     // Bakery girl extension
     let id = ecs.query_one_with_name::<EntityId>("bakery_girl").unwrap();
+    ecs.add_component(id, Velocity::default());
     ecs.add_component(
         id,
         Scripts(vec![ScriptClass {

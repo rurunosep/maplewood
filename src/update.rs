@@ -1,7 +1,7 @@
 use crate::components::{
     AnimationComp, Camera, CharacterAnims, Collision, DualStateAnimationState, DualStateAnims,
     Facing, Name, PlaybackState, Position, Scripts, SfxEmitter, SineOffsetAnimation, SpriteComp,
-    Walking,
+    Velocity, Walking,
 };
 use crate::data::PLAYER_ENTITY_NAME;
 use crate::ecs::{Ecs, EntityId, With};
@@ -38,13 +38,13 @@ pub fn update(
     );
 
     stop_player_movement_when_message_window_open(&game_data.ecs, &ui_data.message_window);
-    // TODO move (don't resolve collisions) > start collision scripts > resolve collisions
-    move_entities_and_resolve_collisions(
-        &game_data.ecs,
-        &game_data.world,
-        script_manager,
-        &mut game_data.story_vars,
-    );
+
+    set_velocity_from_walking(&mut game_data.ecs);
+    apply_velocity_to_position(&mut game_data.ecs);
+    start_hard_collision_scripts(&game_data.ecs, script_manager, &mut game_data.story_vars);
+    resolve_collisions_with_tiles(&mut game_data.ecs, &game_data.world);
+    resolve_collisions_with_entities(&mut game_data.ecs);
+
     update_camera(&game_data.ecs, &game_data.world);
 
     update_character_animations(&game_data.ecs);
@@ -223,138 +223,132 @@ fn play_animations_and_set_sprites(ecs: &Ecs, delta: Duration) {
 }
 
 // ------------------------------------------------------------------
-// Collision
+// Movement and Collision
 // ------------------------------------------------------------------
 
-fn move_entities_and_resolve_collisions(
+fn set_velocity_from_walking(ecs: &Ecs) {
+    for (mut velocity, walking) in ecs.query::<(&mut Velocity, &Walking)>() {
+        velocity.0 = match walking.direction {
+            Direction::Up => Vec2::new(0.0, -walking.speed),
+            Direction::Down => Vec2::new(0.0, walking.speed),
+            Direction::Left => Vec2::new(-walking.speed, 0.0),
+            Direction::Right => Vec2::new(walking.speed, 0.0),
+        }
+    }
+}
+
+fn apply_velocity_to_position(ecs: &Ecs) {
+    for (mut position, velocity) in ecs.query::<(&mut Position, &Velocity)>() {
+        position.map_pos += velocity.0;
+    }
+}
+
+fn start_hard_collision_scripts(
     ecs: &Ecs,
-    world: &World,
-    // (Only needed to start collision scripts. An event system would be ideal.)
     script_manager: &mut ScriptManager,
     story_vars: &mut StoryVars,
 ) {
-    let player_id = ecs.query_one_with_name::<EntityId>(PLAYER_ENTITY_NAME);
+    let Some((player_id, player_position, player_collision)) =
+        ecs.query_one_with_name::<(EntityId, &Position, &Collision)>(PLAYER_ENTITY_NAME)
+    else {
+        // TODO error handle no player
+        return;
+    };
 
-    for (id, mut position, mut walking, collision) in
-        ecs.query::<(EntityId, &mut Position, &mut Walking, Option<&Collision>)>()
+    if !player_collision.solid {
+        return;
+    }
+
+    let aabb = Aabb::new(player_position.map_pos, player_collision.hitbox);
+
+    for (other_position, other_collision, scripts) in
+        ecs.query_except::<(&Position, &Collision, &Scripts)>(player_id)
     {
+        // Skip checking against entities not on the current map or not solid
+        if other_position.map != player_position.map || !other_collision.solid {
+            continue;
+        }
+
+        let other_aabb = Aabb::new(other_position.map_pos, other_collision.hitbox);
+
+        // Trigger HardCollision scripts
+        // (* bottom comment about event system)
+        if aabb.intersects(&other_aabb) {
+            for script in scripts
+                .iter()
+                .filter(|script| script.trigger == Some(Trigger::HardCollision))
+                .filter(|script| script.is_start_condition_fulfilled(story_vars))
+                .collect::<Vec<_>>()
+            {
+                script_manager.start_script(script, story_vars);
+            }
+        }
+    }
+}
+
+fn resolve_collisions_with_tiles(ecs: &Ecs, world: &World) {
+    // This only works for entities with velocities
+    for (mut position, collision, velocity) in
+        ecs.query::<(&mut Position, &Collision, &Velocity)>()
+    {
+        if !collision.solid {
+            continue;
+        }
+
         let map_pos = position.map_pos;
         let Some(map) = world.maps.get(&position.map) else {
             log::error!(once = true; "Map doesn't exist: {}", &position.map);
             continue;
         };
 
-        // Determine new position before collision resolution
-        // TODO use frame delta
-        let mut new_position = map_pos
-            + match walking.direction {
-                Direction::Up => Vec2::new(0.0, -walking.speed),
-                Direction::Down => Vec2::new(0.0, walking.speed),
-                Direction::Left => Vec2::new(-walking.speed, 0.0),
-                Direction::Right => Vec2::new(walking.speed, 0.0),
-            };
+        let mut aabb = Aabb::new(map_pos, collision.hitbox);
 
-        // Resolve collisions and update new position
-        if let Some(collision) = collision
-            && collision.solid
+        // TODO some out of bounds positions have collision, and some do not
+
+        // Resolve collisions with the 9 cells centered around new position
+        let new_cellpos = map_pos.to_cell_units();
+        let cellposes_to_check: [CellPos; 9] = [
+            Vec2::new(new_cellpos.x - 1, new_cellpos.y - 1),
+            Vec2::new(new_cellpos.x, new_cellpos.y - 1),
+            Vec2::new(new_cellpos.x + 1, new_cellpos.y - 1),
+            Vec2::new(new_cellpos.x - 1, new_cellpos.y),
+            Vec2::new(new_cellpos.x, new_cellpos.y),
+            Vec2::new(new_cellpos.x + 1, new_cellpos.y),
+            Vec2::new(new_cellpos.x - 1, new_cellpos.y + 1),
+            Vec2::new(new_cellpos.x, new_cellpos.y + 1),
+            Vec2::new(new_cellpos.x + 1, new_cellpos.y + 1),
+        ];
+        for cell_aabb in
+            cellposes_to_check.iter().flat_map(|cp| map.collision_aabbs_for_cell(*cp)).flatten()
         {
-            let old_aabb = Aabb::new(map_pos, collision.hitbox);
-
-            let mut new_aabb = Aabb::new(new_position, collision.hitbox);
-
-            // TODO some out of bounds positions have collision, and some do not
-            // There's something wrong with the code in out of bounds cases
-
-            // Resolve collisions with the 9 cells centered around new position
-            // (Currently, we get the 9 cells around the position, and then we get
-            // the 4 optional collision AABBs for the 4 corners of each of those
-            // cells. It got this way iteratively and could probably
-            // be reworked much simpler?)
-            let new_cellpos = new_position.to_cell_units();
-            let cellposes_to_check: [CellPos; 9] = [
-                Vec2::new(new_cellpos.x - 1, new_cellpos.y - 1),
-                Vec2::new(new_cellpos.x, new_cellpos.y - 1),
-                Vec2::new(new_cellpos.x + 1, new_cellpos.y - 1),
-                Vec2::new(new_cellpos.x - 1, new_cellpos.y),
-                Vec2::new(new_cellpos.x, new_cellpos.y),
-                Vec2::new(new_cellpos.x + 1, new_cellpos.y),
-                Vec2::new(new_cellpos.x - 1, new_cellpos.y + 1),
-                Vec2::new(new_cellpos.x, new_cellpos.y + 1),
-                Vec2::new(new_cellpos.x + 1, new_cellpos.y + 1),
-            ];
-            for cell_aabb in cellposes_to_check
-                .iter()
-                .flat_map(|cp| map.collision_aabbs_for_cell(*cp))
-                .flatten()
-            {
-                new_aabb.resolve_collision(&old_aabb, &cell_aabb);
-            }
-
-            // We need iter_combinations. Nested queries are impossible with
-            // Mutex<Map<Component>>, which is how the ECS should eventually look.
-            // Nested queries are only possible right now because the individual
-            // components are in RefCells instead in order to support them
-
-            // It's def gonna need unsafe code, but it might not actually be that hard.
-            // Just write a function wrapping some unsafe code that mutably reborrows the
-            // component map but definitely skips the entity that is currently borrowed?
-
-            // TODO iter combinations
-
-            // Resolve collisions with all solid entities except this one
-            for (other_pos, other_coll, other_scripts) in
-                ecs.query_except::<(&Position, &Collision, Option<&Scripts>)>(id)
-            {
-                // Skip checking against entities not on the current map or not solid
-                if other_pos.map != position.map || !other_coll.solid {
-                    continue;
-                }
-
-                let other_aabb = Aabb::new(other_pos.map_pos, other_coll.hitbox);
-
-                // Trigger HardCollision scripts
-                // (* bottom comment about event system)
-                // Alternatively, we can move, then start collision scripts, then resolve
-                // collision, all in separate systems. We just need to keep some data for the
-                // collision resolution such as last position or direction or something
-                if let Some(player_id) = player_id
-                    && id == player_id
-                    && new_aabb.intersects(&other_aabb)
-                    && let Some(scripts) = other_scripts
-                {
-                    for script in scripts
-                        .iter()
-                        .filter(|script| script.trigger == Some(Trigger::HardCollision))
-                        .filter(|script| script.is_start_condition_fulfilled(story_vars))
-                        .collect::<Vec<_>>()
-                    {
-                        script_manager.start_script(script, story_vars);
-                    }
-                }
-
-                new_aabb.resolve_collision(&old_aabb, &other_aabb);
-            }
-
-            new_position = new_aabb.center();
+            aabb.resolve_collision(&cell_aabb, velocity.0);
         }
 
-        // Update position after collision resolution
-        position.map_pos = new_position;
+        position.map_pos = aabb.center();
+    }
+}
 
-        // End forced walking if destination reached
-        if let Some(destination) = walking.destination {
-            let passed_destination = match walking.direction {
-                Direction::Up => map_pos.y < destination.y,
-                Direction::Down => map_pos.y > destination.y,
-                Direction::Left => map_pos.x < destination.x,
-                Direction::Right => map_pos.x > destination.x,
-            };
-            if passed_destination {
-                position.map_pos = destination;
-                walking.speed = 0.;
-                walking.destination = None;
-            }
+fn resolve_collisions_with_entities(ecs: &Ecs) {
+    // This only works for entities with velocities
+    for (id, mut position, collision, velocity) in
+        ecs.query::<(EntityId, &mut Position, &Collision, &Velocity)>()
+    {
+        if !collision.solid {
+            continue;
         }
+
+        let mut aabb = Aabb::new(position.map_pos, collision.hitbox);
+
+        for (other_pos, other_coll) in ecs.query_except::<(&Position, &Collision)>(id) {
+            // Skip checking against entities not on the current map or not solid
+            if other_pos.map != position.map || !other_coll.solid {
+                continue;
+            }
+
+            aabb.resolve_collision(&Aabb::new(other_pos.map_pos, other_coll.hitbox), velocity.0);
+        }
+
+        position.map_pos = aabb.center();
     }
 }
 
