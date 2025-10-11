@@ -189,16 +189,15 @@ impl Renderer<'_> {
         let mut encoder =
             self.device.create_command_encoder(&CommandEncoderDescriptor { label: None });
 
-        // Does this texture have to be recreated every frame? Can I save and reuse it?
-        // TODO handle no camera
-        let camera_component = ecs.query_one_with_name::<&Camera>("CAMERA").unwrap();
-        let camera_texture =
-            self.prepare_camera_texture(camera_component.size, surface_texture.texture.format());
+        // Does the camera texture have to be recreated every frame? Can I save and reuse it?
+        let camera_texture = ecs.query_one_with_name::<&Camera>("CAMERA").map(|camera| {
+            self.prepare_camera_texture(camera.size, surface_texture.texture.format())
+        });
 
         // Camera render pass
         // Render the world as seen by the camera onto a texture to be later rendered onto the
         // surface at the appropriate scale
-        {
+        if let Some(camera_texture) = &camera_texture {
             let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
                 label: None,
                 color_attachments: &[Some(RenderPassColorAttachment {
@@ -229,20 +228,22 @@ impl Renderer<'_> {
             });
 
             // Draw camera texture to screen
-            self.rect_copy_pipeline.execute(
-                &mut render_pass,
-                surface_size,
-                &self.sampler_bind_group,
-                &camera_texture,
-                0,
-                0,
-                camera_texture.size.0,
-                camera_texture.size.1,
-                0,
-                0,
-                surface_size.0,
-                surface_size.1,
-            );
+            if let Some(camera_texture) = &camera_texture {
+                self.rect_copy_pipeline.execute(
+                    &mut render_pass,
+                    surface_size,
+                    &self.sampler_bind_group,
+                    &camera_texture,
+                    0,
+                    0,
+                    camera_texture.size.0,
+                    camera_texture.size.1,
+                    0,
+                    0,
+                    surface_size.0,
+                    surface_size.1,
+                );
+            }
 
             self.draw_message_window(&mut render_pass, surface_size, &ui_data.message_window);
         }

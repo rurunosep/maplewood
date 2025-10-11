@@ -439,11 +439,24 @@ pub fn message(
     message: String,
     message_window: &mut Option<MessageWindow>,
     wait_condition: &mut Option<WaitCondition>,
-    script_id: ScriptId,
 ) -> LuaResult<()> {
     *message_window =
-        Some(MessageWindow { message, is_selection: false, waiting_script_id: script_id });
+        Some(MessageWindow { message, is_selection: false, waiting_script_id: None });
     *wait_condition = Some(WaitCondition::Message);
+    Ok(())
+}
+
+pub fn message_new(
+    message: String,
+    message_window: &mut Option<MessageWindow>,
+    wait_condition: &mut Option<crate::script_new::WaitCondition>,
+) -> LuaResult<()> {
+    println!("{message}");
+
+    *message_window =
+        Some(MessageWindow { message, is_selection: false, waiting_script_id: None });
+    *wait_condition = Some(crate::script_new::WaitCondition::Message);
+
     Ok(())
 }
 
@@ -454,7 +467,7 @@ pub fn selection(
     script_id: ScriptId,
 ) -> LuaResult<()> {
     *message_window =
-        Some(MessageWindow { message, is_selection: true, waiting_script_id: script_id });
+        Some(MessageWindow { message, is_selection: true, waiting_script_id: Some(script_id) });
     *wait_condition = Some(WaitCondition::Message);
     Ok(())
 }

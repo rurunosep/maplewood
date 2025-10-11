@@ -88,7 +88,7 @@ pub enum Direction {
 pub struct MessageWindow {
     pub message: String,
     pub is_selection: bool,
-    pub waiting_script_id: ScriptId,
+    pub waiting_script_id: Option<ScriptId>,
 }
 
 pub struct MapOverlayTransition {

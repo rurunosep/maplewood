@@ -1,4 +1,4 @@
-use super::{callbacks, ScriptId};
+use super::callbacks;
 use crate::{GameData, UiData};
 use crossbeam::channel::Receiver;
 use mlua::{Lua, Result as LuaResult};
@@ -255,12 +255,7 @@ pub fn process_console_input(
             globals.set(
                 "message",
                 scope.create_function_mut(|_, args| {
-                    callbacks::message(
-                        args,
-                        *message_window.borrow_mut(),
-                        &mut None,
-                        ScriptId::default(),
-                    )
+                    callbacks::message(args, *message_window.borrow_mut(), &mut None)
                 })?,
             )?;
             globals.set(

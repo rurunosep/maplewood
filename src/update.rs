@@ -251,7 +251,6 @@ fn start_hard_collision_scripts(
     let Some((player_id, player_position, player_collision)) =
         ecs.query_one_with_name::<(EntityId, &Position, &Collision)>(PLAYER_ENTITY_NAME)
     else {
-        // TODO error handle no player
         return;
     };
 

@@ -111,8 +111,8 @@ pub fn process_input(
             {
                 if let Some(message_window) = message_window
                     && message_window.is_selection
-                    && let Some(script) =
-                        script_manager.instances.get_mut(message_window.waiting_script_id)
+                    && let Some(waiting_script_id) = message_window.waiting_script_id
+                    && let Some(script) = script_manager.instances.get_mut(waiting_script_id)
                 {
                     // I want to redo how window<->script communcation works
                     script.input = match keycode {

@@ -11,6 +11,7 @@ mod math;
 mod misc;
 mod render;
 mod script;
+mod script_new;
 mod update;
 mod world;
 
@@ -148,6 +149,8 @@ fn main() {
 
     // Scratchpad
     {}
+    let mut script_manager_new = script_new::ScriptManager::new();
+    script_manager_new.start_script(&std::fs::read_to_string("data/scripts_new.lua").unwrap());
 
     // --------------------------------------------------------------
     // Main Loop
@@ -174,6 +177,8 @@ fn main() {
         );
 
         dev_ui.run(&start_time, frame_duration, &mut game_data.ecs, &mut game_data.story_vars);
+
+        script_manager_new.update(&mut ui_data);
 
         #[rustfmt::skip]
         update::update(

@@ -2,10 +2,10 @@
 
 --# start
 
-message("You're sooo sleepy.")
-message("But you can't sleep without a plushy.")
-message("Legend says the kid in the classroom has a plushy.")
-message("(Press ~ to check out the dev UI.)")
+-- message("You're sooo sleepy.")
+-- message("But you can't sleep without a plushy.")
+-- message("Legend says the kid in the classroom has a plushy.")
+-- message("(Press ~ to check out the dev UI.)")
 
 --# school_kid
 

@@ -27,7 +27,8 @@
     "set_forced_sprite",
     "play_sfx",
     "set_camera_clamp",
-    "add_component"
+    "add_component",
+    "log"
   ],
   "Lua.diagnostics.disable": ["redefined-local"]
 }
