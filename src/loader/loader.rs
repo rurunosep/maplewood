@@ -4,7 +4,7 @@ use crate::components::{
 };
 use crate::ecs::{Component, Ecs, EntityId};
 use crate::misc::StoryVars;
-use anyhow::Context;
+use anyhow::{Context, anyhow};
 use sdl2::mixer::{Chunk, Music};
 use serde::Serialize;
 use serde_json::{Map, Value};
@@ -38,9 +38,8 @@ where
 // JSON entities and components
 // --------------------------------------------------------------
 
-// TODO component serde code is part of Component trait impl? gen with proc macro?
+// Can the component serde code be part of Component trait impl? Generate with proc macro?
 
-// Convenience function to wrap error logging
 pub fn load_entities_from_file<P>(ecs: &mut Ecs, path: P)
 where
     P: AsRef<Path>,
@@ -50,7 +49,36 @@ where
         return;
     };
 
-    load_entities_from_json(ecs, &json).unwrap_or_else(|err| {
+    let r: anyhow::Result<()> = try {
+        let entities_value: serde_json::Value = serde_json::from_str(&json)?;
+        let entities_array = entities_value.as_array().context("not an array")?;
+
+        for components_value in entities_array {
+            let components_map =
+                components_value.as_object().context("array element not an object")?;
+
+            // Try to get id from the json
+            // If none, try to get id from preexisiting entity by name
+            // If none, generate new entity
+            // (Getting id from the json is currently useless since we don't have game state
+            // saving and loading yet)
+            let id = components_map
+                .get("EntityId")
+                .and_then(|v| serde_json::from_value(v.clone()).ok())
+                .or_else(|| {
+                    components_map
+                        .get("Name")
+                        .and_then(|v| serde_json::from_value(v.clone()).ok())
+                        .and_then(|n: String| ecs.query_one_with_name::<EntityId>(&n))
+                })
+                .unwrap_or_else(|| ecs.add_entity());
+
+            for (key, val) in components_map {
+                load_component_from_value(ecs, id, &key, &val)?;
+            }
+        }
+    };
+    r.unwrap_or_else(|err| {
         log::error!(
             "Invalid entities JSON: {} (err: \"{}\")",
             path.as_ref().to_string_lossy(),
@@ -59,50 +87,19 @@ where
     });
 }
 
-// Returns error if outer entity array or component maps are invalid
-// (Error handling and logging are left to caller which has more context)
-// Inner function skips and logs error if individual component is invalid
-pub fn load_entities_from_json(ecs: &mut Ecs, json: &str) -> Result<(), String> {
-    let entities_value: serde_json::Value =
-        serde_json::from_str(json).map_err(|e| e.to_string())?;
-    let entities_array = entities_value.as_array().ok_or("invalid entities json")?;
-
-    for components_value in entities_array {
-        let components_map = components_value.as_object().ok_or("invalid entities json")?;
-
-        // Try to get id from the json
-        // If none, try to get id from preexisiting entity by name
-        // If none, generate new entity
-        // (Getting id from the json is currently useless since we don't have game state
-        // saving and loading yet)
-        let id = components_map
-            .get("EntityId")
-            .and_then(|v| serde_json::from_value(v.clone()).ok())
-            .or_else(|| {
-                components_map
-                    .get("Name")
-                    .and_then(|v| serde_json::from_value(v.clone()).ok())
-                    .and_then(|n: String| ecs.query_one_with_name::<EntityId>(&n))
-            })
-            .unwrap_or_else(|| ecs.add_entity());
-
-        for (key, val) in components_map {
-            load_single_component_from_value(ecs, id, &key, &val);
-        }
-    }
-
-    Ok(())
-}
-
-// Skips and logs error if component is invalid
-pub fn load_single_component_from_value(ecs: &mut Ecs, id: EntityId, name: &str, data: &Value) {
+pub fn load_component_from_value(
+    ecs: &mut Ecs,
+    id: EntityId,
+    name: &str,
+    data: &Value,
+) -> anyhow::Result<()> {
     let r: serde_json::Result<()> = try {
         let data = data.clone();
 
         use serde_json::from_value as sjfv;
 
-        // TODO get name using Component::name()?
-        // problem is that it's not const, and I don't think I can make it const,
+        // Can I get the name using Component::name()?
+        // Problem is that it's not const, and I don't think I can make it const,
         // and I think the match patterns need to be const
         // I could try to implement the loading code on Component, but then how do we handle
         // components that are not serde?
@@ -123,15 +120,15 @@ pub fn load_single_component_from_value(ecs: &mut Ecs, id: EntityId, name: &str,
             "DualStateAnims" => ecs.add_component(id, sjfv::<DualStateAnims>(data)?),
             "NamedAnims" => ecs.add_component(id, sjfv::<NamedAnims>(data)?),
             "EntityId" => {}
-            _ => log::error!("Invalid JSON component name: {}", name),
+            _ => return Err(anyhow!("Invalid JSON component name: {}", name)),
         };
     };
-    r.unwrap_or_else(|e| {
-        log::error!(
+    r.map_err(|e| {
+        anyhow!(
             "Invalid JSON component:\nname: {name}\ndata: {}\nerr: \"{e}\"",
             serde_json::to_string_pretty(&data).unwrap_or("invalid json".to_string())
         )
-    });
+    })
 }
 
 pub fn save_entities_to_value(ecs: &Ecs) -> Value {

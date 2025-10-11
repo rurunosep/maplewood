@@ -283,12 +283,8 @@ where
                         if let Ok(v) = serde_json::from_str::<serde_json::Value>(&self.text)
                             .tap_err(|e| log::error!("Invalid component JSON (err: \"{e}\")"))
                         {
-                            loader::load_single_component_from_value(
-                                ecs,
-                                self.entity_id,
-                                C::name(),
-                                &v,
-                            );
+                            loader::load_component_from_value(ecs, self.entity_id, C::name(), &v)
+                                .unwrap_or_else(|e| log::error!("{e}"));
                         }
 
                         self.is_being_edited = false;

@@ -7,9 +7,9 @@ use crate::ecs::{Ecs, EntityId};
 use crate::math::{Rect, Vec2};
 use crate::script::{self, ScriptClass, Trigger};
 use crate::world::WorldPos;
+use anyhow::{Context, anyhow};
 use serde::de::DeserializeOwned;
 use serde_json::Value;
-use tap::{TapFallible, TapOptional};
 
 pub fn load_entities_from_ldtk(ecs: &mut Ecs, project: &ldtk_project::Project) {
     for ldtk_world in &project.worlds {
@@ -21,13 +21,13 @@ pub fn load_entities_from_ldtk(ecs: &mut Ecs, project: &ldtk_project::Project) {
                 .iter()
                 .flat_map(|layer| &layer.entity_instances)
             {
-                let r: Result<(), String> = try {
+                let r: anyhow::Result<()> = try {
                     match entity.identifier.as_str() {
                         "generic" => {
-                            load_generic_entity(ecs, entity, ldtk_world, level);
+                            load_generic_entity(ecs, entity, ldtk_world, level)?;
                         }
                         "simple_script" => {
-                            load_simple_script_entity(ecs, entity, ldtk_world, level);
+                            load_simple_script_entity(ecs, entity, ldtk_world, level)?;
                         }
                         "simple_anim" => {
                             load_simple_animation_entity(ecs, entity, ldtk_world, level)?;
@@ -41,7 +41,9 @@ pub fn load_entities_from_ldtk(ecs: &mut Ecs, project: &ldtk_project::Project) {
                         _ => {}
                     };
                 };
-                r.unwrap_or_else(|_| log::error!("Invalid ldtk entity: {}", entity.iid))
+                r.unwrap_or_else(|e| {
+                    log::error!("Invalid ldtk entity: {} (err: {e})", entity.iid)
+                })
             }
         }
     }
@@ -56,22 +58,24 @@ fn load_generic_entity(
     entity: &ldtk_project::EntityInstance,
     ldtk_world: &ldtk_project::World,
     level: &ldtk_project::Level,
-) {
+) -> anyhow::Result<()> {
     let id = ecs.add_entity();
 
     add_position_component(ecs, id, entity, ldtk_world, level);
 
     // Name
-    if let Some(name) = read_field("name", entity) {
+    if let Some(name) = read_field("name", entity)? {
         ecs.add_component(id, Name(name));
     }
 
     // JSON components
-    if let Some(Value::Object(components_map)) = read_field("json_components", entity) {
+    if let Some(Value::Object(components_map)) = read_field("json_components", entity)? {
         for (key, val) in components_map {
-            super::load_single_component_from_value(ecs, id, &key, &val);
+            super::load_component_from_value(ecs, id, &key, &val)?;
         }
     }
+
+    Ok(())
 }
 
 fn load_simple_script_entity(
@@ -79,41 +83,40 @@ fn load_simple_script_entity(
     entity: &ldtk_project::EntityInstance,
     ldtk_world: &ldtk_project::World,
     level: &ldtk_project::Level,
-) {
+) -> anyhow::Result<()> {
     let id = ecs.add_entity();
 
     add_position_component(ecs, id, entity, ldtk_world, level);
 
     // Name
-    if let Some(name) = read_field("name", entity) {
+    if let Some(name) = read_field("name", entity)? {
         ecs.add_component(id, Name(name));
     }
 
     // JSON components
-    if let Some(Value::Object(components_map)) = read_json_field("json_components", entity) {
+    if let Some(Value::Object(components_map)) = read_json_field("json_components", entity)? {
         for (key, val) in components_map {
-            super::load_single_component_from_value(ecs, id, &key, &val);
+            super::load_component_from_value(ecs, id, &key, &val)?;
         }
     }
 
     // Script
-    let source = if let Some(source_name) = read_field::<String>("external_source", entity)
-        && let Some((file_name, subscript_label)) = source_name
+    let source = if let Some(source_name) = read_field::<String>("external_source", entity)? {
+        let (file_name, subscript_label) = source_name
             .split_once("::")
-            .tap_none(|| log::error!("Invalid script source name: {source_name}"))
-        && let Ok(file_contents) = std::fs::read_to_string(format!("data/{file_name}.lua"))
-            .tap_err(|_| log::error!("Could not read file: data/{file_name}.lua"))
-    {
+            .context(format!("invalid script source name: {source_name}"))?;
+        let file_contents = std::fs::read_to_string(format!("data/{file_name}.lua"))
+            .map_err(|_| anyhow!("could not read file: data/{file_name}.lua"))?;
         script::get_sub_script(&file_contents, subscript_label)
     } else {
-        read_field("source", entity).unwrap_or_default()
+        read_field("source", entity)?.unwrap_or_default()
     };
 
-    let trigger = read_field("trigger", entity);
-    let start_condition = read_json_field("start_condition", entity);
-    let abort_condition = read_json_field("abort_condition", entity);
-    let set_on_start = read_json_field("set_on_start", entity);
-    let set_on_finish = read_json_field("set_on_finish", entity);
+    let trigger = read_field("trigger", entity)?;
+    let start_condition = read_json_field("start_condition", entity)?;
+    let abort_condition = read_json_field("abort_condition", entity)?;
+    let set_on_start = read_json_field("set_on_start", entity)?;
+    let set_on_finish = read_json_field("set_on_finish", entity)?;
 
     ecs.add_component(
         id,
@@ -148,6 +151,8 @@ fn load_simple_script_entity(
             },
         );
     }
+
+    Ok(())
 }
 
 fn load_simple_animation_entity(
@@ -155,32 +160,34 @@ fn load_simple_animation_entity(
     entity: &ldtk_project::EntityInstance,
     ldtk_world: &ldtk_project::World,
     level: &ldtk_project::Level,
-) -> Result<(), String> {
+) -> anyhow::Result<()> {
     let id = ecs.add_entity();
 
     add_position_component(ecs, id, entity, ldtk_world, level);
 
     // Name
-    if let Some(name) = read_field("name", entity) {
+    if let Some(name) = read_field("name", entity)? {
         ecs.add_component(id, Name(name));
     }
 
     // JSON components
-    if let Some(Value::Object(components_map)) = read_json_field("json_components", entity) {
+    if let Some(Value::Object(components_map)) = read_json_field("json_components", entity)? {
         for (key, val) in components_map {
-            super::load_single_component_from_value(ecs, id, &key, &val);
+            super::load_component_from_value(ecs, id, &key, &val)
+                .unwrap_or_else(|e| log::error!("{e}"));
         }
     }
 
     // Sprite
-    let visible = read_field("visible", entity).ok_or("")?;
-    ecs.add_component(id, SpriteComp { visible, ..Default::default() });
+    if let Some(visible) = read_field("visible", entity)? {
+        ecs.add_component(id, SpriteComp { visible, ..Default::default() });
+    }
 
     // Animation
-    let spritesheet = read_field::<String>("spritesheet", entity).ok_or("")?;
-    let frame_indexes: Vec<u32> = read_json_field("frames", entity).ok_or("")?;
-    let seconds_per_frame = read_field("seconds_per_frame", entity).ok_or("")?;
-    let repeating = read_field("repeating", entity).ok_or("")?;
+    let spritesheet = read_field_required::<String>("spritesheet", entity)?;
+    let frame_indexes: Vec<u32> = read_json_field_required("frames", entity)?;
+    let seconds_per_frame = read_field_required("seconds_per_frame", entity)?;
+    let repeating = read_field_required("repeating", entity)?;
 
     let w = entity.width;
     let h = entity.height;
@@ -212,34 +219,35 @@ fn load_dual_state_animation_entity(
     entity: &ldtk_project::EntityInstance,
     ldtk_world: &ldtk_project::World,
     level: &ldtk_project::Level,
-) -> Result<(), String> {
+) -> anyhow::Result<()> {
     let id = ecs.add_entity();
 
     add_position_component(ecs, id, entity, ldtk_world, level);
 
     // Name
-    if let Some(name) = read_field("name", entity) {
+    if let Some(name) = read_field("name", entity)? {
         ecs.add_component(id, Name(name));
     }
 
     // JSON components
-    if let Some(Value::Object(components_map)) = read_json_field("json_components", entity) {
+    if let Some(Value::Object(components_map)) = read_json_field("json_components", entity)? {
         for (key, val) in components_map {
-            super::load_single_component_from_value(ecs, id, &key, &val);
+            super::load_component_from_value(ecs, id, &key, &val)
+                .unwrap_or_else(|e| log::error!("{e}"));
         }
     }
 
     // Sprite
-    let visible = read_field("visible", entity).ok_or("")?;
+    let visible = read_field_required("visible", entity)?;
     ecs.add_component(id, SpriteComp { visible, ..Default::default() });
 
     // Animation
-    let spritesheet = read_field::<String>("spritesheet", entity).ok_or("")?;
-    let first: Vec<u32> = read_json_field("first_state", entity).ok_or("")?;
-    let first_to_second: Vec<u32> = read_json_field("first_to_second", entity).ok_or("")?;
-    let second: Vec<u32> = read_json_field("second_state", entity).ok_or("")?;
-    let second_to_first: Vec<u32> = read_json_field("second_to_first", entity).ok_or("")?;
-    let seconds_per_frame = read_field("seconds_per_frame", entity).ok_or("")?;
+    let spritesheet = read_field_required::<String>("spritesheet", entity)?;
+    let first: Vec<u32> = read_json_field_required("first_state", entity)?;
+    let first_to_second: Vec<u32> = read_json_field_required("first_to_second", entity)?;
+    let second: Vec<u32> = read_json_field_required("second_state", entity)?;
+    let second_to_first: Vec<u32> = read_json_field_required("second_to_first", entity)?;
+    let seconds_per_frame = read_field_required("seconds_per_frame", entity)?;
 
     let w = entity.width;
     let h = entity.height;
@@ -280,20 +288,21 @@ fn load_character_entity(
     entity: &ldtk_project::EntityInstance,
     ldtk_world: &ldtk_project::World,
     level: &ldtk_project::Level,
-) -> Result<(), String> {
+) -> anyhow::Result<()> {
     let id = ecs.add_entity();
 
     add_position_component(ecs, id, entity, ldtk_world, level);
 
     // Name
-    if let Some(name) = read_field("name", entity) {
+    if let Some(name) = read_field("name", entity)? {
         ecs.add_component(id, Name(name));
     }
 
     // JSON components
-    if let Some(Value::Object(components_map)) = read_json_field("json_components", entity) {
+    if let Some(Value::Object(components_map)) = read_json_field("json_components", entity)? {
         for (key, val) in components_map {
-            super::load_single_component_from_value(ecs, id, &key, &val);
+            super::load_component_from_value(ecs, id, &key, &val)
+                .unwrap_or_else(|e| log::error!("{e}"));
         }
     }
 
@@ -301,7 +310,7 @@ fn load_character_entity(
     ecs.add_component(id, Collision { hitbox: Vec2::new(14. / 16., 6. / 16.), solid: true });
 
     // Animation
-    let spritesheet = read_field::<String>("spritesheet", entity).ok_or("")?;
+    let spritesheet = read_field_required::<String>("spritesheet", entity)?;
 
     let clip_from_frames = |frames: Vec<(u32, u32)>| AnimationClip {
         frames: frames
@@ -357,31 +366,53 @@ fn add_position_component(
     ecs.add_component(id, position);
 }
 
-fn read_field<F>(field: &str, entity: &ldtk_project::EntityInstance) -> Option<F>
+fn read_field<F>(field: &str, entity: &ldtk_project::EntityInstance) -> anyhow::Result<Option<F>>
 where
     F: DeserializeOwned,
 {
-    entity
+    if let Some(v) = entity
         .field_instances
         .iter()
         .find(|f| f.identifier == field)
-        .and_then(|f| f.value.as_ref())
-        .and_then(|v| serde_json::from_value(v.clone()).ok())
+        .and_then(|f| f.value.clone())
+    {
+        return Ok(Some(serde_json::from_value::<F>(v)?));
+    } else {
+        return Ok(None);
+    }
 }
 
 // JSON fields contain a JSON string which must be deserialized once more to get the final value
-fn read_json_field<F>(field: &str, entity: &ldtk_project::EntityInstance) -> Option<F>
+fn read_json_field<F>(
+    field: &str,
+    entity: &ldtk_project::EntityInstance,
+) -> anyhow::Result<Option<F>>
 where
     F: DeserializeOwned,
 {
-    read_field::<String>(field, entity).and_then(|v| {
-        serde_json::from_str::<F>(&v)
-            .tap_err(|err| {
-                log::error!(
-                    "Invalid ldtk entity json field: {field} in {}\n(err: \"{err}\")",
-                    entity.iid
-                )
-            })
-            .ok()
-    })
+    if let Some(v) = read_field::<String>(field, entity)? {
+        return Ok(Some(serde_json::from_str::<F>(&v)?));
+    } else {
+        return Ok(None);
+    }
+}
+
+// Convenience functions to turn missing field into an error
+fn read_field_required<F>(field: &str, entity: &ldtk_project::EntityInstance) -> anyhow::Result<F>
+where
+    F: DeserializeOwned,
+{
+    read_field::<F>(field, entity)
+        .and_then(|o| o.context(format!("missing required field: {field}")))
+}
+
+fn read_json_field_required<F>(
+    field: &str,
+    entity: &ldtk_project::EntityInstance,
+) -> anyhow::Result<F>
+where
+    F: DeserializeOwned,
+{
+    read_json_field::<F>(field, entity)
+        .and_then(|o| o.context(format!("missing required field: {field}")))
 }

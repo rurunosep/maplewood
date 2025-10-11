@@ -419,7 +419,10 @@ pub fn add_component(
 
     let _ = serde_json::from_str::<serde_json::Value>(&component_json)
         .tap_err(|err| log::error!("Invalid component json (err: \"{err}\""))
-        .map(|v| loader::load_single_component_from_value(ecs, entity_id, &component_name, &v));
+        .map(|v| {
+            loader::load_component_from_value(ecs, entity_id, &component_name, &v)
+                .unwrap_or_else(|e| log::error!("{e}"))
+        });
 
     Ok(())
 }
