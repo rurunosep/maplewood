@@ -9,9 +9,10 @@ use crate::math::{Rect, Vec2};
 use crate::misc::{Direction, StoryVars};
 use crate::script::WaitCondition;
 use crate::world::WorldPos;
-use crate::{MessageWindow, loader};
-use mlua::Result as LuaResult;
+use crate::{GameData, MessageWindow, UiData, loader};
+use mlua::{Function, Result as LuaResult, Scope, Table};
 use sdl2::mixer::{Chunk, Music};
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt::{self, Display};
 use std::format as f;
@@ -39,7 +40,227 @@ impl From<Error> for mlua::Error {
     }
 }
 
-// TODO missing final bool params default to false. should I + how do I reject calls missing them?
+// ----------------------------------------------
+// ----------------------------------------------
+
+pub fn bind_general_callbacks<'scope>(
+    scope: &'scope Scope<'scope, '_>,
+    globals: &Table,
+    game_data: &'scope RefCell<&mut GameData>,
+    player_movement_locked: &'scope RefCell<&mut bool>,
+    running: &'scope mut bool,
+    musics: &'scope HashMap<String, Music>,
+    sound_effects: &'scope HashMap<String, Chunk>,
+) -> mlua::Result<()> {
+    globals.set(
+        "get_story_var",
+        scope.create_function(|_, args| get_story_var(args, &game_data.borrow().story_vars))?,
+    )?;
+    globals.set(
+        "set_story_var",
+        scope.create_function_mut(|_, args| {
+            set_story_var(args, &mut game_data.borrow_mut().story_vars)
+        })?,
+    )?;
+    globals.set(
+        "get_entity_map_pos",
+        scope.create_function(|_, args| get_entity_map_pos(args, &game_data.borrow().ecs))?,
+    )?;
+    globals.set(
+        "set_entity_map_pos",
+        scope.create_function_mut(|_, args| set_entity_map_pos(args, &game_data.borrow().ecs))?,
+    )?;
+    globals.set(
+        "get_entity_world_pos",
+        scope.create_function(|_, args| get_entity_world_pos(args, &game_data.borrow().ecs))?,
+    )?;
+    globals.set(
+        "set_entity_world_pos",
+        scope.create_function_mut(|_, args| {
+            set_entity_world_pos(args, &mut game_data.borrow_mut().ecs)
+        })?,
+    )?;
+    globals.set(
+        "set_forced_sprite",
+        scope.create_function_mut(|_, args| set_forced_sprite(args, &game_data.borrow().ecs))?,
+    )?;
+    globals.set(
+        "remove_forced_sprite",
+        scope
+            .create_function_mut(|_, args| remove_forced_sprite(args, &game_data.borrow().ecs))?,
+    )?;
+    globals.set(
+        "set_entity_visible",
+        scope.create_function_mut(|_, args| set_entity_visible(args, &game_data.borrow().ecs))?,
+    )?;
+    globals.set(
+        "set_entity_solid",
+        scope.create_function_mut(|_, args| set_entity_solid(args, &game_data.borrow().ecs))?,
+    )?;
+    globals.set(
+        "lock_player_input",
+        scope.create_function_mut(|_, args| {
+            lock_player_input(args, *player_movement_locked.borrow_mut(), &game_data.borrow().ecs)
+        })?,
+    )?;
+    globals.set(
+        "unlock_player_input",
+        scope.create_function_mut(|_, ()| {
+            **player_movement_locked.borrow_mut() = false;
+            Ok(())
+        })?,
+    )?;
+    globals.set(
+        "set_camera_target",
+        scope.create_function_mut(|_, args| set_camera_target(args, &game_data.borrow().ecs))?,
+    )?;
+    globals.set(
+        "remove_camera_target",
+        scope.create_function_mut(|_, ()| remove_camera_target(&game_data.borrow().ecs))?,
+    )?;
+    globals.set(
+        "set_camera_clamp",
+        scope.create_function_mut(|_, args| set_camera_clamp(args, &game_data.borrow().ecs))?,
+    )?;
+    globals
+        .set("walk", scope.create_function_mut(|_, args| walk(args, &game_data.borrow().ecs))?)?;
+    globals.set(
+        "walk_to",
+        scope.create_function_mut(|_, args| walk_to(args, &game_data.borrow().ecs))?,
+    )?;
+    globals.set(
+        "is_entity_walking",
+        scope.create_function(|_, args| is_entity_walking(args, &game_data.borrow().ecs))?,
+    )?;
+    globals.set(
+        "play_object_animation",
+        scope.create_function_mut(|_, args| {
+            play_object_animation(args, &mut game_data.borrow_mut().ecs)
+        })?,
+    )?;
+    globals.set(
+        "stop_object_animation",
+        scope.create_function_mut(|_, args| {
+            stop_object_animation(args, &mut game_data.borrow_mut().ecs)
+        })?,
+    )?;
+    globals.set(
+        "switch_dual_state_animation",
+        scope.create_function_mut(|_, args| {
+            switch_dual_state_animation(args, &mut game_data.borrow_mut().ecs)
+        })?,
+    )?;
+    globals.set(
+        "play_named_animation",
+        scope.create_function_mut(|_, args| {
+            play_named_animation(args, &mut game_data.borrow_mut().ecs)
+        })?,
+    )?;
+    globals.set(
+        "anim_quiver",
+        scope
+            .create_function_mut(|_, args| anim_quiver(args, &mut game_data.borrow_mut().ecs))?,
+    )?;
+    globals.set(
+        "anim_jump",
+        scope.create_function_mut(|_, args| anim_jump(args, &mut game_data.borrow_mut().ecs))?,
+    )?;
+    globals.set("play_sfx", scope.create_function(|_, args| play_sfx(args, sound_effects))?)?;
+    globals.set("play_music", scope.create_function_mut(|_, args| play_music(args, musics))?)?;
+    globals.set("stop_music", scope.create_function_mut(|_, args| stop_music(args))?)?;
+    globals.set(
+        "emit_entity_sfx",
+        scope.create_function(|_, args| emit_entity_sfx(args, &game_data.borrow().ecs))?,
+    )?;
+    globals.set(
+        "stop_entity_sfx",
+        scope.create_function(|_, args| stop_entity_sfx(args, &game_data.borrow().ecs))?,
+    )?;
+    globals.set(
+        "close_game",
+        scope.create_function_mut(|_, ()| {
+            *running = false;
+            Ok(())
+        })?,
+    )?;
+    globals.set(
+        "add_component",
+        scope.create_function(|_, args| add_component(args, &mut game_data.borrow_mut().ecs))?,
+    )?;
+    globals.set(
+        "remove_component",
+        scope
+            .create_function(|_, args| remove_component(args, &mut game_data.borrow_mut().ecs))?,
+    )?;
+
+    Ok(())
+}
+
+pub fn bind_script_only_callbacks<'scope>(
+    scope: &'scope Scope<'scope, '_>,
+    globals: &Table,
+    ui_data: &'scope RefCell<&mut UiData>,
+    wait_condition: &'scope RefCell<&mut Option<WaitCondition>>,
+) -> mlua::Result<()> {
+    let wrap_yielding: Function = globals.get("wrap_yielding")?;
+
+    globals.set(
+        "message",
+        wrap_yielding.call::<Function>(scope.create_function_mut(|_, args| {
+            message(args, &mut ui_data.borrow_mut().message_window, *wait_condition.borrow_mut())
+        })?)?,
+    )?;
+    // TODO debug this
+    globals.set(
+        "wait",
+        wrap_yielding.call::<Function>(scope.create_function_mut(|_, duration: f64| {
+            **wait_condition.borrow_mut() =
+                Some(WaitCondition::Time(Instant::now() + Duration::from_secs_f64(duration)));
+            Ok(())
+        })?)?,
+    )?;
+    globals.set(
+        "log",
+        scope.create_function(|_, message: String| {
+            // TODO include script name or id
+            log::info!("{message}");
+            Ok(())
+        })?,
+    )?;
+
+    Ok(())
+}
+
+pub fn bind_console_only_callbacks<'scope>(
+    scope: &'scope Scope<'scope, '_>,
+    globals: &Table,
+    game_data: &'scope RefCell<&mut GameData>,
+    ui_data: &'scope RefCell<&mut UiData>,
+) -> mlua::Result<()> {
+    globals.set(
+        "message",
+        scope.create_function_mut(|_, args| {
+            message(args, &mut ui_data.borrow_mut().message_window, &mut None)
+        })?,
+    )?;
+    globals.set(
+        "print",
+        scope.create_function(|_, message: String| {
+            println!("{message}");
+            Ok(())
+        })?,
+    )?;
+    globals.set(
+        "dump_entities_to_file",
+        scope.create_function(|_, args| dump_entities_to_file(args, &game_data.borrow().ecs))?,
+    )?;
+
+    Ok(())
+}
+
+// ----------------------------------------------
+// ----------------------------------------------
+// TODO inline callbacks?
 
 pub fn get_story_var(key: String, story_vars: &StoryVars) -> LuaResult<i32> {
     story_vars.get(&key).ok_or(Error(f!("no story var '{}'", key)).into())
