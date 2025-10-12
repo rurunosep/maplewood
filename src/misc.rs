@@ -7,8 +7,9 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Mutex;
 use tap::TapOptional;
 
-// pub const WINDOW_SIZE: Vec2<u32, PixelUnits> = Vec2::new(1920, 1080);
-pub const WINDOW_SIZE: Vec2<u32, PixelUnits> = Vec2::new(1920 / 4 * 3, 1080 / 4 * 3);
+pub const WINDOW_SIZE: Vec2<u32, PixelUnits> = Vec2::new(1920, 1080);
+// pub const WINDOW_SIZE: Vec2<u32, PixelUnits> = Vec2::new(1920 / 4 * 3, 1080 / 4 * 3);
+// pub const WINDOW_SIZE: Vec2<u32, PixelUnits> = Vec2::new(1920 / 2, 1080 / 2);
 pub const CELL_SIZE: u32 = 16;
 
 #[derive(Clone, Copy, Default, Debug)]

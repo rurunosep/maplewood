@@ -94,7 +94,6 @@ local stages = {
   [2] = function()
     message("\"You need a Super Sugar Bun? Coming right up!\"")
 
-    set_cutscene_border()
     lock_player_input()
     remove_camera_target()
 
@@ -121,7 +120,6 @@ local stages = {
 
     set_camera_target("PLAYER")
     unlock_player_input()
-    remove_cutscene_border()
 
     set_story_var("bakery_girl::stage", 3)
     set_story_var("janitor::stage", 4)
@@ -195,7 +193,6 @@ end
 if get_story_var("main::pen_found") == 1 and get_story_var("bathroom::flooded") == 0 then
   set_story_var("bathroom::flooded", 1)
 
-  set_cutscene_border()
   lock_player_input()
   remove_camera_target()
   set_camera_clamp(false)
@@ -218,7 +215,6 @@ if get_story_var("main::pen_found") == 1 and get_story_var("bathroom::flooded") 
   set_camera_clamp(true)
   set_camera_target("PLAYER")
   unlock_player_input()
-  remove_cutscene_border()
 else
   set_entity_world_pos("PLAYER", "hallway", 3.5, 3.5)
 end
@@ -274,3 +270,8 @@ set_entity_solid("janitor", false)
 
 set_entity_visible("hallway::wall_crack", true)
 play_sfx("rock_smash")
+
+---@script bakery_girl_panic_setup
+
+set_entity_world_pos("bakery_girl", "hallway", 7.5, 4.5)
+set_entity_solid("bakery_girl", false)

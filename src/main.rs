@@ -144,7 +144,14 @@ fn main() {
     });
 
     // Scratchpad
-    {}
+    {
+        // script_manager.start_script(
+        //     &script::get_script_from_file("data/scripts.lua",
+        // "bakery_girl_panic_setup").unwrap(), );
+        // script_manager.start_script(
+        //     &script::get_script_from_file("data/scripts.lua", "bakery_girl::panic").unwrap(),
+        // );
+    }
 
     // --------------------------------------------------------------
     // Main Loop

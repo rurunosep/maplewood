@@ -1,7 +1,7 @@
 use crate::dev_ui::entities::{EntitiesListWindow, EntityWindow};
 use crate::ecs::{Ecs, EntityId};
 use crate::misc::StoryVars;
-use crate::script::ScriptManager;
+use crate::script::{ScriptInstanceId, ScriptManager};
 use egui::text::LayoutJob;
 use egui::{
     Color32, Context, FontFamily, FontId, Grid, ScrollArea, TextEdit, TextFormat, Window,
@@ -22,6 +22,8 @@ pub struct DevUi<'window> {
     //
     entities_list_window: EntitiesListWindow,
     entity_windows: HashMap<EntityId, EntityWindow>,
+    scripts_list_window: ScriptsListWindow,
+    script_windows: HashMap<ScriptInstanceId, ScriptWindow>,
     story_vars_window: StoryVarsWindow,
 }
 
@@ -41,6 +43,8 @@ impl<'window> DevUi<'window> {
             full_output: None,
             entities_list_window: EntitiesListWindow::new(),
             entity_windows: HashMap::new(),
+            scripts_list_window: ScriptsListWindow::new(),
+            script_windows: HashMap::new(),
             story_vars_window: StoryVarsWindow::new(),
         }
     }
@@ -73,6 +77,14 @@ impl DevUi<'_> {
         }
         self.entity_windows.retain(|&k, _| ecs.entity_ids.contains_key(k));
 
+        // ... script windows ...
+        for (id, instance) in &script_manager.instances {
+            if !self.script_windows.contains_key(&id) {
+                self.script_windows.insert(id, ScriptWindow::new(id, instance.name.clone()));
+            };
+        }
+        self.script_windows.retain(|&k, _| script_manager.instances.contains_key(k));
+
         // Main dev ui window
         Window::new("Dev UI")
             .title_bar(false)
@@ -84,71 +96,19 @@ impl DevUi<'_> {
 
                 ui.toggle_value(&mut self.entities_list_window.open, "Entities");
                 ui.toggle_value(&mut self.story_vars_window.open, "Story Vars");
+                ui.toggle_value(&mut self.scripts_list_window.open, "Scripts");
 
                 ui.allocate_space([ui.available_width(), 0.].into());
             });
 
-        Window::new("Script").show(&ctx, |ui| {
-            let script_instance = script_manager
-                .instances
-                .values()
-                .find(|s| s.name.as_ref().map(|n| n == "test").unwrap_or(false));
-
-            let Some(script_instance) = script_instance else {
-                return;
-            };
-
-            println!("{:?}", script_instance.name);
-
-            let source = &script_instance.source;
-            let current_line_index =
-                script_instance.lua_instance.globals().get::<usize>("line_yielded_at").unwrap();
-
-            let before_current_line =
-                source.split_inclusive("\n").take(current_line_index - 1).collect::<String>();
-            let current_line = source
-                .split_inclusive("\n")
-                .skip(current_line_index - 1)
-                .take(1)
-                .collect::<String>();
-            let after_current_line =
-                source.split_inclusive("\n").skip(current_line_index).collect::<String>();
-
-            let mut job = LayoutJob::default();
-
-            job.append(
-                &before_current_line,
-                0.,
-                TextFormat {
-                    font_id: FontId { family: FontFamily::Monospace, size: 12. },
-                    ..Default::default()
-                },
-            );
-            job.append(
-                &current_line,
-                0.,
-                TextFormat {
-                    color: Color32::RED,
-                    font_id: FontId { family: FontFamily::Monospace, size: 12. },
-                    ..Default::default()
-                },
-            );
-            job.append(
-                &after_current_line,
-                0.,
-                TextFormat {
-                    font_id: FontId { family: FontFamily::Monospace, size: 12. },
-                    ..Default::default()
-                },
-            );
-
-            ui.label(job);
-        });
-
-        // Show other windows
+        // Other windows
         self.entities_list_window.show(ctx, &mut self.entity_windows);
         for window in self.entity_windows.values_mut() {
             window.show(ctx, ecs);
+        }
+        self.scripts_list_window.show(ctx, &mut self.script_windows);
+        for window in self.script_windows.values_mut() {
+            window.show(ctx, script_manager);
         }
         self.story_vars_window.show(ctx, story_vars);
 
@@ -156,6 +116,133 @@ impl DevUi<'_> {
         // (Looks like this just updates the cursor and the clipboard text)
         state.process_output(window, &full_output.platform_output);
         self.full_output = Some(full_output);
+    }
+}
+
+struct ScriptsListWindow {
+    open: bool,
+}
+
+impl ScriptsListWindow {
+    fn new() -> Self {
+        Self { open: false }
+    }
+
+    fn show(
+        &mut self,
+        ctx: &Context,
+        script_windows: &mut HashMap<ScriptInstanceId, ScriptWindow>,
+    ) {
+        if !self.open {
+            return;
+        }
+
+        Window::new("Scripts").default_width(250.).open(&mut self.open).show(&ctx, |ui| {
+            ScrollArea::vertical().show(ui, |ui| {
+                for window in script_windows.values_mut() {
+                    let name = window.name();
+                    ui.toggle_value(&mut window.open, name);
+                }
+
+                if script_windows.is_empty() {
+                    ui.label("No active scripts");
+                }
+
+                // (pad if below window.default_width)
+                ui.allocate_space([ui.available_width(), 0.].into());
+            })
+        });
+    }
+}
+
+struct ScriptWindow {
+    open: bool,
+    window_id: egui::Id,
+    script_id: ScriptInstanceId,
+    name: Option<String>,
+}
+
+impl ScriptWindow {
+    fn new(script_id: ScriptInstanceId, name: Option<String>) -> Self {
+        let window_id = egui::Id::new(format!("script {script_id:?}"));
+        Self { open: false, window_id, script_id, name }
+    }
+
+    fn show(&mut self, ctx: &Context, script_manager: &ScriptManager) {
+        if !self.open {
+            return;
+        }
+
+        let Some(script_instance) = script_manager.instances.get(self.script_id) else {
+            return;
+        };
+
+        self.name = script_instance.name.clone();
+        let source = &script_instance.source;
+
+        let Ok(current_line_index) =
+            script_instance.lua_instance.globals().get::<usize>("line_yielded_at")
+        else {
+            return;
+        };
+
+        let before_current_line =
+            source.split_inclusive("\n").take(current_line_index - 1).collect::<String>();
+        let current_line =
+            source.split_inclusive("\n").skip(current_line_index - 1).take(1).collect::<String>();
+        let after_current_line =
+            source.split_inclusive("\n").skip(current_line_index).collect::<String>();
+
+        let mut job = LayoutJob::default();
+        job.append(
+            &before_current_line,
+            0.,
+            TextFormat {
+                font_id: FontId { family: FontFamily::Monospace, size: 12. },
+                ..Default::default()
+            },
+        );
+        job.append(
+            &current_line,
+            0.,
+            TextFormat {
+                color: Color32::RED,
+                font_id: FontId { family: FontFamily::Monospace, size: 12. },
+                ..Default::default()
+            },
+        );
+        job.append(
+            &after_current_line,
+            0.,
+            TextFormat {
+                font_id: FontId { family: FontFamily::Monospace, size: 12. },
+                ..Default::default()
+            },
+        );
+
+        Window::new(format!("Script: {}", &self.name()))
+            .id(self.window_id)
+            .default_width(500.)
+            .open(&mut self.open)
+            .show(&ctx, |ui| {
+                ScrollArea::vertical().show(ui, |ui| {
+                    if self.name.is_some() {
+                        ui.label(serde_json::to_string(&self.script_id).expect(""));
+                    }
+
+                    ui.label(job);
+
+                    // (pad if below window.default_width)
+                    ui.allocate_space([ui.available_width(), 0.].into());
+                });
+            });
+    }
+
+    fn name(&self) -> String {
+        match &self.name {
+            Some(name) => name.clone(),
+            None => serde_json::to_string(&self.script_id).expect(""),
+        }
     }
 }
 

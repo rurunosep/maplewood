@@ -210,7 +210,6 @@ pub fn bind_script_only_callbacks<'scope>(
             message(args, &mut ui_data.borrow_mut().message_window, *wait_condition.borrow_mut())
         })?)?,
     )?;
-    // TODO debug this
     globals.set(
         "wait",
         wrap_yielding.call::<Function>(scope.create_function_mut(|_, duration: f64| {

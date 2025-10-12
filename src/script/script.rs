@@ -54,6 +54,8 @@ impl ScriptManager {
                 };
             }
 
+            // TODO warn if exclusive but no name
+
             // Skip exclusive scripts that are already running
             if exclusive
                 && let Some(this_script_name) = &script_name
@@ -106,6 +108,7 @@ impl ScriptManager {
 
                     function wait_until_not_walking(entity)
                         while(is_entity_walking(entity)) do
+                            line_yielded_at = current_line(3)
                             coroutine.yield()
                         end
                     end
@@ -166,7 +169,7 @@ impl ScriptInstance {
     ) {
         // Update wait condition and skip if still waiting
         self.wait_condition = match self.wait_condition.clone() {
-            Some(WaitCondition::Time(until)) if until > Instant::now() => None,
+            Some(WaitCondition::Time(until)) if until < Instant::now() => None,
             Some(WaitCondition::Message) if ui_data.message_window.is_none() => None,
             x => x,
         };

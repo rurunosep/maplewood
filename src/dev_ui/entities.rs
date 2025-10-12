@@ -43,10 +43,11 @@ impl EntitiesListWindow {
                     })
                     .sorted_by_key(|w| w.entity_id)
                 {
-                    let title = window.title();
+                    let title = window.name();
                     ui.toggle_value(&mut window.open, title);
                 }
 
+                // (pad if below window.default_width)
                 ui.allocate_space([ui.available_width(), 0.].into());
             });
         });
@@ -55,6 +56,7 @@ impl EntitiesListWindow {
 
 pub struct EntityWindow {
     pub open: bool,
+    window_id: egui::Id,
     entity_id: EntityId,
     name: Option<String>,
     component_collapsibles: Vec<Box<dyn CcTrait>>,
@@ -64,6 +66,8 @@ impl EntityWindow {
     pub fn new(entity_id: EntityId, ecs: &Ecs) -> Self {
         // Name is expected to be immutable, so we only have to set it once
         let name = ecs.query_one_with_id::<&components::Name>(entity_id).map(|n| n.0.clone());
+
+        let window_id = egui::Id::new(format!("entity {entity_id:?}"));
 
         let mut ccs: Vec<Box<dyn CcTrait>> = Vec::new();
         ccs.push(Box::new(ComponentCollapsible::<Position>::new(entity_id)));
@@ -82,7 +86,7 @@ impl EntityWindow {
         ccs.push(Box::new(ComponentCollapsible::<CollisionTrigger>::new(entity_id)));
         ccs.push(Box::new(ComponentCollapsible::<AreaTrigger>::new(entity_id)));
 
-        Self { open: false, entity_id, name, component_collapsibles: ccs }
+        Self { open: false, window_id, entity_id, name, component_collapsibles: ccs }
     }
 
     pub fn show(&mut self, ctx: &Context, ecs: &mut Ecs) {
@@ -90,20 +94,24 @@ impl EntityWindow {
             return;
         }
 
-        Window::new(self.title()).default_width(300.).open(&mut self.open).show(&ctx, |ui| {
-            ScrollArea::vertical().show(ui, |ui| {
-                if self.name.is_some() {
-                    ui.label(serde_json::to_string(&self.entity_id).expect(""));
-                }
+        Window::new(format!("Entity: {}", self.name()))
+            .id(self.window_id)
+            .default_width(300.)
+            .open(&mut self.open)
+            .show(&ctx, |ui| {
+                ScrollArea::vertical().show(ui, |ui| {
+                    if self.name.is_some() {
+                        ui.label(serde_json::to_string(&self.entity_id).expect(""));
+                    }
 
-                for cc in &mut self.component_collapsibles {
-                    cc.show(ui, ecs);
-                }
+                    for cc in &mut self.component_collapsibles {
+                        cc.show(ui, ecs);
+                    }
+                });
             });
-        });
     }
 
-    pub fn title(&self) -> String {
+    pub fn name(&self) -> String {
         match &self.name {
             Some(name) => name.clone(),
             None => serde_json::to_string(&self.entity_id).expect(""),

@@ -3800,7 +3800,7 @@
 									}] },
 									{ "__identifier": "start_condition", "__type": "String", "__value": "{\n  \"story_var\": \"bathroom::exit::running\",\n  \"value\": 0\n}", "__tile": null, "defUid": 757, "realEditorValues": [{
 										"id": "V_String",
-										"params": ["{\n  \"story_var\": \"bathroom::exit::running\",\n  \"value\": 0\n}"]
+										"params": ["{\\n  \"story_var\": \"bathroom::exit::running\",\\n  \"value\": 0\\n}"]
 									}] },
 									{ "__identifier": "abort_condition", "__type": "String", "__value": null, "__tile": null, "defUid": 789, "realEditorValues": [] },
 									{ "__identifier": "set_on_start", "__type": "String", "__value": "[\"bathroom::exit::running\", 1]", "__tile": null, "defUid": 758, "realEditorValues": [{
