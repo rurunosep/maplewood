@@ -1,4 +1,5 @@
 #![feature(try_blocks)]
+#![feature(once_cell_try)]
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod components;
@@ -129,6 +130,13 @@ fn main() {
     let mut script_manager = ScriptManager::new();
     let mut player_movement_locked = false;
 
+    // script_manager.start_script(
+    //     &script::get_script_from_file("data/scripts.lua",
+    // "bakery_girl_panic_setup").unwrap(), );
+    // script_manager.start_script(
+    //     &script::get_script_from_file("data/scripts.lua", "bakery_girl::panic").unwrap(),
+    // );
+
     // Console
     let console_lua_instance = mlua::Lua::new();
     let (_console_input_sender, console_input_receiver) = crossbeam::channel::unbounded();
@@ -144,14 +152,7 @@ fn main() {
     });
 
     // Scratchpad
-    {
-        // script_manager.start_script(
-        //     &script::get_script_from_file("data/scripts.lua",
-        // "bakery_girl_panic_setup").unwrap(), );
-        // script_manager.start_script(
-        //     &script::get_script_from_file("data/scripts.lua", "bakery_girl::panic").unwrap(),
-        // );
-    }
+    {}
 
     // --------------------------------------------------------------
     // Main Loop

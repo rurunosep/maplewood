@@ -1,18 +1,23 @@
+use crate::misc::{self, StoryVars};
 use crate::script::callbacks;
 use crate::{GameData, UiData};
 use anyhow::Context;
 use mlua::{Lua, Thread, ThreadStatus};
+use regex::Regex;
 use sdl2::mixer::{Chunk, Music};
 use slotmap::{SlotMap, new_key_type};
 use std::cell::RefCell;
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::path::Path;
+use std::sync::OnceLock;
 use std::time::Instant;
+use tap::TapFallible;
 
 new_key_type! { pub struct ScriptInstanceId; }
 
 pub struct ScriptManager {
     pub instances: SlotMap<ScriptInstanceId, ScriptInstance>,
+    start_queue: VecDeque<String>,
 }
 
 pub struct ScriptInstance {
@@ -32,13 +37,20 @@ pub enum WaitCondition {
 
 impl ScriptManager {
     pub fn new() -> Self {
-        Self { instances: SlotMap::with_key() }
+        Self { instances: SlotMap::with_key(), start_queue: VecDeque::new() }
     }
 
-    pub fn start_script(&mut self, source: &str) {
+    // Starting a script requires a reference to story_vars to evaluate start conditions
+    // Callers can queue a script with only the source string
+    pub fn queue_script(&mut self, source: &str) {
+        self.start_queue.push_back(source.to_string());
+    }
+
+    pub fn start_script(&mut self, source: &str, story_vars: &mut StoryVars) {
         let r: mlua::Result<()> = try {
             let mut script_name: Option<String> = None;
             let mut exclusive = false;
+            let mut start_condition: Option<String> = None;
 
             // Process annotations in source
             let annotations = source.lines().take_while(|l| l.starts_with("---"));
@@ -50,8 +62,20 @@ impl ScriptManager {
                 match (annotation_name, annotation_argument) {
                     ("@script", Some(val)) => script_name = Some(val.to_string()),
                     ("@exclusive", _) => exclusive = true,
+                    ("@start_condition", Some(val)) => start_condition = Some(val.to_string()),
                     _ => {}
                 };
+            }
+
+            // Skip if start condition exists and is false or invalid
+            if let Some(condition) = &start_condition
+                && evaluate_story_var_condition(condition, story_vars)
+                    .tap_err(|e| {
+                        log::error!(once = true; "Invalid story var condition: \"{condition}\" (err: {e})")
+                    })
+                    .unwrap_or(true)
+            {
+                return;
             }
 
             // TODO warn if exclusive but no name
@@ -145,6 +169,10 @@ impl ScriptManager {
         musics: &HashMap<String, Music>,
         sound_effects: &HashMap<String, Chunk>,
     ) {
+        for source in std::mem::take(&mut self.start_queue) {
+            self.start_script(&source, &mut game_data.story_vars);
+        }
+
         for instance in self.instances.values_mut() {
             #[rustfmt::skip]
             instance.update(
@@ -221,4 +249,22 @@ pub fn get_script_from_file<P: AsRef<Path>>(
     let script = file_contents[start_index..end_index].trim_end().to_string();
 
     Ok(script)
+}
+
+fn evaluate_story_var_condition(
+    expression: &str,
+    story_vars: &StoryVars,
+) -> anyhow::Result<bool> {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    // Should I write a new version that doesn't require curly braces?
+    let re = RE.get_or_try_init(|| Regex::new(r"\{([^{}]*)\}"))?;
+
+    let with_values = misc::try_replace_all(&re, &expression, |caps| {
+        let key = caps.get(1).context("invalid regex")?.as_str();
+        story_vars.0.get(key).context(format!("no story var {key}")).map(|val| val.to_string())
+    })?;
+
+    let result = evalexpr::eval_boolean(&with_values)?;
+
+    Ok(result)
 }

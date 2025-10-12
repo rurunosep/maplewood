@@ -71,7 +71,7 @@ fn start_area_trigger_scripts(ecs: &Ecs, script_manager: &mut ScriptManager) {
         .filter(|(pos, area)| Aabb::new(pos.map_pos, area.hitbox).intersects(&player_aabb))
     {
         if let Ok(source) = area.script_source.get_source().tap_err(|e| log::error!("{e}")) {
-            script_manager.start_script(&source);
+            script_manager.queue_script(&source);
         }
     }
 }
@@ -214,7 +214,7 @@ fn start_hard_collision_scripts(ecs: &Ecs, script_manager_new: &mut ScriptManage
         if player_aabb.intersects(&other_aabb) {
             if let Ok(source) = trigger.script_source.get_source().tap_err(|e| log::error!("{e}"))
             {
-                script_manager_new.start_script(&source);
+                script_manager_new.queue_script(&source);
             }
         }
     }

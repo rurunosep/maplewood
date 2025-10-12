@@ -141,7 +141,7 @@ pub fn process_input(
                         if let Ok(source) =
                             interaction.script_source.get_source().tap_err(|e| log::error!("{e}"))
                         {
-                            script_manager.start_script(&source);
+                            script_manager.queue_script(&source);
                         }
                     }
                 }

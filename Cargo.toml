@@ -14,11 +14,13 @@ derived-deref = "2.1.0"
 egui = "0.29.1"
 egui-sdl2-event = "0.5.0"
 egui_wgpu_backend = "0.32.0"
+evalexpr = "12.0.2"
 image = {version = "0.25.5", default-features = false, features = ["png", "rayon"]}
 itertools = "0.13.0"
 log = {version = "0.4.22", features = ["std", "kv"]}
 mlua = {version = "0.10.2", features = ["lua54", "vendored"]}
 pollster = "0.4.0"
+regex = "1.12.1"
 sdl2 = {version = "0.37.0", features = ["mixer", "raw-window-handle"]}
 serde = {version = "1.0.215", features = ["derive"]}
 serde_json = {version = "1.0.133", features = ["preserve_order"]}

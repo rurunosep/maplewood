@@ -12,6 +12,24 @@ pub const WINDOW_SIZE: Vec2<u32, PixelUnits> = Vec2::new(1920, 1080);
 // pub const WINDOW_SIZE: Vec2<u32, PixelUnits> = Vec2::new(1920 / 2, 1080 / 2);
 pub const CELL_SIZE: u32 = 16;
 
+// Fallible version of Regex::replace_all mostly copy pasted from the docs
+pub fn try_replace_all(
+    re: &regex::Regex,
+    haystack: &str,
+    replacement: impl Fn(&regex::Captures) -> anyhow::Result<String>,
+) -> anyhow::Result<String> {
+    let mut new = String::with_capacity(haystack.len());
+    let mut last_match = 0;
+    for caps in re.captures_iter(haystack) {
+        let m = caps.get(0).unwrap();
+        new.push_str(&haystack[last_match..m.start()]);
+        new.push_str(&replacement(&caps)?);
+        last_match = m.end();
+    }
+    new.push_str(&haystack[last_match..]);
+    Ok(new)
+}
+
 #[derive(Clone, Copy, Default, Debug)]
 pub struct Aabb {
     pub top: f64,

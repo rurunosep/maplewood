@@ -17,6 +17,9 @@ use std::time::{Duration, Instant};
 // open, closed, locked enum state. anims and sprites. interact script.
 // get_door_state command. collision updated downstream from state.
 
+// TODO teleport component
+// for map links like doorways
+
 // A name is used to refer to entities in scripts or other external data sources
 // The actual non-optional, guaranteed-unique identifier is EntityId
 // Name is expected to be unique and immutable
