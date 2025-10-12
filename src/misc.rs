@@ -1,13 +1,10 @@
 use crate::math::{MapPos, MapUnits, PixelUnits, Vec2};
-use crate::script::ScriptId;
 use colored::*;
 use log::kv::Key;
 use log::{Level, Metadata, Record};
-use sdl2::pixels::Color;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::sync::Mutex;
-use std::time::{Duration, Instant};
 use tap::TapOptional;
 
 // pub const WINDOW_SIZE: Vec2<u32, PixelUnits> = Vec2::new(1920, 1080);
@@ -84,21 +81,6 @@ pub enum Direction {
     Left,
     Right,
 }
-
-pub struct MessageWindow {
-    pub message: String,
-    pub is_selection: bool,
-    pub waiting_script_id: Option<ScriptId>,
-}
-
-pub struct MapOverlayTransition {
-    pub start_time: Instant,
-    pub duration: Duration,
-    pub start_color: Color,
-    pub end_color: Color,
-}
-
-// TODO repeated log cooldown (for when "once" is not applicable, but log is still spammy)
 
 pub struct Logger {
     pub once_only_logs: Mutex<HashSet<String>>,

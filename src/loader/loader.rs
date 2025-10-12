@@ -1,6 +1,7 @@
 use crate::components::{
-    AnimationComp, Camera, CharacterAnims, Collision, DualStateAnims, Facing, Interaction, Name,
-    NamedAnims, Position, Scripts, SfxEmitter, SpriteComp, Velocity, Walking,
+    AnimationComp, AreaTrigger, Camera, CharacterAnims, Collision, CollisionTrigger,
+    DualStateAnims, Facing, InteractionTrigger, Name, NamedAnims, Position, SfxEmitter,
+    SpriteComp, Velocity, Walking,
 };
 use crate::ecs::{Component, Ecs, EntityId};
 use crate::misc::StoryVars;
@@ -108,17 +109,18 @@ pub fn load_component_from_value(
             "Position" => ecs.add_component(id, sjfv::<Position>(data)?),
             "Velocity" => ecs.add_component(id, sjfv::<Velocity>(data)?),
             "Collision" => ecs.add_component(id, sjfv::<Collision>(data)?),
-            "Scripts" => ecs.add_component(id, sjfv::<Scripts>(data)?),
             "SfxEmitter" => ecs.add_component(id, sjfv::<SfxEmitter>(data)?),
             "SpriteComp" => ecs.add_component(id, sjfv::<SpriteComp>(data)?),
             "Facing" => ecs.add_component(id, sjfv::<Facing>(data)?),
             "Walking" => ecs.add_component(id, sjfv::<Walking>(data)?),
             "Camera" => ecs.add_component(id, sjfv::<Camera>(data)?),
-            "Interaction" => ecs.add_component(id, sjfv::<Interaction>(data)?),
             "AnimationComp" => ecs.add_component(id, sjfv::<AnimationComp>(data)?),
             "CharacterAnims" => ecs.add_component(id, sjfv::<CharacterAnims>(data)?),
             "DualStateAnims" => ecs.add_component(id, sjfv::<DualStateAnims>(data)?),
             "NamedAnims" => ecs.add_component(id, sjfv::<NamedAnims>(data)?),
+            "InteractionTrigger" => ecs.add_component(id, sjfv::<InteractionTrigger>(data)?),
+            "CollisionTrigger" => ecs.add_component(id, sjfv::<CollisionTrigger>(data)?),
+            "AreaTrigger" => ecs.add_component(id, sjfv::<AreaTrigger>(data)?),
             "EntityId" => {}
             _ => return Err(anyhow!("Invalid JSON component name: {}", name)),
         };
@@ -149,17 +151,18 @@ pub fn save_components_to_value(ecs: &Ecs, id: EntityId) -> Value {
     insert::<Position>(&mut components, id, &ecs);
     insert::<Velocity>(&mut components, id, &ecs);
     insert::<Collision>(&mut components, id, &ecs);
-    insert::<Scripts>(&mut components, id, &ecs);
     insert::<SfxEmitter>(&mut components, id, &ecs);
     insert::<SpriteComp>(&mut components, id, &ecs);
     insert::<Facing>(&mut components, id, &ecs);
     insert::<Walking>(&mut components, id, &ecs);
     insert::<Camera>(&mut components, id, &ecs);
-    insert::<Interaction>(&mut components, id, &ecs);
     insert::<AnimationComp>(&mut components, id, &ecs);
     insert::<CharacterAnims>(&mut components, id, &ecs);
     insert::<DualStateAnims>(&mut components, id, &ecs);
     insert::<NamedAnims>(&mut components, id, &ecs);
+    insert::<InteractionTrigger>(&mut components, id, &ecs);
+    insert::<CollisionTrigger>(&mut components, id, &ecs);
+    insert::<AreaTrigger>(&mut components, id, &ecs);
 
     fn insert<C>(components: &mut Map<String, Value>, id: EntityId, ecs: &Ecs)
     where

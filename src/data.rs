@@ -1,11 +1,10 @@
 use crate::components::{
-    AnimationClip, AnimationComp, Camera, CharacterAnims, Collision, Facing, Interaction, Name,
-    NamedAnims, Position, Scripts, SfxEmitter, Sprite, SpriteComp, Velocity, Walking,
+    AnimationClip, AnimationComp, Camera, CharacterAnims, Collision, Facing, InteractionTrigger,
+    Name, NamedAnims, Position, ScriptSource, SfxEmitter, Sprite, SpriteComp, Velocity, Walking,
 };
 use crate::ecs::{Ecs, EntityId};
 use crate::math::{Rect, Vec2};
 use crate::misc::{CELL_SIZE, WINDOW_SIZE};
-use crate::script::{self, ScriptClass, StartAbortCondition, Trigger};
 use crate::world::WorldPos;
 use std::collections::HashMap;
 
@@ -80,29 +79,28 @@ pub fn load_entities_from_source(ecs: &mut Ecs) {
     );
     ecs.add_component(id, Position::default());
     ecs.add_component(id, Velocity::default());
-    // Needs "walking" component to be pathed
     ecs.add_component(id, Walking::default());
 
     // Start script entity
-    let id = ecs.add_entity();
-    ecs.add_component(
-        id,
-        Scripts(vec![ScriptClass {
-            source: script::get_sub_script(
-                &std::fs::read_to_string("data/scripts.lua").unwrap(),
-                "start",
-            ),
-            label: None,
-            trigger: Some(Trigger::Auto),
-            start_condition: Some(StartAbortCondition {
-                story_var: "start_script::started".to_string(),
-                value: 0,
-            }),
-            abort_condition: None,
-            set_on_start: Some(("start_script::started".to_string(), 1)),
-            set_on_finish: None,
-        }]),
-    );
+    // let id = ecs.add_entity();
+    // ecs.add_component(
+    //     id,
+    //     Scripts(vec![ScriptClass {
+    //         source: script::get_sub_script(
+    //             &std::fs::read_to_string("data/scripts.lua").unwrap(),
+    //             "start",
+    //         ),
+    //         label: None,
+    //         trigger: Some(Trigger::Auto),
+    //         start_condition: Some(StartAbortCondition {
+    //             story_var: "start_script::started".to_string(),
+    //             value: 0,
+    //         }),
+    //         abort_condition: None,
+    //         set_on_start: Some(("start_script::started".to_string(), 1)),
+    //         set_on_finish: None,
+    //     }]),
+    // );
 
     // Bathroom door blocker
     let id = ecs.add_entity();
@@ -126,16 +124,14 @@ pub fn load_entities_from_source(ecs: &mut Ecs) {
     let id = ecs.query_one_with_name::<EntityId>("janitor").unwrap();
     ecs.add_component(
         id,
-        Scripts(vec![ScriptClass {
-            source: script::get_sub_script(
-                &std::fs::read_to_string("data/scripts.lua").unwrap(),
-                "janitor",
-            ),
-            trigger: Some(Trigger::Interaction),
-            ..ScriptClass::default()
-        }]),
+        InteractionTrigger {
+            script_source: ScriptSource::File {
+                filepath: "data/scripts.lua".to_string(),
+                name_in_file: Some("janitor".to_string()),
+            },
+            hitbox: Vec2::new(1., 1.),
+        },
     );
-    ecs.add_component(id, Interaction { hitbox: Vec2::new(1., 1.) });
     ecs.add_component(id, SfxEmitter::default());
     ecs.add_component(
         id,
@@ -159,34 +155,42 @@ pub fn load_entities_from_source(ecs: &mut Ecs) {
     let id = ecs.query_one_with_name::<EntityId>("school_kid").unwrap();
     ecs.add_component(
         id,
-        Scripts(vec![ScriptClass {
-            source: script::get_sub_script(
-                &std::fs::read_to_string("data/scripts.lua").unwrap(),
-                "school_kid",
-            ),
-            trigger: Some(Trigger::Interaction),
-            ..ScriptClass::default()
-        }]),
+        InteractionTrigger {
+            script_source: ScriptSource::File {
+                filepath: "data/scripts.lua".to_string(),
+                name_in_file: Some("school_kid".to_string()),
+            },
+            hitbox: Vec2::new(1., 1.),
+        },
     );
-    ecs.add_component(id, Interaction { hitbox: Vec2::new(1., 1.) });
 
     // Bakery girl extension
     let id = ecs.query_one_with_name::<EntityId>("bakery_girl").unwrap();
     ecs.add_component(id, Velocity::default());
     ecs.add_component(
         id,
-        Scripts(vec![ScriptClass {
-            source: script::get_sub_script(
-                &std::fs::read_to_string("data/scripts.lua").unwrap(),
-                "bakery_girl::panic",
-            ),
-            trigger: Some(Trigger::Auto),
-            start_condition: Some(StartAbortCondition {
-                story_var: "bakery_girl::stage".to_string(),
-                value: 4,
-            }),
-            set_on_start: Some(("bakery_girl::stage".to_string(), 5)),
-            ..ScriptClass::default()
-        }]),
+        InteractionTrigger {
+            script_source: ScriptSource::File {
+                filepath: "data/scripts.lua".to_string(),
+                name_in_file: Some("bakery_girl".to_string()),
+            },
+            hitbox: Vec2::new(1., 1.),
+        },
     );
+    // ecs.add_component(
+    //     id,
+    //     Scripts(vec![ScriptClass {
+    //         source: script::get_sub_script(
+    //             &std::fs::read_to_string("data/scripts.lua").unwrap(),
+    //             "bakery_girl::panic",
+    //         ),
+    //         trigger: Some(Trigger::Auto),
+    //         start_condition: Some(StartAbortCondition {
+    //             story_var: "bakery_girl::stage".to_string(),
+    //             value: 4,
+    //         }),
+    //         set_on_start: Some(("bakery_girl::stage".to_string(), 5)),
+    //         ..ScriptClass::default()
+    //     }]),
+    // );
 }

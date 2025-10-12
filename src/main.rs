@@ -11,19 +11,17 @@ mod math;
 mod misc;
 mod render;
 mod script;
-mod script_new;
 mod update;
 mod world;
 
 use crate::misc::WINDOW_SIZE;
+use crate::script::ScriptManager;
 use dev_ui::DevUi;
 use ecs::Ecs;
-use misc::{Logger, MapOverlayTransition, MessageWindow, StoryVars};
+use misc::{Logger, StoryVars};
 use render::renderer::Renderer;
-use script::{ScriptManager, console};
+use script::console;
 use sdl2::mixer::{AUDIO_S16SYS, DEFAULT_CHANNELS};
-use sdl2::pixels::Color;
-use slotmap::SlotMap;
 use std::collections::{HashMap, HashSet};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
@@ -37,10 +35,10 @@ pub struct GameData {
 
 pub struct UiData {
     pub message_window: Option<MessageWindow>,
-    pub map_overlay_color: Color,
-    pub map_overlay_transition: Option<MapOverlayTransition>,
-    pub show_cutscene_border: bool,
-    pub displayed_card_name: Option<String>,
+}
+
+pub struct MessageWindow {
+    pub message: String,
 }
 
 fn main() {
@@ -125,12 +123,10 @@ fn main() {
     // Misc
     let mut ui_data = UiData {
         message_window: None,
-        map_overlay_color: Color::RGBA(0, 0, 0, 0),
-        map_overlay_transition: None,
-        show_cutscene_border: false,
-        displayed_card_name: None,
+        // TODO cutscene border
+        // TODO map overlay
     };
-    let mut script_manager = ScriptManager { instances: SlotMap::with_key() };
+    let mut script_manager = ScriptManager::new();
     let mut player_movement_locked = false;
 
     // Console
@@ -149,8 +145,6 @@ fn main() {
 
     // Scratchpad
     {}
-    let mut script_manager_new = script_new::ScriptManager::new();
-    script_manager_new.start_script(&std::fs::read_to_string("data/scripts_new.lua").unwrap());
 
     // --------------------------------------------------------------
     // Main Loop
@@ -173,12 +167,14 @@ fn main() {
         #[rustfmt::skip]
         input::process_input(
             &mut game_data, &mut event_pump, &mut running, &mut ui_data.message_window,
-            player_movement_locked, &mut script_manager, &mut dev_ui
+            player_movement_locked, &mut dev_ui, &mut script_manager
         );
 
-        dev_ui.run(&start_time, frame_duration, &mut game_data.ecs, &mut game_data.story_vars);
-
-        script_manager_new.update(&mut ui_data);
+        #[rustfmt::skip]
+        dev_ui.run(
+            &start_time, frame_duration, &mut game_data.ecs, &mut game_data.story_vars,
+            &script_manager,
+        );
 
         #[rustfmt::skip]
         update::update(

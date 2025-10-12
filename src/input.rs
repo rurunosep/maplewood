@@ -1,14 +1,15 @@
 use crate::components::{
-    AnimationComp, Facing, Interaction, NamedAnims, Position, Scripts, Walking,
+    AnimationComp, Facing, InteractionTrigger, NamedAnims, Position, Walking,
 };
 use crate::data::PLAYER_ENTITY_NAME;
 use crate::ecs::Ecs;
 use crate::math::Vec2;
 use crate::misc::{Aabb, Direction};
-use crate::script::{ScriptManager, Trigger};
+use crate::script::ScriptManager;
 use crate::{DevUi, GameData, MessageWindow};
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
+use tap::TapFallible;
 
 pub fn process_input(
     game_data: &mut GameData,
@@ -16,10 +17,10 @@ pub fn process_input(
     running: &mut bool,
     message_window: &mut Option<MessageWindow>,
     player_movement_locked: bool,
-    script_manager: &mut ScriptManager,
     egui_data: &mut DevUi,
+    script_manager: &mut ScriptManager,
 ) {
-    let GameData { ecs, story_vars, .. } = game_data;
+    let GameData { ecs, .. } = game_data;
 
     for event in event_pump.poll_iter() {
         // Update egui state with new input
@@ -47,7 +48,6 @@ pub fn process_input(
             }
 
             // Player movement
-            // TODO player component or input component?
             Event::KeyDown { keycode: Some(keycode), .. }
                 if keycode == Keycode::Up
                     || keycode == Keycode::Down
@@ -102,30 +102,6 @@ pub fn process_input(
                 }
             }
 
-            // Choose message window option
-            Event::KeyDown { keycode: Some(keycode), .. }
-                if keycode == Keycode::Num1
-                    || keycode == Keycode::Num2
-                    || keycode == Keycode::Num3
-                    || keycode == Keycode::Num4 =>
-            {
-                if let Some(message_window) = message_window
-                    && message_window.is_selection
-                    && let Some(waiting_script_id) = message_window.waiting_script_id
-                    && let Some(script) = script_manager.instances.get_mut(waiting_script_id)
-                {
-                    // I want to redo how window<->script communcation works
-                    script.input = match keycode {
-                        Keycode::Num1 => 1,
-                        Keycode::Num2 => 2,
-                        Keycode::Num3 => 3,
-                        Keycode::Num4 => 4,
-                        _ => unreachable!(),
-                    };
-                }
-                *message_window = None;
-            }
-
             // Interact with entity to start script OR advance message
             Event::KeyDown { keycode: Some(Keycode::Return | Keycode::Space), .. } => {
                 // Delegate to UI system then to world/entity system?
@@ -141,10 +117,10 @@ pub fn process_input(
                     // for the presence of an entity with an
                     // interaction script. This fails in some cases,
                     // but it works okay for now.
-                    let (player_pos, player_facing) = ecs
+                    let (player_position, player_facing) = ecs
                         .query_one_with_name::<(&Position, &Facing)>(PLAYER_ENTITY_NAME)
                         .unwrap();
-                    let target = player_pos.map_pos
+                    let target = player_position.map_pos
                         + match player_facing.0 {
                             Direction::Up => Vec2::new(0.0, -0.5),
                             Direction::Down => Vec2::new(0.0, 0.5),
@@ -154,20 +130,18 @@ pub fn process_input(
 
                     // Start interaction scripts for entity with interaction hitbox containing
                     // target point
-                    for (_, _, scripts) in ecs
-                        .query::<(&Position, &Interaction, &Scripts)>()
-                        .filter(|(pos, int, _)| {
-                            pos.map == player_pos.map
-                                && Aabb::new(pos.map_pos, int.hitbox).contains(&target)
+                    for (_, interaction) in ecs
+                        .query::<(&Position, &InteractionTrigger)>()
+                        .filter(|(position, interaction)| {
+                            position.map == player_position.map
+                                && Aabb::new(position.map_pos, interaction.hitbox)
+                                    .contains(&target)
                         })
                     {
-                        for script in scripts
-                            .iter()
-                            .filter(|script| script.trigger == Some(Trigger::Interaction))
-                            .filter(|script| script.is_start_condition_fulfilled(story_vars))
-                            .collect::<Vec<_>>()
+                        if let Ok(source) =
+                            interaction.script_source.get_source().tap_err(|e| log::error!("{e}"))
                         {
-                            script_manager.start_script(script, story_vars);
+                            script_manager.start_script(&source);
                         }
                     }
                 }

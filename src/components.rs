@@ -1,8 +1,9 @@
 use crate::ecs::Component;
 use crate::math::{MapPos, MapUnits, PixelUnits, Rect, Vec2};
 use crate::misc::Direction;
-use crate::script::ScriptClass;
+use crate::script;
 use crate::world::WorldPos;
+use anyhow::anyhow;
 use derived_deref::{Deref, DerefMut};
 use sdl2::mixer::Channel;
 use serde::{Deserialize, Serialize};
@@ -12,8 +13,9 @@ use std::time::{Duration, Instant};
 
 // I think eventually components should be organized into their domains
 
-// TODO door component? open, closed, locked enum state. anims and sprites. interact script.
-// get_door_state command. collision updated downstream from state. (how are anims controlled?)
+// TODO door component
+// open, closed, locked enum state. anims and sprites. interact script.
+// get_door_state command. collision updated downstream from state.
 
 // A name is used to refer to entities in scripts or other external data sources
 // The actual non-optional, guaranteed-unique identifier is EntityId
@@ -22,7 +24,6 @@ use std::time::{Duration, Instant};
 pub struct Name(pub String);
 impl Component for Name {}
 
-// TODO serialize with truncated floats
 #[derive(Deref, DerefMut, Default, Clone, Debug, Serialize, Deserialize)]
 pub struct Position(pub WorldPos);
 impl Component for Position {}
@@ -34,10 +35,6 @@ impl Component for Velocity {}
 #[derive(Default, Clone, Serialize, Deserialize)]
 pub struct Facing(pub Direction);
 impl Component for Facing {}
-
-#[derive(Deref, Clone, Serialize, Deserialize)]
-pub struct Scripts(pub Vec<ScriptClass>);
-impl Component for Scripts {}
 
 #[derive(SmartDefault, Clone, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
@@ -74,9 +71,9 @@ pub struct AnimationComp {
 impl Component for AnimationComp {}
 
 impl AnimationComp {
-    // TODO better control over starting loaded clip, loading and starting new clip, swapping clip
-    // while maintaining duration, forced clip, etc
-    // TODO playback speed multiplier
+    // TODO improved control over animations
+    // (starting loaded clip, loading and starting new clip, swapping clip while maintaining
+    // duraction, forced clip, etc)
 
     pub fn start(&mut self, repeat: bool) {
         self.state = PlaybackState::Playing;
@@ -150,7 +147,6 @@ impl Component for NamedAnims {}
 
 // ----------------------------------------------
 
-// TODO separate components for general movement vs active "walking" or pathing
 #[derive(Default, Clone, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Walking {
@@ -164,7 +160,6 @@ impl Component for Walking {}
 #[serde(default, deny_unknown_fields)]
 pub struct Camera {
     // This should be an Option<EntityIdentifier> when the time comes
-    // For now, that serves no purpose
     pub target_entity: Option<String>,
     pub size: Vec2<f64, MapUnits>,
     pub clamp_to_map: bool,
@@ -178,20 +173,6 @@ pub struct Collision {
     pub solid: bool,
 }
 impl Component for Collision {}
-
-// Should the interaction component contain its own list of interaction scripts instead of keeping
-// them all in the scripts component?
-// Should scripts contain their own trigger hitboxes?
-// What if we want a soft collision script that doesn't use the entity's collision hitbox? Or the
-// entity is solid? What if we want a "personal space" script?
-// Should scripts even be kept in entities at all? Or should they be kept elsewhere and referenced
-// by entities?
-#[derive(Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct Interaction {
-    pub hitbox: Vec2<f64, MapUnits>,
-}
-impl Component for Interaction {}
 
 #[derive(Default, Clone, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
@@ -212,3 +193,45 @@ pub struct SineOffsetAnimation {
     pub direction: Vec2<f64, MapUnits>,
 }
 impl Component for SineOffsetAnimation {}
+
+// Scripts Rework --------------------------------------
+
+#[derive(Clone, Serialize, Deserialize)]
+pub struct InteractionTrigger {
+    pub script_source: ScriptSource,
+    pub hitbox: Vec2<f64, MapUnits>,
+}
+impl Component for InteractionTrigger {}
+
+#[derive(Clone, Serialize, Deserialize)]
+pub struct CollisionTrigger {
+    pub script_source: ScriptSource,
+}
+impl Component for CollisionTrigger {}
+
+#[derive(Clone, Serialize, Deserialize)]
+pub struct AreaTrigger {
+    pub script_source: ScriptSource,
+    pub hitbox: Vec2<f64, MapUnits>,
+}
+impl Component for AreaTrigger {}
+
+#[derive(Clone, Serialize, Deserialize)]
+pub enum ScriptSource {
+    File { filepath: String, name_in_file: Option<String> },
+    String(String),
+}
+
+impl ScriptSource {
+    pub fn get_source(&self) -> anyhow::Result<String> {
+        match self {
+            ScriptSource::File { filepath, name_in_file: Some(name_in_file) } => {
+                script::get_script_from_file(filepath, name_in_file)
+            }
+            ScriptSource::File { filepath, name_in_file: None } => {
+                std::fs::read_to_string(filepath).map_err(|e| anyhow!(e))
+            }
+            ScriptSource::String(source) => Ok(source.clone()),
+        }
+    }
+}

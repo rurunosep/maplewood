@@ -1,11 +1,11 @@
 use crate::components::{Camera, Position, SineOffsetAnimation, SpriteComp};
 use crate::ecs::Ecs;
 use crate::math::{CellPos, CellUnits, MapPos, MapUnits, PixelUnits, Rect, Vec2};
-use crate::misc::{CELL_SIZE, MessageWindow};
+use crate::misc::CELL_SIZE;
 use crate::render::rect_copy::RectCopyPipeline;
 use crate::render::rect_fill::RectFillPipeline;
 use crate::world::{Map, TileLayer, World};
-use crate::{DevUi, UiData};
+use crate::{DevUi, MessageWindow, UiData};
 use egui::TexturesDelta;
 use image::GenericImageView;
 use itertools::Itertools;

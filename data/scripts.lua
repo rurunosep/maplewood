@@ -1,13 +1,13 @@
 ---@diagnostic disable: unreachable-code
 
---# start
+---@start start
 
 -- message("You're sooo sleepy.")
 -- message("But you can't sleep without a plushy.")
 -- message("Legend says the kid in the classroom has a plushy.")
 -- message("(Press ~ to check out the dev UI.)")
 
---# school_kid
+---@script school_kid
 
 local stages = {
   [1] = function()
@@ -41,7 +41,7 @@ local stages = {
 
 stages[get_story_var("school_kid::stage")]()
 
---# janitor
+---@script janitor
 
 local stages = {
   [1] = function()
@@ -84,7 +84,7 @@ local stages = {
 
 stages[get_story_var("janitor::stage")]()
 
---# bakery_girl
+---@script bakery_girl
 
 local stages = {
   [1] = function()
@@ -139,14 +139,14 @@ local stages = {
 
 stages[get_story_var("bakery_girl::stage")]()
 
---# bakery_girl::panic
+---@script bakery_girl::panic
 
 while true do
   walk_wait("bakery_girl", "left", 2, 0.12)
   walk_wait("bakery_girl", "right", 2, 0.12)
 end
 
---# bathroom::door
+---@script bathroom::door
 
 if get_story_var("bathroom::door::open") == 0 then
   if get_story_var("bathroom::door::have_key") == 0 then
@@ -167,7 +167,7 @@ if get_story_var("bathroom::door::open") == 0 then
   end
 end
 
---# bathroom::toilet
+---@script bathroom::toilet
 
 if get_story_var("main::pen_found") == 0 then
   message("You found the pen.")
@@ -190,7 +190,7 @@ if get_story_var("main::pen_found") == 0 then
   set_story_var("janitor::stage", 6)
 end
 
---# bathroom::exit
+---@script bathroom::exit
 
 if get_story_var("main::pen_found") == 1 and get_story_var("bathroom::flooded") == 0 then
   set_story_var("bathroom::flooded", 1)
@@ -198,6 +198,7 @@ if get_story_var("main::pen_found") == 1 and get_story_var("bathroom::flooded") 
   set_cutscene_border()
   lock_player_input()
   remove_camera_target()
+  set_camera_clamp(false)
 
   set_entity_world_pos("PLAYER", "hallway", 3.5, 3.5)
 
@@ -214,6 +215,7 @@ if get_story_var("main::pen_found") == 1 and get_story_var("bathroom::flooded") 
   play_sfx("faucet")
   wait(4)
 
+  set_camera_clamp(true)
   set_camera_target("PLAYER")
   unlock_player_input()
   remove_cutscene_border()
@@ -221,7 +223,7 @@ else
   set_entity_world_pos("PLAYER", "hallway", 3.5, 3.5)
 end
 
---# overworld::shopping_cart
+---@script overworld::shopping_cart
 
 if get_story_var("bakery_girl::stage") == 3 then
   message("Got a quarter.")
@@ -229,7 +231,7 @@ if get_story_var("bakery_girl::stage") == 3 then
   set_story_var("bakery_girl::stage", 4)
 end
 
---# gym::punching_bag
+---@script gym::punching_bag
 
 if get_story_var("school_kid::stage") == 4 and get_story_var("main::plushy_found") == 0 then
   message("You found the plushy!")
@@ -247,7 +249,7 @@ if get_story_var("school_kid::stage") == 4 and get_story_var("main::plushy_found
   set_story_var("janitor::stage", 7)
 end
 
---# overworld::garbage_bin
+---@script overworld::garbage_bin
 
 if get_story_var("main::plushy_found") == 1 then
   message("This place is perfect to sleep!")
@@ -256,7 +258,13 @@ if get_story_var("main::plushy_found") == 1 then
   close_game()
 end
 
---# hallway::janitor_crash_trigger
+---@script hallway::janitor_crash_trigger
+
+if get_story_var("janitor::stage") ~= 7 then
+  return
+end
+
+set_story_var("janitor::stage", 8)
 
 stop_object_animation("janitor")
 stop_entity_sfx("janitor")
@@ -266,5 +274,3 @@ set_entity_solid("janitor", false)
 
 set_entity_visible("hallway::wall_crack", true)
 play_sfx("rock_smash")
-
---#

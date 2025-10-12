@@ -27,12 +27,12 @@ pub fn process_console_input(
         let ecs = RefCell::new(&mut game_data.ecs);
         let message_window = RefCell::new(&mut ui_data.message_window);
         let player_movement_locked = RefCell::new(player_movement_locked);
-        let cutscene_border = RefCell::new(&mut ui_data.show_cutscene_border);
-        let displayed_card_name = RefCell::new(&mut ui_data.displayed_card_name);
 
         lua.scope(|scope| -> LuaResult<()> {
             // For now, since we don't have a better alternative, we have to duplicate all the
             // callback binding code in here
+
+            // NOW
 
             globals.set(
                 "get_story_var",
@@ -68,12 +68,6 @@ pub fn process_console_input(
                 "set_entity_world_pos",
                 scope.create_function_mut(|_, args| {
                     callbacks::set_entity_world_pos(args, *ecs.borrow_mut())
-                })?,
-            )?;
-            globals.set(
-                "remove_entity_position",
-                scope.create_function_mut(|_, args| {
-                    callbacks::remove_entity_position(args, *ecs.borrow_mut())
                 })?,
             )?;
             globals.set(
@@ -208,47 +202,9 @@ pub fn process_console_input(
                     .create_function(|_, args| callbacks::stop_entity_sfx(args, *ecs.borrow()))?,
             )?;
             globals.set(
-                "set_map_overlay_color",
-                scope.create_function_mut(|_, args| {
-                    callbacks::set_map_overlay_color(
-                        args,
-                        &mut ui_data.map_overlay_transition,
-                        ui_data.map_overlay_color,
-                    )
-                })?,
-            )?;
-            globals.set(
                 "close_game",
                 scope.create_function_mut(|_, ()| {
                     *running = false;
-                    Ok(())
-                })?,
-            )?;
-            globals.set(
-                "set_cutscene_border",
-                scope.create_function_mut(|_, ()| {
-                    **cutscene_border.borrow_mut() = true;
-                    Ok(())
-                })?,
-            )?;
-            globals.set(
-                "remove_cutscene_border",
-                scope.create_function_mut(|_, ()| {
-                    **cutscene_border.borrow_mut() = false;
-                    Ok(())
-                })?,
-            )?;
-            globals.set(
-                "show_card",
-                scope.create_function_mut(|_, name: String| {
-                    **displayed_card_name.borrow_mut() = Some(name);
-                    Ok(())
-                })?,
-            )?;
-            globals.set(
-                "remove_card",
-                scope.create_function_mut(|_, ()| {
-                    **displayed_card_name.borrow_mut() = None;
                     Ok(())
                 })?,
             )?;

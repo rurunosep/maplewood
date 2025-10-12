@@ -1,7 +1,16 @@
+use crate::components::{
+    AnimationComp, AreaTrigger, Camera, CharacterAnims, Collision, CollisionTrigger,
+    DualStateAnims, Facing, InteractionTrigger, NamedAnims, Position, SfxEmitter, SpriteComp,
+    Velocity, Walking,
+};
 use crate::ecs::{Component, Ecs, EntityId};
 use crate::misc::StoryVars;
+use crate::script::ScriptManager;
 use crate::{components, loader};
-use egui::{Context, Grid, ScrollArea, TextEdit, Ui, Window};
+use egui::text::LayoutJob;
+use egui::{
+    Color32, Context, FontFamily, FontId, Grid, ScrollArea, TextEdit, TextFormat, Ui, Window,
+};
 use egui_sdl2_event::EguiSDL2State;
 use itertools::Itertools;
 use sdl2::video::Window as SdlWindow;
@@ -29,7 +38,7 @@ impl<'window> DevUi<'window> {
         // (state dpi scaling must be initally set to 1 to set the initial screen_rect correctly)
         let state = EguiSDL2State::new(window.size().0, window.size().1, 1.);
 
-        // TODO transparent windows
+        // TODO translucent windows
 
         Self {
             ctx,
@@ -52,6 +61,7 @@ impl DevUi<'_> {
         frame_duration: f32,
         ecs: &mut Ecs,
         story_vars: &mut StoryVars,
+        script_manager: &ScriptManager,
     ) {
         if !self.active {
             return;
@@ -84,6 +94,63 @@ impl DevUi<'_> {
 
                 ui.allocate_space([ui.available_width(), 0.].into());
             });
+
+        Window::new("Script").show(&ctx, |ui| {
+            let script_instance = script_manager
+                .instances
+                .values()
+                .find(|s| s.name.as_ref().map(|n| n == "test").unwrap_or(false));
+
+            let Some(script_instance) = script_instance else {
+                return;
+            };
+
+            println!("{:?}", script_instance.name);
+
+            let source = &script_instance.source;
+            let current_line_index =
+                script_instance.lua_instance.globals().get::<usize>("line_yielded_at").unwrap();
+
+            let before_current_line =
+                source.split_inclusive("\n").take(current_line_index - 1).collect::<String>();
+            let current_line = source
+                .split_inclusive("\n")
+                .skip(current_line_index - 1)
+                .take(1)
+                .collect::<String>();
+            let after_current_line =
+                source.split_inclusive("\n").skip(current_line_index).collect::<String>();
+
+            let mut job = LayoutJob::default();
+
+            job.append(
+                &before_current_line,
+                0.,
+                TextFormat {
+                    font_id: FontId { family: FontFamily::Monospace, size: 12. },
+                    ..Default::default()
+                },
+            );
+            job.append(
+                &current_line,
+                0.,
+                TextFormat {
+                    color: Color32::RED,
+                    font_id: FontId { family: FontFamily::Monospace, size: 12. },
+                    ..Default::default()
+                },
+            );
+            job.append(
+                &after_current_line,
+                0.,
+                TextFormat {
+                    font_id: FontId { family: FontFamily::Monospace, size: 12. },
+                    ..Default::default()
+                },
+            );
+
+            ui.label(job);
+        });
 
         // TODO windows check their open status inside their show
 
@@ -124,7 +191,7 @@ impl EntitiesListWindow {
             ui.add(TextEdit::singleline(&mut self.filter_string).hint_text("Filter"));
 
             // TODO filter with special terms such as "has:{Component}"
-            // filter with multiple space-separated terms
+            // TODO filter with multiple space-separated terms
 
             ScrollArea::vertical().show(ui, |ui| {
                 for window in entity_windows
@@ -151,22 +218,22 @@ pub struct EntityWindow {
     pub entity_id: EntityId,
     pub name: Option<String>,
     pub open: bool,
-    // TODO vec box dyn?
-    pub position: ComponentCollapsible<components::Position>,
-    pub collision: ComponentCollapsible<components::Collision>,
-    pub velocity: ComponentCollapsible<components::Velocity>,
-    pub facing: ComponentCollapsible<components::Facing>,
-    pub camera: ComponentCollapsible<components::Camera>,
-    pub sprite: ComponentCollapsible<components::SpriteComp>,
-    pub scripts: ComponentCollapsible<components::Scripts>,
-    pub animation: ComponentCollapsible<components::AnimationComp>,
-    pub char_anims: ComponentCollapsible<components::CharacterAnims>,
-    pub dual_anims: ComponentCollapsible<components::DualStateAnims>,
-    pub named_anims: ComponentCollapsible<components::NamedAnims>,
-    pub walking: ComponentCollapsible<components::Walking>,
-    pub interaction: ComponentCollapsible<components::Interaction>,
-    pub sfx: ComponentCollapsible<components::SfxEmitter>,
-    // (Does not include SineOffsetAnimation)
+    // TODO vec box dyn this shit
+    pub position: ComponentCollapsible<Position>,
+    pub collision: ComponentCollapsible<Collision>,
+    pub velocity: ComponentCollapsible<Velocity>,
+    pub facing: ComponentCollapsible<Facing>,
+    pub camera: ComponentCollapsible<Camera>,
+    pub sprite: ComponentCollapsible<SpriteComp>,
+    pub animation: ComponentCollapsible<AnimationComp>,
+    pub char_anims: ComponentCollapsible<CharacterAnims>,
+    pub dual_anims: ComponentCollapsible<DualStateAnims>,
+    pub named_anims: ComponentCollapsible<NamedAnims>,
+    pub walking: ComponentCollapsible<Walking>,
+    pub sfx: ComponentCollapsible<SfxEmitter>,
+    pub interaction: ComponentCollapsible<InteractionTrigger>,
+    pub coll_trigger: ComponentCollapsible<CollisionTrigger>,
+    pub area: ComponentCollapsible<AreaTrigger>,
 }
 
 impl EntityWindow {
@@ -184,14 +251,15 @@ impl EntityWindow {
             facing: ComponentCollapsible::new(entity_id),
             camera: ComponentCollapsible::new(entity_id),
             sprite: ComponentCollapsible::new(entity_id),
-            scripts: ComponentCollapsible::new(entity_id),
             animation: ComponentCollapsible::new(entity_id),
             char_anims: ComponentCollapsible::new(entity_id),
             dual_anims: ComponentCollapsible::new(entity_id),
             named_anims: ComponentCollapsible::new(entity_id),
             walking: ComponentCollapsible::new(entity_id),
-            interaction: ComponentCollapsible::new(entity_id),
             sfx: ComponentCollapsible::new(entity_id),
+            interaction: ComponentCollapsible::new(entity_id),
+            coll_trigger: ComponentCollapsible::new(entity_id),
+            area: ComponentCollapsible::new(entity_id),
         }
     }
 
@@ -208,14 +276,15 @@ impl EntityWindow {
                 self.facing.show(ui, ecs);
                 self.camera.show(ui, ecs);
                 self.sprite.show(ui, ecs);
-                self.scripts.show(ui, ecs);
                 self.animation.show(ui, ecs);
                 self.char_anims.show(ui, ecs);
                 self.dual_anims.show(ui, ecs);
                 self.named_anims.show(ui, ecs);
                 self.walking.show(ui, ecs);
-                self.interaction.show(ui, ecs);
                 self.sfx.show(ui, ecs);
+                self.interaction.show(ui, ecs);
+                self.coll_trigger.show(ui, ecs);
+                self.area.show(ui, ecs);
             });
         });
     }

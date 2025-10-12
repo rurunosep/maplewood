@@ -1,15 +1,26 @@
 use super::ldtk_project;
 use crate::components::{
-    AnimationClip, AnimationComp, CharacterAnims, Collision, DualStateAnimationState,
-    DualStateAnims, Facing, Interaction, Name, Position, Scripts, Sprite, SpriteComp, Walking,
+    AnimationClip, AnimationComp, AreaTrigger, CharacterAnims, Collision,
+    DualStateAnimationState, DualStateAnims, Facing, InteractionTrigger, Name, Position,
+    ScriptSource, Sprite, SpriteComp, Walking,
 };
 use crate::ecs::{Ecs, EntityId};
 use crate::math::{Rect, Vec2};
-use crate::script::{self, ScriptClass, Trigger};
 use crate::world::WorldPos;
-use anyhow::{Context, anyhow};
+use anyhow::Context;
 use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
+
+// Old script triggers because LDtk entities still reference them
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[allow(dead_code)]
+pub enum Trigger {
+    Interaction,
+    SoftCollision,
+    HardCollision,
+}
 
 pub fn load_entities_from_ldtk(ecs: &mut Ecs, project: &ldtk_project::Project) {
     for ldtk_world in &project.worlds {
@@ -101,55 +112,36 @@ fn load_simple_script_entity(
     }
 
     // Script
+
     let source = if let Some(source_name) = read_field::<String>("external_source", entity)? {
         let (file_name, subscript_label) = source_name
             .split_once("::")
             .context(format!("invalid script source name: {source_name}"))?;
-        let file_contents = std::fs::read_to_string(format!("data/{file_name}.lua"))
-            .map_err(|_| anyhow!("could not read file: data/{file_name}.lua"))?;
-        script::get_sub_script(&file_contents, subscript_label)
+        ScriptSource::File {
+            filepath: format!("data/{file_name}.lua"),
+            name_in_file: Some(subscript_label.to_string()),
+        }
     } else {
-        read_field("source", entity)?.unwrap_or_default()
+        ScriptSource::String(read_field("source", entity)?.unwrap_or_default())
     };
 
     let trigger = read_field("trigger", entity)?;
-    let start_condition = read_json_field("start_condition", entity)?;
-    let abort_condition = read_json_field("abort_condition", entity)?;
-    let set_on_start = read_json_field("set_on_start", entity)?;
-    let set_on_finish = read_json_field("set_on_finish", entity)?;
-
-    ecs.add_component(
-        id,
-        Scripts(vec![ScriptClass {
-            source,
-            trigger,
-            start_condition,
-            abort_condition,
-            set_on_start,
-            set_on_finish,
-            ..ScriptClass::default()
-        }]),
-    );
-
-    // Collision
-    if trigger == Some(Trigger::SoftCollision) {
-        ecs.add_component(
+    match trigger {
+        Some(Trigger::Interaction) => ecs.add_component(
             id,
-            Collision {
-                hitbox: Vec2::new(entity.width as f64 / 16., entity.height as f64 / 16.),
-                solid: false,
-            },
-        );
-    }
-
-    // Interaction
-    if trigger == Some(Trigger::Interaction) {
-        ecs.add_component(
-            id,
-            Interaction {
+            InteractionTrigger {
+                script_source: source,
                 hitbox: Vec2::new(entity.width as f64 / 16., entity.height as f64 / 16.),
             },
-        );
+        ),
+        Some(Trigger::SoftCollision) => ecs.add_component(
+            id,
+            AreaTrigger {
+                script_source: source,
+                hitbox: Vec2::new(entity.width as f64 / 16., entity.height as f64 / 16.),
+            },
+        ),
+        _ => todo!(),
     }
 
     Ok(())
@@ -282,7 +274,6 @@ fn load_dual_state_animation_entity(
     Ok(())
 }
 
-// TODO interaction script
 fn load_character_entity(
     ecs: &mut Ecs,
     entity: &ldtk_project::EntityInstance,

@@ -1,17 +1,16 @@
 use crate::components::{
-    AnimationComp, Camera, CharacterAnims, Collision, DualStateAnimationState, DualStateAnims,
-    Facing, Name, PlaybackState, Position, Scripts, SfxEmitter, SineOffsetAnimation, SpriteComp,
-    Velocity, Walking,
+    AnimationComp, AreaTrigger, Camera, CharacterAnims, Collision, CollisionTrigger,
+    DualStateAnimationState, DualStateAnims, Facing, Name, PlaybackState, Position, SfxEmitter,
+    SineOffsetAnimation, SpriteComp, Velocity, Walking,
 };
 use crate::data::PLAYER_ENTITY_NAME;
 use crate::ecs::{Ecs, EntityId, With};
 use crate::math::{CellPos, MapUnits, Rect, Vec2};
-use crate::misc::{Aabb, Direction, StoryVars};
-use crate::script::{ScriptManager, Trigger};
+use crate::misc::{Aabb, Direction};
+use crate::script::ScriptManager;
 use crate::world::World;
-use crate::{GameData, MapOverlayTransition, MessageWindow, UiData};
+use crate::{GameData, MessageWindow, UiData};
 use sdl2::mixer::{Chunk, Music};
-use sdl2::pixels::Color;
 use std::collections::HashMap;
 use std::time::Duration;
 use tap::{TapFallible, TapOptional};
@@ -26,24 +25,23 @@ pub fn update(
     sound_effects: &HashMap<String, Chunk>,
     delta: Duration,
 ) {
-    // Update can be broken up broadly into scripts, entity updates, and misc (UI?)
-
-    start_auto_scripts(script_manager, &mut game_data.ecs, &mut game_data.story_vars);
-    start_soft_collision_scripts(script_manager, &mut game_data.ecs, &mut game_data.story_vars);
+    // TODO reintroduce auto scripts, and/or map scripts
+    start_area_trigger_scripts(&game_data.ecs, script_manager);
 
     #[rustfmt::skip]
-    execute_scripts(
-      script_manager, &mut game_data.story_vars, &mut game_data.ecs,
-      player_movement_locked, ui_data, running, musics, sound_effects
+    script_manager.update(
+        game_data, ui_data, player_movement_locked, running, musics,
+        sound_effects,
     );
 
     stop_player_movement_when_message_window_open(&game_data.ecs, &ui_data.message_window);
 
-    set_velocity_from_walking(&mut game_data.ecs);
-    apply_velocity_to_position(&mut game_data.ecs);
-    start_hard_collision_scripts(&game_data.ecs, script_manager, &mut game_data.story_vars);
-    resolve_collisions_with_tiles(&mut game_data.ecs, &game_data.world);
-    resolve_collisions_with_entities(&mut game_data.ecs);
+    set_velocity_from_walking(&game_data.ecs);
+    apply_velocity_to_position(&game_data.ecs);
+    start_hard_collision_scripts(&game_data.ecs, script_manager);
+    resolve_collisions_with_tiles(&game_data.ecs, &game_data.world);
+    resolve_collisions_with_entities(&game_data.ecs);
+    end_walking_if_destination_reached(&game_data.ecs);
 
     update_camera(&game_data.ecs, &game_data.world);
 
@@ -53,32 +51,13 @@ pub fn update(
 
     update_sfx_emitting_entities(&game_data.ecs, sound_effects);
     end_sine_offset_animations(&mut game_data.ecs);
-
-    update_map_overlay_color(&mut ui_data.map_overlay_color, &mut ui_data.map_overlay_transition);
 }
 
 // ------------------------------------------------------------------
 // Scripts
 // ------------------------------------------------------------------
 
-fn start_auto_scripts(script_manager: &mut ScriptManager, ecs: &Ecs, story_vars: &mut StoryVars) {
-    for scripts in ecs.query::<&Scripts>() {
-        for script in scripts
-            .iter()
-            .filter(|script| script.trigger == Some(Trigger::Auto))
-            .filter(|script| script.is_start_condition_fulfilled(&*story_vars))
-            .collect::<Vec<_>>()
-        {
-            script_manager.start_script(script, story_vars);
-        }
-    }
-}
-
-fn start_soft_collision_scripts(
-    script_manager: &mut ScriptManager,
-    ecs: &Ecs,
-    story_vars: &mut StoryVars,
-) {
+fn start_area_trigger_scripts(ecs: &Ecs, script_manager: &mut ScriptManager) {
     let Some((player_aabb, player_map)) = ecs
         .query_one_with_name::<(&Position, &Collision)>(PLAYER_ENTITY_NAME)
         .map(|(pos, coll)| (Aabb::new(pos.map_pos, coll.hitbox), pos.map.clone()))
@@ -86,44 +65,15 @@ fn start_soft_collision_scripts(
         return;
     };
 
-    // For each entity colliding with the player...
-    for (.., scripts) in ecs
-        .query::<(&Position, &Collision, &Scripts)>()
-        .filter(|(pos, ..)| pos.map == player_map)
-        .filter(|(pos, coll, ..)| Aabb::new(pos.map_pos, coll.hitbox).intersects(&player_aabb))
+    for (_, area) in ecs
+        .query::<(&Position, &AreaTrigger)>()
+        .filter(|(pos, _)| pos.map == player_map)
+        .filter(|(pos, area)| Aabb::new(pos.map_pos, area.hitbox).intersects(&player_aabb))
     {
-        // ...start scripts that have collision trigger and fulfill start condition
-        for script in scripts
-            .iter()
-            .filter(|script| script.trigger == Some(Trigger::SoftCollision))
-            .filter(|script| script.is_start_condition_fulfilled(&*story_vars))
-            .collect::<Vec<_>>()
-        {
-            script_manager.start_script(script, story_vars);
+        if let Ok(source) = area.script_source.get_source().tap_err(|e| log::error!("{e}")) {
+            script_manager.start_script(&source);
         }
     }
-}
-
-fn execute_scripts(
-    script_manager: &mut ScriptManager,
-    story_vars: &mut StoryVars,
-    ecs: &mut Ecs,
-    player_movement_locked: &mut bool,
-    ui_data: &mut UiData,
-    running: &mut bool,
-    musics: &HashMap<String, Music<'_>>,
-    sound_effects: &HashMap<String, Chunk>,
-) {
-    for script in script_manager.instances.values_mut() {
-        #[rustfmt::skip]
-        script.update(
-            story_vars, ecs, &mut ui_data.message_window, player_movement_locked, &mut ui_data.map_overlay_transition,
-            ui_data.map_overlay_color, &mut ui_data.show_cutscene_border,
-            &mut ui_data.displayed_card_name, running, musics, sound_effects
-        );
-    }
-    // Remove finished scripts
-    script_manager.instances.retain(|_, script| !script.finished);
 }
 
 // ------------------------------------------------------------------
@@ -145,10 +95,6 @@ fn update_character_animations(ecs: &Ecs) {
             Direction::Right => &char_anims.right,
         }
         .clone();
-        // If I don't want to clone() the whole clip, I could use Rc<AnimationClip>
-        // And if I don't want multiple owners, AnimationComponent could use Weak<_>
-        // And if I want it to sometimes own a clip, I could use Either<_, Weak<_>>
-        // But all of that is just optimization to avoid clone()
 
         if walk_comp.speed > 0. {
             if anim_comp.state == PlaybackState::Stopped {
@@ -243,11 +189,7 @@ fn apply_velocity_to_position(ecs: &Ecs) {
     }
 }
 
-fn start_hard_collision_scripts(
-    ecs: &Ecs,
-    script_manager: &mut ScriptManager,
-    story_vars: &mut StoryVars,
-) {
+fn start_hard_collision_scripts(ecs: &Ecs, script_manager_new: &mut ScriptManager) {
     let Some((player_id, player_position, player_collision)) =
         ecs.query_one_with_name::<(EntityId, &Position, &Collision)>(PLAYER_ENTITY_NAME)
     else {
@@ -258,28 +200,21 @@ fn start_hard_collision_scripts(
         return;
     }
 
-    let aabb = Aabb::new(player_position.map_pos, player_collision.hitbox);
+    let player_aabb = Aabb::new(player_position.map_pos, player_collision.hitbox);
 
-    for (other_position, other_collision, scripts) in
-        ecs.query_except::<(&Position, &Collision, &Scripts)>(player_id)
+    for (other_position, other_collision, trigger) in
+        ecs.query_except::<(&Position, &Collision, &CollisionTrigger)>(player_id)
     {
-        // Skip checking against entities not on the current map or not solid
         if other_position.map != player_position.map || !other_collision.solid {
             continue;
         }
 
         let other_aabb = Aabb::new(other_position.map_pos, other_collision.hitbox);
 
-        // Trigger HardCollision scripts
-        // (* bottom comment about event system)
-        if aabb.intersects(&other_aabb) {
-            for script in scripts
-                .iter()
-                .filter(|script| script.trigger == Some(Trigger::HardCollision))
-                .filter(|script| script.is_start_condition_fulfilled(story_vars))
-                .collect::<Vec<_>>()
+        if player_aabb.intersects(&other_aabb) {
+            if let Ok(source) = trigger.script_source.get_source().tap_err(|e| log::error!("{e}"))
             {
-                script_manager.start_script(script, story_vars);
+                script_manager_new.start_script(&source);
             }
         }
     }
@@ -351,6 +286,24 @@ fn resolve_collisions_with_entities(ecs: &Ecs) {
     }
 }
 
+fn end_walking_if_destination_reached(ecs: &Ecs) {
+    for (mut position, mut walking) in ecs.query::<(&mut Position, &mut Walking)>() {
+        if let Some(destination) = walking.destination {
+            let passed_destination = match walking.direction {
+                Direction::Up => position.map_pos.y < destination.y,
+                Direction::Down => position.map_pos.y > destination.y,
+                Direction::Left => position.map_pos.x < destination.x,
+                Direction::Right => position.map_pos.x > destination.x,
+            };
+            if passed_destination {
+                position.map_pos = destination;
+                walking.speed = 0.;
+                walking.destination = None;
+            }
+        }
+    }
+}
+
 // ------------------------------------------------------------------
 // Misc
 // ------------------------------------------------------------------
@@ -361,7 +314,6 @@ fn stop_player_movement_when_message_window_open(
 ) {
     // Stop player movement when message window is open, but only if that movement is
     // from player input, not forced
-    // TODO rework player input movement vs forced movement
     if message_window.is_some()
         && let Some(mut walking_component) =
             ecs.query_one_with_name::<&mut Walking>(PLAYER_ENTITY_NAME)
@@ -378,28 +330,6 @@ fn end_sine_offset_animations(ecs: &mut Ecs) {
         }
     }
     ecs.flush_deferred_mutations();
-}
-
-fn update_map_overlay_color(
-    map_overlay_color: &mut Color,
-    map_overlay_transition: &mut Option<MapOverlayTransition>,
-) {
-    if let Some(MapOverlayTransition { start_time, duration, start_color, end_color }) =
-        &*map_overlay_transition
-    {
-        // TODO reusable simple lerp function
-
-        let interp = start_time.elapsed().div_duration_f64(*duration).min(1.0);
-        let r = ((end_color.r - start_color.r) as f64 * interp + start_color.r as f64) as u8;
-        let g = ((end_color.g - start_color.g) as f64 * interp + start_color.g as f64) as u8;
-        let b = ((end_color.b - start_color.b) as f64 * interp + start_color.b as f64) as u8;
-        let a = ((end_color.a - start_color.a) as f64 * interp + start_color.a as f64) as u8;
-        *map_overlay_color = Color::RGBA(r, g, b, a);
-
-        if start_time.elapsed() > *duration {
-            *map_overlay_transition = None;
-        }
-    }
 }
 
 fn update_camera(ecs: &Ecs, world: &World) {
@@ -489,17 +419,3 @@ fn update_sfx_emitting_entities(ecs: &Ecs, sound_effects: &HashMap<String, Chunk
         }
     }
 }
-
-// *
-// This could definitely use an event system or something, cause now we have collision
-// code depending on both story_vars and the script instance manager. Also, there's all
-// sorts of things that could happen as a result of a hard collision. Starting a script,
-// but also possibly playing a sound or something? Pretty much any arbitrary response
-// could be executed by a script, but many things just aren't practical that way. For
-// example, what if I want to play a sound every time the player bumps into any entity? I
-// can't attach a bump sfx script to every single entity. That's stupid. That needs an
-// event system.
-//
-// While I do still think we could use an event system, it's actually still no necessary for this.
-// We can move, then start scripts (or do anything else in response to colliding entities), then
-// resolve collisions, all in separate systems

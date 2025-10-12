@@ -1,355 +1,275 @@
-use super::callbacks;
-use crate::ecs::Ecs;
-use crate::misc::StoryVars;
-use crate::{MapOverlayTransition, MessageWindow};
-use mlua::{Error as LuaError, Function, Lua, Result as LuaResult, Thread, ThreadStatus};
+use crate::script::callbacks;
+use crate::{GameData, UiData};
+use anyhow::Context;
+use mlua::{Function, Lua, Scope, Table, Thread, ThreadStatus};
 use sdl2::mixer::{Chunk, Music};
-use sdl2::pixels::Color;
-use serde::{Deserialize, Serialize};
 use slotmap::{SlotMap, new_key_type};
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::error::Error as StdError;
-use std::fmt::{self, Display};
-use std::sync::Arc;
+use std::path::Path;
 use std::time::{Duration, Instant};
 
-new_key_type! { pub struct ScriptId; }
+new_key_type! { pub struct ScriptInstanceId; }
 
-// Rename?
 pub struct ScriptManager {
-    pub instances: SlotMap<ScriptId, ScriptInstance>,
+    pub instances: SlotMap<ScriptInstanceId, ScriptInstance>,
+}
+
+pub struct ScriptInstance {
+    pub lua_instance: Lua,
+    pub thread: Thread,
+    pub _id: ScriptInstanceId,
+    pub source: String,
+    pub name: Option<String>,
+    pub wait_condition: Option<WaitCondition>,
+}
+
+#[derive(Clone)]
+pub enum WaitCondition {
+    Message,
+    Time(Instant),
 }
 
 impl ScriptManager {
-    pub fn start_script(&mut self, script_class: &ScriptClass, story_vars: &mut StoryVars) {
-        self.instances.insert_with_key(|id| ScriptInstance::new(script_class.clone(), id));
-
-        if let Some((key, value)) = &script_class.set_on_start {
-            story_vars.set(key, *value);
-        }
+    pub fn new() -> Self {
+        Self { instances: SlotMap::with_key() }
     }
-}
 
-#[derive(Debug)]
-pub struct Error(pub String);
+    pub fn start_script(&mut self, source: &str) {
+        let r: mlua::Result<()> = try {
+            let mut script_name: Option<String> = None;
+            let mut exclusive = false;
 
-impl StdError for Error {}
+            // Process annotations in source
+            let annotations = source.lines().take_while(|l| l.starts_with("---"));
+            for line in annotations {
+                let mut splits = line.strip_prefix("---").expect("filtered").splitn(2, " ");
+                let annotation_name = splits.next().expect("splitn always returns at least one");
+                let annotation_argument = splits.next();
 
-impl Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
+                match (annotation_name, annotation_argument) {
+                    ("@script", Some(val)) => script_name = Some(val.to_string()),
+                    ("@exclusive", _) => exclusive = true,
+                    _ => {}
+                };
+            }
 
-impl From<Error> for LuaError {
-    fn from(err: Error) -> Self {
-        LuaError::ExternalError(Arc::new(err))
-    }
-}
+            // Skip exclusive scripts that are already running
+            if exclusive
+                && let Some(this_script_name) = &script_name
+                && self
+                    .instances
+                    .values()
+                    .find(|other_script| other_script.name.as_ref() == Some(this_script_name))
+                    .is_some()
+            {
+                return;
+            }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-#[allow(dead_code)]
-pub enum Trigger {
-    Interaction,
-    // Rename these two?
-    SoftCollision, // player is "colliding" AFTER movement update
-    HardCollision, // player collided DURING movement update
-    // We need a way to trigger scripts as soon as player enters a map
-    // Currently, unlike RMXP Auto events, Auto scripts start regardless of
-    // player map, since all entities are always loaded
-    Auto,
-}
+            let lua_instance = Lua::new();
+            let chunk = lua_instance.load(source);
+            let func = chunk.into_function()?;
+            let thread = lua_instance.create_thread(func)?;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct StartAbortCondition {
-    pub story_var: String,
-    pub value: i32,
-    // This could also have an enum for eq, gt, lt, ne...
-}
-
-#[derive(Debug, Clone)]
-pub enum WaitCondition {
-    Time(Instant),
-    Message,
-    StoryVar(String, i32),
-}
-
-// Rename (Definition?)
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(default, deny_unknown_fields)]
-pub struct ScriptClass {
-    // TODO can't do much with json entity loading until "source" is a function ref
-    pub source: String,
-    pub label: Option<String>,
-    pub trigger: Option<Trigger>,
-    pub start_condition: Option<StartAbortCondition>,
-    pub abort_condition: Option<StartAbortCondition>,
-    // Story vars to set automatically on script start and finish.
-    // Useful in combination with start_condition to ensure that Auto
-    // and SoftCollision scripts don't start extra instances every frame.
-    // (Remember to set these and start_condition when necessary!
-    // It's a very easy mistake to make!)
-    pub set_on_start: Option<(String, i32)>,
-    pub set_on_finish: Option<(String, i32)>,
-    // (We need a way to make a soft collision script that can be triggered on
-    // repeated collisions. Like every time you step on the entity *again*.
-    // There currently no way to track when the player has *stopped* colliding
-    // and to then reset the start_condition.)
-}
-
-impl ScriptClass {
-    pub fn is_start_condition_fulfilled(&self, story_vars: &StoryVars) -> bool {
-        self.start_condition.as_ref().is_none_or(
-            |StartAbortCondition { story_var: key, value }| {
-                story_vars.get(&key).map(|var| var == *value).unwrap_or(false)
-            },
-        )
-    }
-}
-
-// Rename (Instance?)
-pub struct ScriptInstance {
-    pub lua_instance: Lua,
-    pub script_class: ScriptClass,
-    pub id: ScriptId,
-    pub finished: bool,
-    pub wait_condition: Option<WaitCondition>,
-    pub input: i32,
-}
-
-impl ScriptInstance {
-    pub fn new(script_class: ScriptClass, id: ScriptId) -> Self {
-        let mut finished = false;
-
-        let lua_instance = Lua::new();
-        let r: LuaResult<()> = try {
-            // Wrap script in a thread so that blocking functions may yield
-            lua_instance
-                .load(&format!(
-                    "thread = coroutine.create(function () {} end)",
-                    script_class.source
-                ))
-                .set_name(script_class.label.as_ref().unwrap_or(&"unnamed".to_string()))
-                .exec()?;
-
-            // Utility function that will wrap a function that should
-            // yield within a new one that will call the original and yield
-            // (Because you can't yield from within a rust callback)
+            // Wrapper to yield and save current line
             lua_instance
                 .load(
                     r"
-                        wrap_yielding = function(f)
-                            return function(...)
-                                f(...)
-                                coroutine.yield()
-                            end
-                        end",
+                    wrap_yielding = function(f)
+                        return function(...)
+                            f(...)
+                            line_yielded_at = current_line(2)
+                            coroutine.yield()
+                        end
+                    end
+                    ",
                 )
                 .exec()?;
 
-            // Create functions that don't use Rust callbacks and don't have to be
-            // recreated each update
-            // This can eventually all be loaded from a single external lua file
+            // General utility functions defined in Lua
+            // TODO load these from a file
             lua_instance
                 .load(
                     r#"
-                        -- Because LDtk doesn't handle "\n" properly
-                        nl = "\n"
+                    -- Because LDtk doesn't handle "\n" properly
+                    nl = "\n"
 
-                        function walk_wait(entity, direction, distance, speed)
-                            walk(entity, direction, distance, speed)
-                            wait_until_not_walking(entity)
-                        end
+                    function walk_wait(entity, direction, distance, speed)
+                        walk(entity, direction, distance, speed)
+                        wait_until_not_walking(entity)
+                    end
 
-                        function walk_to_wait(entity, direction, destination, speed)
-                            walk_to(entity, direction, destination, speed)
-                            wait_until_not_walking(entity)
-                        end
+                    function walk_to_wait(entity, direction, destination, speed)
+                        walk_to(entity, direction, destination, speed)
+                        wait_until_not_walking(entity)
+                    end
 
-                        function wait_until_not_walking(entity)
-                            while(is_entity_walking(entity)) do
-                                coroutine.yield()
-                            end
+                    function wait_until_not_walking(entity)
+                        while(is_entity_walking(entity)) do
+                            coroutine.yield()
                         end
-                        "#,
+                    end
+                    "#,
                 )
                 .exec()?;
-        };
-        r.unwrap_or_else(|err| {
-            log::error!("Failed to create script\n{}", err,);
-            // If script errors during creation, set it to finished to be removed later
-            // (No reason to make this better, since I'm gonna overhaul scripts anyway)
-            finished = true;
-        });
 
-        Self { lua_instance, script_class, id, finished, wait_condition: None, input: 0 }
+            // Callback to get current line, because debug can't be accessed from Lua in safe mode
+            lua_instance.globals().set(
+                "current_line",
+                lua_instance.create_function(|lua, level: usize| {
+                    Ok(lua.inspect_stack(level).map(|s| s.curr_line()))
+                })?,
+            )?;
+
+            self.instances.insert_with_key(|id| ScriptInstance {
+                lua_instance,
+                thread,
+                _id: id,
+                source: source.to_string(),
+                name: script_name,
+                wait_condition: None,
+            });
+        };
+        r.unwrap_or_else(|e| log::error!("{e}"));
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub fn update(
         &mut self,
-        story_vars: &mut StoryVars,
-        ecs: &mut Ecs,
-        message_window: &mut Option<MessageWindow>,
+        game_data: &mut GameData,
+        ui_data: &mut UiData,
         player_movement_locked: &mut bool,
-        map_overlay_color_transition: &mut Option<MapOverlayTransition>,
-        map_overlay_color: Color,
-        cutscene_border: &mut bool,
-        displayed_card_name: &mut Option<String>,
         running: &mut bool,
         musics: &HashMap<String, Music>,
         sound_effects: &HashMap<String, Chunk>,
     ) {
-        if self.finished {
+        for instance in self.instances.values_mut() {
+            #[rustfmt::skip]
+            instance.update(
+                game_data, ui_data, player_movement_locked, running, musics,
+                sound_effects,
+            );
+        }
+
+        self.instances.retain(|_, instance| instance.thread.status() == ThreadStatus::Resumable);
+    }
+}
+
+impl ScriptInstance {
+    pub fn update(
+        &mut self,
+        game_data: &mut GameData,
+        ui_data: &mut UiData,
+        player_movement_locked: &mut bool,
+        running: &mut bool,
+        musics: &HashMap<String, Music>,
+        sound_effects: &HashMap<String, Chunk>,
+    ) {
+        // Update wait condition and skip if still waiting
+        self.wait_condition = match self.wait_condition.clone() {
+            Some(WaitCondition::Time(until)) if until > Instant::now() => None,
+            Some(WaitCondition::Message) if ui_data.message_window.is_none() => None,
+            x => x,
+        };
+        if self.wait_condition.is_some() {
             return;
         }
 
-        // Abort script if abort condition is fulfilled
-        if let Some(StartAbortCondition { story_var: key, value }) =
-            &self.script_class.abort_condition
-            && story_vars.get(key).map(|var| var == *value).unwrap_or(false)
-        {
-            self.finished = true;
-            return;
-        }
-
-        // Skip updating script if it is waiting
-        if match self.wait_condition.clone() {
-            Some(WaitCondition::Time(until)) => until > Instant::now(),
-            Some(WaitCondition::Message) => message_window.is_some(),
-            Some(WaitCondition::StoryVar(key, val)) => {
-                story_vars.get(&key).map(|var| var != val).unwrap_or(false)
-            }
-            None => false,
-        } {
-            return;
-        }
-
-        self.wait_condition = None;
-
-        let story_vars = RefCell::new(story_vars);
-        let ecs = RefCell::new(ecs);
-        let message_window = RefCell::new(message_window);
+        // Pack mut refs in RefCells for passing into callbacks
+        let game_data = RefCell::new(game_data);
+        let ui_data = RefCell::new(ui_data);
         let player_movement_locked = RefCell::new(player_movement_locked);
         let wait_condition = RefCell::new(&mut self.wait_condition);
-        let cutscene_border = RefCell::new(cutscene_border);
-        let displayed_card_name = RefCell::new(displayed_card_name);
 
         self.lua_instance
             .scope(|scope| {
                 let globals = self.lua_instance.globals();
-                globals.set("input", self.input)?;
 
                 #[rustfmt::skip]
                 bind_callbacks(
-                    scope, &globals, &self.id, map_overlay_color_transition,
-                    &map_overlay_color, running, &musics, &sound_effects,
-                    &story_vars, &ecs, &message_window, &player_movement_locked,
-                    &wait_condition, &cutscene_border, &displayed_card_name,
+                    scope, &globals, &game_data, &ui_data, &player_movement_locked,
+                    &wait_condition, running, &musics, &sound_effects,
                 )?;
 
-                // Get saved thread and execute until script yields or ends
-                let thread = globals.get::<Thread>("thread")?;
-                thread.resume::<()>(())?;
-                match thread.status() {
-                    ThreadStatus::Finished | ThreadStatus::Error => self.finished = true,
-                    _ => {}
-                }
+                self.thread.resume::<()>(())?;
 
                 Ok(())
             })
-            .unwrap_or_else(|err| {
-                log::error!(
-                    "Runtime script error. Aborting script.\n{}\nsource: {:?}",
-                    err,
-                    err.source().map(|source_err| source_err.to_string())
-                );
-                self.finished = true;
-            });
-
-        // Set on-finish story var
-        if self.finished
-            && let Some((key, value)) = &self.script_class.set_on_finish
-        {
-            story_vars.borrow_mut().set(key, *value);
-        }
+            .unwrap_or_else(|e| log::error!("{e}"));
     }
 }
 
 fn bind_callbacks<'scope>(
-    scope: &'scope mlua::Scope<'scope, '_>,
-    globals: &mlua::Table,
-    id: &'scope ScriptId,
-    map_overlay_color_transition: &'scope mut Option<MapOverlayTransition>,
-    map_overlay_color: &'scope Color,
-    running: &'scope mut bool,
-    musics: &'scope HashMap<String, Music<'_>>,
-    sound_effects: &'scope HashMap<String, Chunk>,
-    story_vars: &'scope RefCell<&mut StoryVars>,
-    ecs: &'scope RefCell<&mut Ecs>,
-    message_window: &'scope RefCell<&mut Option<MessageWindow>>,
+    scope: &'scope Scope<'scope, '_>,
+    globals: &Table,
+    game_data: &'scope RefCell<&mut GameData>,
+    ui_data: &'scope RefCell<&mut UiData>,
     player_movement_locked: &'scope RefCell<&mut bool>,
     wait_condition: &'scope RefCell<&mut Option<WaitCondition>>,
-    cutscene_border: &'scope RefCell<&mut bool>,
-    displayed_card_name: &'scope RefCell<&mut Option<String>>,
-) -> Result<(), LuaError> {
+    running: &'scope mut bool,
+    musics: &'scope HashMap<String, Music>,
+    sound_effects: &'scope HashMap<String, Chunk>,
+) -> mlua::Result<()> {
     let wrap_yielding: Function = globals.get("wrap_yielding")?;
 
     globals.set(
         "get_story_var",
-        scope.create_function(|_, args| callbacks::get_story_var(args, *story_vars.borrow()))?,
+        scope.create_function(|_, args| {
+            callbacks::get_story_var(args, &game_data.borrow().story_vars)
+        })?,
     )?;
     globals.set(
         "set_story_var",
         scope.create_function_mut(|_, args| {
-            callbacks::set_story_var(args, *story_vars.borrow_mut())
+            callbacks::set_story_var(args, &mut game_data.borrow_mut().story_vars)
         })?,
     )?;
     globals.set(
         "get_entity_map_pos",
-        scope.create_function(|_, args| callbacks::get_entity_map_pos(args, *ecs.borrow()))?,
+        scope.create_function(|_, args| {
+            callbacks::get_entity_map_pos(args, &game_data.borrow().ecs)
+        })?,
     )?;
     globals.set(
         "set_entity_map_pos",
-        scope
-            .create_function_mut(|_, args| callbacks::set_entity_map_pos(args, *ecs.borrow()))?,
+        scope.create_function_mut(|_, args| {
+            callbacks::set_entity_map_pos(args, &game_data.borrow().ecs)
+        })?,
     )?;
     globals.set(
         "get_entity_world_pos",
-        scope.create_function(|_, args| callbacks::get_entity_world_pos(args, *ecs.borrow()))?,
+        scope.create_function(|_, args| {
+            callbacks::get_entity_world_pos(args, &game_data.borrow().ecs)
+        })?,
     )?;
     globals.set(
         "set_entity_world_pos",
         scope.create_function_mut(|_, args| {
-            callbacks::set_entity_world_pos(args, *ecs.borrow_mut())
-        })?,
-    )?;
-    globals.set(
-        "remove_entity_position",
-        scope.create_function_mut(|_, args| {
-            callbacks::remove_entity_position(args, *ecs.borrow_mut())
+            callbacks::set_entity_world_pos(args, &mut game_data.borrow_mut().ecs)
         })?,
     )?;
     globals.set(
         "set_forced_sprite",
-        scope.create_function_mut(|_, args| callbacks::set_forced_sprite(args, *ecs.borrow()))?,
+        scope.create_function_mut(|_, args| {
+            callbacks::set_forced_sprite(args, &game_data.borrow().ecs)
+        })?,
     )?;
     globals.set(
         "remove_forced_sprite",
         scope.create_function_mut(|_, args| {
-            callbacks::remove_forced_sprite(args, *ecs.borrow())
+            callbacks::remove_forced_sprite(args, &game_data.borrow().ecs)
         })?,
     )?;
     globals.set(
         "set_entity_visible",
-        scope
-            .create_function_mut(|_, args| callbacks::set_entity_visible(args, *ecs.borrow()))?,
+        scope.create_function_mut(|_, args| {
+            callbacks::set_entity_visible(args, &game_data.borrow().ecs)
+        })?,
     )?;
     globals.set(
         "set_entity_solid",
-        scope.create_function_mut(|_, args| callbacks::set_entity_solid(args, *ecs.borrow()))?,
+        scope.create_function_mut(|_, args| {
+            callbacks::set_entity_solid(args, &game_data.borrow().ecs)
+        })?,
     )?;
     globals.set(
         "lock_player_input",
@@ -357,7 +277,7 @@ fn bind_callbacks<'scope>(
             callbacks::lock_player_input(
                 args,
                 *player_movement_locked.borrow_mut(),
-                *ecs.borrow(),
+                &game_data.borrow().ecs,
             )
         })?,
     )?;
@@ -370,59 +290,71 @@ fn bind_callbacks<'scope>(
     )?;
     globals.set(
         "set_camera_target",
-        scope.create_function_mut(|_, args| callbacks::set_camera_target(args, *ecs.borrow()))?,
+        scope.create_function_mut(|_, args| {
+            callbacks::set_camera_target(args, &game_data.borrow().ecs)
+        })?,
     )?;
     globals.set(
         "remove_camera_target",
-        scope.create_function_mut(|_, ()| callbacks::remove_camera_target(*ecs.borrow()))?,
+        scope.create_function_mut(|_, ()| {
+            callbacks::remove_camera_target(&game_data.borrow().ecs)
+        })?,
     )?;
     globals.set(
         "set_camera_clamp",
-        scope.create_function_mut(|_, args| callbacks::set_camera_clamp(args, *ecs.borrow()))?,
+        scope.create_function_mut(|_, args| {
+            callbacks::set_camera_clamp(args, &game_data.borrow().ecs)
+        })?,
     )?;
     globals.set(
         "walk",
-        scope.create_function_mut(|_, args| callbacks::walk(args, *ecs.borrow()))?,
+        scope.create_function_mut(|_, args| callbacks::walk(args, &game_data.borrow().ecs))?,
     )?;
     globals.set(
         "walk_to",
-        scope.create_function_mut(|_, args| callbacks::walk_to(args, *ecs.borrow()))?,
+        scope.create_function_mut(|_, args| callbacks::walk_to(args, &game_data.borrow().ecs))?,
     )?;
     globals.set(
         "is_entity_walking",
-        scope.create_function(|_, args| callbacks::is_entity_walking(args, *ecs.borrow()))?,
+        scope.create_function(|_, args| {
+            callbacks::is_entity_walking(args, &game_data.borrow().ecs)
+        })?,
     )?;
     globals.set(
         "play_object_animation",
         scope.create_function_mut(|_, args| {
-            callbacks::play_object_animation(args, *ecs.borrow_mut())
+            callbacks::play_object_animation(args, &mut game_data.borrow_mut().ecs)
         })?,
     )?;
     globals.set(
         "stop_object_animation",
         scope.create_function_mut(|_, args| {
-            callbacks::stop_object_animation(args, *ecs.borrow_mut())
+            callbacks::stop_object_animation(args, &mut game_data.borrow_mut().ecs)
         })?,
     )?;
     globals.set(
         "switch_dual_state_animation",
         scope.create_function_mut(|_, args| {
-            callbacks::switch_dual_state_animation(args, *ecs.borrow_mut())
+            callbacks::switch_dual_state_animation(args, &mut game_data.borrow_mut().ecs)
         })?,
     )?;
     globals.set(
         "play_named_animation",
         scope.create_function_mut(|_, args| {
-            callbacks::play_named_animation(args, *ecs.borrow_mut())
+            callbacks::play_named_animation(args, &mut game_data.borrow_mut().ecs)
         })?,
     )?;
     globals.set(
         "anim_quiver",
-        scope.create_function_mut(|_, args| callbacks::anim_quiver(args, *ecs.borrow_mut()))?,
+        scope.create_function_mut(|_, args| {
+            callbacks::anim_quiver(args, &mut game_data.borrow_mut().ecs)
+        })?,
     )?;
     globals.set(
         "anim_jump",
-        scope.create_function_mut(|_, args| callbacks::anim_jump(args, *ecs.borrow_mut()))?,
+        scope.create_function_mut(|_, args| {
+            callbacks::anim_jump(args, &mut game_data.borrow_mut().ecs)
+        })?,
     )?;
     globals.set(
         "play_sfx",
@@ -436,20 +368,14 @@ fn bind_callbacks<'scope>(
         .set("stop_music", scope.create_function_mut(|_, args| callbacks::stop_music(args))?)?;
     globals.set(
         "emit_entity_sfx",
-        scope.create_function(|_, args| callbacks::emit_entity_sfx(args, *ecs.borrow()))?,
+        scope.create_function(|_, args| {
+            callbacks::emit_entity_sfx(args, &game_data.borrow().ecs)
+        })?,
     )?;
     globals.set(
         "stop_entity_sfx",
-        scope.create_function(|_, args| callbacks::stop_entity_sfx(args, *ecs.borrow()))?,
-    )?;
-    globals.set(
-        "set_map_overlay_color",
-        scope.create_function_mut(|_, args| {
-            callbacks::set_map_overlay_color(
-                args,
-                map_overlay_color_transition,
-                *map_overlay_color,
-            )
+        scope.create_function(|_, args| {
+            callbacks::stop_entity_sfx(args, &game_data.borrow().ecs)
         })?,
     )?;
     globals.set(
@@ -460,40 +386,16 @@ fn bind_callbacks<'scope>(
         })?,
     )?;
     globals.set(
-        "set_cutscene_border",
-        scope.create_function_mut(|_, ()| {
-            **cutscene_border.borrow_mut() = true;
-            Ok(())
-        })?,
-    )?;
-    globals.set(
-        "remove_cutscene_border",
-        scope.create_function_mut(|_, ()| {
-            **cutscene_border.borrow_mut() = false;
-            Ok(())
-        })?,
-    )?;
-    globals.set(
-        "show_card",
-        scope.create_function_mut(|_, name: String| {
-            **displayed_card_name.borrow_mut() = Some(name);
-            Ok(())
-        })?,
-    )?;
-    globals.set(
-        "remove_card",
-        scope.create_function_mut(|_, ()| {
-            **displayed_card_name.borrow_mut() = None;
-            Ok(())
-        })?,
-    )?;
-    globals.set(
         "add_component",
-        scope.create_function(|_, args| callbacks::add_component(args, *ecs.borrow_mut()))?,
+        scope.create_function(|_, args| {
+            callbacks::add_component(args, &mut game_data.borrow_mut().ecs)
+        })?,
     )?;
     globals.set(
         "remove_component",
-        scope.create_function(|_, args| callbacks::remove_component(args, *ecs.borrow_mut()))?,
+        scope.create_function(|_, args| {
+            callbacks::remove_component(args, &mut game_data.borrow_mut().ecs)
+        })?,
     )?;
     globals.set(
         "log",
@@ -505,20 +407,15 @@ fn bind_callbacks<'scope>(
     globals.set(
         "message",
         wrap_yielding.call::<Function>(scope.create_function_mut(|_, args| {
-            callbacks::message(args, *message_window.borrow_mut(), *wait_condition.borrow_mut())
-        })?)?,
-    )?;
-    globals.set(
-        "selection",
-        wrap_yielding.call::<Function>(scope.create_function_mut(|_, args| {
-            callbacks::selection(
+            callbacks::message(
                 args,
-                *message_window.borrow_mut(),
+                &mut ui_data.borrow_mut().message_window,
                 *wait_condition.borrow_mut(),
-                *id,
             )
         })?)?,
     )?;
+
+    // TODO debug
     globals.set(
         "wait",
         wrap_yielding.call::<Function>(scope.create_function_mut(|_, duration: f64| {
@@ -527,23 +424,23 @@ fn bind_callbacks<'scope>(
             Ok(())
         })?)?,
     )?;
-    globals.set(
-        "wait_storyvar",
-        wrap_yielding.call::<Function>(scope.create_function_mut(
-            |_, (key, val): (String, i32)| {
-                **wait_condition.borrow_mut() = Some(WaitCondition::StoryVar(key, val));
-                Ok(())
-            },
-        )?)?,
-    )?;
 
     Ok(())
 }
 
-pub fn get_sub_script(full_source: &str, label: &str) -> String {
-    full_source
-        .split_once(&format!("--# {label}"))
-        .and_then(|(_, after)| after.split_once("--#"))
-        .map(|(before, _)| before.to_string())
-        .unwrap_or("".to_string())
+pub fn get_script_from_file<P: AsRef<Path>>(
+    path: P,
+    script_name: &str,
+) -> anyhow::Result<String> {
+    let file_contents = std::fs::read_to_string(&path)?;
+    let start_index = file_contents
+        .find(&format!("---@script {script_name}"))
+        .context(format!("no script {script_name} in {}", path.as_ref().to_string_lossy()))?;
+    let end_index = file_contents[start_index + 1..]
+        .find("---@script")
+        .unwrap_or(file_contents[start_index..].len())
+        + start_index;
+    let script = file_contents[start_index..end_index].trim_end().to_string();
+
+    Ok(script)
 }

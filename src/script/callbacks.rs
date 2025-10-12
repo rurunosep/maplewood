@@ -1,25 +1,43 @@
-use super::{Error, ScriptId, WaitCondition};
 use crate::components::{
-    AnimationComp, Camera, CharacterAnims, Collision, DualStateAnimationState, DualStateAnims,
-    Facing, Interaction, Name, NamedAnims, Position, Scripts, SfxEmitter, SineOffsetAnimation,
-    Sprite, SpriteComp, Walking,
+    AnimationComp, AreaTrigger, Camera, CharacterAnims, Collision, CollisionTrigger,
+    DualStateAnimationState, DualStateAnims, Facing, InteractionTrigger, Name, NamedAnims,
+    Position, SfxEmitter, SineOffsetAnimation, Sprite, SpriteComp, Velocity, Walking,
 };
 use crate::data::PLAYER_ENTITY_NAME;
 use crate::ecs::{Ecs, EntityId};
 use crate::math::{Rect, Vec2};
 use crate::misc::{Direction, StoryVars};
+use crate::script::WaitCondition;
 use crate::world::WorldPos;
-use crate::{MapOverlayTransition, MessageWindow, loader};
+use crate::{MessageWindow, loader};
 use mlua::Result as LuaResult;
 use sdl2::mixer::{Chunk, Music};
-use sdl2::pixels::Color;
 use std::collections::HashMap;
+use std::fmt::{self, Display};
 use std::format as f;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tap::TapFallible;
 
 // TODO script callback error handling
 // When do we log error and continue, and when do we return error and abort the script?
+
+#[derive(Debug)]
+pub struct Error(pub String);
+
+impl std::error::Error for Error {}
+
+impl Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl From<Error> for mlua::Error {
+    fn from(err: Error) -> Self {
+        mlua::Error::ExternalError(Arc::new(err))
+    }
+}
 
 // TODO missing final bool params default to false. should I + how do I reject calls missing them?
 
@@ -64,14 +82,6 @@ pub fn set_entity_world_pos(
         .query_one_with_name::<EntityId>(&entity)
         .ok_or(Error(f!("invalid entity '{}'", entity)))?;
     ecs.add_component(entity_id, Position(WorldPos::new(&map, x, y)));
-    Ok(())
-}
-
-pub fn remove_entity_position(entity: String, ecs: &mut Ecs) -> LuaResult<()> {
-    let id = ecs
-        .query_one_with_name::<EntityId>(&entity)
-        .ok_or(Error(f!("invalid entity '{}'", entity)))?;
-    ecs.remove_component::<Position>(id);
     Ok(())
 }
 
@@ -163,8 +173,8 @@ pub fn walk(
     (entity, direction, distance, speed): (String, String, f64, f64),
     ecs: &Ecs,
 ) -> LuaResult<()> {
-    let (position, mut facing, mut walking) = ecs
-        .query_one_with_name::<(&Position, &mut Facing, &mut Walking)>(&entity)
+    let (position, facing, mut walking) = ecs
+        .query_one_with_name::<(&Position, Option<&mut Facing>, &mut Walking)>(&entity)
         .ok_or(Error(f!("invalid entity '{}'", entity)))?;
 
     walking.direction = match direction.as_str() {
@@ -187,7 +197,7 @@ pub fn walk(
             },
     );
 
-    facing.0 = walking.direction;
+    facing.map(|mut f| f.0 = walking.direction);
 
     Ok(())
 }
@@ -196,8 +206,8 @@ pub fn walk_to(
     (entity, direction, destination, speed): (String, String, f64, f64),
     ecs: &Ecs,
 ) -> LuaResult<()> {
-    let (position, mut facing, mut walking) = ecs
-        .query_one_with_name::<(&Position, &mut Facing, &mut Walking)>(&entity)
+    let (position, facing, mut walking) = ecs
+        .query_one_with_name::<(&Position, Option<&mut Facing>, &mut Walking)>(&entity)
         .ok_or(Error(f!("invalid entity '{}'", entity)))?;
 
     walking.direction = match direction.as_str() {
@@ -215,7 +225,7 @@ pub fn walk_to(
         Direction::Left | Direction::Right => Vec2::new(destination, position.map_pos.y),
     });
 
-    facing.0 = walking.direction;
+    facing.map(|mut f| f.0 = walking.direction);
 
     Ok(())
 }
@@ -337,7 +347,6 @@ pub fn stop_music(fade_out_time: f64) -> LuaResult<()> {
     Ok(())
 }
 
-// TODO attach sfx component if it doesn't exist?
 pub fn emit_entity_sfx(
     (entity, sfx, repeat): (String, String, bool),
     ecs: &Ecs,
@@ -356,53 +365,6 @@ pub fn stop_entity_sfx(entity: String, ecs: &Ecs) -> LuaResult<()> {
         .ok_or(Error(f!("invalid entity '{}'", entity)))?;
     sfx_comp.sfx_name = None;
     sfx_comp.repeat = false;
-    Ok(())
-}
-
-pub fn set_map_overlay_color(
-    (r, g, b, a, duration): (u8, u8, u8, u8, f64),
-    map_overlay_color_transition: &mut Option<MapOverlayTransition>,
-    map_overlay_color: Color,
-) -> LuaResult<()> {
-    *map_overlay_color_transition = Some(MapOverlayTransition {
-        start_time: Instant::now(),
-        duration: Duration::from_secs_f64(duration),
-        start_color: map_overlay_color,
-        end_color: Color::RGBA(r, g, b, a),
-    });
-    Ok(())
-}
-
-// Internals of this function may want to be pulled out so that components referenced by
-// json name can be removed by other code, not just scripts
-// (for example, the debug ui will likely be removing components by json name)
-pub fn remove_component(
-    (entity_name, component_name): (String, String),
-    ecs: &mut Ecs,
-) -> LuaResult<()> {
-    let id = ecs
-        .query_one_with_name::<EntityId>(&entity_name)
-        .ok_or(Error(f!("invalid entity '{}'", entity_name)))?;
-
-    // TODO use Component::name() somehow?
-    match component_name.as_str() {
-        "Name" => ecs.remove_component::<Name>(id),
-        "Position" => ecs.remove_component::<Position>(id),
-        "Collision" => ecs.remove_component::<Collision>(id),
-        "Scripts" => ecs.remove_component::<Scripts>(id),
-        "SfxEmitter" => ecs.remove_component::<SfxEmitter>(id),
-        "SpriteComp" => ecs.remove_component::<SpriteComp>(id),
-        "Facing" => ecs.remove_component::<Facing>(id),
-        "Walking" => ecs.remove_component::<Walking>(id),
-        "Camera" => ecs.remove_component::<Camera>(id),
-        "Interaction" => ecs.remove_component::<Interaction>(id),
-        "AnimationComp" => ecs.remove_component::<AnimationComp>(id),
-        "CharacterAnims" => ecs.remove_component::<CharacterAnims>(id),
-        "DualStateAnims" => ecs.remove_component::<DualStateAnims>(id),
-        "NamedAnims" => ecs.remove_component::<NamedAnims>(id),
-        _ => Err(Error(f!("invalid component '{}'", component_name)))?,
-    };
-
     Ok(())
 }
 
@@ -427,6 +389,40 @@ pub fn add_component(
     Ok(())
 }
 
+// Internals of this function may want to be pulled out so that components referenced by
+// json name can be removed by other code, not just scripts
+// (for example, the debug ui will likely be removing components by json name)
+pub fn remove_component(
+    (entity_name, component_name): (String, String),
+    ecs: &mut Ecs,
+) -> LuaResult<()> {
+    let id = ecs
+        .query_one_with_name::<EntityId>(&entity_name)
+        .ok_or(Error(f!("invalid entity '{}'", entity_name)))?;
+
+    match component_name.as_str() {
+        "Name" => ecs.remove_component::<Name>(id),
+        "Position" => ecs.remove_component::<Position>(id),
+        "Velocity" => ecs.remove_component::<Velocity>(id),
+        "Collision" => ecs.remove_component::<Collision>(id),
+        "SfxEmitter" => ecs.remove_component::<SfxEmitter>(id),
+        "SpriteComp" => ecs.remove_component::<SpriteComp>(id),
+        "Facing" => ecs.remove_component::<Facing>(id),
+        "Walking" => ecs.remove_component::<Walking>(id),
+        "Camera" => ecs.remove_component::<Camera>(id),
+        "AnimationComp" => ecs.remove_component::<AnimationComp>(id),
+        "CharacterAnims" => ecs.remove_component::<CharacterAnims>(id),
+        "DualStateAnims" => ecs.remove_component::<DualStateAnims>(id),
+        "NamedAnims" => ecs.remove_component::<NamedAnims>(id),
+        "InteractionTrigger" => ecs.remove_component::<InteractionTrigger>(id),
+        "CollisionTrigger" => ecs.remove_component::<CollisionTrigger>(id),
+        "AreaTrigger" => ecs.remove_component::<AreaTrigger>(id),
+        _ => Err(Error(f!("invalid component '{}'", component_name)))?,
+    };
+
+    Ok(())
+}
+
 pub fn dump_entities_to_file(path: String, ecs: &Ecs) -> LuaResult<()> {
     std::fs::write(
         &path,
@@ -440,34 +436,7 @@ pub fn message(
     message_window: &mut Option<MessageWindow>,
     wait_condition: &mut Option<WaitCondition>,
 ) -> LuaResult<()> {
-    *message_window =
-        Some(MessageWindow { message, is_selection: false, waiting_script_id: None });
-    *wait_condition = Some(WaitCondition::Message);
-    Ok(())
-}
-
-pub fn message_new(
-    message: String,
-    message_window: &mut Option<MessageWindow>,
-    wait_condition: &mut Option<crate::script_new::WaitCondition>,
-) -> LuaResult<()> {
-    println!("{message}");
-
-    *message_window =
-        Some(MessageWindow { message, is_selection: false, waiting_script_id: None });
-    *wait_condition = Some(crate::script_new::WaitCondition::Message);
-
-    Ok(())
-}
-
-pub fn selection(
-    message: String,
-    message_window: &mut Option<MessageWindow>,
-    wait_condition: &mut Option<WaitCondition>,
-    script_id: ScriptId,
-) -> LuaResult<()> {
-    *message_window =
-        Some(MessageWindow { message, is_selection: true, waiting_script_id: Some(script_id) });
+    *message_window = Some(MessageWindow { message });
     *wait_condition = Some(WaitCondition::Message);
     Ok(())
 }
