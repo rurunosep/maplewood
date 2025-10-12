@@ -1,5 +1,5 @@
 use crate::loader::ldtk_project;
-use crate::math::{CellPos, CellUnits, MapPos, PixelUnits, Vec2};
+use crate::math::{CellPos, CellUnits, MapPos, MapUnits, PixelUnits, Vec2};
 use crate::misc::Aabb;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -8,6 +8,7 @@ use std::collections::HashMap;
 #[serde(deny_unknown_fields)]
 pub struct WorldPos {
     pub map: String,
+    #[serde(serialize_with = "Vec2::<f64,MapUnits>::serialize_truncated")]
     pub map_pos: MapPos,
 }
 

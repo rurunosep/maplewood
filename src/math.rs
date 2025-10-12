@@ -1,4 +1,5 @@
 use crate::misc::CELL_SIZE;
+use serde::ser::SerializeStruct;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -101,6 +102,18 @@ impl<T: Div + Copy, U> Div<T> for Vec2<T, U> {
 impl<T: Div<Output = T> + Copy, U> DivAssign<T> for Vec2<T, U> {
     fn div_assign(&mut self, rhs: T) {
         *self = *self / rhs;
+    }
+}
+
+impl Vec2<f64, MapUnits> {
+    pub fn serialize_truncated<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut state = serializer.serialize_struct("Vec2", 2)?;
+        state.serialize_field("x", &((self.x * 1000.).trunc() / 1000.))?;
+        state.serialize_field("y", &((self.y * 1000.).trunc() / 1000.))?;
+        state.end()
     }
 }
 
