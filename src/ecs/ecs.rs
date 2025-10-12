@@ -4,7 +4,7 @@ use anymap::AnyMap;
 use slotmap::{Key, SecondaryMap, SlotMap, new_key_type};
 use std::cell::RefCell;
 
-// TODO entity identifier enum that can be Name(String) or Id(EntityId)
+// TODO EntityIdentifier enum that can be Name(String) or Id(EntityId)
 // String and EntityId implement Into<{Identifier}>
 // query_one can take Into<{Identifier}>
 // camera target can be an Option<{Identifier}>, etc
@@ -41,7 +41,7 @@ type QueryResultIter<'r, Q> = Box<dyn Iterator<Item = <Q as Query>::Result<'r>> 
 pub type ComponentMap<C> = SecondaryMap<EntityId, RefCell<C>>;
 
 pub struct Ecs {
-    // TODO implement slotmap myself so that I can control its serde functionality (and more)
+    // TODO implement slotmap myself so that I can control its serde functionality
     pub entity_ids: SlotMap<EntityId, ()>,
     pub component_maps: AnyMap,
     #[allow(clippy::type_complexity)]
@@ -97,8 +97,6 @@ impl Ecs {
 
     // Does NOT filter in a way that avoids double borrow in a nested query
     // (Because it filters by name during the query)
-    // TODO query_one_with_name filters by name before querying
-    // Or just leave it since I'm reworking the ecs later anyway?
     pub fn query_one_with_name<'ecs, Q>(&'ecs self, name: &str) -> Option<Q::Result<'ecs>>
     where
         Q: Query + 'static,
