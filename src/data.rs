@@ -81,27 +81,6 @@ pub fn load_entities_from_source(ecs: &mut Ecs) {
     ecs.add_component(id, Velocity::default());
     ecs.add_component(id, Walking::default());
 
-    // Start script entity
-    // let id = ecs.add_entity();
-    // ecs.add_component(
-    //     id,
-    //     Scripts(vec![ScriptClass {
-    //         source: script::get_sub_script(
-    //             &std::fs::read_to_string("data/scripts.lua").unwrap(),
-    //             "start",
-    //         ),
-    //         label: None,
-    //         trigger: Some(Trigger::Auto),
-    //         start_condition: Some(StartAbortCondition {
-    //             story_var: "start_script::started".to_string(),
-    //             value: 0,
-    //         }),
-    //         abort_condition: None,
-    //         set_on_start: Some(("start_script::started".to_string(), 1)),
-    //         set_on_finish: None,
-    //     }]),
-    // );
-
     // Bathroom door blocker
     let id = ecs.add_entity();
     ecs.add_component(id, Name("bathroom::door::blocker".to_string()));
@@ -177,20 +156,4 @@ pub fn load_entities_from_source(ecs: &mut Ecs) {
             hitbox: Vec2::new(1., 1.),
         },
     );
-    // ecs.add_component(
-    //     id,
-    //     Scripts(vec![ScriptClass {
-    //         source: script::get_sub_script(
-    //             &std::fs::read_to_string("data/scripts.lua").unwrap(),
-    //             "bakery_girl::panic",
-    //         ),
-    //         trigger: Some(Trigger::Auto),
-    //         start_condition: Some(StartAbortCondition {
-    //             story_var: "bakery_girl::stage".to_string(),
-    //             value: 4,
-    //         }),
-    //         set_on_start: Some(("bakery_girl::stage".to_string(), 5)),
-    //         ..ScriptClass::default()
-    //     }]),
-    // );
 }

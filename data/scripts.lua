@@ -1,11 +1,13 @@
 ---@diagnostic disable: unreachable-code
 
----@start start
+---@script start
+---@start_condition {start_script::started} == 0
+set_story_var("start_script::started", 1)
 
--- message("You're sooo sleepy.")
--- message("But you can't sleep without a plushy.")
--- message("Legend says the kid in the classroom has a plushy.")
--- message("(Press ~ to check out the dev UI.)")
+message("You're sooo sleepy.")
+message("But you can't sleep without a plushy.")
+message("Legend says the kid in the classroom has a plushy.")
+message("(Press SPACE to interact and ~ to check out the dev UI.)")
 
 ---@script school_kid
 
@@ -138,6 +140,8 @@ local stages = {
 stages[get_story_var("bakery_girl::stage")]()
 
 ---@script bakery_girl::panic
+---@start_condition {bakery_girl::stage} == 4
+set_story_var("bakery_girl::stage", 5)
 
 while true do
   walk_wait("bakery_girl", "left", 2, 0.12)

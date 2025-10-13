@@ -43,11 +43,11 @@ pub struct Renderer<'window> {
 
 impl Renderer<'_> {
     pub fn new(window: &Window) -> Self {
-        let instance = Instance::new(InstanceDescriptor {
+        let instance = Instance::new(&InstanceDescriptor {
             backends: Backends::all(),
             flags: InstanceFlags::DEBUG | InstanceFlags::VALIDATION,
-            dx12_shader_compiler: Dx12Compiler::default(),
-            gles_minor_version: Gles3MinorVersion::default(),
+            memory_budget_thresholds: MemoryBudgetThresholds::default(),
+            backend_options: BackendOptions::default(),
         });
 
         let surface = unsafe {
@@ -66,17 +66,15 @@ impl Renderer<'_> {
             .unwrap();
 
         let (device, queue) = adapter
-            .request_device(
-                &DeviceDescriptor {
-                    label: None,
-                    // Push constants are only available on native. Can't target wasm.
-                    required_features: Features::PUSH_CONSTANTS,
-                    // Limits should be kept to exactly what we need and no more
-                    required_limits: Limits { max_push_constant_size: 32, ..Default::default() },
-                    memory_hints: MemoryHints::default(),
-                },
-                None,
-            )
+            .request_device(&DeviceDescriptor {
+                label: None,
+                // Push constants are only available on native. Can't target wasm.
+                required_features: Features::PUSH_CONSTANTS,
+                // Limits should be kept to exactly what we need and no more
+                required_limits: Limits { max_push_constant_size: 32, ..Default::default() },
+                memory_hints: MemoryHints::default(),
+                trace: Trace::Off,
+            })
             .block_on()
             .unwrap();
         // For now, keep the default behavior of panicking on uncaptured wgpu errors
@@ -204,6 +202,7 @@ impl Renderer<'_> {
                     view: &camera_texture.view,
                     resolve_target: None,
                     ops: Operations { load: LoadOp::Clear(Color::BLACK), store: StoreOp::Store },
+                    depth_slice: None,
                 })],
                 depth_stencil_attachment: None,
                 timestamp_writes: None,
@@ -221,6 +220,7 @@ impl Renderer<'_> {
                     view: &surface_texture_view,
                     resolve_target: None,
                     ops: Operations { load: LoadOp::Clear(Color::BLACK), store: StoreOp::Store },
+                    depth_slice: None,
                 })],
                 depth_stencil_attachment: None,
                 timestamp_writes: None,
@@ -596,7 +596,7 @@ impl Renderer<'_> {
         });
 
         self.queue.write_texture(
-            ImageCopyTexture {
+            TexelCopyTextureInfo {
                 texture: &wgpu_texture,
                 mip_level: 0,
                 origin: Origin3d::ZERO,
@@ -604,7 +604,7 @@ impl Renderer<'_> {
                 aspect: TextureAspect::All,
             },
             &image.to_rgba8(),
-            ImageDataLayout {
+            TexelCopyBufferLayout {
                 offset: 0,
                 bytes_per_row: Some(image.dimensions().0 * 4),
                 rows_per_image: Some(image.dimensions().1),

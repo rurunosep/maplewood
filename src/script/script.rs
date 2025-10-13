@@ -46,7 +46,7 @@ impl ScriptManager {
         self.start_queue.push_back(source.to_string());
     }
 
-    pub fn start_script(&mut self, source: &str, story_vars: &mut StoryVars) {
+    pub fn start_script(&mut self, source: &str, story_vars: &StoryVars) {
         let r: mlua::Result<()> = try {
             let mut script_name: Option<String> = None;
             let mut exclusive = false;
@@ -73,12 +73,11 @@ impl ScriptManager {
                     .tap_err(|e| {
                         log::error!(once = true; "Invalid story var condition: \"{condition}\" (err: {e})")
                     })
+                    .map(|b| !b)
                     .unwrap_or(true)
             {
                 return;
             }
-
-            // TODO warn if exclusive but no name
 
             // Skip exclusive scripts that are already running
             if exclusive
@@ -92,59 +91,21 @@ impl ScriptManager {
                 return;
             }
 
+            if exclusive && script_name.is_none() {
+                log::warn!("Started 'exclusive' script with no identifying name")
+            }
+
             let lua_instance = Lua::new();
-            let chunk = lua_instance.load(source);
-            let func = chunk.into_function()?;
-            let thread = lua_instance.create_thread(func)?;
+            let thread =
+                lua_instance.create_thread(lua_instance.load(source).into_function()?)?;
 
-            // Wrapper to yield and save current line
-            lua_instance
-                .load(
-                    r"
-                    wrap_yielding = function(f)
-                        return function(...)
-                            f(...)
-                            line_yielded_at = current_line(2)
-                            coroutine.yield()
-                        end
-                    end
-                    ",
-                )
-                .exec()?;
-
-            // General utility functions defined in Lua
-            // TODO load these from a file
-            lua_instance
-                .load(
-                    r#"
-                    -- Because LDtk doesn't handle "\n" properly
-                    nl = "\n"
-
-                    function walk_wait(entity, direction, distance, speed)
-                        walk(entity, direction, distance, speed)
-                        wait_until_not_walking(entity)
-                    end
-
-                    function walk_to_wait(entity, direction, destination, speed)
-                        walk_to(entity, direction, destination, speed)
-                        wait_until_not_walking(entity)
-                    end
-
-                    function wait_until_not_walking(entity)
-                        while(is_entity_walking(entity)) do
-                            line_yielded_at = current_line(3)
-                            coroutine.yield()
-                        end
-                    end
-                    "#,
-                )
-                .exec()?;
+            lua_instance.load(include_str!("prelude.lua")).exec()?;
 
             // Callback to get current line, because debug can't be accessed from Lua in safe mode
             lua_instance.globals().set(
                 "current_line",
                 lua_instance.create_function(|lua, level: usize| {
-                    Ok(lua.inspect_stack(level).map(|s| s.curr_line()))
+                    Ok(lua.inspect_stack(level, |d| d.current_line()))
                 })?,
             )?;
 

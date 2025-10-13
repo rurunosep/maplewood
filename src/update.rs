@@ -25,13 +25,13 @@ pub fn update(
     sound_effects: &HashMap<String, Chunk>,
     delta: Duration,
 ) {
-    // TODO reintroduce auto scripts, and/or map scripts
+    for source in &game_data.auto_scripts {
+        script_manager.start_script(source, &game_data.story_vars);
+    }
     start_area_trigger_scripts(&game_data.ecs, script_manager);
-
     #[rustfmt::skip]
     script_manager.update(
-        game_data, ui_data, player_movement_locked, running, musics,
-        sound_effects,
+        game_data, ui_data, player_movement_locked, running, musics, sound_effects,
     );
 
     stop_player_movement_when_message_window_open(&game_data.ecs, &ui_data.message_window);

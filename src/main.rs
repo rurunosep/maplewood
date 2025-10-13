@@ -32,6 +32,7 @@ pub struct GameData {
     pub world: World,
     pub ecs: Ecs,
     pub story_vars: StoryVars,
+    pub auto_scripts: Vec<String>,
 }
 
 pub struct UiData {
@@ -119,7 +120,12 @@ fn main() {
     let mut story_vars = StoryVars(HashMap::new());
     loader::load_story_vars_from_file(&mut story_vars, "data/story_vars.json");
 
-    let mut game_data = GameData { world, ecs, story_vars };
+    let auto_scripts = vec![
+        script::get_script_from_file("data/scripts.lua", "start").unwrap(),
+        script::get_script_from_file("data/scripts.lua", "bakery_girl::panic").unwrap(),
+    ];
+
+    let mut game_data = GameData { world, ecs, story_vars, auto_scripts };
 
     // Misc
     let mut ui_data = UiData {
@@ -129,13 +135,6 @@ fn main() {
     };
     let mut script_manager = ScriptManager::new();
     let mut player_movement_locked = false;
-
-    // script_manager.start_script(
-    //     &script::get_script_from_file("data/scripts.lua",
-    // "bakery_girl_panic_setup").unwrap(), );
-    // script_manager.start_script(
-    //     &script::get_script_from_file("data/scripts.lua", "bakery_girl::panic").unwrap(),
-    // );
 
     // Console
     let console_lua_instance = mlua::Lua::new();
@@ -187,7 +186,7 @@ fn main() {
         #[rustfmt::skip]
         update::update(
             &mut game_data, &mut ui_data, &mut script_manager, &mut player_movement_locked,
-            &mut running, &musics, &sound_effects, delta,
+            &mut running, &musics, &sound_effects, delta
         );
 
         renderer.render(&game_data.world, &game_data.ecs, &ui_data, &mut dev_ui);

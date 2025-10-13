@@ -8,27 +8,27 @@ version = "0.3.0"
 anyhow = "1.0.100"
 anymap = "0.12.1"
 bytemuck = "1.20.0"
-colored = "2.1.0"
+colored = "3.0.0"
 crossbeam = "0.8.4"
 derived-deref = "2.1.0"
-egui = "0.29.1"
-egui-sdl2-event = "0.5.0"
-egui_wgpu_backend = "0.32.0"
+egui = "0.32.3"
+egui-sdl2-event = {git = "https://github.com/rurunosep/egui-sdl2-event"}
+egui_wgpu_backend = "0.35.0"
 evalexpr = "12.0.2"
-image = {version = "0.25.5", default-features = false, features = ["png", "rayon"]}
-itertools = "0.13.0"
+image = {version = "0.25.8", default-features = false, features = ["png", "rayon"]}
+itertools = "0.14.0"
 log = {version = "0.4.22", features = ["std", "kv"]}
-mlua = {version = "0.10.2", features = ["lua54", "vendored"]}
+mlua = {version = "0.11.4", features = ["lua54", "vendored"]}
 pollster = "0.4.0"
-regex = "1.12.1"
+regex = {version = "1.12.1", features = ["std"], default-features = false}
 sdl2 = {version = "0.37.0", features = ["mixer", "raw-window-handle"]}
-serde = {version = "1.0.215", features = ["derive"]}
-serde_json = {version = "1.0.133", features = ["preserve_order"]}
+serde = {version = "1.0.228", features = ["derive"]}
+serde_json = {version = "1.0.145", features = ["preserve_order"]}
 slotmap = {version = "1.0.7", features = ["serde"]}
 smart-default = "0.7.1"
 tap = "1.0.1"
-wgpu = "23.0.1"
-wgpu_text = "0.9.1"
+wgpu = "26.0.1"
+wgpu_text = "26.0.0"
 
 [target.'cfg(windows)'.dependencies]
 winapi = {version = "0.3.9", features = ["winuser"]}

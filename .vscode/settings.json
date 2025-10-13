@@ -1,34 +1,3 @@
 {
-  "Lua.diagnostics.globals": [
-    "set_entity_world_pos",
-    "set_story_var",
-    "message",
-    "lock_player_input",
-    "set_cutscene_border",
-    "set_entity_solid",
-    "set_entity_map_pos",
-    "wait",
-    "walk_to_wait",
-    "remove_cutscene_border",
-    "unlock_player_input",
-    "get_story_var",
-    "play_named_animation",
-    "remove_camera_target",
-    "walk_wait",
-    "set_camera_target",
-    "set_entity_visible",
-    "walk",
-    "emit_entity_sfx",
-    "play_object_animation",
-    "close_game",
-    "switch_dual_state_animation",
-    "stop_object_animation",
-    "stop_entity_sfx",
-    "set_forced_sprite",
-    "play_sfx",
-    "set_camera_clamp",
-    "add_component",
-    "log"
-  ],
-  "Lua.diagnostics.disable": ["redefined-local"]
+  "Lua.diagnostics.disable": ["redefined-local", "undefined-global", "lowercase-global"]
 }
