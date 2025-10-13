@@ -4,13 +4,15 @@ use crate::misc::StoryVars;
 use crate::script::{ScriptInstanceId, ScriptManager};
 use egui::text::LayoutJob;
 use egui::{
-    Color32, Context, FontFamily, FontId, Grid, ScrollArea, TextEdit, TextFormat, Window,
+    Color32, Context, FontFamily, FontId, Grid, ScrollArea, TextEdit, TextFormat, Widget, Window,
 };
 use egui_sdl2_event::EguiSDL2State;
 use itertools::Itertools;
 use sdl2::video::Window as SdlWindow;
 use std::collections::HashMap;
 use std::time::Instant;
+
+// TODO translucent windows
 
 pub struct DevUi<'window> {
     pub ctx: Context,
@@ -25,6 +27,9 @@ pub struct DevUi<'window> {
     scripts_list_window: ScriptsListWindow,
     script_windows: HashMap<ScriptInstanceId, ScriptWindow>,
     story_vars_window: StoryVarsWindow,
+    //
+    input_text: String,
+    log_text: String,
 }
 
 impl<'window> DevUi<'window> {
@@ -32,8 +37,6 @@ impl<'window> DevUi<'window> {
         let ctx = Context::default();
         // (state dpi scaling must be initally set to 1 to set the initial screen_rect correctly)
         let state = EguiSDL2State::new(window.size().0, window.size().1, 1.);
-
-        // TODO translucent windows
 
         Self {
             ctx,
@@ -46,6 +49,9 @@ impl<'window> DevUi<'window> {
             scripts_list_window: ScriptsListWindow::new(),
             script_windows: HashMap::new(),
             story_vars_window: StoryVarsWindow::new(),
+            input_text: String::new(),
+            // log_text: String::new(),
+            log_text: std::fs::read_to_string("data/scripts.lua").unwrap(),
         }
     }
 }
@@ -100,6 +106,44 @@ impl DevUi<'_> {
 
                 ui.allocate_space([ui.available_width(), 0.].into());
             });
+
+        // First, a console window with a text input on the bottom that can take commands,
+        // and a scroll area on the top that displays the log
+        // Input can be hooked right into the log to start
+        // Next, hook the input into the console lua vm,
+        // and hook the global logger into the dev ui console
+        // In either order
+
+        // Console Window
+        Window::new("Console").show(&ctx, |ui| {
+            // Input
+            egui::TopBottomPanel::bottom("bottom").show_inside(ui, |ui| {
+                // Rust can't infer closure type correctly here unless it's specified
+                let response = TextEdit::singleline(&mut self.input_text)
+                    .desired_width(f32::INFINITY)
+                    .font(egui::TextStyle::Monospace)
+                    .return_key(None)
+                    .frame(false)
+                    .ui(ui);
+
+                if response.has_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                    self.log_text.push_str(&format!("\n{}", self.input_text));
+                    self.input_text.clear();
+                }
+            });
+
+            // Log
+            egui::CentralPanel::default().show_inside(ui, |ui| {
+                ScrollArea::vertical().stick_to_bottom(true).show(ui, |ui| {
+                    // ui.with_layout(egui::Layout::bottom_up(egui::Align::Min), |ui| {
+                    egui::Label::new(
+                        egui::RichText::new(&self.log_text).family(FontFamily::Monospace),
+                    )
+                    .ui(ui);
+                    // })
+                })
+            })
+        });
 
         // Other windows
         self.entities_list_window.show(ctx, &mut self.entity_windows);
