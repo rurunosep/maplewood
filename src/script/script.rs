@@ -9,7 +9,7 @@ use slotmap::{SlotMap, new_key_type};
 use std::cell::RefCell;
 use std::collections::{HashMap, VecDeque};
 use std::path::Path;
-use std::sync::OnceLock;
+use std::sync::LazyLock;
 use std::time::Instant;
 use tap::TapFallible;
 
@@ -216,12 +216,11 @@ fn evaluate_story_var_condition(
     expression: &str,
     story_vars: &StoryVars,
 ) -> anyhow::Result<bool> {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    // Should I write a new version that doesn't require curly braces?
-    let re = RE.get_or_try_init(|| Regex::new(r"\{([^{}]*)\}"))?;
+    // Compile regex only once ever
+    static RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\{([^{}]*)\}").unwrap());
 
-    let with_values = misc::try_replace_all(&re, &expression, |caps| {
-        let key = caps.get(1).context("invalid regex")?.as_str();
+    let with_values = misc::try_replace_all(&RE, &expression, |caps| {
+        let key = caps.get(1).unwrap().as_str();
         story_vars.0.get(key).context(format!("no story var {key}")).map(|val| val.to_string())
     })?;
 

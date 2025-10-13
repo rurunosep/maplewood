@@ -19,12 +19,11 @@ use crate::misc::WINDOW_SIZE;
 use crate::script::ScriptManager;
 use dev_ui::DevUi;
 use ecs::Ecs;
-use misc::{Logger, StoryVars};
+use misc::StoryVars;
 use render::renderer::Renderer;
 use script::console;
 use sdl2::mixer::{AUDIO_S16SYS, DEFAULT_CHANNELS};
-use std::collections::{HashMap, HashSet};
-use std::sync::Mutex;
+use std::collections::HashMap;
 use std::time::{Duration, Instant};
 use world::{Map, World};
 
@@ -47,10 +46,7 @@ fn main() {
     unsafe { std::env::set_var("RUST_BACKTRACE", "0") };
 
     // Logger
-    // (How can I access the logger again to interact with it? Do I need to?)
-    log::set_boxed_logger(Box::new(Logger { once_only_logs: Mutex::new(HashSet::new()) }))
-        .unwrap();
-    log::set_max_level(log::LevelFilter::Info);
+    misc::LOGGER.init();
 
     // Prevent high DPI scaling on Windows
     #[cfg(target_os = "windows")]

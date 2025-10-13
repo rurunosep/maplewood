@@ -1,10 +1,11 @@
 use crate::dev_ui::entities::{EntitiesListWindow, EntityWindow};
 use crate::ecs::{Ecs, EntityId};
-use crate::misc::StoryVars;
+use crate::misc::{self, StoryVars};
 use crate::script::{ScriptInstanceId, ScriptManager};
 use egui::text::LayoutJob;
 use egui::{
-    Color32, Context, FontFamily, FontId, Grid, ScrollArea, TextEdit, TextFormat, Widget, Window,
+    CentralPanel, Color32, Context, FontFamily, FontId, Grid, Key, Label, RichText, ScrollArea,
+    TextEdit, TextFormat, TextStyle, TopBottomPanel, Widget, Window,
 };
 use egui_sdl2_event::EguiSDL2State;
 use itertools::Itertools;
@@ -28,8 +29,7 @@ pub struct DevUi<'window> {
     script_windows: HashMap<ScriptInstanceId, ScriptWindow>,
     story_vars_window: StoryVarsWindow,
     //
-    input_text: String,
-    log_text: String,
+    console_input_text: String,
 }
 
 impl<'window> DevUi<'window> {
@@ -49,9 +49,7 @@ impl<'window> DevUi<'window> {
             scripts_list_window: ScriptsListWindow::new(),
             script_windows: HashMap::new(),
             story_vars_window: StoryVarsWindow::new(),
-            input_text: String::new(),
-            // log_text: String::new(),
-            log_text: std::fs::read_to_string("data/scripts.lua").unwrap(),
+            console_input_text: String::new(),
         }
     }
 }
@@ -97,6 +95,7 @@ impl DevUi<'_> {
             .pivot(egui::Align2::RIGHT_TOP)
             .default_pos(ctx.screen_rect().shrink(16.).right_top())
             .default_width(150.)
+            // .frame(Frame::window(&ctx.style()).multiply_with_opacity(0.9))
             .show(&ctx, |ui| {
                 ui.label(format!("Frame Duration: {frame_duration:.2}%"));
 
@@ -107,40 +106,36 @@ impl DevUi<'_> {
                 ui.allocate_space([ui.available_width(), 0.].into());
             });
 
-        // First, a console window with a text input on the bottom that can take commands,
-        // and a scroll area on the top that displays the log
-        // Input can be hooked right into the log to start
-        // Next, hook the input into the console lua vm,
-        // and hook the global logger into the dev ui console
-        // In either order
-
         // Console Window
-        Window::new("Console").show(&ctx, |ui| {
+        Window::new("Console").default_width(800.).show(&ctx, |ui| {
             // Input
-            egui::TopBottomPanel::bottom("bottom").show_inside(ui, |ui| {
+            TopBottomPanel::bottom("bottom").show_inside(ui, |ui| {
                 // Rust can't infer closure type correctly here unless it's specified
-                let response = TextEdit::singleline(&mut self.input_text)
+                let response = TextEdit::singleline(&mut self.console_input_text)
                     .desired_width(f32::INFINITY)
-                    .font(egui::TextStyle::Monospace)
+                    .font(TextStyle::Monospace)
                     .return_key(None)
                     .frame(false)
                     .ui(ui);
 
-                if response.has_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
-                    self.log_text.push_str(&format!("\n{}", self.input_text));
-                    self.input_text.clear();
+                if response.has_focus() && ui.input(|i| i.key_pressed(Key::Enter)) {
+                    misc::LOGGER
+                        .history
+                        .lock()
+                        .unwrap()
+                        .push(format!("> {}", self.console_input_text));
+                    self.console_input_text.clear();
+                    // TODO pass console input to lua console
                 }
             });
 
             // Log
-            egui::CentralPanel::default().show_inside(ui, |ui| {
+            CentralPanel::default().show_inside(ui, |ui| {
                 ScrollArea::vertical().stick_to_bottom(true).show(ui, |ui| {
-                    // ui.with_layout(egui::Layout::bottom_up(egui::Align::Min), |ui| {
-                    egui::Label::new(
-                        egui::RichText::new(&self.log_text).family(FontFamily::Monospace),
-                    )
-                    .ui(ui);
-                    // })
+                    let text = misc::LOGGER.history.lock().unwrap().join("\n");
+                    Label::new(RichText::new(&text).family(FontFamily::Monospace)).ui(ui);
+
+                    ui.allocate_space([ui.available_width(), 0.].into());
                 })
             })
         });

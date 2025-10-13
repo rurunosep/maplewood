@@ -4,7 +4,7 @@ use log::kv::Key;
 use log::{Level, Metadata, Record};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
-use std::sync::Mutex;
+use std::sync::{LazyLock, Mutex};
 use tap::TapOptional;
 
 pub const WINDOW_SIZE: Vec2<u32, PixelUnits> = Vec2::new(1920, 1080);
@@ -101,8 +101,26 @@ pub enum Direction {
     Right,
 }
 
+// ------------------------------------------------------------------
+// Logger
+// ------------------------------------------------------------------
+
+pub static LOGGER: LazyLock<Logger> = LazyLock::new(|| Logger::new());
+
 pub struct Logger {
+    pub history: Mutex<Vec<String>>,
     pub once_only_logs: Mutex<HashSet<String>>,
+}
+
+impl Logger {
+    fn new() -> Self {
+        Self { history: Mutex::new(Vec::new()), once_only_logs: Mutex::new(HashSet::new()) }
+    }
+
+    pub fn init(&self) {
+        log::set_logger(&*LOGGER).unwrap();
+        log::set_max_level(log::LevelFilter::Info);
+    }
 }
 
 impl log::Log for Logger {
@@ -114,23 +132,25 @@ impl log::Log for Logger {
             return;
         }
 
-        // Keep track of unique logs with the "once" attribute, and only ever print them once
+        // Keep track of unique logs with the "once" attribute, and only ever log them once
         if let Some(true) = record.key_values().get(Key::from("once")).and_then(|v| v.to_bool()) {
-            let mut onces = self.once_only_logs.lock().expect("");
+            let mut onces = self.once_only_logs.lock().unwrap();
             if onces.contains(&record.args().to_string()) {
                 return;
             }
             onces.insert(record.args().to_string());
         }
 
+        // Push log to history
+        let mut history = self.history.lock().unwrap();
+        history.push(format!("[{}] {}", record.level().as_str(), record.args()));
+
+        // Print log to stdout
         let colored_level_label = match record.level() {
             x @ Level::Error => x.as_str().red(),
             x @ Level::Warn => x.as_str().yellow(),
             x => x.as_str().normal(),
         };
-
-        // TODO style multiline logs
-
         println!("[{}] {}", colored_level_label, record.args());
     }
 
