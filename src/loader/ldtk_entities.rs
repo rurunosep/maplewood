@@ -81,9 +81,10 @@ fn load_generic_entity(
     }
 
     // JSON components
-    if let Some(Value::Object(components_map)) = read_field("json_components", entity)? {
+    if let Some(Value::Object(components_map)) = read_json_field("json_components", entity)? {
         for (key, val) in components_map {
-            super::load_component_from_value(ecs, id, &key, &val)?;
+            ecs.add_component_with_name_and_value(id, &key, &val)
+                .unwrap_or_else(|e| log::error!("{e}"));
         }
     }
 
@@ -108,7 +109,8 @@ fn load_simple_script_entity(
     // JSON components
     if let Some(Value::Object(components_map)) = read_json_field("json_components", entity)? {
         for (key, val) in components_map {
-            super::load_component_from_value(ecs, id, &key, &val)?;
+            ecs.add_component_with_name_and_value(id, &key, &val)
+                .unwrap_or_else(|e| log::error!("{e}"));
         }
     }
 
@@ -166,7 +168,7 @@ fn load_simple_animation_entity(
     // JSON components
     if let Some(Value::Object(components_map)) = read_json_field("json_components", entity)? {
         for (key, val) in components_map {
-            super::load_component_from_value(ecs, id, &key, &val)
+            ecs.add_component_with_name_and_value(id, &key, &val)
                 .unwrap_or_else(|e| log::error!("{e}"));
         }
     }
@@ -225,7 +227,7 @@ fn load_dual_state_animation_entity(
     // JSON components
     if let Some(Value::Object(components_map)) = read_json_field("json_components", entity)? {
         for (key, val) in components_map {
-            super::load_component_from_value(ecs, id, &key, &val)
+            ecs.add_component_with_name_and_value(id, &key, &val)
                 .unwrap_or_else(|e| log::error!("{e}"));
         }
     }
@@ -293,7 +295,7 @@ fn load_character_entity(
     // JSON components
     if let Some(Value::Object(components_map)) = read_json_field("json_components", entity)? {
         for (key, val) in components_map {
-            super::load_component_from_value(ecs, id, &key, &val)
+            ecs.add_component_with_name_and_value(id, &key, &val)
                 .unwrap_or_else(|e| log::error!("{e}"));
         }
     }

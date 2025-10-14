@@ -38,7 +38,7 @@ pub fn update(
 
     set_velocity_from_walking(&game_data.ecs);
     apply_velocity_to_position(&game_data.ecs);
-    start_hard_collision_scripts(&game_data.ecs, script_manager);
+    start_collision_trigger_scripts(&game_data.ecs, script_manager);
     resolve_collisions_with_tiles(&game_data.ecs, &game_data.world);
     resolve_collisions_with_entities(&game_data.ecs);
     end_walking_if_destination_reached(&game_data.ecs);
@@ -189,7 +189,7 @@ fn apply_velocity_to_position(ecs: &Ecs) {
     }
 }
 
-fn start_hard_collision_scripts(ecs: &Ecs, script_manager_new: &mut ScriptManager) {
+fn start_collision_trigger_scripts(ecs: &Ecs, script_manager_new: &mut ScriptManager) {
     let Some((player_id, player_position, player_collision)) =
         ecs.query_one_with_name::<(EntityId, &Position, &Collision)>(PLAYER_ENTITY_NAME)
     else {

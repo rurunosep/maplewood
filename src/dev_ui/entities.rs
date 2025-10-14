@@ -1,10 +1,5 @@
-use crate::components::{
-    AnimationComp, AreaTrigger, Camera, CharacterAnims, Collision, CollisionTrigger,
-    DualStateAnims, Facing, InteractionTrigger, NamedAnims, Position, SfxEmitter, SpriteComp,
-    Velocity, Walking,
-};
+use crate::components::*;
 use crate::ecs::{Component, Ecs, EntityId};
-use crate::{components, loader};
 use egui::{Context, ScrollArea, TextEdit, Ui, Window};
 use itertools::Itertools;
 use serde::Serialize;
@@ -66,7 +61,7 @@ pub struct EntityWindow {
 impl EntityWindow {
     pub fn new(entity_id: EntityId, ecs: &Ecs) -> Self {
         // Name is expected to be immutable, so we only have to set it once
-        let name = ecs.query_one_with_id::<&components::Name>(entity_id).map(|n| n.0.clone());
+        let name = ecs.query_one_with_id::<&Name>(entity_id).map(|n| n.0.clone());
 
         let window_id = egui::Id::new(f!("entity {entity_id:?}"));
 
@@ -185,7 +180,7 @@ where
                         if let Ok(v) = serde_json::from_str::<serde_json::Value>(&self.text)
                             .tap_err(|e| log::error!("Invalid component JSON (err: \"{e}\")"))
                         {
-                            loader::load_component_from_value(ecs, self.entity_id, C::name(), &v)
+                            ecs.add_component_with_name_and_value(self.entity_id, C::name(), &v)
                                 .unwrap_or_else(|e| log::error!("{e}"));
                         }
 

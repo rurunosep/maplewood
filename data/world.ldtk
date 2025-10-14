@@ -10646,6 +10646,30 @@
 								],
 								"__worldX": -112,
 								"__worldY": -88
+							},
+							{
+								"__identifier": "generic",
+								"__grid": [11,9],
+								"__pivot": [0.5,0.5],
+								"__tags": [],
+								"__tile": null,
+								"__smartColor": "#3A4466",
+								"iid": "4d3ba610-8560-11f0-9d19-d7b75578d648",
+								"width": 16,
+								"height": 16,
+								"defUid": 842,
+								"px": [184,152],
+								"fieldInstances": [
+									{ "__identifier": "name", "__type": "String", "__value": null, "__tile": null, "defUid": 843, "realEditorValues": [] },
+									{ "__identifier": "json_components", "__type": "String", "__value": "{\n  \"Name\": \"a_generic\",\n  \"Velocity\": {\n    \"x\": 1.0,\n    \"y\": 2.0\n  }\n}", "__tile": null, "defUid": 844, "realEditorValues": [{
+										"id": "V_String",
+										"params": [
+											"{\\n  \"Name\": \"a_generic\",\\n  \"Velocity\": {\\n    \"x\": 1.0,\\n    \"y\": 2.0\\n  }\\n}"
+										]
+									}] }
+								],
+								"__worldX": 24,
+								"__worldY": -8
 							}
 						]
 					},

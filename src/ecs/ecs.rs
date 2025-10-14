@@ -1,6 +1,8 @@
 use super::query::Query;
-use crate::components::Name;
+use crate::components::*;
+use anyhow::anyhow;
 use anymap::AnyMap;
+use serde::Serialize;
 use slotmap::{Key, SecondaryMap, SlotMap, new_key_type};
 use std::cell::RefCell;
 
@@ -191,5 +193,112 @@ impl Ecs {
             f(self);
         }
         self.deferred_entity_ids.borrow_mut().clear();
+    }
+
+    pub fn add_component_with_name_and_value(
+        &mut self,
+        id: EntityId,
+        component_name: &str,
+        data: &serde_json::Value,
+    ) -> anyhow::Result<()> {
+        use serde_json::from_value as sjfv;
+        let data_c = data.clone();
+
+        let r: anyhow::Result<()> = try {
+            match component_name {
+                "Name" => self.add_component(id, sjfv::<Name>(data_c)?),
+                "Position" => self.add_component(id, sjfv::<Position>(data_c)?),
+                "Velocity" => self.add_component(id, sjfv::<Velocity>(data_c)?),
+                "Collision" => self.add_component(id, sjfv::<Collision>(data_c)?),
+                "SfxEmitter" => self.add_component(id, sjfv::<SfxEmitter>(data_c)?),
+                "SpriteComp" => self.add_component(id, sjfv::<SpriteComp>(data_c)?),
+                "Facing" => self.add_component(id, sjfv::<Facing>(data_c)?),
+                "Walking" => self.add_component(id, sjfv::<Walking>(data_c)?),
+                "Camera" => self.add_component(id, sjfv::<Camera>(data_c)?),
+                "AnimationComp" => self.add_component(id, sjfv::<AnimationComp>(data_c)?),
+                "CharacterAnims" => self.add_component(id, sjfv::<CharacterAnims>(data_c)?),
+                "DualStateAnims" => self.add_component(id, sjfv::<DualStateAnims>(data_c)?),
+                "NamedAnims" => self.add_component(id, sjfv::<NamedAnims>(data_c)?),
+                "InteractionTrigger" => {
+                    self.add_component(id, sjfv::<InteractionTrigger>(data_c)?)
+                }
+                "CollisionTrigger" => self.add_component(id, sjfv::<CollisionTrigger>(data_c)?),
+                "AreaTrigger" => self.add_component(id, sjfv::<AreaTrigger>(data_c)?),
+                _ => Err(anyhow!("invalid JSON component name `{}`", component_name))?,
+            };
+        };
+        r.map_err(|e| {
+            anyhow!(
+                "invalid JSON component\nname: {component_name}\ndata: {}\nerr: \"{e}\"",
+                serde_json::to_string_pretty(&data).unwrap_or("invalid json".to_string())
+            )
+        })
+    }
+
+    pub fn remove_component_with_name(
+        &mut self,
+        id: EntityId,
+        component_name: &str,
+    ) -> anyhow::Result<()> {
+        match component_name {
+            "Name" => self.remove_component::<Name>(id),
+            "Position" => self.remove_component::<Position>(id),
+            "Velocity" => self.remove_component::<Velocity>(id),
+            "Collision" => self.remove_component::<Collision>(id),
+            "SfxEmitter" => self.remove_component::<SfxEmitter>(id),
+            "SpriteComp" => self.remove_component::<SpriteComp>(id),
+            "Facing" => self.remove_component::<Facing>(id),
+            "Walking" => self.remove_component::<Walking>(id),
+            "Camera" => self.remove_component::<Camera>(id),
+            "AnimationComp" => self.remove_component::<AnimationComp>(id),
+            "CharacterAnims" => self.remove_component::<CharacterAnims>(id),
+            "DualStateAnims" => self.remove_component::<DualStateAnims>(id),
+            "NamedAnims" => self.remove_component::<NamedAnims>(id),
+            "InteractionTrigger" => self.remove_component::<InteractionTrigger>(id),
+            "CollisionTrigger" => self.remove_component::<CollisionTrigger>(id),
+            "AreaTrigger" => self.remove_component::<AreaTrigger>(id),
+            _ => return Err(anyhow!("invalid JSON component name `{}`", component_name)),
+        };
+
+        Ok(())
+    }
+
+    // This is only for debug or for easily generating component json
+    // It doesn't include an id for restoring game state
+    pub fn save_components_to_value(&self, id: EntityId) -> serde_json::Value {
+        let mut components = serde_json::Map::new();
+
+        insert::<Name>(&mut components, id, &self);
+        insert::<Position>(&mut components, id, &self);
+        insert::<Velocity>(&mut components, id, &self);
+        insert::<Collision>(&mut components, id, &self);
+        insert::<SfxEmitter>(&mut components, id, &self);
+        insert::<SpriteComp>(&mut components, id, &self);
+        insert::<Facing>(&mut components, id, &self);
+        insert::<Walking>(&mut components, id, &self);
+        insert::<Camera>(&mut components, id, &self);
+        insert::<AnimationComp>(&mut components, id, &self);
+        insert::<CharacterAnims>(&mut components, id, &self);
+        insert::<DualStateAnims>(&mut components, id, &self);
+        insert::<NamedAnims>(&mut components, id, &self);
+        insert::<InteractionTrigger>(&mut components, id, &self);
+        insert::<CollisionTrigger>(&mut components, id, &self);
+        insert::<AreaTrigger>(&mut components, id, &self);
+
+        fn insert<C>(
+            components: &mut serde_json::Map<String, serde_json::Value>,
+            id: EntityId,
+            ecs: &Ecs,
+        ) where
+            C: Component + Clone + Serialize + 'static,
+        {
+            if let Some(component) = ecs.query_one_with_id::<&C>(id)
+                && let Ok(value) = serde_json::to_value(component.clone())
+            {
+                components.insert(C::name().to_string(), value);
+            }
+        }
+
+        serde_json::Value::Object(components)
     }
 }

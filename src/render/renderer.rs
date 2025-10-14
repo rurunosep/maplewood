@@ -179,7 +179,7 @@ impl Renderer<'_> {
         ecs: &Ecs,
         ui_data: &UiData,
         // &mut cause we need to consume full_output.textures_delta
-        egui_data: &mut DevUi,
+        dev_ui: &mut DevUi,
     ) {
         let surface_texture = self.surface.get_current_texture().unwrap();
         let surface_texture_view =
@@ -251,18 +251,18 @@ impl Renderer<'_> {
             self.draw_message_window(&mut render_pass, surface_size, &ui_data.message_window);
         }
 
-        // Egui render pass
-        if egui_data.active
-            && let Some(full_output) = egui_data.full_output.take()
+        // Dev UI render pass
+        if dev_ui.active
+            && let Some(full_output) = dev_ui.full_output.take()
         {
             let paint_jobs =
-                egui_data.ctx.tessellate(full_output.shapes, egui_data.ctx.pixels_per_point());
+                dev_ui.ctx.tessellate(full_output.shapes, dev_ui.ctx.pixels_per_point());
             let textures_delta = full_output.textures_delta;
 
             let screen_descriptor = egui_wgpu_backend::ScreenDescriptor {
                 physical_width: surface_size.0,
                 physical_height: surface_size.1,
-                scale_factor: egui_data.ctx.pixels_per_point(),
+                scale_factor: dev_ui.ctx.pixels_per_point(),
             };
 
             self.egui_render_pass

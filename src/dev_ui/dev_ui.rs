@@ -32,7 +32,7 @@ pub struct DevUi<'window> {
 impl<'window> DevUi<'window> {
     pub fn new(window: &'window SdlWindow) -> Self {
         let ctx = Context::default();
-        // (state dpi scaling must be initally set to 1 to set the initial screen_rect correctly)
+        // State dpi scaling must be initally set to 1 to set the initial screen_rect correctly
         let state = EguiSDL2State::new(window.size().0, window.size().1, 1.);
 
         // NOW nice translucent styling
@@ -244,7 +244,6 @@ impl ScriptWindow {
             return;
         };
 
-        self.name = script_instance.name.clone();
         let source = &script_instance.source;
 
         let Ok(current_line_index) =

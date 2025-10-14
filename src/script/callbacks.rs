@@ -1,7 +1,6 @@
 use crate::components::{
-    AnimationComp, AreaTrigger, Camera, CharacterAnims, Collision, CollisionTrigger,
-    DualStateAnimationState, DualStateAnims, Facing, InteractionTrigger, Name, NamedAnims,
-    Position, SfxEmitter, SineOffsetAnimation, Sprite, SpriteComp, Velocity, Walking,
+    AnimationComp, Camera, Collision, DualStateAnimationState, DualStateAnims, Facing,
+    NamedAnims, Position, SfxEmitter, SineOffsetAnimation, Sprite, SpriteComp, Walking,
 };
 use crate::data::{CAMERA_ENTITY_NAME, PLAYER_ENTITY_NAME};
 use crate::ecs::{Ecs, EntityId};
@@ -9,7 +8,7 @@ use crate::math::{Rect, Vec2};
 use crate::misc::{Direction, StoryVars};
 use crate::script::WaitCondition;
 use crate::world::WorldPos;
-use crate::{GameData, MessageWindow, UiData, loader};
+use crate::{GameData, MessageWindow, UiData};
 use mlua::{Function, Result as LuaResult, Scope, Table};
 use sdl2::mixer::{Chunk, Music};
 use std::cell::RefCell;
@@ -596,16 +595,13 @@ pub fn add_component(
     let _ = serde_json::from_str::<serde_json::Value>(&component_json)
         .tap_err(|err| log::error!("Invalid component json (err: \"{err}\""))
         .map(|v| {
-            loader::load_component_from_value(ecs, entity_id, &component_name, &v)
+            ecs.add_component_with_name_and_value(entity_id, &component_name, &v)
                 .unwrap_or_else(|e| log::error!("{e}"))
         });
 
     Ok(())
 }
 
-// Internals of this function may want to be pulled out so that components referenced by
-// json name can be removed by other code, not just scripts
-// (for example, the debug ui will likely be removing components by json name)
 pub fn remove_component(
     (entity_name, component_name): (String, String),
     ecs: &mut Ecs,
@@ -614,35 +610,21 @@ pub fn remove_component(
         .query_one_with_name::<EntityId>(&entity_name)
         .ok_or(Error(f!("invalid entity '{}'", entity_name)))?;
 
-    match component_name.as_str() {
-        "Name" => ecs.remove_component::<Name>(id),
-        "Position" => ecs.remove_component::<Position>(id),
-        "Velocity" => ecs.remove_component::<Velocity>(id),
-        "Collision" => ecs.remove_component::<Collision>(id),
-        "SfxEmitter" => ecs.remove_component::<SfxEmitter>(id),
-        "SpriteComp" => ecs.remove_component::<SpriteComp>(id),
-        "Facing" => ecs.remove_component::<Facing>(id),
-        "Walking" => ecs.remove_component::<Walking>(id),
-        "Camera" => ecs.remove_component::<Camera>(id),
-        "AnimationComp" => ecs.remove_component::<AnimationComp>(id),
-        "CharacterAnims" => ecs.remove_component::<CharacterAnims>(id),
-        "DualStateAnims" => ecs.remove_component::<DualStateAnims>(id),
-        "NamedAnims" => ecs.remove_component::<NamedAnims>(id),
-        "InteractionTrigger" => ecs.remove_component::<InteractionTrigger>(id),
-        "CollisionTrigger" => ecs.remove_component::<CollisionTrigger>(id),
-        "AreaTrigger" => ecs.remove_component::<AreaTrigger>(id),
-        _ => Err(Error(f!("invalid component '{}'", component_name)))?,
-    };
+    ecs.remove_component_with_name(id, &component_name)
+        .map_err(|_| Error(f!("invalid component '{}'", component_name)))?;
 
     Ok(())
 }
 
 pub fn dump_entities_to_file(path: String, ecs: &Ecs) -> LuaResult<()> {
-    std::fs::write(
-        &path,
-        &serde_json::to_string_pretty(&loader::save_entities_to_value(ecs)).expect(""),
-    )
-    .map_err(|err| mlua::Error::ExternalError(std::sync::Arc::new(err)))
+    let mut entities = Vec::new();
+    for id in ecs.entity_ids.keys() {
+        entities.push(ecs.save_components_to_value(id));
+    }
+    let json = serde_json::to_string_pretty(&serde_json::Value::Array(entities)).expect("");
+
+    std::fs::write(&path, &json)
+        .map_err(|err| mlua::Error::ExternalError(std::sync::Arc::new(err)))
 }
 
 pub fn message(
