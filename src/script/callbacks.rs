@@ -3,7 +3,7 @@ use crate::components::{
     DualStateAnimationState, DualStateAnims, Facing, InteractionTrigger, Name, NamedAnims,
     Position, SfxEmitter, SineOffsetAnimation, Sprite, SpriteComp, Velocity, Walking,
 };
-use crate::data::PLAYER_ENTITY_NAME;
+use crate::data::{CAMERA_ENTITY_NAME, PLAYER_ENTITY_NAME};
 use crate::ecs::{Ecs, EntityId};
 use crate::math::{Rect, Vec2};
 use crate::misc::{Direction, StoryVars};
@@ -192,6 +192,14 @@ pub fn bind_general_callbacks<'scope>(
         scope
             .create_function(|_, args| remove_component(args, &mut game_data.borrow_mut().ecs))?,
     )?;
+    globals.set(
+        "log",
+        scope.create_function(|_, message: String| {
+            // TODO include script name or id
+            log::info!("{message}");
+            Ok(())
+        })?,
+    )?;
 
     Ok(())
 }
@@ -218,14 +226,6 @@ pub fn bind_script_only_callbacks<'scope>(
             Ok(())
         })?)?,
     )?;
-    globals.set(
-        "log",
-        scope.create_function(|_, message: String| {
-            // TODO include script name or id
-            log::info!("{message}");
-            Ok(())
-        })?,
-    )?;
 
     Ok(())
 }
@@ -240,13 +240,6 @@ pub fn bind_console_only_callbacks<'scope>(
         "message",
         scope.create_function_mut(|_, args| {
             message(args, &mut ui_data.borrow_mut().message_window, &mut None)
-        })?,
-    )?;
-    globals.set(
-        "print",
-        scope.create_function(|_, message: String| {
-            println!("{message}");
-            Ok(())
         })?,
     )?;
     globals.set(
@@ -373,12 +366,13 @@ pub fn lock_player_input(
 }
 
 pub fn set_camera_target(entity: String, ecs: &Ecs) -> LuaResult<()> {
-    ecs.query_one_with_name::<&mut Camera>("CAMERA").unwrap().target_entity = Some(entity);
+    ecs.query_one_with_name::<&mut Camera>(CAMERA_ENTITY_NAME).unwrap().target_entity =
+        Some(entity);
     Ok(())
 }
 
 pub fn remove_camera_target(ecs: &Ecs) -> LuaResult<()> {
-    ecs.query_one_with_name::<&mut Camera>("CAMERA").unwrap().target_entity = None;
+    ecs.query_one_with_name::<&mut Camera>(CAMERA_ENTITY_NAME).unwrap().target_entity = None;
     Ok(())
 }
 

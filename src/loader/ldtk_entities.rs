@@ -11,6 +11,7 @@ use anyhow::Context;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::format as f;
 
 // Old script triggers because LDtk entities still reference them
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -116,9 +117,9 @@ fn load_simple_script_entity(
     let source = if let Some(source_name) = read_field::<String>("external_source", entity)? {
         let (file_name, subscript_label) = source_name
             .split_once("::")
-            .context(format!("invalid script source name: {source_name}"))?;
+            .context(f!("invalid script source name: {source_name}"))?;
         ScriptSource::File {
-            filepath: format!("data/{file_name}.lua"),
+            filepath: f!("data/{file_name}.lua"),
             name_in_file: Some(subscript_label.to_string()),
         }
     } else {
@@ -141,7 +142,7 @@ fn load_simple_script_entity(
                 hitbox: Vec2::new(entity.width as f64 / 16., entity.height as f64 / 16.),
             },
         ),
-        _ => todo!(),
+        _ => {}
     }
 
     Ok(())
@@ -393,8 +394,7 @@ fn read_field_required<F>(field: &str, entity: &ldtk_project::EntityInstance) ->
 where
     F: DeserializeOwned,
 {
-    read_field::<F>(field, entity)
-        .and_then(|o| o.context(format!("missing required field: {field}")))
+    read_field::<F>(field, entity).and_then(|o| o.context(f!("missing required field: {field}")))
 }
 
 fn read_json_field_required<F>(
@@ -405,5 +405,5 @@ where
     F: DeserializeOwned,
 {
     read_json_field::<F>(field, entity)
-        .and_then(|o| o.context(format!("missing required field: {field}")))
+        .and_then(|o| o.context(f!("missing required field: {field}")))
 }

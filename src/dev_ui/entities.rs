@@ -9,6 +9,7 @@ use egui::{Context, ScrollArea, TextEdit, Ui, Window};
 use itertools::Itertools;
 use serde::Serialize;
 use std::collections::HashMap;
+use std::format as f;
 use tap::TapFallible;
 
 pub struct EntitiesListWindow {
@@ -26,7 +27,7 @@ impl EntitiesListWindow {
             return;
         }
 
-        Window::new("Entities").default_width(250.).open(&mut self.open).show(&ctx, |ui| {
+        Window::new("Entities").open(&mut self.open).default_width(250.).show(&ctx, |ui| {
             ui.add(TextEdit::singleline(&mut self.filter_string).hint_text("Filter"));
 
             // TODO filter with special terms such as "has:{Component}"
@@ -67,7 +68,7 @@ impl EntityWindow {
         // Name is expected to be immutable, so we only have to set it once
         let name = ecs.query_one_with_id::<&components::Name>(entity_id).map(|n| n.0.clone());
 
-        let window_id = egui::Id::new(format!("entity {entity_id:?}"));
+        let window_id = egui::Id::new(f!("entity {entity_id:?}"));
 
         let mut ccs: Vec<Box<dyn CcTrait>> = Vec::new();
         ccs.push(Box::new(ComponentCollapsible::<Position>::new(entity_id)));
@@ -94,10 +95,10 @@ impl EntityWindow {
             return;
         }
 
-        Window::new(format!("Entity: {}", self.name()))
+        Window::new(f!("Entity: {}", self.name()))
             .id(self.window_id)
-            .default_width(300.)
             .open(&mut self.open)
+            .default_width(300.)
             .show(&ctx, |ui| {
                 ScrollArea::vertical().show(ui, |ui| {
                     if self.name.is_some() {

@@ -1,5 +1,4 @@
 #![feature(try_blocks)]
-#![feature(once_cell_try)]
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod components;
@@ -15,11 +14,12 @@ mod script;
 mod update;
 mod world;
 
-use crate::misc::WINDOW_SIZE;
+use crate::misc::{LOGGER, WINDOW_SIZE};
 use crate::script::ScriptManager;
 use dev_ui::DevUi;
 use ecs::Ecs;
 use misc::StoryVars;
+use mlua::Lua;
 use render::renderer::Renderer;
 use script::console;
 use sdl2::mixer::{AUDIO_S16SYS, DEFAULT_CHANNELS};
@@ -46,7 +46,7 @@ fn main() {
     unsafe { std::env::set_var("RUST_BACKTRACE", "0") };
 
     // Logger
-    misc::LOGGER.init();
+    LOGGER.init();
 
     // Prevent high DPI scaling on Windows
     #[cfg(target_os = "windows")]
@@ -133,18 +133,8 @@ fn main() {
     let mut player_movement_locked = false;
 
     // Console
-    let console_lua_instance = mlua::Lua::new();
-    let (_console_input_sender, console_input_receiver) = crossbeam::channel::unbounded();
-    // In release mode, with windows_subsystem="windows", stdin().read_line() will continuously
-    // read empty strings and place the console input processing in an infinite loop
-    #[cfg(debug_assertions)]
-    std::thread::spawn(move || {
-        loop {
-            let mut input = String::new();
-            std::io::stdin().read_line(&mut input).unwrap();
-            let _ = _console_input_sender.send(input.clone());
-        }
-    });
+    let console_lua_instance = Lua::new();
+    let mut console_command_queue: Vec<String> = Vec::new();
 
     // Scratchpad
     {}
@@ -162,12 +152,6 @@ fn main() {
         last_time = Instant::now();
 
         #[rustfmt::skip]
-        console::process_console_input(
-            &console_input_receiver, &console_lua_instance, &mut game_data, &mut ui_data,
-            &mut player_movement_locked, &mut running, &musics, &sound_effects,
-        );
-
-        #[rustfmt::skip]
         input::process_input(
             &mut game_data, &mut event_pump, &mut running, &mut ui_data.message_window,
             player_movement_locked, &mut dev_ui, &mut script_manager
@@ -176,7 +160,13 @@ fn main() {
         #[rustfmt::skip]
         dev_ui.run(
             &start_time, frame_duration, &mut game_data.ecs, &mut game_data.story_vars,
-            &script_manager,
+            &script_manager, &mut console_command_queue
+        );
+
+        #[rustfmt::skip]
+        console::process_console_input(
+            &console_lua_instance, &mut console_command_queue, &mut game_data, &mut ui_data,
+            &mut player_movement_locked, &mut running, &musics, &sound_effects,
         );
 
         #[rustfmt::skip]

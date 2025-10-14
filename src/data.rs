@@ -8,7 +8,8 @@ use crate::misc::{CELL_SIZE, WINDOW_SIZE};
 use crate::world::WorldPos;
 use std::collections::HashMap;
 
-pub const PLAYER_ENTITY_NAME: &str = "PLAYER";
+pub const PLAYER_ENTITY_NAME: &str = "_player";
+pub const CAMERA_ENTITY_NAME: &str = "_camera";
 
 pub fn load_entities_from_source(ecs: &mut Ecs) {
     // Player
@@ -64,7 +65,7 @@ pub fn load_entities_from_source(ecs: &mut Ecs) {
 
     // Camera
     let id = ecs.add_entity();
-    ecs.add_component(id, Name("CAMERA".to_string()));
+    ecs.add_component(id, Name(CAMERA_ENTITY_NAME.to_string()));
     ecs.add_component(
         id,
         Camera {
@@ -153,7 +154,7 @@ pub fn load_entities_from_source(ecs: &mut Ecs) {
                 filepath: "data/scripts.lua".to_string(),
                 name_in_file: Some("bakery_girl".to_string()),
             },
-            hitbox: Vec2::new(1., 1.),
+            hitbox: Vec2::new(1., 5.),
         },
     );
 }

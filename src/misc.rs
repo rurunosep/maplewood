@@ -4,12 +4,11 @@ use log::kv::Key;
 use log::{Level, Metadata, Record};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
+use std::format as f;
 use std::sync::{LazyLock, Mutex};
 use tap::TapOptional;
 
 pub const WINDOW_SIZE: Vec2<u32, PixelUnits> = Vec2::new(1920, 1080);
-// pub const WINDOW_SIZE: Vec2<u32, PixelUnits> = Vec2::new(1920 / 4 * 3, 1080 / 4 * 3);
-// pub const WINDOW_SIZE: Vec2<u32, PixelUnits> = Vec2::new(1920 / 2, 1080 / 2);
 pub const CELL_SIZE: u32 = 16;
 
 // Fallible version of Regex::replace_all mostly copy pasted from the docs
@@ -143,7 +142,7 @@ impl log::Log for Logger {
 
         // Push log to history
         let mut history = self.history.lock().unwrap();
-        history.push(format!("[{}] {}", record.level().as_str(), record.args()));
+        history.push(f!("[{}] {}", record.level().as_str(), record.args()));
 
         // Print log to stdout
         let colored_level_label = match record.level() {

@@ -1,4 +1,5 @@
 use crate::components::{Camera, Position, SineOffsetAnimation, SpriteComp};
+use crate::data::CAMERA_ENTITY_NAME;
 use crate::ecs::Ecs;
 use crate::math::{CellPos, CellUnits, MapPos, MapUnits, PixelUnits, Rect, Vec2};
 use crate::misc::CELL_SIZE;
@@ -13,6 +14,7 @@ use pollster::FutureExt;
 use sdl2::video::Window;
 use std::collections::HashMap;
 use std::f64::consts::PI;
+use std::format as f;
 use std::path::Path;
 use tap::{Pipe, TapFallible, TapOptional};
 use wgpu::*;
@@ -188,9 +190,10 @@ impl Renderer<'_> {
             self.device.create_command_encoder(&CommandEncoderDescriptor { label: None });
 
         // Does the camera texture have to be recreated every frame? Can I save and reuse it?
-        let camera_texture = ecs.query_one_with_name::<&Camera>("CAMERA").map(|camera| {
-            self.prepare_camera_texture(camera.size, surface_texture.texture.format())
-        });
+        let camera_texture =
+            ecs.query_one_with_name::<&Camera>(CAMERA_ENTITY_NAME).map(|camera| {
+                self.prepare_camera_texture(camera.size, surface_texture.texture.format())
+            });
 
         // Camera render pass
         // Render the world as seen by the camera onto a texture to be later rendered onto the
@@ -339,7 +342,7 @@ impl Renderer<'_> {
         ecs: &Ecs,
     ) {
         if let Some((camera_position, camera_component)) =
-            ecs.query_one_with_name::<(&Position, &Camera)>("CAMERA")
+            ecs.query_one_with_name::<(&Position, &Camera)>(CAMERA_ENTITY_NAME)
             && let Some(map) = world.maps.get(&camera_position.map).tap_none(
                 || log::error!(once = true; "Map doesn't exist: {}", &camera_position.map),
             )
@@ -534,7 +537,7 @@ impl Renderer<'_> {
                     start.elapsed().as_secs_f64()
                 );
 
-                self.tilesets.insert(format!("../assets/tilesets/{}", file_name), texture);
+                self.tilesets.insert(f!("../assets/tilesets/{}", file_name), texture);
 
                 Some(())
             })

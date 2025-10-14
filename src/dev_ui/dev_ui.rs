@@ -1,6 +1,6 @@
 use crate::dev_ui::entities::{EntitiesListWindow, EntityWindow};
 use crate::ecs::{Ecs, EntityId};
-use crate::misc::{self, StoryVars};
+use crate::misc::{LOGGER, StoryVars};
 use crate::script::{ScriptInstanceId, ScriptManager};
 use egui::text::LayoutJob;
 use egui::{
@@ -11,9 +11,8 @@ use egui_sdl2_event::EguiSDL2State;
 use itertools::Itertools;
 use sdl2::video::Window as SdlWindow;
 use std::collections::HashMap;
+use std::format as f;
 use std::time::Instant;
-
-// TODO translucent windows
 
 pub struct DevUi<'window> {
     pub ctx: Context,
@@ -22,14 +21,12 @@ pub struct DevUi<'window> {
     pub active: bool,
     // Stored intermediately between processing and rendering for convenience
     pub full_output: Option<egui::FullOutput>,
-    //
     entities_list_window: EntitiesListWindow,
     entity_windows: HashMap<EntityId, EntityWindow>,
     scripts_list_window: ScriptsListWindow,
     script_windows: HashMap<ScriptInstanceId, ScriptWindow>,
     story_vars_window: StoryVarsWindow,
-    //
-    console_input_text: String,
+    console_window: ConsoleWindow,
 }
 
 impl<'window> DevUi<'window> {
@@ -37,6 +34,14 @@ impl<'window> DevUi<'window> {
         let ctx = Context::default();
         // (state dpi scaling must be initally set to 1 to set the initial screen_rect correctly)
         let state = EguiSDL2State::new(window.size().0, window.size().1, 1.);
+
+        // NOW nice translucent styling
+        ctx.style_mut(|s| {
+            s.visuals.window_fill = s.visuals.window_fill.gamma_multiply(0.95);
+            s.visuals.panel_fill = s.visuals.panel_fill.gamma_multiply(0.5);
+            s.visuals.extreme_bg_color = s.visuals.extreme_bg_color.gamma_multiply(0.5);
+            // s.visuals.code_bg_color = s.visuals.code_bg_color.gamma_multiply(0.95);
+        });
 
         Self {
             ctx,
@@ -49,7 +54,7 @@ impl<'window> DevUi<'window> {
             scripts_list_window: ScriptsListWindow::new(),
             script_windows: HashMap::new(),
             story_vars_window: StoryVarsWindow::new(),
-            console_input_text: String::new(),
+            console_window: ConsoleWindow::new(),
         }
     }
 }
@@ -63,6 +68,7 @@ impl DevUi<'_> {
         ecs: &mut Ecs,
         story_vars: &mut StoryVars,
         script_manager: &ScriptManager,
+        console_command_queue: &mut Vec<String>,
     ) {
         if !self.active {
             return;
@@ -95,10 +101,10 @@ impl DevUi<'_> {
             .pivot(egui::Align2::RIGHT_TOP)
             .default_pos(ctx.screen_rect().shrink(16.).right_top())
             .default_width(150.)
-            // .frame(Frame::window(&ctx.style()).multiply_with_opacity(0.9))
             .show(&ctx, |ui| {
-                ui.label(format!("Frame Duration: {frame_duration:.2}%"));
+                ui.label(f!("Frame Duration: {frame_duration:.2}%"));
 
+                ui.toggle_value(&mut self.console_window.open, "Console");
                 ui.toggle_value(&mut self.entities_list_window.open, "Entities");
                 ui.toggle_value(&mut self.story_vars_window.open, "Story Vars");
                 ui.toggle_value(&mut self.scripts_list_window.open, "Scripts");
@@ -106,41 +112,8 @@ impl DevUi<'_> {
                 ui.allocate_space([ui.available_width(), 0.].into());
             });
 
-        // Console Window
-        Window::new("Console").default_width(800.).show(&ctx, |ui| {
-            // Input
-            TopBottomPanel::bottom("bottom").show_inside(ui, |ui| {
-                // Rust can't infer closure type correctly here unless it's specified
-                let response = TextEdit::singleline(&mut self.console_input_text)
-                    .desired_width(f32::INFINITY)
-                    .font(TextStyle::Monospace)
-                    .return_key(None)
-                    .frame(false)
-                    .ui(ui);
-
-                if response.has_focus() && ui.input(|i| i.key_pressed(Key::Enter)) {
-                    misc::LOGGER
-                        .history
-                        .lock()
-                        .unwrap()
-                        .push(format!("> {}", self.console_input_text));
-                    self.console_input_text.clear();
-                    // TODO pass console input to lua console
-                }
-            });
-
-            // Log
-            CentralPanel::default().show_inside(ui, |ui| {
-                ScrollArea::vertical().stick_to_bottom(true).show(ui, |ui| {
-                    let text = misc::LOGGER.history.lock().unwrap().join("\n");
-                    Label::new(RichText::new(&text).family(FontFamily::Monospace)).ui(ui);
-
-                    ui.allocate_space([ui.available_width(), 0.].into());
-                })
-            })
-        });
-
         // Other windows
+        self.console_window.show(ctx, console_command_queue);
         self.entities_list_window.show(ctx, &mut self.entity_windows);
         for window in self.entity_windows.values_mut() {
             window.show(ctx, ecs);
@@ -155,6 +128,61 @@ impl DevUi<'_> {
         // (Looks like this just updates the cursor and the clipboard text)
         state.process_output(window, &full_output.platform_output);
         self.full_output = Some(full_output);
+    }
+}
+
+struct ConsoleWindow {
+    pub open: bool,
+    input_text: String,
+}
+
+impl ConsoleWindow {
+    fn new() -> Self {
+        Self { open: false, input_text: String::new() }
+    }
+
+    fn show(&mut self, ctx: &Context, command_queue: &mut Vec<String>) {
+        if !self.open {
+            return;
+        }
+
+        Window::new("Console").open(&mut self.open).default_width(800.).show(&ctx, |ui| {
+            // Input
+            TopBottomPanel::bottom("bottom").show_inside(ui, |ui| {
+                let response = TextEdit::singleline(&mut self.input_text)
+                    .desired_width(f32::INFINITY)
+                    .font(TextStyle::Monospace)
+                    .return_key(None)
+                    .frame(false)
+                    .ui(ui);
+
+                if response.has_focus() {
+                    ui.input(|i| {
+                        if i.key_pressed(Key::Enter) {
+                            LOGGER.history.lock().unwrap().push(f!("> {}", &self.input_text));
+
+                            command_queue.push(self.input_text.clone());
+
+                            self.input_text.clear();
+                        } else if i.key_pressed(Key::ArrowUp) {
+                            // NOW scroll input history
+                        } else if i.key_pressed(Key::ArrowDown) {
+                            // NOW scroll input history
+                        }
+                    })
+                }
+            });
+
+            // Log
+            CentralPanel::default().show_inside(ui, |ui| {
+                ScrollArea::vertical().stick_to_bottom(true).show(ui, |ui| {
+                    let text = LOGGER.history.lock().unwrap().join("\n");
+                    Label::new(RichText::new(&text).family(FontFamily::Monospace)).ui(ui);
+
+                    ui.allocate_space([ui.available_width(), 0.].into());
+                })
+            })
+        });
     }
 }
 
@@ -176,7 +204,7 @@ impl ScriptsListWindow {
             return;
         }
 
-        Window::new("Scripts").default_width(250.).open(&mut self.open).show(&ctx, |ui| {
+        Window::new("Scripts").open(&mut self.open).default_width(250.).show(&ctx, |ui| {
             ScrollArea::vertical().show(ui, |ui| {
                 for window in script_windows.values_mut() {
                     let name = window.name();
@@ -187,7 +215,7 @@ impl ScriptsListWindow {
                     ui.label("No active scripts");
                 }
 
-                // (pad if below window.default_width)
+                // Pad if below window.default_width
                 ui.allocate_space([ui.available_width(), 0.].into());
             })
         });
@@ -203,7 +231,7 @@ struct ScriptWindow {
 
 impl ScriptWindow {
     fn new(script_id: ScriptInstanceId, name: Option<String>) -> Self {
-        let window_id = egui::Id::new(format!("script {script_id:?}"));
+        let window_id = egui::Id::new(f!("script {script_id:?}"));
         Self { open: false, window_id, script_id, name }
     }
 
@@ -259,10 +287,10 @@ impl ScriptWindow {
             },
         );
 
-        Window::new(format!("Script: {}", &self.name()))
+        Window::new(f!("Script: {}", &self.name()))
             .id(self.window_id)
-            .default_width(500.)
             .open(&mut self.open)
+            .default_width(500.)
             .show(&ctx, |ui| {
                 ScrollArea::vertical().show(ui, |ui| {
                     if self.name.is_some() {
@@ -271,7 +299,7 @@ impl ScriptWindow {
 
                     ui.label(job);
 
-                    // (pad if below window.default_width)
+                    // Pad if below window.default_width
                     ui.allocate_space([ui.available_width(), 0.].into());
                 });
             });
@@ -307,7 +335,7 @@ impl StoryVarsWindow {
             return;
         }
 
-        Window::new("Story Vars").default_width(250.).open(&mut self.open).show(&ctx, |ui| {
+        Window::new("Story Vars").open(&mut self.open).default_width(250.).show(&ctx, |ui| {
             ui.add(TextEdit::singleline(&mut self.filter_string).hint_text("Filter"));
 
             ScrollArea::vertical().show(ui, |ui| {

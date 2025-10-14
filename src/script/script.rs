@@ -8,6 +8,7 @@ use sdl2::mixer::{Chunk, Music};
 use slotmap::{SlotMap, new_key_type};
 use std::cell::RefCell;
 use std::collections::{HashMap, VecDeque};
+use std::format as f;
 use std::path::Path;
 use std::sync::LazyLock;
 use std::time::Instant;
@@ -166,7 +167,7 @@ impl ScriptInstance {
             return;
         }
 
-        // Pack mut refs in RefCells for passing into callbacks
+        // Pack mut refs into RefCells for passing into callbacks
         let game_data = RefCell::new(game_data);
         let ui_data = RefCell::new(ui_data);
         let player_movement_locked = RefCell::new(player_movement_locked);
@@ -201,8 +202,8 @@ pub fn get_script_from_file<P: AsRef<Path>>(
 ) -> anyhow::Result<String> {
     let file_contents = std::fs::read_to_string(&path)?;
     let start_index = file_contents
-        .find(&format!("---@script {script_name}"))
-        .context(format!("no script {script_name} in {}", path.as_ref().to_string_lossy()))?;
+        .find(&f!("---@script {script_name}"))
+        .context(f!("no script {script_name} in {}", path.as_ref().to_string_lossy()))?;
     let end_index = file_contents[start_index + 1..]
         .find("---@script")
         .unwrap_or(file_contents[start_index..].len())
@@ -221,7 +222,7 @@ fn evaluate_story_var_condition(
 
     let with_values = misc::try_replace_all(&RE, &expression, |caps| {
         let key = caps.get(1).unwrap().as_str();
-        story_vars.0.get(key).context(format!("no story var {key}")).map(|val| val.to_string())
+        story_vars.0.get(key).context(f!("no story var {key}")).map(|val| val.to_string())
     })?;
 
     let result = evalexpr::eval_boolean(&with_values)?;

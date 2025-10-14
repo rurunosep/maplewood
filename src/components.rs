@@ -212,6 +212,7 @@ pub struct CollisionTrigger {
 }
 impl Component for CollisionTrigger {}
 
+// TODO track player in/out and only trigger when player enters
 #[derive(Clone, Serialize, Deserialize)]
 pub struct AreaTrigger {
     pub script_source: ScriptSource,

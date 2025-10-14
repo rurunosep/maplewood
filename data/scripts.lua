@@ -99,7 +99,7 @@ local stages = {
     lock_player_input()
     remove_camera_target()
 
-    walk("CAMERA", "up", 4, 0.05)
+    walk(CAMERA_ENTITY_NAME, "up", 4, 0.05)
     walk_wait("bakery_girl", "up", 0.75, 0.08)
     walk_wait("bakery_girl", "left", 8, 0.08)
     walk_wait("bakery_girl", "up", 4.5, 0.08)
@@ -116,11 +116,11 @@ local stages = {
     set_entity_visible("bakery::fire", true)
     play_sfx("flame")
     wait(1)
-    walk("CAMERA", "down", 4, 0.05)
+    walk(CAMERA_ENTITY_NAME, "down", 4, 0.05)
     wait(2)
     message("\"Take care!\"")
 
-    set_camera_target("PLAYER")
+    set_camera_target("_player")
     unlock_player_input()
 
     set_story_var("bakery_girl::stage", 3)
@@ -201,10 +201,10 @@ if get_story_var("main::pen_found") == 1 and get_story_var("bathroom::flooded") 
   remove_camera_target()
   set_camera_clamp(false)
 
-  set_entity_world_pos("PLAYER", "hallway", 3.5, 3.5)
+  set_entity_world_pos("_player", "hallway", 3.5, 3.5)
 
   wait(1)
-  walk_to_wait("CAMERA", "up", 6.01, 0.05)
+  walk_to_wait(CAMERA_ENTITY_NAME, "up", 6.01, 0.05)
   wait(1)
   switch_dual_state_animation("bathroom::sink_1", 2)
   play_sfx("faucet")
@@ -217,10 +217,10 @@ if get_story_var("main::pen_found") == 1 and get_story_var("bathroom::flooded") 
   wait(4)
 
   set_camera_clamp(true)
-  set_camera_target("PLAYER")
+  set_camera_target("_player")
   unlock_player_input()
 else
-  set_entity_world_pos("PLAYER", "hallway", 3.5, 3.5)
+  set_entity_world_pos("_player", "hallway", 3.5, 3.5)
 end
 
 ---@script overworld::shopping_cart
