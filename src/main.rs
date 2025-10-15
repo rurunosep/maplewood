@@ -16,12 +16,12 @@ mod world;
 
 use crate::misc::{LOGGER, WINDOW_SIZE};
 use crate::script::ScriptManager;
+use crate::script::console::Console;
 use dev_ui::DevUi;
 use ecs::Ecs;
 use misc::StoryVars;
 use mlua::Lua;
 use render::renderer::Renderer;
-use script::console;
 use sdl2::mixer::{AUDIO_S16SYS, DEFAULT_CHANNELS};
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
@@ -133,8 +133,12 @@ fn main() {
     let mut player_movement_locked = false;
 
     // Console
-    let console_lua_instance = Lua::new();
-    let mut console_command_queue: Vec<String> = Vec::new();
+    let mut console = Console {
+        lua_instance: Lua::new(),
+        output_history: String::new(),
+        next_unread_log_index: 0,
+        command_queue: Vec::new(),
+    };
 
     // Scratchpad
     {}
@@ -160,12 +164,12 @@ fn main() {
         #[rustfmt::skip]
         dev_ui.run(
             &start_time, frame_duration, &mut game_data.ecs, &mut game_data.story_vars,
-            &script_manager, &mut console_command_queue
+            &script_manager, &mut console
         );
 
         #[rustfmt::skip]
-        console::process_console_input(
-            &console_lua_instance, &mut console_command_queue, &mut game_data, &mut ui_data,
+        console.update(
+            &mut game_data, &mut ui_data,
             &mut player_movement_locked, &mut running, &musics, &sound_effects,
         );
 

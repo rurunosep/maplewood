@@ -11,8 +11,7 @@ bytemuck = "1.20.0"
 colored = "3.0.0"
 derived-deref = "2.1.0"
 egui = "0.32.3"
-egui-sdl2-event = {git = "https://github.com/rurunosep/egui-sdl2-event"}
-egui_console = {git = "https://github.com/rurunosep/egui_console"}
+egui-sdl2-event = "1.32.3"
 egui_wgpu_backend = "0.35.0"
 evalexpr = "12.0.2"
 image = {version = "0.25.8", default-features = false, features = ["png", "rayon"]}

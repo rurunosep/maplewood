@@ -414,21 +414,11 @@ dependencies = [
 [[package]]
 name = "egui-sdl2-event"
 version = "1.32.3"
-source = "git+https://github.com/rurunosep/egui-sdl2-event#b42588202c02369bd6741d41c3feb259919fe370"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c92e4f3558548d14598104d0a05de7e1113166a5c1220a3ea9ca8d856a915b45"
 dependencies = [
  "egui",
  "sdl2",
-]
-
-[[package]]
-name = "egui_console"
-version = "0.2.0"
-source = "git+https://github.com/rurunosep/egui_console#ab13ef5c29bbcd67bbd7f213237f7c25331a751f"
-dependencies = [
- "egui",
- "itertools 0.13.0",
- "serde",
- "serde_derive",
 ]
 
 [[package]]
@@ -822,15 +812,6 @@ dependencies = [
 
 [[package]]
 name = "itertools"
-version = "0.13.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "413ee7dfc52ee1a4949ceeb7dbc8a33f2d6c088194d9f922fb8318faf1f01186"
-dependencies = [
- "either",
-]
-
-[[package]]
-name = "itertools"
 version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2b192c782037fadd9cfa75548310488aabdbf3d2da73885b31bd0abd03351285"
@@ -1006,7 +987,6 @@ dependencies = [
  "derived-deref",
  "egui",
  "egui-sdl2-event",
- "egui_console",
  "egui_wgpu_backend",
  "evalexpr",
  "image",

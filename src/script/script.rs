@@ -1,7 +1,7 @@
 use crate::misc::{self, StoryVars};
 use crate::script::callbacks;
 use crate::{GameData, UiData};
-use anyhow::Context;
+use anyhow::{Context, anyhow};
 use mlua::{Lua, Thread, ThreadStatus};
 use regex::Regex;
 use sdl2::mixer::{Chunk, Music};
@@ -203,9 +203,11 @@ pub fn get_script_from_file<P: AsRef<Path>>(
     path: P,
     script_name: &str,
 ) -> anyhow::Result<String> {
-    let file_contents = std::fs::read_to_string(&path)?;
+    let file_contents = std::fs::read_to_string(&path)
+        .map_err(|_| anyhow!("couldn't read file `{}`", path.as_ref().to_string_lossy()))?;
     let start_index = file_contents
-        .find(&f!("---@script {script_name}"))
+        .find(&f!("---@script {script_name}\r\n"))
+        .or(file_contents.find(&f!("---@script {script_name}\n")))
         .context(f!("no script `{script_name}` in file `{}`", path.as_ref().to_string_lossy()))?;
     let end_index = file_contents[start_index + 1..]
         .find("---@script")

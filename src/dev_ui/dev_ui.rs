@@ -1,6 +1,7 @@
+use crate::Console;
 use crate::dev_ui::entities::{EntitiesListWindow, EntityWindow};
 use crate::ecs::{Ecs, EntityId};
-use crate::misc::{LOGGER, StoryVars};
+use crate::misc::StoryVars;
 use crate::script::{ScriptInstanceId, ScriptManager};
 use egui::text::LayoutJob;
 use egui::{
@@ -67,7 +68,7 @@ impl DevUi<'_> {
         ecs: &mut Ecs,
         story_vars: &mut StoryVars,
         script_manager: &ScriptManager,
-        console_command_queue: &mut Vec<String>,
+        console: &mut Console,
     ) {
         if !self.active {
             return;
@@ -112,7 +113,7 @@ impl DevUi<'_> {
             });
 
         // Other windows
-        self.console_window.show(ctx, console_command_queue);
+        self.console_window.show(ctx, console);
         self.entities_list_window.show(ctx, &mut self.entity_windows);
         for window in self.entity_windows.values_mut() {
             window.show(ctx, ecs);
@@ -130,10 +131,7 @@ impl DevUi<'_> {
     }
 }
 
-// NOW separate console history from logger log history
-// Logs go into console history
-// Input and command errors/returns go into console history by not log history
-struct ConsoleWindow {
+pub struct ConsoleWindow {
     pub open: bool,
     input_text: String,
 }
@@ -143,7 +141,7 @@ impl ConsoleWindow {
         Self { open: false, input_text: String::new() }
     }
 
-    fn show(&mut self, ctx: &Context, command_queue: &mut Vec<String>) {
+    fn show(&mut self, ctx: &Context, console: &mut Console) {
         if !self.open {
             return;
         }
@@ -161,8 +159,8 @@ impl ConsoleWindow {
                 if response.has_focus() {
                     ui.input(|i| {
                         if i.key_pressed(Key::Enter) {
-                            LOGGER.history.lock().unwrap().push(f!("> {}", &self.input_text));
-                            command_queue.push(self.input_text.clone());
+                            console.push(&f!("> {}", &self.input_text));
+                            console.command_queue.push(self.input_text.clone());
                             self.input_text.clear();
                         } else if i.key_pressed(Key::ArrowUp) {
                             // NOW scroll input history
@@ -178,8 +176,10 @@ impl ConsoleWindow {
             // Log
             CentralPanel::default().show_inside(ui, |ui| {
                 ScrollArea::vertical().stick_to_bottom(true).show(ui, |ui| {
-                    let text = LOGGER.history.lock().unwrap().join("\n");
-                    Label::new(RichText::new(&text).family(FontFamily::Monospace)).ui(ui);
+                    Label::new(
+                        RichText::new(&*console.output_history).family(FontFamily::Monospace),
+                    )
+                    .ui(ui);
 
                     ui.allocate_space([ui.available_width(), 0.].into());
                 })
