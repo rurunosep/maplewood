@@ -9,8 +9,8 @@ use std::format as f;
 
 pub struct Console {
     pub lua_instance: Lua,
-    // NOW rename
-    pub output_history: String,
+    // NOW is it actually the console window that should keep the scrollback???
+    pub scrollback: String,
     pub next_unread_log_index: usize,
     pub command_queue: Vec<String>,
 }
@@ -28,20 +28,18 @@ impl Console {
         {
             let log_history = LOGGER.history.lock().unwrap();
             for unread_log in log_history[self.next_unread_log_index..].iter() {
-                self.push(unread_log);
+                self.push_to_scrollback(unread_log);
             }
             self.next_unread_log_index = log_history.len();
         }
-
-        let Self { lua_instance, output_history, .. } = self;
 
         let r: mlua::Result<()> = try {
             let game_data = RefCell::new(game_data);
             let ui_data = RefCell::new(ui_data);
             let player_movement_locked = RefCell::new(player_movement_locked);
 
-            lua_instance.scope(|scope| -> mlua::Result<()> {
-                let globals = lua_instance.globals();
+            self.lua_instance.scope(|scope| -> mlua::Result<()> {
+                let globals = self.lua_instance.globals();
 
                 #[rustfmt::skip]
                 callbacks::bind_general_callbacks(
@@ -52,31 +50,29 @@ impl Console {
                 callbacks::bind_console_only_callbacks(scope, &globals, &game_data, &ui_data)?;
 
                 for input in std::mem::take(&mut self.command_queue) {
-                    let r: ReturnValuesString = lua_instance.load(&input).eval()?;
+                    let r: ReturnValuesString = self.lua_instance.load(&input).eval()?;
                     if !r.0.is_empty() {
-                        Self::push_inner(output_history, &f!("{}", r.0));
+                        if !self.scrollback.is_empty() {
+                            self.scrollback.push('\n');
+                        }
+                        self.scrollback.push_str(&f!("{}", r.0));
                     }
                 }
 
                 Ok(())
             })?
         };
-        r.unwrap_or_else(|e| self.push(&f!("{}", e.to_string().trim_end())));
+        r.unwrap_or_else(|e| self.push_to_scrollback(&f!("{}", e.to_string().trim_end())));
     }
 
-    // NOW rename
-    pub fn push(&mut self, str: &str) {
-        Self::push_inner(&mut self.output_history, str)
-    }
-
-    // NOW rename
-    fn push_inner(output_history: &mut String, str: &str) {
-        if !output_history.is_empty() {
-            output_history.push('\n');
+    pub fn push_to_scrollback(&mut self, str: &str) {
+        if !self.scrollback.is_empty() {
+            self.scrollback.push('\n');
         }
-        output_history.push_str(str);
+        self.scrollback.push_str(str);
     }
 }
+
 struct ReturnValuesString(String);
 
 impl FromLuaMulti for ReturnValuesString {

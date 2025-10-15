@@ -1,7 +1,7 @@
 ---@diagnostic disable: unreachable-code
 
 ---@script start
----@start_condition {start_script::started} == 0
+---@start_condition {start_script::started___} == 0
 set_story_var("start_script::started", 1)
 
 message("You're sooo sleepy.")

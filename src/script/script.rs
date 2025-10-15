@@ -227,7 +227,7 @@ fn evaluate_story_var_condition(
 
     let with_values = misc::try_replace_all(&RE, &expression, |caps| {
         let key = caps.get(1).expect("").as_str();
-        story_vars.0.get(key).context(f!("no story var {key}")).map(|val| val.to_string())
+        story_vars.0.get(key).context(f!("no story var `{key}`")).map(|val| val.to_string())
     })?;
 
     let result = evalexpr::eval_boolean(&with_values)?;

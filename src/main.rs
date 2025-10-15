@@ -135,7 +135,7 @@ fn main() {
     // Console
     let mut console = Console {
         lua_instance: Lua::new(),
-        output_history: String::new(),
+        scrollback: String::new(),
         next_unread_log_index: 0,
         command_queue: Vec::new(),
     };
