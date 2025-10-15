@@ -3790,9 +3790,9 @@
 								"fieldInstances": [
 									{ "__identifier": "name", "__type": "String", "__value": null, "__tile": null, "defUid": 756, "realEditorValues": [null] },
 									{ "__identifier": "source", "__type": "String", "__value": "", "__tile": null, "defUid": 753, "realEditorValues": [null] },
-									{ "__identifier": "external_source", "__type": "String", "__value": "scripts::bathroom::exit", "__tile": null, "defUid": 790, "realEditorValues": [{
+									{ "__identifier": "external_source", "__type": "String", "__value": "scripts::bathroom::exita", "__tile": null, "defUid": 790, "realEditorValues": [{
 										"id": "V_String",
-										"params": ["scripts::bathroom::exit"]
+										"params": ["scripts::bathroom::exita"]
 									}] },
 									{ "__identifier": "trigger", "__type": "LocalEnum.script_trigger", "__value": "soft_collision", "__tile": null, "defUid": 788, "realEditorValues": [{
 										"id": "V_String",
@@ -3800,7 +3800,7 @@
 									}] },
 									{ "__identifier": "start_condition", "__type": "String", "__value": "{\n  \"story_var\": \"bathroom::exit::running\",\n  \"value\": 0\n}", "__tile": null, "defUid": 757, "realEditorValues": [{
 										"id": "V_String",
-										"params": ["{\n  \"story_var\": \"bathroom::exit::running\",\n  \"value\": 0\n}"]
+										"params": ["{\\n  \"story_var\": \"bathroom::exit::running\",\\n  \"value\": 0\\n}"]
 									}] },
 									{ "__identifier": "abort_condition", "__type": "String", "__value": null, "__tile": null, "defUid": 789, "realEditorValues": [] },
 									{ "__identifier": "set_on_start", "__type": "String", "__value": "[\"bathroom::exit::running\", 1]", "__tile": null, "defUid": 758, "realEditorValues": [{
@@ -10663,9 +10663,7 @@
 									{ "__identifier": "name", "__type": "String", "__value": null, "__tile": null, "defUid": 843, "realEditorValues": [] },
 									{ "__identifier": "json_components", "__type": "String", "__value": "{\n  \"Name\": \"a_generic\",\n  \"Velocity\": {\n    \"x\": 1.0,\n    \"y\": 2.0\n  }\n}", "__tile": null, "defUid": 844, "realEditorValues": [{
 										"id": "V_String",
-										"params": [
-											"{\\n  \"Name\": \"a_generic\",\\n  \"Velocity\": {\\n    \"x\": 1.0,\\n    \"y\": 2.0\\n  }\\n}"
-										]
+										"params": ["{\n  \"Name\": \"a_generic\",\n  \"Velocity\": {\n    \"x\": 1.0,\n    \"y\": 2.0\n  }\n}"]
 									}] }
 								],
 								"__worldX": 24,

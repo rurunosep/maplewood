@@ -20,7 +20,7 @@ pub fn try_replace_all(
     let mut new = String::with_capacity(haystack.len());
     let mut last_match = 0;
     for caps in re.captures_iter(haystack) {
-        let m = caps.get(0).unwrap();
+        let m = caps.get(0).expect("0 is always Some");
         new.push_str(&haystack[last_match..m.start()]);
         new.push_str(&replacement(&caps)?);
         last_match = m.end();
@@ -117,7 +117,7 @@ impl Logger {
     }
 
     pub fn init(&self) {
-        log::set_logger(&*LOGGER).unwrap();
+        let _ = log::set_logger(&*LOGGER);
         log::set_max_level(log::LevelFilter::Info);
     }
 }

@@ -81,7 +81,7 @@ impl Renderer<'_> {
             .unwrap();
         // For now, keep the default behavior of panicking on uncaptured wgpu errors
         // If I don't want to panic, I can gracefully log them like this:
-        // device.on_uncaptured_error(Box::new(|e| log::error!("{e}")));
+        // device.on_uncaptured_error(Box::new(|e| log::error!("Wgpu error: {e}")));
 
         let surface_capabilities = surface.get_capabilities(&adapter);
         let surface_format = surface_capabilities

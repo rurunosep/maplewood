@@ -138,8 +138,10 @@ pub fn process_input(
                                     .contains(&target)
                         })
                     {
-                        if let Ok(source) =
-                            interaction.script_source.get_source().tap_err(|e| log::error!("{e}"))
+                        if let Ok(source) = interaction
+                            .script_source
+                            .get_source()
+                            .tap_err(|e| log::error!("Couldn't get script source (err: {e})"))
                         {
                             script_manager.queue_script(&source);
                         }

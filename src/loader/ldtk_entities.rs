@@ -54,7 +54,7 @@ pub fn load_entities_from_ldtk(ecs: &mut Ecs, project: &ldtk_project::Project) {
                     };
                 };
                 r.unwrap_or_else(|e| {
-                    log::error!("Invalid ldtk entity: {} (err: {e})", entity.iid)
+                    log::error!("Invalid ldtk entity `{}` (err: {e})", entity.iid)
                 })
             }
         }
@@ -83,8 +83,7 @@ fn load_generic_entity(
     // JSON components
     if let Some(Value::Object(components_map)) = read_json_field("json_components", entity)? {
         for (key, val) in components_map {
-            ecs.add_component_with_name_and_value(id, &key, &val)
-                .unwrap_or_else(|e| log::error!("{e}"));
+            ecs.add_component_with_name(id, &key, &val)?;
         }
     }
 
@@ -109,8 +108,7 @@ fn load_simple_script_entity(
     // JSON components
     if let Some(Value::Object(components_map)) = read_json_field("json_components", entity)? {
         for (key, val) in components_map {
-            ecs.add_component_with_name_and_value(id, &key, &val)
-                .unwrap_or_else(|e| log::error!("{e}"));
+            ecs.add_component_with_name(id, &key, &val)?;
         }
     }
 
@@ -119,7 +117,7 @@ fn load_simple_script_entity(
     let source = if let Some(source_name) = read_field::<String>("external_source", entity)? {
         let (file_name, subscript_label) = source_name
             .split_once("::")
-            .context(f!("invalid script source name: {source_name}"))?;
+            .context(f!("invalid script source name `{source_name}`"))?;
         ScriptSource::File {
             filepath: f!("data/{file_name}.lua"),
             name_in_file: Some(subscript_label.to_string()),
@@ -168,8 +166,7 @@ fn load_simple_animation_entity(
     // JSON components
     if let Some(Value::Object(components_map)) = read_json_field("json_components", entity)? {
         for (key, val) in components_map {
-            ecs.add_component_with_name_and_value(id, &key, &val)
-                .unwrap_or_else(|e| log::error!("{e}"));
+            ecs.add_component_with_name(id, &key, &val)?;
         }
     }
 
@@ -227,8 +224,7 @@ fn load_dual_state_animation_entity(
     // JSON components
     if let Some(Value::Object(components_map)) = read_json_field("json_components", entity)? {
         for (key, val) in components_map {
-            ecs.add_component_with_name_and_value(id, &key, &val)
-                .unwrap_or_else(|e| log::error!("{e}"));
+            ecs.add_component_with_name(id, &key, &val)?;
         }
     }
 
@@ -295,8 +291,7 @@ fn load_character_entity(
     // JSON components
     if let Some(Value::Object(components_map)) = read_json_field("json_components", entity)? {
         for (key, val) in components_map {
-            ecs.add_component_with_name_and_value(id, &key, &val)
-                .unwrap_or_else(|e| log::error!("{e}"));
+            ecs.add_component_with_name(id, &key, &val)?;
         }
     }
 
@@ -396,7 +391,7 @@ fn read_field_required<F>(field: &str, entity: &ldtk_project::EntityInstance) ->
 where
     F: DeserializeOwned,
 {
-    read_field::<F>(field, entity).and_then(|o| o.context(f!("missing required field: {field}")))
+    read_field::<F>(field, entity).and_then(|o| o.context(f!("missing required field `{field}`")))
 }
 
 fn read_json_field_required<F>(
@@ -407,5 +402,5 @@ where
     F: DeserializeOwned,
 {
     read_json_field::<F>(field, entity)
-        .and_then(|o| o.context(f!("missing required field: {field}")))
+        .and_then(|o| o.context(f!("missing required field `{field}`")))
 }

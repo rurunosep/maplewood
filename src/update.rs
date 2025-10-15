@@ -70,7 +70,11 @@ fn start_area_trigger_scripts(ecs: &Ecs, script_manager: &mut ScriptManager) {
         .filter(|(pos, _)| pos.map == player_map)
         .filter(|(pos, area)| Aabb::new(pos.map_pos, area.hitbox).intersects(&player_aabb))
     {
-        if let Ok(source) = area.script_source.get_source().tap_err(|e| log::error!("{e}")) {
+        if let Ok(source) = area
+            .script_source
+            .get_source()
+            .tap_err(|e| log::error!(once = true; "Couldn't get script source (err: {e})"))
+        {
             script_manager.queue_script(&source);
         }
     }
@@ -212,7 +216,10 @@ fn start_collision_trigger_scripts(ecs: &Ecs, script_manager_new: &mut ScriptMan
         let other_aabb = Aabb::new(other_position.map_pos, other_collision.hitbox);
 
         if player_aabb.intersects(&other_aabb) {
-            if let Ok(source) = trigger.script_source.get_source().tap_err(|e| log::error!("{e}"))
+            if let Ok(source) = trigger
+                .script_source
+                .get_source()
+                .tap_err(|e| log::error!(once = true; "Couldn't get script source (err: {e})"))
             {
                 script_manager_new.queue_script(&source);
             }
@@ -400,7 +407,7 @@ fn update_sfx_emitting_entities(ecs: &Ecs, sound_effects: &HashMap<String, Chunk
                 .tap_none(|| log::error!(once = true; "Sound effect doesn't exist: {}", sfx_name))
                 && let Ok(channel) = sdl2::mixer::Channel::all()
                     .play(chunk, if sfx.repeat { -1 } else { 0 })
-                    .tap_err(|e| log::error!("Failed to play sound effect (err: \"{e:}\")"))
+                    .tap_err(|e| log::error!("Failed to play sound effect (err: {e:})"))
             {
                 sfx.channel = Some(channel);
             }

@@ -15,7 +15,7 @@ pub trait Component {
     // Unique name of the component
     // By default, it's the unqualified type name
     fn name() -> &'static str {
-        std::any::type_name::<Self>().split("::").last().unwrap()
+        std::any::type_name::<Self>().split("::").last().expect("split always returns at least 1")
     }
 }
 
@@ -195,7 +195,7 @@ impl Ecs {
         self.deferred_entity_ids.borrow_mut().clear();
     }
 
-    pub fn add_component_with_name_and_value(
+    pub fn add_component_with_name(
         &mut self,
         id: EntityId,
         component_name: &str,
@@ -224,13 +224,13 @@ impl Ecs {
                 }
                 "CollisionTrigger" => self.add_component(id, sjfv::<CollisionTrigger>(data_c)?),
                 "AreaTrigger" => self.add_component(id, sjfv::<AreaTrigger>(data_c)?),
-                _ => Err(anyhow!("invalid JSON component name `{}`", component_name))?,
+                _ => Err(anyhow!("invalid component name `{}`", component_name))?,
             };
         };
         r.map_err(|e| {
             anyhow!(
-                "invalid JSON component\nname: {component_name}\ndata: {}\nerr: \"{e}\"",
-                serde_json::to_string_pretty(&data).unwrap_or("invalid json".to_string())
+                "invalid json component\nname: {component_name}\ndata: {}\nerr: {e}",
+                serde_json::to_string_pretty(&data).expect("")
             )
         })
     }
@@ -257,7 +257,7 @@ impl Ecs {
             "InteractionTrigger" => self.remove_component::<InteractionTrigger>(id),
             "CollisionTrigger" => self.remove_component::<CollisionTrigger>(id),
             "AreaTrigger" => self.remove_component::<AreaTrigger>(id),
-            _ => return Err(anyhow!("invalid JSON component name `{}`", component_name)),
+            _ => return Err(anyhow!("invalid component name `{}`", component_name)),
         };
 
         Ok(())

@@ -11,7 +11,7 @@ where
     P: AsRef<Path>,
 {
     let Ok(json) = std::fs::read_to_string(&path) else {
-        log::error!("Could not read file: {}", path.as_ref().to_string_lossy());
+        log::error!("Couldn't read file `{}`", path.as_ref().to_string_lossy());
         return;
     };
 
@@ -39,20 +39,20 @@ where
                 })
                 .unwrap_or_else(|| ecs.add_entity());
 
-            // NOW
-            // Should an Err just log and continue with the other components?
-            // Or log and continue with the other entities?
-            // Currently and Err in one component will abort loading all the entities
             for (key, val) in components_map.iter().filter(|(k, _)| *k != "EntityId") {
-                ecs.add_component_with_name_and_value(id, &key, &val)?;
+                ecs.add_component_with_name(id, &key, &val).unwrap_or_else(|e| {
+                    log::error!(
+                        "Couldn't load component in file `{}` (err: {e})",
+                        path.as_ref().to_string_lossy()
+                    )
+                });
             }
         }
     };
-    r.unwrap_or_else(|err| {
+    r.unwrap_or_else(|e| {
         log::error!(
-            "Invalid entities JSON: {} (err: \"{}\")",
+            "Invalid entities JSON file `{}` (err: {e})",
             path.as_ref().to_string_lossy(),
-            err
         );
     });
 }
@@ -62,7 +62,7 @@ where
     P: AsRef<Path>,
 {
     let Ok(json) = std::fs::read_to_string(&path) else {
-        log::error!("Could not read file: {}", path.as_ref().to_string_lossy());
+        log::error!("Couldn't read file `{}`", path.as_ref().to_string_lossy());
         return;
     };
 
@@ -93,7 +93,7 @@ pub fn load_sound_effects() -> HashMap<String, Chunk> {
                 };
 
                 let sfx = Chunk::from_file(&path)
-                    .tap_err(|_| log::error!("Couldn't load sfx: {}", path.to_string_lossy()))
+                    .tap_err(|_| log::error!("Couldn't load sfx `{}`", path.to_string_lossy()))
                     .ok()?;
 
                 Some((file_stem, sfx))
@@ -117,7 +117,7 @@ pub fn load_musics<'m>() -> HashMap<String, Music<'m>> {
                 };
 
                 let music = Music::from_file(&path)
-                    .tap_err(|_| log::error!("Couldn't load music: {}", path.to_string_lossy()))
+                    .tap_err(|_| log::error!("Couldn't load music `{}`", path.to_string_lossy()))
                     .ok()?;
 
                 Some((file_stem, music))

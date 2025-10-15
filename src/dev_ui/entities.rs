@@ -3,6 +3,7 @@ use crate::ecs::{Component, Ecs, EntityId};
 use egui::{Context, ScrollArea, TextEdit, Ui, Window};
 use itertools::Itertools;
 use serde::Serialize;
+use serde::de::DeserializeOwned;
 use std::collections::HashMap;
 use std::format as f;
 use tap::TapFallible;
@@ -143,7 +144,7 @@ trait CcTrait {
 
 impl<C> CcTrait for ComponentCollapsible<C>
 where
-    C: Component + Serialize + 'static,
+    C: Component + Serialize + DeserializeOwned + 'static,
 {
     fn show(&mut self, ui: &mut Ui, ecs: &mut Ecs) {
         let component = ecs.query_one_with_id::<&C>(self.entity_id);
@@ -177,11 +178,10 @@ where
                     };
 
                     if ui.button("Save").clicked() {
-                        if let Ok(v) = serde_json::from_str::<serde_json::Value>(&self.text)
-                            .tap_err(|e| log::error!("Invalid component JSON (err: \"{e}\")"))
+                        if let Ok(component) = serde_json::from_str::<C>(&self.text)
+                            .tap_err(|e| log::error!("Couldn't edit component (err: {e})"))
                         {
-                            ecs.add_component_with_name_and_value(self.entity_id, C::name(), &v)
-                                .unwrap_or_else(|e| log::error!("{e}"));
+                            ecs.add_component(self.entity_id, component);
                         }
 
                         self.is_being_edited = false;

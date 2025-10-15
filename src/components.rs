@@ -12,6 +12,7 @@ use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
 // I think eventually components should be organized into their domains
+// Or should they go in the ecs module?
 
 // TODO door component
 // open, closed, locked enum state. anims and sprites. interact script.
@@ -56,8 +57,6 @@ pub struct Sprite {
     pub rect: Rect<u32, PixelUnits>,
     pub anchor: Vec2<i32, PixelUnits>,
 }
-
-// Animation ------------------------------------
 
 #[derive(Default, Clone, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
@@ -148,8 +147,6 @@ pub enum DualStateAnimationState {
 pub struct NamedAnims(pub HashMap<String, AnimationClip>);
 impl Component for NamedAnims {}
 
-// ----------------------------------------------
-
 #[derive(Default, Clone, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Walking {
@@ -197,8 +194,6 @@ pub struct SineOffsetAnimation {
 }
 impl Component for SineOffsetAnimation {}
 
-// Scripts Rework --------------------------------------
-
 #[derive(Clone, Serialize, Deserialize)]
 pub struct InteractionTrigger {
     pub script_source: ScriptSource,
@@ -233,7 +228,8 @@ impl ScriptSource {
                 script::get_script_from_file(filepath, name_in_file)
             }
             ScriptSource::File { filepath, name_in_file: None } => {
-                std::fs::read_to_string(filepath).map_err(|e| anyhow!(e))
+                std::fs::read_to_string(filepath)
+                    .map_err(|_| anyhow!("couldn't read file `{filepath}`"))
             }
             ScriptSource::String(source) => Ok(source.clone()),
         }

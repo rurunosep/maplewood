@@ -1,6 +1,6 @@
 use crate::script::callbacks;
 use crate::{GameData, UiData};
-use mlua::{Lua, Result as LuaResult};
+use mlua::Lua;
 use sdl2::mixer::{Chunk, Music};
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -15,12 +15,12 @@ pub fn process_console_input(
     musics: &HashMap<String, Music>,
     sound_effects: &HashMap<String, Chunk>,
 ) {
-    let r: LuaResult<()> = try {
+    let r: mlua::Result<()> = try {
         let game_data = RefCell::new(game_data);
         let ui_data = RefCell::new(ui_data);
         let player_movement_locked = RefCell::new(player_movement_locked);
 
-        lua.scope(|scope| -> LuaResult<()> {
+        lua.scope(|scope| -> mlua::Result<()> {
             let globals = lua.globals();
 
             #[rustfmt::skip]
@@ -32,11 +32,13 @@ pub fn process_console_input(
             callbacks::bind_console_only_callbacks(scope, &globals, &game_data, &ui_data)?;
 
             for input in std::mem::take(command_queue) {
+                // NOW print return values of commands
                 lua.load(&input).exec()?;
             }
 
             Ok(())
         })?
     };
-    r.unwrap_or_else(|e| log::error!("{e}"));
+    // NOW send errors to console history instead of logger
+    r.unwrap_or_else(|e| log::error!("Lua error executing console command:\n{e}"));
 }

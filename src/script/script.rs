@@ -72,7 +72,7 @@ impl ScriptManager {
             if let Some(condition) = &start_condition
                 && evaluate_story_var_condition(condition, story_vars)
                     .tap_err(|e| {
-                        log::error!(once = true; "Invalid story var condition: \"{condition}\" (err: {e})")
+                        log::error!(once = true; "Invalid story var condition `{condition}` (err: {e})")
                     })
                     .map(|b| !b)
                     .unwrap_or(true)
@@ -119,7 +119,7 @@ impl ScriptManager {
                 wait_condition: None,
             });
         };
-        r.unwrap_or_else(|e| log::error!("{e}"));
+        r.unwrap_or_else(|e| log::error!("Couldn't start script (err: {e})"));
     }
 
     pub fn update(
@@ -192,7 +192,10 @@ impl ScriptInstance {
 
                 Ok(())
             })
-            .unwrap_or_else(|e| log::error!("{e}"));
+            .unwrap_or_else(|e| match &self.name {
+                Some(name) => log::error!("Error executing script `{name}`:\n{e}"),
+                None => log::error!("Error executing unnamed script:\n{e}"),
+            });
     }
 }
 
@@ -203,7 +206,7 @@ pub fn get_script_from_file<P: AsRef<Path>>(
     let file_contents = std::fs::read_to_string(&path)?;
     let start_index = file_contents
         .find(&f!("---@script {script_name}"))
-        .context(f!("no script {script_name} in {}", path.as_ref().to_string_lossy()))?;
+        .context(f!("no script `{script_name}` in file `{}`", path.as_ref().to_string_lossy()))?;
     let end_index = file_contents[start_index + 1..]
         .find("---@script")
         .unwrap_or(file_contents[start_index..].len())
@@ -218,10 +221,10 @@ fn evaluate_story_var_condition(
     story_vars: &StoryVars,
 ) -> anyhow::Result<bool> {
     // Compile regex only once ever
-    static RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\{([^{}]*)\}").unwrap());
+    static RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\{([^{}]*)\}").expect(""));
 
     let with_values = misc::try_replace_all(&RE, &expression, |caps| {
-        let key = caps.get(1).unwrap().as_str();
+        let key = caps.get(1).expect("").as_str();
         story_vars.0.get(key).context(f!("no story var {key}")).map(|val| val.to_string())
     })?;
 

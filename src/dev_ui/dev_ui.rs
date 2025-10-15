@@ -35,12 +35,11 @@ impl<'window> DevUi<'window> {
         // State dpi scaling must be initally set to 1 to set the initial screen_rect correctly
         let state = EguiSDL2State::new(window.size().0, window.size().1, 1.);
 
-        // NOW nice translucent styling
+        // Some translucent styling
         ctx.style_mut(|s| {
             s.visuals.window_fill = s.visuals.window_fill.gamma_multiply(0.95);
             s.visuals.panel_fill = s.visuals.panel_fill.gamma_multiply(0.5);
             s.visuals.extreme_bg_color = s.visuals.extreme_bg_color.gamma_multiply(0.5);
-            // s.visuals.code_bg_color = s.visuals.code_bg_color.gamma_multiply(0.95);
         });
 
         Self {
@@ -131,6 +130,9 @@ impl DevUi<'_> {
     }
 }
 
+// NOW separate console history from logger log history
+// Logs go into console history
+// Input and command errors/returns go into console history by not log history
 struct ConsoleWindow {
     pub open: bool,
     input_text: String,
@@ -160,14 +162,14 @@ impl ConsoleWindow {
                     ui.input(|i| {
                         if i.key_pressed(Key::Enter) {
                             LOGGER.history.lock().unwrap().push(f!("> {}", &self.input_text));
-
                             command_queue.push(self.input_text.clone());
-
                             self.input_text.clear();
                         } else if i.key_pressed(Key::ArrowUp) {
                             // NOW scroll input history
                         } else if i.key_pressed(Key::ArrowDown) {
                             // NOW scroll input history
+                        } else if i.key_pressed(Key::Tab) {
+                            // TODO tab completion
                         }
                     })
                 }
