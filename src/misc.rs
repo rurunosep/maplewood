@@ -100,20 +100,19 @@ pub enum Direction {
     Right,
 }
 
-// ------------------------------------------------------------------
-// Logger
-// ------------------------------------------------------------------
-
 pub static LOGGER: LazyLock<Logger> = LazyLock::new(|| Logger::new());
 
 pub struct Logger {
-    pub history: Mutex<Vec<String>>,
-    pub once_only_logs: Mutex<HashSet<String>>,
+    once_only_logs: Mutex<HashSet<String>>,
+    pub to_console_queue: Mutex<Vec<String>>,
 }
 
 impl Logger {
     fn new() -> Self {
-        Self { history: Mutex::new(Vec::new()), once_only_logs: Mutex::new(HashSet::new()) }
+        Self {
+            once_only_logs: Mutex::new(HashSet::new()),
+            to_console_queue: Mutex::new(Vec::new()),
+        }
     }
 
     pub fn init(&self) {
@@ -140,9 +139,11 @@ impl log::Log for Logger {
             onces.insert(record.args().to_string());
         }
 
-        // Push log to history
-        let mut history = self.history.lock().unwrap();
-        history.push(f!("[{}] {}", record.level().as_str(), record.args()));
+        // Queue log for console window to read
+        {
+            let mut to_console_queue = self.to_console_queue.lock().unwrap();
+            to_console_queue.push(f!("[{}] {}", record.level().as_str(), record.args()));
+        }
 
         // Print log to stdout
         let colored_level_label = match record.level() {

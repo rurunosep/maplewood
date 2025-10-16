@@ -1,3 +1,4 @@
+mod console;
 mod entities;
 
 #[allow(clippy::module_inception)]

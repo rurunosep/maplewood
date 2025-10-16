@@ -16,11 +16,10 @@ mod world;
 
 use crate::misc::{LOGGER, WINDOW_SIZE};
 use crate::script::ScriptManager;
-use crate::script::console::Console;
+use crate::script::console::ConsoleCommandExecutor;
 use dev_ui::DevUi;
 use ecs::Ecs;
 use misc::StoryVars;
-use mlua::Lua;
 use render::renderer::Renderer;
 use sdl2::mixer::{AUDIO_S16SYS, DEFAULT_CHANNELS};
 use std::collections::HashMap;
@@ -130,15 +129,8 @@ fn main() {
         // TODO map overlay
     };
     let mut script_manager = ScriptManager::new();
+    let mut console_command_executor = ConsoleCommandExecutor::new();
     let mut player_movement_locked = false;
-
-    // Console
-    let mut console = Console {
-        lua_instance: Lua::new(),
-        scrollback: String::new(),
-        next_unread_log_index: 0,
-        command_queue: Vec::new(),
-    };
 
     // Scratchpad
     {}
@@ -164,13 +156,13 @@ fn main() {
         #[rustfmt::skip]
         dev_ui.run(
             &start_time, frame_duration, &mut game_data.ecs, &mut game_data.story_vars,
-            &script_manager, &mut console
+            &script_manager, &mut console_command_executor
         );
 
         #[rustfmt::skip]
-        console.update(
-            &mut game_data, &mut ui_data,
-            &mut player_movement_locked, &mut running, &musics, &sound_effects,
+        console_command_executor.execute(
+            &mut game_data, &mut ui_data, &mut player_movement_locked, &mut running,
+            &musics, &sound_effects,
         );
 
         #[rustfmt::skip]

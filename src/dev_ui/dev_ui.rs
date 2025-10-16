@@ -1,17 +1,17 @@
-use crate::Console;
+use crate::ConsoleCommandExecutor;
+use crate::dev_ui::console::ConsoleWindow;
 use crate::dev_ui::entities::{EntitiesListWindow, EntityWindow};
 use crate::ecs::{Ecs, EntityId};
 use crate::misc::StoryVars;
 use crate::script::{ScriptInstanceId, ScriptManager};
 use egui::text::LayoutJob;
 use egui::{
-    CentralPanel, Color32, Context, FontFamily, FontId, Grid, Key, Label, RichText, ScrollArea,
-    TextEdit, TextFormat, TextStyle, TopBottomPanel, Widget, Window,
+    Color32, Context, FontFamily, FontId, Grid, ScrollArea, TextEdit, TextFormat, Window,
 };
 use egui_sdl2_event::EguiSDL2State;
 use itertools::Itertools;
 use sdl2::video::Window as SdlWindow;
-use std::collections::{HashMap, VecDeque};
+use std::collections::HashMap;
 use std::format as f;
 use std::time::Instant;
 
@@ -68,7 +68,7 @@ impl DevUi<'_> {
         ecs: &mut Ecs,
         story_vars: &mut StoryVars,
         script_manager: &ScriptManager,
-        console: &mut Console,
+        console: &mut ConsoleCommandExecutor,
     ) {
         if !self.active {
             return;
@@ -131,125 +131,8 @@ impl DevUi<'_> {
     }
 }
 
-pub struct ConsoleWindow {
-    pub open: bool,
-    input_text: String,
-    input_history: VecDeque<String>,
-    history_cursor: Option<usize>,
-}
-
-impl ConsoleWindow {
-    fn new() -> Self {
-        Self {
-            open: false,
-            input_text: String::new(),
-            input_history: VecDeque::new(),
-            history_cursor: None,
-        }
-    }
-
-    fn show(&mut self, ctx: &Context, console: &mut Console) {
-        if !self.open {
-            return;
-        }
-
-        Window::new("Console").open(&mut self.open).default_width(800.).show(&ctx, |ui| {
-            // Input
-            TopBottomPanel::bottom("bottom").show_inside(ui, |ui| {
-                let mut history_text = self
-                    .history_cursor
-                    .and_then(|i| self.input_history.get(i))
-                    .map(|s| s.clone());
-
-                let text_edit_ref = if let Some(history_text) = &mut history_text {
-                    history_text
-                } else {
-                    &mut self.input_text
-                };
-
-                // TODO fix TextEdit up and down key bullshit
-                // TextEdit moves the cursor to beginning on Up and to end on Down
-                // Disable that shit somehow
-
-                let response = TextEdit::singleline(text_edit_ref)
-                    .desired_width(f32::INFINITY)
-                    .font(TextStyle::Monospace)
-                    .return_key(None)
-                    .frame(false)
-                    .ui(ui);
-
-                if response.has_focus() {
-                    ui.input(|i| {
-                        for event in &i.events {
-                            // Update history scrolling
-                            match event {
-                                // A key was pressed. Was it Up, Down, or anything else?
-                                egui::Event::Key { key, pressed: true, .. } => match key {
-                                    Key::ArrowUp => {
-                                        // Move history cursor up
-                                        self.history_cursor = match self.history_cursor {
-                                            Some(index)
-                                                if index + 1 < self.input_history.len() =>
-                                            {
-                                                Some(index + 1)
-                                            }
-                                            Some(index) => Some(index),
-                                            None => Some(0),
-                                        };
-                                    }
-                                    Key::ArrowDown => {
-                                        // Move history cursor down
-                                        self.history_cursor = match self.history_cursor {
-                                            Some(index) if index > 0 => Some(index - 1),
-                                            Some(_) => None,
-                                            None => None,
-                                        }
-                                    }
-                                    _ => {
-                                        // If any key other than Up or Down was pressed, stop
-                                        // scrolling history
-                                        if let Some(history_text) = &history_text {
-                                            self.input_text = history_text.clone();
-                                        };
-                                        self.history_cursor = None;
-                                    }
-                                },
-                                _ => {}
-                            }
-
-                            // After updating history scrolling
-                            match event {
-                                egui::Event::Key { key: Key::Enter, pressed: true, .. } => {
-                                    // Add input to console command queue and scrollback
-                                    console.push_to_scrollback(&f!("> {}", &self.input_text));
-                                    console.command_queue.push(self.input_text.clone());
-
-                                    // Add input to beginning of history
-                                    self.input_history.retain(|s| *s != self.input_text);
-                                    self.input_history.push_front(self.input_text.clone());
-
-                                    // Clear input
-                                    self.input_text.clear();
-                                }
-                                _ => {}
-                            }
-                        }
-                    })
-                }
-            });
-
-            // Log
-            CentralPanel::default().show_inside(ui, |ui| {
-                ScrollArea::vertical().stick_to_bottom(true).show(ui, |ui| {
-                    Label::new(RichText::new(&*console.scrollback).family(FontFamily::Monospace))
-                        .ui(ui);
-
-                    ui.allocate_space([ui.available_width(), 0.].into());
-                })
-            })
-        });
-    }
-}
+// --------------------------------------------------------
+// --------------------------------------------------------
 
 struct ScriptsListWindow {
     open: bool,
