@@ -77,54 +77,54 @@ impl DevUi<'_> {
         let DevUi { state, ctx, window, .. } = self;
 
         state.update_time(Some(start_time.elapsed().as_secs_f64()), 1. / 60.);
-        ctx.begin_pass(state.raw_input.take());
 
-        // Create entity windows for new entities, and delete for deleted entities
-        for id in ecs.entity_ids.keys() {
-            if !self.entity_windows.contains_key(&id) {
-                self.entity_windows.insert(id, EntityWindow::new(id, &ecs));
-            };
-        }
-        self.entity_windows.retain(|&k, _| ecs.entity_ids.contains_key(k));
+        let full_output = ctx.run(state.raw_input.take(), |ctx| {
+            // Create entity windows for new entities, and delete for deleted entities
+            for id in ecs.entity_ids.keys() {
+                if !self.entity_windows.contains_key(&id) {
+                    self.entity_windows.insert(id, EntityWindow::new(id, &ecs));
+                };
+            }
+            self.entity_windows.retain(|&k, _| ecs.entity_ids.contains_key(k));
 
-        // ... script windows ...
-        for (id, instance) in &script_manager.instances {
-            if !self.script_windows.contains_key(&id) {
-                self.script_windows.insert(id, ScriptWindow::new(id, instance.name.clone()));
-            };
-        }
-        self.script_windows.retain(|&k, _| script_manager.instances.contains_key(k));
+            // ... script windows ...
+            for (id, instance) in &script_manager.instances {
+                if !self.script_windows.contains_key(&id) {
+                    self.script_windows.insert(id, ScriptWindow::new(id, instance.name.clone()));
+                };
+            }
+            self.script_windows.retain(|&k, _| script_manager.instances.contains_key(k));
 
-        // Main dev ui window
-        Window::new("Dev UI")
-            .title_bar(false)
-            .pivot(egui::Align2::RIGHT_TOP)
-            .default_pos(ctx.screen_rect().shrink(16.).right_top())
-            .default_width(150.)
-            .show(&ctx, |ui| {
-                ui.label(f!("Frame Duration: {frame_duration:.2}%"));
+            // Main dev ui window
+            Window::new("Dev UI")
+                .title_bar(false)
+                .pivot(egui::Align2::RIGHT_TOP)
+                .default_pos(ctx.screen_rect().shrink(16.).right_top())
+                .default_width(150.)
+                .show(&ctx, |ui| {
+                    ui.label(f!("Frame Duration: {frame_duration:.2}%"));
 
-                ui.toggle_value(&mut self.console_window.open, "Console");
-                ui.toggle_value(&mut self.entities_list_window.open, "Entities");
-                ui.toggle_value(&mut self.story_vars_window.open, "Story Vars");
-                ui.toggle_value(&mut self.scripts_list_window.open, "Scripts");
+                    ui.toggle_value(&mut self.console_window.open, "Console");
+                    ui.toggle_value(&mut self.entities_list_window.open, "Entities");
+                    ui.toggle_value(&mut self.story_vars_window.open, "Story Vars");
+                    ui.toggle_value(&mut self.scripts_list_window.open, "Scripts");
 
-                ui.allocate_space([ui.available_width(), 0.].into());
-            });
+                    ui.allocate_space([ui.available_width(), 0.].into());
+                });
 
-        // Other windows
-        self.console_window.show(ctx, console);
-        self.entities_list_window.show(ctx, &mut self.entity_windows);
-        for window in self.entity_windows.values_mut() {
-            window.show(ctx, ecs);
-        }
-        self.scripts_list_window.show(ctx, &mut self.script_windows);
-        for window in self.script_windows.values_mut() {
-            window.show(ctx, script_manager);
-        }
-        self.story_vars_window.show(ctx, story_vars);
+            // Other windows
+            self.console_window.show(ctx, console);
+            self.entities_list_window.show(ctx, &mut self.entity_windows);
+            for window in self.entity_windows.values_mut() {
+                window.show(ctx, ecs);
+            }
+            self.scripts_list_window.show(ctx, &mut self.script_windows);
+            for window in self.script_windows.values_mut() {
+                window.show(ctx, script_manager);
+            }
+            self.story_vars_window.show(ctx, story_vars);
+        });
 
-        let full_output = ctx.end_pass();
         // (Looks like this just updates the cursor and the clipboard text)
         state.process_output(window, &full_output.platform_output);
         self.full_output = Some(full_output);
@@ -259,6 +259,9 @@ impl ScriptWindow {
         }
     }
 }
+
+// --------------------------------------------------------
+// --------------------------------------------------------
 
 struct StoryVarsWindow {
     open: bool,
