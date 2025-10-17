@@ -18,6 +18,8 @@ use std::format as f;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+// TODO differentiate between "no entity" and "missing components" in error messages
+
 // Callbacks have to return mlua::Result<_> to satisfy scope.create_function
 // Use a simple custom error with impl From<Error> for mlua::Error
 

@@ -63,9 +63,9 @@ impl FromLuaMulti for ReturnValuesString {
         values
             .iter()
             .map(|v| match v {
-                // If it's a number, truncate that shit
+                // Truncate numbers to 3 decimal places
                 mlua::Value::Number(n) => Ok(((n * 1000.).trunc() / 1000.).to_string()),
-                // If it's a string, quote that shit
+                // Wrap strings in quotes
                 mlua::Value::String(s) => s.to_str().map(|s| f!("\"{s}\"")),
                 _ => v.to_string(),
             })

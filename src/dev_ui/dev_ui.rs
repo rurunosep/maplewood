@@ -2,11 +2,12 @@ use crate::ConsoleCommandExecutor;
 use crate::dev_ui::console::ConsoleWindow;
 use crate::dev_ui::entities::{EntitiesListWindow, EntityWindow};
 use crate::ecs::{Ecs, EntityId};
-use crate::misc::StoryVars;
+use crate::misc::{LOGGER, StoryVars};
 use crate::script::{ScriptInstanceId, ScriptManager};
 use egui::text::LayoutJob;
 use egui::{
-    Color32, Context, FontFamily, FontId, Grid, ScrollArea, TextEdit, TextFormat, Window,
+    Color32, Context, FontFamily, FontId, Grid, Label, RichText, ScrollArea, TextEdit,
+    TextFormat, Widget, Window,
 };
 use egui_sdl2_event::EguiSDL2State;
 use itertools::Itertools;
@@ -28,6 +29,7 @@ pub struct DevUi<'window> {
     script_windows: HashMap<ScriptInstanceId, ScriptWindow>,
     story_vars_window: StoryVarsWindow,
     console_window: ConsoleWindow,
+    logs_window: LogWindow,
 }
 
 impl<'window> DevUi<'window> {
@@ -55,6 +57,7 @@ impl<'window> DevUi<'window> {
             script_windows: HashMap::new(),
             story_vars_window: StoryVarsWindow::new(),
             console_window: ConsoleWindow::new(),
+            logs_window: LogWindow::new(),
         }
     }
 }
@@ -108,6 +111,7 @@ impl DevUi<'_> {
                     ui.toggle_value(&mut self.entities_list_window.open, "Entities");
                     ui.toggle_value(&mut self.story_vars_window.open, "Story Vars");
                     ui.toggle_value(&mut self.scripts_list_window.open, "Scripts");
+                    ui.toggle_value(&mut self.logs_window.open, "Log");
 
                     ui.allocate_space([ui.available_width(), 0.].into());
                 });
@@ -123,6 +127,7 @@ impl DevUi<'_> {
                 window.show(ctx, script_manager);
             }
             self.story_vars_window.show(ctx, story_vars);
+            self.logs_window.show(ctx);
         });
 
         // (Looks like this just updates the cursor and the clipboard text)
@@ -340,5 +345,40 @@ impl StoryVarsWindow {
                 ui.allocate_space([ui.available_width(), 0.].into());
             });
         });
+    }
+}
+
+// --------------------------------------------------------
+// --------------------------------------------------------
+
+struct LogWindow {
+    open: bool,
+}
+
+impl LogWindow {
+    fn show(&mut self, ctx: &Context) {
+        Window::new("Log").open(&mut self.open).default_width(800.).default_height(400.).show(
+            ctx,
+            |ui| {
+                ScrollArea::vertical().stick_to_bottom(true).show(ui, |ui| {
+                    let text = LOGGER
+                        .history
+                        .lock()
+                        .unwrap()
+                        .iter()
+                        .map(|l| f!("[{}] {}", l.level, l.message))
+                        .join("\n");
+
+                    // TODO colored logs
+                    Label::new(RichText::new(text).family(FontFamily::Monospace)).ui(ui);
+
+                    ui.allocate_space(ui.available_size());
+                });
+            },
+        );
+    }
+
+    fn new() -> Self {
+        Self { open: false }
     }
 }

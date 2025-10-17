@@ -4,7 +4,6 @@ use log::kv::Key;
 use log::{Level, Metadata, Record};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
-use std::format as f;
 use std::sync::{LazyLock, Mutex};
 use tap::TapOptional;
 
@@ -103,16 +102,13 @@ pub enum Direction {
 pub static LOGGER: LazyLock<Logger> = LazyLock::new(|| Logger::new());
 
 pub struct Logger {
+    pub history: Mutex<Vec<LogRecordOwned>>,
     once_only_logs: Mutex<HashSet<String>>,
-    pub to_console_queue: Mutex<Vec<String>>,
 }
 
 impl Logger {
     fn new() -> Self {
-        Self {
-            once_only_logs: Mutex::new(HashSet::new()),
-            to_console_queue: Mutex::new(Vec::new()),
-        }
+        Self { history: Mutex::new(Vec::new()), once_only_logs: Mutex::new(HashSet::new()) }
     }
 
     pub fn init(&self) {
@@ -139,12 +135,6 @@ impl log::Log for Logger {
             onces.insert(record.args().to_string());
         }
 
-        // Queue log for console window to read
-        {
-            let mut to_console_queue = self.to_console_queue.lock().unwrap();
-            to_console_queue.push(f!("[{}] {}", record.level().as_str(), record.args()));
-        }
-
         // Print log to stdout
         let colored_level_label = match record.level() {
             x @ Level::Error => x.as_str().red(),
@@ -152,6 +142,12 @@ impl log::Log for Logger {
             x => x.as_str().normal(),
         };
         println!("[{}] {}", colored_level_label, record.args());
+
+        // Add log to history
+        {
+            let mut history = self.history.lock().unwrap();
+            history.push(record.into());
+        }
     }
 
     fn enabled(&self, _metadata: &Metadata) -> bool {
@@ -161,10 +157,22 @@ impl log::Log for Logger {
     fn flush(&self) {}
 }
 
+pub struct LogRecordOwned {
+    pub message: String,
+    pub level: Level,
+}
+
+impl From<&Record<'_>> for LogRecordOwned {
+    fn from(value: &Record<'_>) -> Self {
+        Self { message: value.args().to_string(), level: value.level() }
+    }
+}
+
 pub struct StoryVars(pub HashMap<String, i32>);
 
 impl StoryVars {
     // Convenience functions to wrap the error log
+    // (to bypass the error log, just call on the wrapped map directly)
     pub fn get(&self, key: &str) -> Option<i32> {
         self.0
             .get(key)

@@ -1,5 +1,4 @@
 use crate::ConsoleCommandExecutor;
-use crate::misc::LOGGER;
 use egui::{
     CentralPanel, Context, FontFamily, Key, Label, RichText, ScrollArea, TextEdit, TextStyle,
     TopBottomPanel, Widget, Window,
@@ -19,34 +18,30 @@ impl ConsoleWindow {
             return;
         }
 
-        // Get new console command output
+        // Get console command execution output
         for output in command_executor.output_queue.drain(..) {
             Self::push_to_scrollback(&mut self.scrollback, &output);
         }
 
-        // Get new logs
-        {
-            let mut new_logs = LOGGER.to_console_queue.lock().unwrap();
-            for new_log in new_logs.drain(..) {
-                Self::push_to_scrollback(&mut self.scrollback, &new_log);
-            }
-        }
+        Window::new("Console")
+            .open(&mut self.open)
+            .default_width(800.)
+            .default_height(400.)
+            .show(&ctx, |ui| {
+                // Input Line
+                self.input_panel.show(ui, &mut self.scrollback, command_executor);
 
-        Window::new("Console").open(&mut self.open).default_width(800.).show(&ctx, |ui| {
-            // Input Line
-            self.input_panel.show(ui, &mut self.scrollback, command_executor);
+                // Scrollback
+                CentralPanel::default().show_inside(ui, |ui| {
+                    ScrollArea::vertical().stick_to_bottom(true).show(ui, |ui| {
+                        // TODO colored console text
+                        Label::new(RichText::new(&self.scrollback).family(FontFamily::Monospace))
+                            .ui(ui);
 
-            // Scrollback
-            CentralPanel::default().show_inside(ui, |ui| {
-                ScrollArea::vertical().stick_to_bottom(true).show(ui, |ui| {
-                    // TODO colored console
-                    Label::new(RichText::new(&*self.scrollback).family(FontFamily::Monospace))
-                        .ui(ui);
-
-                    ui.allocate_space([ui.available_width(), 0.].into());
+                        ui.allocate_space([ui.available_width(), 0.].into());
+                    })
                 })
-            })
-        });
+            });
     }
 
     pub fn new() -> Self {
