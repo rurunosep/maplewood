@@ -50,10 +50,7 @@ where
         }
     };
     r.unwrap_or_else(|e| {
-        log::error!(
-            "Invalid entities JSON file `{}` (err: {e})",
-            path.as_ref().to_string_lossy(),
-        );
+        log::error!("Invalid entities JSON file `{}` (err: {e})", path.as_ref().to_string_lossy(),);
     });
 }
 

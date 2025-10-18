@@ -23,11 +23,9 @@ impl ConsoleWindow {
             Self::push_to_scrollback(&mut self.scrollback, &output);
         }
 
-        Window::new("Console")
-            .open(&mut self.open)
-            .default_width(800.)
-            .default_height(400.)
-            .show(ctx, |ui| {
+        Window::new("Console").open(&mut self.open).default_width(800.).default_height(400.).show(
+            ctx,
+            |ui| {
                 // Input Line
                 self.input_panel.show(ui, &mut self.scrollback, command_executor);
 
@@ -41,7 +39,8 @@ impl ConsoleWindow {
                         ui.allocate_space([ui.available_width(), 0.].into());
                     })
                 })
-            });
+            },
+        );
     }
 
     pub fn new() -> Self {

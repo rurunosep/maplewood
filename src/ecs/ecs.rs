@@ -219,9 +219,7 @@ impl Ecs {
                 "CharacterAnims" => self.add_component(id, sjfv::<CharacterAnims>(data_c)?),
                 "DualStateAnims" => self.add_component(id, sjfv::<DualStateAnims>(data_c)?),
                 "NamedAnims" => self.add_component(id, sjfv::<NamedAnims>(data_c)?),
-                "InteractionTrigger" => {
-                    self.add_component(id, sjfv::<InteractionTrigger>(data_c)?)
-                }
+                "InteractionTrigger" => self.add_component(id, sjfv::<InteractionTrigger>(data_c)?),
                 "CollisionTrigger" => self.add_component(id, sjfv::<CollisionTrigger>(data_c)?),
                 "AreaTrigger" => self.add_component(id, sjfv::<AreaTrigger>(data_c)?),
                 _ => Err(anyhow!("invalid component name `{component_name}`"))?,

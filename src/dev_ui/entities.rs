@@ -33,10 +33,7 @@ impl EntitiesListWindow {
                 for window in entity_windows
                     .values_mut()
                     .filter(|window| {
-                        window
-                            .name
-                            .as_ref()
-                            .is_some_and(|name| name.contains(&self.filter_string))
+                        window.name.as_ref().is_some_and(|name| name.contains(&self.filter_string))
                             || serde_json::to_string(&window.entity_id)
                                 .expect("id is serde")
                                 .contains(&self.filter_string)
@@ -159,10 +156,8 @@ where
         }
 
         if !self.is_being_edited {
-            self.text = component
-                .as_deref()
-                .map(|c| serde_json::to_string_pretty(c).expect(""))
-                .expect("");
+            self.text =
+                component.as_deref().map(|c| serde_json::to_string_pretty(c).expect("")).expect("");
         }
 
         drop(component);

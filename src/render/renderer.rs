@@ -140,10 +140,7 @@ impl Renderer<'_> {
         let sampler_bind_group = device.create_bind_group(&BindGroupDescriptor {
             label: None,
             layout: &rect_copy_pipeline.pipeline.get_bind_group_layout(0),
-            entries: &[BindGroupEntry {
-                binding: 0,
-                resource: BindingResource::Sampler(&sampler),
-            }],
+            entries: &[BindGroupEntry { binding: 0, resource: BindingResource::Sampler(&sampler) }],
         });
 
         let tilesets = HashMap::new();
@@ -190,10 +187,9 @@ impl Renderer<'_> {
             self.device.create_command_encoder(&CommandEncoderDescriptor { label: None });
 
         // Does the camera texture have to be recreated every frame? Can I save and reuse it?
-        let camera_texture =
-            ecs.query_one_with_name::<&Camera>(CAMERA_ENTITY_NAME).map(|camera| {
-                self.prepare_camera_texture(camera.size, surface_texture.texture.format())
-            });
+        let camera_texture = ecs.query_one_with_name::<&Camera>(CAMERA_ENTITY_NAME).map(|camera| {
+            self.prepare_camera_texture(camera.size, surface_texture.texture.format())
+        });
 
         // Camera render pass
         // Render the world as seen by the camera onto a texture to be later rendered onto the
@@ -265,9 +261,7 @@ impl Renderer<'_> {
                 scale_factor: dev_ui.ctx.pixels_per_point(),
             };
 
-            self.egui_render_pass
-                .add_textures(&self.device, &self.queue, &textures_delta)
-                .unwrap();
+            self.egui_render_pass.add_textures(&self.device, &self.queue, &textures_delta).unwrap();
             self.egui_render_pass.update_buffers(
                 &self.device,
                 &self.queue,
@@ -276,13 +270,7 @@ impl Renderer<'_> {
             );
 
             self.egui_render_pass
-                .execute(
-                    &mut encoder,
-                    &surface_texture_view,
-                    &paint_jobs,
-                    &screen_descriptor,
-                    None,
-                )
+                .execute(&mut encoder, &surface_texture_view, &paint_jobs, &screen_descriptor, None)
                 .unwrap();
 
             self.egui_render_pass.remove_textures(textures_delta).unwrap();
@@ -297,10 +285,8 @@ impl Renderer<'_> {
         camera_size: Vec2<f64, MapUnits>,
         surface_format: TextureFormat,
     ) -> Texture {
-        let camera_texture_size = (
-            (camera_size.x * CELL_SIZE as f64) as u32,
-            (camera_size.y * CELL_SIZE as f64) as u32,
-        );
+        let camera_texture_size =
+            ((camera_size.x * CELL_SIZE as f64) as u32, (camera_size.y * CELL_SIZE as f64) as u32);
         let camera_wgpu_texture = self.device.create_texture(&TextureDescriptor {
             label: None,
             size: Extent3d {
@@ -355,8 +341,7 @@ impl Renderer<'_> {
             );
 
             // Draw tile layers below entities
-            for layer in map.tile_layers.iter().take_while_inclusive(|l| l.name != "interiors_3")
-            {
+            for layer in map.tile_layers.iter().take_while_inclusive(|l| l.name != "interiors_3") {
                 self.draw_tile_layer(render_pass, render_target_size, layer, map, camera_rect);
             }
 

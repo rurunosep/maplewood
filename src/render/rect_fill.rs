@@ -42,11 +42,7 @@ impl RectFillPipeline {
                 conservative: false,
             },
             depth_stencil: None,
-            multisample: MultisampleState {
-                count: 1,
-                mask: !0,
-                alpha_to_coverage_enabled: false,
-            },
+            multisample: MultisampleState { count: 1, mask: !0, alpha_to_coverage_enabled: false },
             fragment: Some(FragmentState {
                 module: &shader,
                 entry_point: Some("fragment_main"),

@@ -6,8 +6,8 @@ use crate::misc::{LOGGER, StoryVars};
 use crate::script::{ScriptInstanceId, ScriptManager};
 use egui::text::LayoutJob;
 use egui::{
-    Color32, Context, FontFamily, FontId, Grid, Label, RichText, ScrollArea, TextEdit,
-    TextFormat, Widget, Window,
+    Color32, Context, FontFamily, FontId, Grid, Label, RichText, ScrollArea, TextEdit, TextFormat,
+    Widget, Window,
 };
 use egui_sdl2_event::EguiSDL2State;
 use itertools::Itertools;

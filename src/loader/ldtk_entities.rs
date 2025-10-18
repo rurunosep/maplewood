@@ -1,8 +1,8 @@
 use super::ldtk_project;
 use crate::components::{
-    AnimationClip, AnimationComp, AreaTrigger, CharacterAnims, Collision,
-    DualStateAnimationState, DualStateAnims, Facing, InteractionTrigger, Name, Position,
-    ScriptSource, Sprite, SpriteComp, Walking,
+    AnimationClip, AnimationComp, AreaTrigger, CharacterAnims, Collision, DualStateAnimationState,
+    DualStateAnims, Facing, InteractionTrigger, Name, Position, ScriptSource, Sprite, SpriteComp,
+    Walking,
 };
 use crate::ecs::{Ecs, EntityId};
 use crate::math::{Rect, Vec2};
@@ -53,9 +53,7 @@ pub fn load_entities_from_ldtk(ecs: &mut Ecs, project: &ldtk_project::Project) {
                         _ => {}
                     }
                 };
-                r.unwrap_or_else(|e| {
-                    log::error!("Invalid ldtk entity `{}` (err: {e})", entity.iid)
-                })
+                r.unwrap_or_else(|e| log::error!("Invalid ldtk entity `{}` (err: {e})", entity.iid))
             }
         }
     }
@@ -359,11 +357,8 @@ fn read_field<F>(field: &str, entity: &ldtk_project::EntityInstance) -> anyhow::
 where
     F: DeserializeOwned,
 {
-    if let Some(v) = entity
-        .field_instances
-        .iter()
-        .find(|f| f.identifier == field)
-        .and_then(|f| f.value.clone())
+    if let Some(v) =
+        entity.field_instances.iter().find(|f| f.identifier == field).and_then(|f| f.value.clone())
     {
         Ok(Some(serde_json::from_value::<F>(v)?))
     } else {

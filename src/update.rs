@@ -128,8 +128,7 @@ fn update_character_animations(ecs: &Ecs) {
 }
 
 fn update_dual_state_animations(ecs: &Ecs) {
-    for (mut anim_comp, mut dual_anims) in
-        ecs.query::<(&mut AnimationComp, &mut DualStateAnims)>()
+    for (mut anim_comp, mut dual_anims) in ecs.query::<(&mut AnimationComp, &mut DualStateAnims)>()
     {
         if anim_comp.forced {
             continue;
@@ -245,8 +244,7 @@ fn start_collision_trigger_scripts(ecs: &Ecs, script_manager_new: &mut ScriptMan
 
 fn resolve_collisions_with_tiles(ecs: &Ecs, world: &World) {
     // This only works for entities with velocities
-    for (mut position, collision, velocity) in
-        ecs.query::<(&mut Position, &Collision, &Velocity)>()
+    for (mut position, collision, velocity) in ecs.query::<(&mut Position, &Collision, &Velocity)>()
     {
         if !collision.solid {
             continue;

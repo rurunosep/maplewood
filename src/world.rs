@@ -72,11 +72,9 @@ impl Map {
                     && layer.identifier != "exteriors_objects_guide"
             })
         {
-            let mut tiles: Vec<Option<TileId>> =
-                vec![None; (dimensions.x * dimensions.y) as usize];
+            let mut tiles: Vec<Option<TileId>> = vec![None; (dimensions.x * dimensions.y) as usize];
             for tile in layer.grid_tiles.iter().chain(layer.auto_layer_tiles.iter()) {
-                let vec_index =
-                    (tile.px[0] as i32 / 16) + (tile.px[1] as i32 / 16) * dimensions.x;
+                let vec_index = (tile.px[0] as i32 / 16) + (tile.px[1] as i32 / 16) * dimensions.x;
                 *tiles.get_mut(vec_index as usize).unwrap() = Some(tile.t as u32);
             }
 

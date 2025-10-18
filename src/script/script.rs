@@ -77,8 +77,7 @@ impl ScriptManager {
             }
 
             let lua_instance = Lua::new();
-            let thread =
-                lua_instance.create_thread(lua_instance.load(source).into_function()?)?;
+            let thread = lua_instance.create_thread(lua_instance.load(source).into_function()?)?;
 
             lua_instance.load(include_str!("prelude.lua")).exec()?;
 
@@ -179,10 +178,7 @@ impl ScriptInstance {
     }
 }
 
-pub fn read_script_from_file<P: AsRef<Path>>(
-    path: P,
-    script_name: &str,
-) -> anyhow::Result<String> {
+pub fn read_script_from_file<P: AsRef<Path>>(path: P, script_name: &str) -> anyhow::Result<String> {
     let file_contents = std::fs::read_to_string(&path)
         .map_err(|_| anyhow!("couldn't read file `{}`", path.as_ref().to_string_lossy()))?;
     let start_index = file_contents
@@ -226,10 +222,7 @@ pub fn extract_metadata(source: &str) -> ScriptMetadata {
     metadata
 }
 
-fn evaluate_story_var_condition(
-    expression: &str,
-    story_vars: &StoryVars,
-) -> anyhow::Result<bool> {
+fn evaluate_story_var_condition(expression: &str, story_vars: &StoryVars) -> anyhow::Result<bool> {
     // Compile regex only once ever
     static RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\{([^{}]*)\}").expect(""));
 

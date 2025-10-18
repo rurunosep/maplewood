@@ -1,6 +1,4 @@
-use crate::components::{
-    AnimationComp, Facing, InteractionTrigger, NamedAnims, Position, Walking,
-};
+use crate::components::{AnimationComp, Facing, InteractionTrigger, NamedAnims, Position, Walking};
 use crate::data::PLAYER_ENTITY_NAME;
 use crate::math::Vec2;
 use crate::misc::{Aabb, Direction};
@@ -128,14 +126,12 @@ pub fn process_input(
 
                     // Start interaction scripts for entity with interaction hitbox containing
                     // target point
-                    for (_, interaction) in ecs
-                        .query::<(&Position, &InteractionTrigger)>()
-                        .filter(|(position, interaction)| {
+                    for (_, interaction) in ecs.query::<(&Position, &InteractionTrigger)>().filter(
+                        |(position, interaction)| {
                             position.map == player_position.map
-                                && Aabb::new(position.map_pos, interaction.hitbox)
-                                    .contains(&target)
-                        })
-                    {
+                                && Aabb::new(position.map_pos, interaction.hitbox).contains(&target)
+                        },
+                    ) {
                         if let Ok(source) = interaction
                             .script_source
                             .get_source()

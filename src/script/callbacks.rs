@@ -1,6 +1,6 @@
 use crate::components::{
-    AnimationComp, Camera, Collision, DualStateAnimationState, DualStateAnims, Facing,
-    NamedAnims, Position, SfxEmitter, SineOffsetAnimation, Sprite, SpriteComp, Walking,
+    AnimationComp, Camera, Collision, DualStateAnimationState, DualStateAnims, Facing, NamedAnims,
+    Position, SfxEmitter, SineOffsetAnimation, Sprite, SpriteComp, Walking,
 };
 use crate::data::{CAMERA_ENTITY_NAME, PLAYER_ENTITY_NAME};
 use crate::ecs::{Ecs, EntityId};
@@ -89,8 +89,7 @@ pub fn bind_general_callbacks<'scope>(
     )?;
     globals.set(
         "remove_forced_sprite",
-        scope
-            .create_function_mut(|_, args| remove_forced_sprite(args, &game_data.borrow().ecs))?,
+        scope.create_function_mut(|_, args| remove_forced_sprite(args, &game_data.borrow().ecs))?,
     )?;
     globals.set(
         "set_entity_visible",
@@ -137,15 +136,13 @@ pub fn bind_general_callbacks<'scope>(
     )?;
     globals.set(
         "play_object_animation",
-        scope.create_function_mut(|_, args| {
-            play_object_animation(args, &game_data.borrow().ecs)
-        })?,
+        scope
+            .create_function_mut(|_, args| play_object_animation(args, &game_data.borrow().ecs))?,
     )?;
     globals.set(
         "stop_object_animation",
-        scope.create_function_mut(|_, args| {
-            stop_object_animation(args, &game_data.borrow().ecs)
-        })?,
+        scope
+            .create_function_mut(|_, args| stop_object_animation(args, &game_data.borrow().ecs))?,
     )?;
     globals.set(
         "switch_dual_state_animation",
@@ -155,13 +152,11 @@ pub fn bind_general_callbacks<'scope>(
     )?;
     globals.set(
         "play_named_animation",
-        scope
-            .create_function_mut(|_, args| play_named_animation(args, &game_data.borrow().ecs))?,
+        scope.create_function_mut(|_, args| play_named_animation(args, &game_data.borrow().ecs))?,
     )?;
     globals.set(
         "anim_quiver",
-        scope
-            .create_function_mut(|_, args| anim_quiver(args, &mut game_data.borrow_mut().ecs))?,
+        scope.create_function_mut(|_, args| anim_quiver(args, &mut game_data.borrow_mut().ecs))?,
     )?;
     globals.set(
         "anim_jump",
@@ -191,8 +186,7 @@ pub fn bind_general_callbacks<'scope>(
     )?;
     globals.set(
         "remove_component",
-        scope
-            .create_function(|_, args| remove_component(args, &mut game_data.borrow_mut().ecs))?,
+        scope.create_function(|_, args| remove_component(args, &mut game_data.borrow_mut().ecs))?,
     )?;
     globals.set(
         "log",
@@ -467,10 +461,7 @@ pub fn stop_object_animation(entity: String, ecs: &Ecs) -> mlua::Result<()> {
     Ok(())
 }
 
-pub fn switch_dual_state_animation(
-    (entity, state): (String, i32),
-    ecs: &Ecs,
-) -> mlua::Result<()> {
+pub fn switch_dual_state_animation((entity, state): (String, i32), ecs: &Ecs) -> mlua::Result<()> {
     let (mut anim_comp, mut dual_anims) = ecs
         .query_one_with_name::<(&mut AnimationComp, &mut DualStateAnims)>(&entity)
         .ok_or(Error(f!("invalid entity `{entity}`")))?;
