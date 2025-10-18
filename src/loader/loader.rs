@@ -40,7 +40,7 @@ where
                 .unwrap_or_else(|| ecs.add_entity());
 
             for (key, val) in components_map.iter().filter(|(k, _)| *k != "EntityId") {
-                ecs.add_component_with_name(id, &key, &val).unwrap_or_else(|e| {
+                ecs.add_component_with_name(id, key, val).unwrap_or_else(|e| {
                     log::error!(
                         "Couldn't load component in file `{}` (err: {e})",
                         path.as_ref().to_string_lossy()
@@ -90,7 +90,7 @@ pub fn load_sound_effects() -> HashMap<String, Chunk> {
                 let file_extension = path.extension()?;
                 if file_extension != "wav" {
                     return None;
-                };
+                }
 
                 let sfx = Chunk::from_file(&path)
                     .tap_err(|_| log::error!("Couldn't load sfx `{}`", path.to_string_lossy()))
@@ -114,7 +114,7 @@ pub fn load_musics<'m>() -> HashMap<String, Music<'m>> {
                 let file_extension = path.extension()?;
                 if file_extension != "wav" {
                     return None;
-                };
+                }
 
                 let music = Music::from_file(&path)
                     .tap_err(|_| log::error!("Couldn't load music `{}`", path.to_string_lossy()))

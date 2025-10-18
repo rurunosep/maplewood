@@ -44,7 +44,6 @@ pub struct MessageWindow {
 fn main() {
     unsafe { std::env::set_var("RUST_BACKTRACE", "0") };
 
-    // Logger
     LOGGER.init();
 
     // Prevent high DPI scaling on Windows
@@ -53,12 +52,9 @@ fn main() {
         winapi::um::winuser::SetProcessDPIAware();
     }
 
-    // Sdl
     let sdl_context = sdl2::init().unwrap();
     sdl_context.audio().unwrap();
     let mut event_pump = sdl_context.event_pump().unwrap();
-
-    // Window
     let video_subsystem = sdl_context.video().unwrap();
     let window = video_subsystem
         .window("Maplewood", WINDOW_SIZE.x, WINDOW_SIZE.y)
@@ -66,12 +62,10 @@ fn main() {
         .build()
         .unwrap();
 
-    // Renderer
     let mut renderer = Renderer::new(&window);
     renderer.load_tilesets();
     renderer.load_spritesheets();
 
-    // Dev Ui
     let mut dev_ui = DevUi::new(&window);
 
     // Nasty hack to make egui take the initial screen_rect before setting zoom_factor
@@ -82,18 +76,16 @@ fn main() {
     ctx.set_zoom_factor(1.5);
     state.dpi_scaling = 1.5;
 
-    // Audio
     sdl2::mixer::open_audio(41_100, AUDIO_S16SYS, DEFAULT_CHANNELS, 512).unwrap();
     sdl2::mixer::allocate_channels(10);
     let sound_effects = loader::load_sound_effects();
     let musics = loader::load_musics();
 
-    // Game data (maps, entities, story vars)
-    let project: loader::ldtk_project::Project =
+    let ldtk_project: loader::ldtk_project::Project =
         serde_json::from_str(&std::fs::read_to_string("data/world.ldtk").unwrap()).unwrap();
 
     let mut world = World::new();
-    for ldtk_world in &project.worlds {
+    for ldtk_world in &ldtk_project.worlds {
         // If world has level called "_world_map", then entire world is a single map
         // Otherwise, each level in the world is an individual map
         if ldtk_world.levels.iter().any(|l| l.identifier == "_world_map") {
@@ -102,13 +94,13 @@ fn main() {
             for level in &ldtk_world.levels {
                 world.maps.insert(level.identifier.clone(), Map::from_ldtk_level(level));
             }
-        };
+        }
     }
 
     let mut ecs = Ecs::new();
     // Load in order of ldtk > file > source, so that entities defined in previous steps may be
     // extended by components defined in following steps
-    loader::ldtk_entities::load_entities_from_ldtk(&mut ecs, &project);
+    loader::ldtk_entities::load_entities_from_ldtk(&mut ecs, &ldtk_project);
     loader::load_entities_from_file(&mut ecs, "data/entities.json");
     data::load_entities_from_source(&mut ecs);
 
@@ -116,13 +108,12 @@ fn main() {
     loader::load_story_vars_from_file(&mut story_vars, "data/story_vars.json");
 
     let auto_scripts = vec![
-        script::get_script_from_file("data/scripts.lua", "start").unwrap(),
-        script::get_script_from_file("data/scripts.lua", "bakery_girl::panic").unwrap(),
+        script::read_script_from_file("data/scripts.lua", "start").unwrap(),
+        script::read_script_from_file("data/scripts.lua", "bakery_girl::panic").unwrap(),
     ];
 
     let mut game_data = GameData { world, ecs, story_vars, auto_scripts };
 
-    // Misc
     let mut ui_data = UiData {
         message_window: None,
         // TODO cutscene border

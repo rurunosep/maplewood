@@ -176,14 +176,14 @@ impl StoryVars {
     pub fn get(&self, key: &str) -> Option<i32> {
         self.0
             .get(key)
-            .tap_none(|| log::error!(once = true; "Story var doesn't exist: {}", key))
+            .tap_none(|| log::error!(once = true; "Story var doesn't exist: {key}"))
             .copied()
     }
 
     pub fn set(&mut self, key: &str, val: i32) {
         self.0
             .get_mut(key)
-            .tap_none(|| log::error!(once = true; "Story var doesn't exist: {}", key))
+            .tap_none(|| log::error!(once = true; "Story var doesn't exist: {key}"))
             .map(|var| *var = val);
     }
 }
@@ -200,3 +200,10 @@ impl StoryVars {
 // #![allow(clippy::cast_possible_wrap)]
 // #![allow(clippy::unnecessary_wraps)]
 // #![allow(clippy::module_name_repetitions)]
+// #![allow(clippy::too_many_arguments)]
+// #![allow(clippy::new_without_default)]
+// #![allow(clippy::module_inception)]
+// #![allow(clippy::redundant_closure_for_method_calls)]
+// #![allow(clippy::semicolon_if_nothing_returned)]
+// #![allow(clippy::elidable_lifetime_names)]
+// #![allow(clippy::or_fun_call)]

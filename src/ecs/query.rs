@@ -1,7 +1,6 @@
 use super::{Component, ComponentMap, EntityId};
 use anymap::AnyMap;
 use std::cell::{Ref, RefMut};
-use std::marker::PhantomData;
 
 pub trait Query {
     type Result<'r>;
@@ -59,51 +58,12 @@ where
     type Result<'r> = Option<Q::Result<'r>>;
 
     fn borrow(id: EntityId, component_maps: &AnyMap) -> Self::Result<'_> {
-        if Q::filter(id, component_maps) {
-            Some(Q::borrow(id, component_maps))
-        } else {
-            None
-        }
+        if Q::filter(id, component_maps) { Some(Q::borrow(id, component_maps)) } else { None }
     }
 
     fn filter(_: EntityId, _: &AnyMap) -> bool {
         true
     }
-}
-
-// With<C> and Without<C> are not necessary yet, but I like em.
-pub struct With<C>(PhantomData<C>)
-where
-    C: Component + 'static;
-
-impl<C> Query for With<C>
-where
-    C: Component + 'static,
-{
-    type Result<'r> = ();
-
-    fn filter(id: EntityId, component_maps: &AnyMap) -> bool {
-        component_maps.get::<ComponentMap<C>>().is_some_and(|cm| cm.contains_key(id))
-    }
-
-    fn borrow(_: EntityId, _: &AnyMap) -> Self::Result<'_> {}
-}
-
-pub struct Without<C>(PhantomData<C>)
-where
-    C: Component + 'static;
-
-impl<C> Query for Without<C>
-where
-    C: Component + 'static,
-{
-    type Result<'r> = ();
-
-    fn filter(id: EntityId, component_maps: &AnyMap) -> bool {
-        !component_maps.get::<ComponentMap<C>>().is_some_and(|cm| cm.contains_key(id))
-    }
-
-    fn borrow(_: EntityId, _: &AnyMap) -> Self::Result<'_> {}
 }
 
 macro_rules! impl_query_for_tuple {

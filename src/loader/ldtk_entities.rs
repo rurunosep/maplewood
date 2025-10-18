@@ -51,7 +51,7 @@ pub fn load_entities_from_ldtk(ecs: &mut Ecs, project: &ldtk_project::Project) {
                             load_character_entity(ecs, entity, ldtk_world, level)?;
                         }
                         _ => {}
-                    };
+                    }
                 };
                 r.unwrap_or_else(|e| {
                     log::error!("Invalid ldtk entity `{}` (err: {e})", entity.iid)
@@ -365,9 +365,9 @@ where
         .find(|f| f.identifier == field)
         .and_then(|f| f.value.clone())
     {
-        return Ok(Some(serde_json::from_value::<F>(v)?));
+        Ok(Some(serde_json::from_value::<F>(v)?))
     } else {
-        return Ok(None);
+        Ok(None)
     }
 }
 
@@ -380,9 +380,9 @@ where
     F: DeserializeOwned,
 {
     if let Some(v) = read_field::<String>(field, entity)? {
-        return Ok(Some(serde_json::from_str::<F>(&v)?));
+        Ok(Some(serde_json::from_str::<F>(&v)?))
     } else {
-        return Ok(None);
+        Ok(None)
     }
 }
 

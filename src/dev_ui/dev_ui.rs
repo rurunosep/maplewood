@@ -29,7 +29,7 @@ pub struct DevUi<'window> {
     script_windows: HashMap<ScriptInstanceId, ScriptWindow>,
     story_vars_window: StoryVarsWindow,
     console_window: ConsoleWindow,
-    logs_window: LogWindow,
+    log_window: LogWindow,
 }
 
 impl<'window> DevUi<'window> {
@@ -57,7 +57,7 @@ impl<'window> DevUi<'window> {
             script_windows: HashMap::new(),
             story_vars_window: StoryVarsWindow::new(),
             console_window: ConsoleWindow::new(),
-            logs_window: LogWindow::new(),
+            log_window: LogWindow::new(),
         }
     }
 }
@@ -85,8 +85,8 @@ impl DevUi<'_> {
             // Create entity windows for new entities, and delete for deleted entities
             for id in ecs.entity_ids.keys() {
                 if !self.entity_windows.contains_key(&id) {
-                    self.entity_windows.insert(id, EntityWindow::new(id, &ecs));
-                };
+                    self.entity_windows.insert(id, EntityWindow::new(id, ecs));
+                }
             }
             self.entity_windows.retain(|&k, _| ecs.entity_ids.contains_key(k));
 
@@ -94,7 +94,7 @@ impl DevUi<'_> {
             for (id, instance) in &script_manager.instances {
                 if !self.script_windows.contains_key(&id) {
                     self.script_windows.insert(id, ScriptWindow::new(id, instance.name.clone()));
-                };
+                }
             }
             self.script_windows.retain(|&k, _| script_manager.instances.contains_key(k));
 
@@ -104,14 +104,14 @@ impl DevUi<'_> {
                 .pivot(egui::Align2::RIGHT_TOP)
                 .default_pos(ctx.screen_rect().shrink(16.).right_top())
                 .default_width(150.)
-                .show(&ctx, |ui| {
+                .show(ctx, |ui| {
                     ui.label(f!("Frame Duration: {frame_duration:.2}%"));
 
                     ui.toggle_value(&mut self.console_window.open, "Console");
                     ui.toggle_value(&mut self.entities_list_window.open, "Entities");
                     ui.toggle_value(&mut self.story_vars_window.open, "Story Vars");
                     ui.toggle_value(&mut self.scripts_list_window.open, "Scripts");
-                    ui.toggle_value(&mut self.logs_window.open, "Log");
+                    ui.toggle_value(&mut self.log_window.open, "Log");
 
                     ui.allocate_space([ui.available_width(), 0.].into());
                 });
@@ -127,7 +127,7 @@ impl DevUi<'_> {
                 window.show(ctx, script_manager);
             }
             self.story_vars_window.show(ctx, story_vars);
-            self.logs_window.show(ctx);
+            self.log_window.show(ctx);
         });
 
         // (Looks like this just updates the cursor and the clipboard text)
@@ -157,7 +157,7 @@ impl ScriptsListWindow {
             return;
         }
 
-        Window::new("Scripts").open(&mut self.open).default_width(250.).show(&ctx, |ui| {
+        Window::new("Scripts").open(&mut self.open).default_width(250.).show(ctx, |ui| {
             ScrollArea::vertical().show(ui, |ui| {
                 for window in script_windows.values_mut() {
                     let name = window.name();
@@ -206,11 +206,11 @@ impl ScriptWindow {
         };
 
         let before_current_line =
-            source.split_inclusive("\n").take(current_line_index - 1).collect::<String>();
+            source.split_inclusive('\n').take(current_line_index - 1).collect::<String>();
         let current_line =
-            source.split_inclusive("\n").skip(current_line_index - 1).take(1).collect::<String>();
+            source.split_inclusive('\n').skip(current_line_index - 1).take(1).collect::<String>();
         let after_current_line =
-            source.split_inclusive("\n").skip(current_line_index).collect::<String>();
+            source.split_inclusive('\n').skip(current_line_index).collect::<String>();
 
         let mut job = LayoutJob::default();
         job.append(
@@ -243,7 +243,7 @@ impl ScriptWindow {
             .id(self.window_id)
             .open(&mut self.open)
             .default_width(500.)
-            .show(&ctx, |ui| {
+            .show(ctx, |ui| {
                 ScrollArea::vertical().show(ui, |ui| {
                     if self.name.is_some() {
                         ui.label(serde_json::to_string(&self.script_id).expect(""));
@@ -290,7 +290,7 @@ impl StoryVarsWindow {
             return;
         }
 
-        Window::new("Story Vars").open(&mut self.open).default_width(250.).show(&ctx, |ui| {
+        Window::new("Story Vars").open(&mut self.open).default_width(250.).show(ctx, |ui| {
             ui.add(TextEdit::singleline(&mut self.filter_string).hint_text("Filter"));
 
             ScrollArea::vertical().show(ui, |ui| {
@@ -333,7 +333,7 @@ impl StoryVarsWindow {
                             } else {
                                 if ui.button("Edit").clicked() {
                                     self.var_being_edited = Some(key.clone());
-                                    self.edit_text = val_as_string.to_string();
+                                    self.edit_text = val_as_string.clone();
                                 }
                             }
                         });

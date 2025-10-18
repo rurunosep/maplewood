@@ -198,25 +198,25 @@ impl Vec2<f64, MapUnits> {
     // If I render directly onto the surface instead of onto an intermediate camera buffer that is
     // scaled later, then these pixel values will be a bit inaccurate, since they still need to be
     // multiplied by the render scale
-    pub fn to_pixel_units(&self) -> Vec2<i32, PixelUnits> {
+    pub fn to_pixel_units(self) -> Vec2<i32, PixelUnits> {
         Vec2::new(
             (self.x * CELL_SIZE as f64).floor() as i32,
             (self.y * CELL_SIZE as f64).floor() as i32,
         )
     }
 
-    pub fn to_cell_units(&self) -> Vec2<i32, CellUnits> {
+    pub fn to_cell_units(self) -> Vec2<i32, CellUnits> {
         Vec2::new(self.x.floor() as i32, self.y.floor() as i32)
     }
 }
 
 impl Vec2<i32, CellUnits> {
-    pub fn to_map_units(&self) -> Vec2<f64, MapUnits> {
+    pub fn to_map_units(self) -> Vec2<f64, MapUnits> {
         Vec2::new(self.x as f64, self.y as f64)
     }
 
     // currently unused
-    pub fn to_map_units_center(&self) -> Vec2<f64, MapUnits> {
+    pub fn to_map_units_center(self) -> Vec2<f64, MapUnits> {
         Vec2::new(self.x as f64 + 0.5, self.y as f64 + 0.5)
     }
 }

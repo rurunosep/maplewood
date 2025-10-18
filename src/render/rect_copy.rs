@@ -31,7 +31,7 @@ impl RectCopyPipeline {
 
         let pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
             label: Some("rect copy pipeline layout"),
-            bind_group_layouts: &[&sampler_bind_group_layout, &texture_bind_group_layout],
+            bind_group_layouts: &[&sampler_bind_group_layout, texture_bind_group_layout],
             push_constant_ranges: &[PushConstantRange {
                 stages: ShaderStages::VERTEX,
                 // Must have alignment of 4 (this struct happens to require no padding)

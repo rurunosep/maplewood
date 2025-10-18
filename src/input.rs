@@ -2,7 +2,6 @@ use crate::components::{
     AnimationComp, Facing, InteractionTrigger, NamedAnims, Position, Walking,
 };
 use crate::data::PLAYER_ENTITY_NAME;
-use crate::ecs::Ecs;
 use crate::math::Vec2;
 use crate::misc::{Aabb, Direction};
 use crate::script::ScriptManager;
@@ -17,14 +16,14 @@ pub fn process_input(
     running: &mut bool,
     message_window: &mut Option<MessageWindow>,
     player_movement_locked: bool,
-    egui_data: &mut DevUi,
+    dev_ui: &mut DevUi,
     script_manager: &mut ScriptManager,
 ) {
     let GameData { ecs, .. } = game_data;
 
     for event in event_pump.poll_iter() {
         // Update egui state with new input
-        egui_data.state.sdl2_input_to_egui(egui_data.window, &event);
+        dev_ui.state.sdl2_input_to_egui(dev_ui.window, &event);
 
         match event {
             // Arbitrary testing
@@ -42,9 +41,9 @@ pub fn process_input(
                 *running = false;
             }
 
-            // Toggle debug ui
+            // Toggle dev ui
             Event::KeyDown { keycode: Some(Keycode::Backquote), .. } => {
-                egui_data.active = !egui_data.active;
+                dev_ui.active = !dev_ui.active;
             }
 
             // Player movement
@@ -54,7 +53,6 @@ pub fn process_input(
                     || keycode == Keycode::Left
                     || keycode == Keycode::Right =>
             {
-                let ecs: &Ecs = &ecs;
                 let message_window: &Option<MessageWindow> = &*message_window;
                 let (mut facing, mut walking_component) = ecs
                     .query_one_with_name::<(&mut Facing, &mut Walking)>(PLAYER_ENTITY_NAME)

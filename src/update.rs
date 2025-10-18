@@ -4,10 +4,10 @@ use crate::components::{
     SineOffsetAnimation, SpriteComp, Velocity, Walking,
 };
 use crate::data::PLAYER_ENTITY_NAME;
-use crate::ecs::{Ecs, EntityId, With};
+use crate::ecs::{Ecs, EntityId};
 use crate::math::{CellPos, MapUnits, Rect, Vec2};
 use crate::misc::{Aabb, Direction};
-use crate::script::ScriptManager;
+use crate::script::{self, ScriptManager};
 use crate::world::World;
 use crate::{GameData, MessageWindow, UiData};
 use sdl2::mixer::{Chunk, Music};
@@ -25,10 +25,8 @@ pub fn update(
     sound_effects: &HashMap<String, Chunk>,
     delta: Duration,
 ) {
-    for source in &game_data.auto_scripts {
-        script_manager.start_script(source, &game_data.story_vars);
-    }
-    start_area_trigger_scripts(&game_data.ecs, script_manager);
+    start_auto_scripts(script_manager, &game_data.auto_scripts);
+    start_area_trigger_scripts(script_manager, &game_data.ecs);
     #[rustfmt::skip]
     script_manager.update(
         game_data, ui_data, player_movement_locked, running, musics, sound_effects,
@@ -57,7 +55,26 @@ pub fn update(
 // Scripts
 // ------------------------------------------------------------------
 
-fn start_area_trigger_scripts(ecs: &Ecs, script_manager: &mut ScriptManager) {
+fn start_auto_scripts(script_manager: &mut ScriptManager, auto_scripts: &Vec<String>) {
+    for source in auto_scripts {
+        let metadata = script::extract_metadata(source);
+        if metadata.start_condition.is_none() {
+            match metadata.name {
+                Some(name) => {
+                    log::error!(once = true; "Auto script `{name}` has no start condition")
+                }
+                None => {
+                    log::error!(once = true; "Unnamed auto script has no start condition")
+                }
+            }
+            continue;
+        }
+
+        script_manager.queue_script(source);
+    }
+}
+
+fn start_area_trigger_scripts(script_manager: &mut ScriptManager, ecs: &Ecs) {
     let Some((player_aabb, player_map)) = ecs
         .query_one_with_name::<(&Position, &Collision)>(PLAYER_ENTITY_NAME)
         .map(|(pos, coll)| (Aabb::new(pos.map_pos, coll.hitbox), pos.map.clone()))
@@ -131,7 +148,7 @@ fn update_dual_state_animations(ecs: &Ecs) {
                 anim_comp.start(true);
             }
             _ => {}
-        };
+        }
 
         anim_comp.clip = match dual_anims.state {
             First => &dual_anims.first,
@@ -215,14 +232,13 @@ fn start_collision_trigger_scripts(ecs: &Ecs, script_manager_new: &mut ScriptMan
 
         let other_aabb = Aabb::new(other_position.map_pos, other_collision.hitbox);
 
-        if player_aabb.intersects(&other_aabb) {
-            if let Ok(source) = trigger
+        if player_aabb.intersects(&other_aabb)
+            && let Ok(source) = trigger
                 .script_source
                 .get_source()
                 .tap_err(|e| log::error!(once = true; "Couldn't get script source (err: {e})"))
-            {
-                script_manager_new.queue_script(&source);
-            }
+        {
+            script_manager_new.queue_script(&source);
         }
     }
 }
@@ -392,7 +408,7 @@ fn update_camera(ecs: &Ecs, world: &World) {
 
 // TODO proximity sound
 fn update_sfx_emitting_entities(ecs: &Ecs, sound_effects: &HashMap<String, Chunk>) {
-    let camera_map = ecs.query::<(&Position, With<Camera>)>().next().map(|(p, _)| p.map.clone());
+    let camera_map = ecs.query::<(&Position, &Camera)>().next().map(|(p, _)| p.map.clone());
 
     for (pos, mut sfx) in ecs.query::<(&Position, &mut SfxEmitter)>() {
         // If entity is on camera map, and it has an sfx to emit, and the sfx is not playing on
@@ -400,24 +416,22 @@ fn update_sfx_emitting_entities(ecs: &Ecs, sound_effects: &HashMap<String, Chunk
         if let Some(camera_map) = camera_map.as_ref()
             && pos.map == *camera_map
             && let Some(sfx_name) = &sfx.sfx_name
-            && sfx.channel == None
-        {
-            if let Some(chunk) = sound_effects
+            && sfx.channel.is_none()
+            && let Some(chunk) = sound_effects
                 .get(sfx_name)
-                .tap_none(|| log::error!(once = true; "Sound effect doesn't exist: {}", sfx_name))
-                && let Ok(channel) = sdl2::mixer::Channel::all()
-                    .play(chunk, if sfx.repeat { -1 } else { 0 })
-                    .tap_err(|e| log::error!("Failed to play sound effect (err: {e:})"))
-            {
-                sfx.channel = Some(channel);
-            }
+                .tap_none(|| log::error!(once = true; "Sound effect doesn't exist: {sfx_name}"))
+            && let Ok(channel) = sdl2::mixer::Channel::all()
+                .play(chunk, if sfx.repeat { -1 } else { 0 })
+                .tap_err(|e| log::error!("Failed to play sound effect (err: {e:})"))
+        {
+            sfx.channel = Some(channel);
         }
 
         // If entity is not on camera map, or it has no sfx to emit, and sfx is playing on a
         // channel, stop playing the sfx
         if camera_map.is_none()
             || pos.map != *camera_map.as_ref().expect("")
-            || sfx.sfx_name == None
+            || sfx.sfx_name.is_none()
         {
             if let Some(channel) = sfx.channel {
                 sdl2::mixer::Channel::halt(channel);

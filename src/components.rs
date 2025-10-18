@@ -225,7 +225,7 @@ impl ScriptSource {
     pub fn get_source(&self) -> anyhow::Result<String> {
         match self {
             ScriptSource::File { filepath, name_in_file: Some(name_in_file) } => {
-                script::get_script_from_file(filepath, name_in_file)
+                script::read_script_from_file(filepath, name_in_file)
             }
             ScriptSource::File { filepath, name_in_file: None } => {
                 std::fs::read_to_string(filepath)

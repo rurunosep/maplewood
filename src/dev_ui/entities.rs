@@ -23,7 +23,7 @@ impl EntitiesListWindow {
             return;
         }
 
-        Window::new("Entities").open(&mut self.open).default_width(250.).show(&ctx, |ui| {
+        Window::new("Entities").open(&mut self.open).default_width(250.).show(ctx, |ui| {
             ui.add(TextEdit::singleline(&mut self.filter_string).hint_text("Filter"));
 
             // TODO filter with special terms such as "has:{Component}"
@@ -32,13 +32,16 @@ impl EntitiesListWindow {
             ScrollArea::vertical().show(ui, |ui| {
                 for window in entity_windows
                     .values_mut()
-                    .filter(|w| {
-                        w.name.as_ref().map(|n| n.contains(&self.filter_string)).unwrap_or(false)
-                            || serde_json::to_string(&w.entity_id)
-                                .expect("")
+                    .filter(|window| {
+                        window
+                            .name
+                            .as_ref()
+                            .is_some_and(|name| name.contains(&self.filter_string))
+                            || serde_json::to_string(&window.entity_id)
+                                .expect("id is serde")
                                 .contains(&self.filter_string)
                     })
-                    .sorted_by_key(|w| w.entity_id)
+                    .sorted_by_key(|window| window.entity_id)
                 {
                     let title = window.name();
                     ui.toggle_value(&mut window.open, title);
@@ -66,22 +69,23 @@ impl EntityWindow {
 
         let window_id = egui::Id::new(f!("entity {entity_id:?}"));
 
-        let mut ccs: Vec<Box<dyn CcTrait>> = Vec::new();
-        ccs.push(Box::new(ComponentCollapsible::<Position>::new(entity_id)));
-        ccs.push(Box::new(ComponentCollapsible::<Collision>::new(entity_id)));
-        ccs.push(Box::new(ComponentCollapsible::<Velocity>::new(entity_id)));
-        ccs.push(Box::new(ComponentCollapsible::<Facing>::new(entity_id)));
-        ccs.push(Box::new(ComponentCollapsible::<Camera>::new(entity_id)));
-        ccs.push(Box::new(ComponentCollapsible::<SpriteComp>::new(entity_id)));
-        ccs.push(Box::new(ComponentCollapsible::<AnimationComp>::new(entity_id)));
-        ccs.push(Box::new(ComponentCollapsible::<CharacterAnims>::new(entity_id)));
-        ccs.push(Box::new(ComponentCollapsible::<DualStateAnims>::new(entity_id)));
-        ccs.push(Box::new(ComponentCollapsible::<NamedAnims>::new(entity_id)));
-        ccs.push(Box::new(ComponentCollapsible::<Walking>::new(entity_id)));
-        ccs.push(Box::new(ComponentCollapsible::<SfxEmitter>::new(entity_id)));
-        ccs.push(Box::new(ComponentCollapsible::<InteractionTrigger>::new(entity_id)));
-        ccs.push(Box::new(ComponentCollapsible::<CollisionTrigger>::new(entity_id)));
-        ccs.push(Box::new(ComponentCollapsible::<AreaTrigger>::new(entity_id)));
+        let ccs: Vec<Box<dyn CcTrait>> = vec![
+            Box::new(ComponentCollapsible::<Position>::new(entity_id)),
+            Box::new(ComponentCollapsible::<Collision>::new(entity_id)),
+            Box::new(ComponentCollapsible::<Velocity>::new(entity_id)),
+            Box::new(ComponentCollapsible::<Facing>::new(entity_id)),
+            Box::new(ComponentCollapsible::<Camera>::new(entity_id)),
+            Box::new(ComponentCollapsible::<SpriteComp>::new(entity_id)),
+            Box::new(ComponentCollapsible::<AnimationComp>::new(entity_id)),
+            Box::new(ComponentCollapsible::<CharacterAnims>::new(entity_id)),
+            Box::new(ComponentCollapsible::<DualStateAnims>::new(entity_id)),
+            Box::new(ComponentCollapsible::<NamedAnims>::new(entity_id)),
+            Box::new(ComponentCollapsible::<Walking>::new(entity_id)),
+            Box::new(ComponentCollapsible::<SfxEmitter>::new(entity_id)),
+            Box::new(ComponentCollapsible::<InteractionTrigger>::new(entity_id)),
+            Box::new(ComponentCollapsible::<CollisionTrigger>::new(entity_id)),
+            Box::new(ComponentCollapsible::<AreaTrigger>::new(entity_id)),
+        ];
 
         Self { open: false, window_id, entity_id, name, component_collapsibles: ccs }
     }
@@ -95,7 +99,7 @@ impl EntityWindow {
             .id(self.window_id)
             .open(&mut self.open)
             .default_width(300.)
-            .show(&ctx, |ui| {
+            .show(ctx, |ui| {
                 ScrollArea::vertical().show(ui, |ui| {
                     if self.name.is_some() {
                         ui.label(serde_json::to_string(&self.entity_id).expect(""));
@@ -175,7 +179,7 @@ where
                 if self.is_being_edited {
                     if ui.button("Cancel").clicked() {
                         self.is_being_edited = false;
-                    };
+                    }
 
                     if ui.button("Save").clicked() {
                         if let Ok(component) = serde_json::from_str::<C>(&self.text)
@@ -185,11 +189,11 @@ where
                         }
 
                         self.is_being_edited = false;
-                    };
+                    }
                 } else {
                     if ui.button("Edit").clicked() {
                         self.is_being_edited = true;
-                    };
+                    }
                 }
             });
         });

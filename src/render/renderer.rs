@@ -236,7 +236,7 @@ impl Renderer<'_> {
                     &mut render_pass,
                     surface_size,
                     &self.sampler_bind_group,
-                    &camera_texture,
+                    camera_texture,
                     0,
                     0,
                     camera_texture.size.0,
@@ -527,7 +527,7 @@ impl Renderer<'_> {
 
                 if file_extension != "png" {
                     return None;
-                };
+                }
 
                 let start = std::time::Instant::now();
                 let texture = self.load_texture(&path);
@@ -537,7 +537,7 @@ impl Renderer<'_> {
                     start.elapsed().as_secs_f64()
                 );
 
-                self.tilesets.insert(f!("../assets/tilesets/{}", file_name), texture);
+                self.tilesets.insert(f!("../assets/tilesets/{file_name}"), texture);
 
                 Some(())
             })
@@ -557,7 +557,7 @@ impl Renderer<'_> {
 
                 if file_extension != "png" {
                     return None;
-                };
+                }
 
                 let start = std::time::Instant::now();
                 let texture = self.load_texture(&path);

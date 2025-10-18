@@ -12,7 +12,7 @@ use std::format as f;
 use std::path::Path;
 use std::sync::LazyLock;
 use std::time::Instant;
-use tap::TapFallible;
+use tap::{TapFallible, TapOptional};
 
 new_key_type! { pub struct ScriptInstanceId; }
 
@@ -42,34 +42,17 @@ impl ScriptManager {
     }
 
     // Starting a script requires a reference to story_vars to evaluate start conditions
-    // Callers can queue a script with only the source string
+    // Queueing only needs a source str
     pub fn queue_script(&mut self, source: &str) {
         self.start_queue.push_back(source.to_string());
     }
 
-    pub fn start_script(&mut self, source: &str, story_vars: &StoryVars) {
+    fn start_script(&mut self, source: &str, story_vars: &StoryVars) {
+        let metadata = extract_metadata(source);
+
         let r: mlua::Result<()> = try {
-            let mut script_name: Option<String> = None;
-            let mut exclusive = false;
-            let mut start_condition: Option<String> = None;
-
-            // Process annotations in source
-            let annotations = source.lines().take_while(|l| l.starts_with("---"));
-            for line in annotations {
-                let mut splits = line.strip_prefix("---").expect("filtered").splitn(2, " ");
-                let annotation_name = splits.next().expect("splitn always returns at least one");
-                let annotation_argument = splits.next();
-
-                match (annotation_name, annotation_argument) {
-                    ("@script", Some(val)) => script_name = Some(val.to_string()),
-                    ("@exclusive", _) => exclusive = true,
-                    ("@start_condition", Some(val)) => start_condition = Some(val.to_string()),
-                    _ => {}
-                };
-            }
-
             // Skip if start condition exists and is false or invalid
-            if let Some(condition) = &start_condition
+            if let Some(condition) = &metadata.start_condition
                 && evaluate_story_var_condition(condition, story_vars)
                     .tap_err(|e| {
                         log::error!(once = true; "Invalid story var condition `{condition}` (err: {e})")
@@ -81,19 +64,16 @@ impl ScriptManager {
             }
 
             // Skip exclusive scripts that are already running
-            if exclusive
-                && let Some(this_script_name) = &script_name
+            if metadata.exclusive
+                && let Some(this_script_name) = &metadata.name.as_ref().tap_none(|| {
+                    log::error!("Attempted to start exclusive script with no identifying name")
+                })
                 && self
                     .instances
                     .values()
-                    .find(|other_script| other_script.name.as_ref() == Some(this_script_name))
-                    .is_some()
+                    .any(|other_script| other_script.name.as_ref() == Some(this_script_name))
             {
                 return;
-            }
-
-            if exclusive && script_name.is_none() {
-                log::warn!("Started 'exclusive' script with no identifying name")
             }
 
             let lua_instance = Lua::new();
@@ -115,7 +95,7 @@ impl ScriptManager {
                 thread,
                 _id: id,
                 source: source.to_string(),
-                name: script_name,
+                name: metadata.name,
                 wait_condition: None,
             });
         };
@@ -132,7 +112,7 @@ impl ScriptManager {
         sound_effects: &HashMap<String, Chunk>,
     ) {
         for source in std::mem::take(&mut self.start_queue) {
-            self.start_script(&source, &mut game_data.story_vars);
+            self.start_script(&source, &game_data.story_vars);
         }
 
         for instance in self.instances.values_mut() {
@@ -180,7 +160,7 @@ impl ScriptInstance {
                 #[rustfmt::skip]
                 callbacks::bind_general_callbacks(
                     scope, &globals, &game_data, &player_movement_locked, running,
-                    &musics, &sound_effects,
+                    musics, sound_effects,
                 )?;
 
                 #[rustfmt::skip]
@@ -199,13 +179,14 @@ impl ScriptInstance {
     }
 }
 
-pub fn get_script_from_file<P: AsRef<Path>>(
+pub fn read_script_from_file<P: AsRef<Path>>(
     path: P,
     script_name: &str,
 ) -> anyhow::Result<String> {
     let file_contents = std::fs::read_to_string(&path)
         .map_err(|_| anyhow!("couldn't read file `{}`", path.as_ref().to_string_lossy()))?;
     let start_index = file_contents
+        // Gotta account for different line endings
         .find(&f!("---@script {script_name}\r\n"))
         .or(file_contents.find(&f!("---@script {script_name}\n")))
         .context(f!("no script `{script_name}` in file `{}`", path.as_ref().to_string_lossy()))?;
@@ -218,6 +199,33 @@ pub fn get_script_from_file<P: AsRef<Path>>(
     Ok(script)
 }
 
+#[derive(Default)]
+pub struct ScriptMetadata {
+    pub name: Option<String>,
+    pub exclusive: bool,
+    pub start_condition: Option<String>,
+}
+
+pub fn extract_metadata(source: &str) -> ScriptMetadata {
+    let mut metadata = ScriptMetadata::default();
+
+    let annotations = source.lines().take_while(|l| l.starts_with("---"));
+    for line in annotations {
+        let mut splits = line.strip_prefix("---").expect("filtered").splitn(2, ' ');
+        let annotation_name = splits.next().expect("splitn always returns at least one");
+        let annotation_argument = splits.next();
+
+        match (annotation_name, annotation_argument) {
+            ("@script", Some(val)) => metadata.name = Some(val.to_string()),
+            ("@exclusive", _) => metadata.exclusive = true,
+            ("@start_condition", Some(val)) => metadata.start_condition = Some(val.to_string()),
+            _ => {}
+        }
+    }
+
+    metadata
+}
+
 fn evaluate_story_var_condition(
     expression: &str,
     story_vars: &StoryVars,
@@ -225,7 +233,7 @@ fn evaluate_story_var_condition(
     // Compile regex only once ever
     static RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\{([^{}]*)\}").expect(""));
 
-    let with_values = misc::try_replace_all(&RE, &expression, |caps| {
+    let with_values = misc::try_replace_all(&RE, expression, |caps| {
         let key = caps.get(1).expect("").as_str();
         story_vars.0.get(key).context(f!("no story var `{key}`")).map(|val| val.to_string())
     })?;

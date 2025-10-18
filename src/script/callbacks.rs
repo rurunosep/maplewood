@@ -138,26 +138,25 @@ pub fn bind_general_callbacks<'scope>(
     globals.set(
         "play_object_animation",
         scope.create_function_mut(|_, args| {
-            play_object_animation(args, &mut game_data.borrow_mut().ecs)
+            play_object_animation(args, &game_data.borrow().ecs)
         })?,
     )?;
     globals.set(
         "stop_object_animation",
         scope.create_function_mut(|_, args| {
-            stop_object_animation(args, &mut game_data.borrow_mut().ecs)
+            stop_object_animation(args, &game_data.borrow().ecs)
         })?,
     )?;
     globals.set(
         "switch_dual_state_animation",
         scope.create_function_mut(|_, args| {
-            switch_dual_state_animation(args, &mut game_data.borrow_mut().ecs)
+            switch_dual_state_animation(args, &game_data.borrow().ecs)
         })?,
     )?;
     globals.set(
         "play_named_animation",
-        scope.create_function_mut(|_, args| {
-            play_named_animation(args, &mut game_data.borrow_mut().ecs)
-        })?,
+        scope
+            .create_function_mut(|_, args| play_named_animation(args, &game_data.borrow().ecs))?,
     )?;
     globals.set(
         "anim_quiver",
@@ -258,7 +257,7 @@ pub fn bind_console_only_callbacks<'scope>(
 // Should I inline the callbacks? Is there a need for this indirection anymore?
 
 pub fn get_story_var(key: String, story_vars: &StoryVars) -> mlua::Result<i32> {
-    story_vars.get(&key).ok_or(Error(f!("no story var `{}`", key)).into())
+    story_vars.get(&key).ok_or(Error(f!("no story var `{key}`")).into())
 }
 
 pub fn set_story_var((key, val): (String, i32), story_vars: &mut StoryVars) -> mlua::Result<()> {
@@ -269,7 +268,7 @@ pub fn set_story_var((key, val): (String, i32), story_vars: &mut StoryVars) -> m
 pub fn get_entity_map_pos(entity: String, ecs: &Ecs) -> mlua::Result<(f64, f64)> {
     let position = ecs
         .query_one_with_name::<&Position>(&entity)
-        .ok_or(Error(f!("invalid entity `{}`", entity)))?;
+        .ok_or(Error(f!("invalid entity `{entity}`")))?;
     Ok((position.map_pos.x, position.map_pos.y))
 }
 
@@ -277,7 +276,7 @@ pub fn get_entity_map_pos(entity: String, ecs: &Ecs) -> mlua::Result<(f64, f64)>
 pub fn set_entity_map_pos((entity, x, y): (String, f64, f64), ecs: &Ecs) -> mlua::Result<()> {
     let mut position = ecs
         .query_one_with_name::<&mut Position>(&entity)
-        .ok_or(Error(f!("invalid entity `{}`", entity)))?;
+        .ok_or(Error(f!("invalid entity `{entity}`")))?;
     position.map_pos = Vec2::new(x, y);
     Ok(())
 }
@@ -285,7 +284,7 @@ pub fn set_entity_map_pos((entity, x, y): (String, f64, f64), ecs: &Ecs) -> mlua
 pub fn get_entity_world_pos(entity: String, ecs: &Ecs) -> mlua::Result<(String, f64, f64)> {
     let position = ecs
         .query_one_with_name::<&Position>(&entity)
-        .ok_or(Error(f!("invalid entity `{}`", entity)))?;
+        .ok_or(Error(f!("invalid entity `{entity}`")))?;
     Ok((position.map.clone(), position.map_pos.x, position.map_pos.y))
 }
 
@@ -296,7 +295,7 @@ pub fn set_entity_world_pos(
 ) -> mlua::Result<()> {
     let entity_id = ecs
         .query_one_with_name::<EntityId>(&entity)
-        .ok_or(Error(f!("invalid entity `{}`", entity)))?;
+        .ok_or(Error(f!("invalid entity `{entity}`")))?;
     ecs.add_component(entity_id, Position(WorldPos::new(&map, x, y)));
     Ok(())
 }
@@ -309,7 +308,7 @@ pub fn set_forced_sprite(
 ) -> mlua::Result<()> {
     let mut sprite_component = ecs
         .query_one_with_name::<&mut SpriteComp>(&entity)
-        .ok_or(Error(f!("invalid entity `{}`", entity)))?;
+        .ok_or(Error(f!("invalid entity `{entity}`")))?;
 
     sprite_component.forced_sprite = Some(Sprite {
         spritesheet,
@@ -323,7 +322,7 @@ pub fn set_forced_sprite(
 pub fn remove_forced_sprite(entity: String, ecs: &Ecs) -> mlua::Result<()> {
     let mut sprite_component = ecs
         .query_one_with_name::<&mut SpriteComp>(&entity)
-        .ok_or(Error(f!("invalid entity `{}`", entity)))?;
+        .ok_or(Error(f!("invalid entity `{entity}`")))?;
     sprite_component.forced_sprite = None;
     Ok(())
 }
@@ -331,7 +330,7 @@ pub fn remove_forced_sprite(entity: String, ecs: &Ecs) -> mlua::Result<()> {
 pub fn set_entity_visible((entity, visible): (String, bool), ecs: &Ecs) -> mlua::Result<()> {
     let mut sprite = ecs
         .query_one_with_name::<&mut SpriteComp>(&entity)
-        .ok_or(Error(f!("invalid entity `{}`", entity)))?;
+        .ok_or(Error(f!("invalid entity `{entity}`")))?;
     sprite.visible = visible;
     Ok(())
 }
@@ -339,7 +338,7 @@ pub fn set_entity_visible((entity, visible): (String, bool), ecs: &Ecs) -> mlua:
 pub fn set_entity_solid((entity, enabled): (String, bool), ecs: &Ecs) -> mlua::Result<()> {
     let mut collision = ecs
         .query_one_with_name::<&mut Collision>(&entity)
-        .ok_or(Error(f!("invalid entity `{}`", entity)))?;
+        .ok_or(Error(f!("invalid entity `{entity}`")))?;
     collision.solid = enabled;
     Ok(())
 }
@@ -373,7 +372,7 @@ pub fn remove_camera_target(ecs: &Ecs) -> mlua::Result<()> {
 pub fn set_camera_clamp(clamp: bool, ecs: &Ecs) -> mlua::Result<()> {
     if let Some(mut camera) = ecs.query::<&mut Camera>().next() {
         camera.clamp_to_map = clamp;
-    };
+    }
     Ok(())
 }
 
@@ -382,9 +381,9 @@ pub fn walk(
     (entity, direction, distance, speed): (String, String, f64, f64),
     ecs: &Ecs,
 ) -> mlua::Result<()> {
-    let (position, facing, mut walking) = ecs
-        .query_one_with_name::<(&Position, Option<&mut Facing>, &mut Walking)>(&entity)
-        .ok_or(Error(f!("invalid entity `{}`", entity)))?;
+    let (position, mut walking, facing) = ecs
+        .query_one_with_name::<(&Position, &mut Walking, Option<&mut Facing>)>(&entity)
+        .ok_or(Error(f!("invalid entity `{entity}`")))?;
 
     walking.direction = match direction.as_str() {
         "up" => Ok(Direction::Up),
@@ -406,7 +405,9 @@ pub fn walk(
             },
     );
 
-    facing.map(|mut f| f.0 = walking.direction);
+    if let Some(mut facing) = facing {
+        facing.0 = walking.direction;
+    }
 
     Ok(())
 }
@@ -416,9 +417,9 @@ pub fn walk_to(
     (entity, direction, destination, speed): (String, String, f64, f64),
     ecs: &Ecs,
 ) -> mlua::Result<()> {
-    let (position, facing, mut walking) = ecs
-        .query_one_with_name::<(&Position, Option<&mut Facing>, &mut Walking)>(&entity)
-        .ok_or(Error(f!("invalid entity `{}`", entity)))?;
+    let (position, mut walking, facing) = ecs
+        .query_one_with_name::<(&Position, &mut Walking, Option<&mut Facing>)>(&entity)
+        .ok_or(Error(f!("invalid entity `{entity}`")))?;
 
     walking.direction = match direction.as_str() {
         "up" => Ok(Direction::Up),
@@ -435,7 +436,9 @@ pub fn walk_to(
         Direction::Left | Direction::Right => Vec2::new(destination, position.map_pos.y),
     });
 
-    facing.map(|mut f| f.0 = walking.direction);
+    if let Some(mut facing) = facing {
+        facing.0 = walking.direction;
+    }
 
     Ok(())
 }
@@ -443,14 +446,14 @@ pub fn walk_to(
 pub fn is_entity_walking(entity: String, ecs: &Ecs) -> mlua::Result<bool> {
     let walking = ecs
         .query_one_with_name::<&Walking>(&entity)
-        .ok_or(Error(f!("invalid entity `{}`", entity)))?;
+        .ok_or(Error(f!("invalid entity `{entity}`")))?;
     Ok(walking.destination.is_some())
 }
 
 pub fn play_object_animation((entity, repeat): (String, bool), ecs: &Ecs) -> mlua::Result<()> {
     let mut anim_comp = ecs
         .query_one_with_name::<&mut AnimationComp>(&entity)
-        .ok_or(Error(f!("invalid entity `{}`", entity)))?;
+        .ok_or(Error(f!("invalid entity `{entity}`")))?;
 
     anim_comp.start(repeat);
     Ok(())
@@ -459,7 +462,7 @@ pub fn play_object_animation((entity, repeat): (String, bool), ecs: &Ecs) -> mlu
 pub fn stop_object_animation(entity: String, ecs: &Ecs) -> mlua::Result<()> {
     let mut anim_comp = ecs
         .query_one_with_name::<&mut AnimationComp>(&entity)
-        .ok_or(Error(f!("invalid entity `{}`", entity)))?;
+        .ok_or(Error(f!("invalid entity `{entity}`")))?;
     anim_comp.stop();
     Ok(())
 }
@@ -470,7 +473,7 @@ pub fn switch_dual_state_animation(
 ) -> mlua::Result<()> {
     let (mut anim_comp, mut dual_anims) = ecs
         .query_one_with_name::<(&mut AnimationComp, &mut DualStateAnims)>(&entity)
-        .ok_or(Error(f!("invalid entity `{}`", entity)))?;
+        .ok_or(Error(f!("invalid entity `{entity}`")))?;
 
     let state = match state {
         1 => Ok(DualStateAnimationState::SecondToFirst),
@@ -490,7 +493,7 @@ pub fn play_named_animation(
 ) -> mlua::Result<()> {
     let (mut anim_comp, anims) = ecs
         .query_one_with_name::<(&mut AnimationComp, &NamedAnims)>(&entity)
-        .ok_or(Error(f!("invalid entity `{}`", entity)))?;
+        .ok_or(Error(f!("invalid entity `{entity}`")))?;
 
     let clip = anims
         .get(&animation)
@@ -506,7 +509,7 @@ pub fn play_named_animation(
 pub fn anim_quiver((entity, duration): (String, f64), ecs: &mut Ecs) -> mlua::Result<()> {
     let id = ecs
         .query_one_with_name::<EntityId>(&entity)
-        .ok_or(Error(f!("invalid entity `{}`", entity)))?;
+        .ok_or(Error(f!("invalid entity `{entity}`")))?;
 
     ecs.add_component(
         id,
@@ -525,7 +528,7 @@ pub fn anim_quiver((entity, duration): (String, f64), ecs: &mut Ecs) -> mlua::Re
 pub fn anim_jump(entity: String, ecs: &mut Ecs) -> mlua::Result<()> {
     let id = ecs
         .query_one_with_name::<EntityId>(&entity)
-        .ok_or(Error(f!("invalid entity `{}`", entity)))?;
+        .ok_or(Error(f!("invalid entity `{entity}`")))?;
 
     ecs.add_component(
         id,
@@ -566,7 +569,7 @@ pub fn emit_entity_sfx(
 ) -> mlua::Result<()> {
     let mut sfx_comp = ecs
         .query_one_with_name::<&mut SfxEmitter>(&entity)
-        .ok_or(Error(f!("invalid entity `{}`", entity)))?;
+        .ok_or(Error(f!("invalid entity `{entity}`")))?;
     sfx_comp.sfx_name = Some(sfx);
     sfx_comp.repeat = repeat;
     Ok(())
@@ -575,7 +578,7 @@ pub fn emit_entity_sfx(
 pub fn stop_entity_sfx(entity: String, ecs: &Ecs) -> mlua::Result<()> {
     let mut sfx_comp = ecs
         .query_one_with_name::<&mut SfxEmitter>(&entity)
-        .ok_or(Error(f!("invalid entity `{}`", entity)))?;
+        .ok_or(Error(f!("invalid entity `{entity}`")))?;
     sfx_comp.sfx_name = None;
     sfx_comp.repeat = false;
     Ok(())
@@ -587,7 +590,7 @@ pub fn add_component(
 ) -> mlua::Result<()> {
     let entity_id = ecs
         .query_one_with_name::<EntityId>(&entity_name)
-        .ok_or(Error(f!("invalid entity `{}`", entity_name)))?;
+        .ok_or(Error(f!("invalid entity `{entity_name}`")))?;
 
     let value = serde_json::from_str::<serde_json::Value>(&component_json)
         .map_err(|e| Error(f!("invalid json (err: {e})")))?;
@@ -604,7 +607,7 @@ pub fn remove_component(
 ) -> mlua::Result<()> {
     let id = ecs
         .query_one_with_name::<EntityId>(&entity_name)
-        .ok_or(Error(f!("invalid entity `{}`", entity_name)))?;
+        .ok_or(Error(f!("invalid entity `{entity_name}`")))?;
 
     ecs.remove_component_with_name(id, &component_name).map_err(|e| Error(e.to_string()))?;
 

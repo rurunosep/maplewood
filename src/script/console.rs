@@ -33,7 +33,7 @@ impl ConsoleCommandExecutor {
                 #[rustfmt::skip]
                 callbacks::bind_general_callbacks(
                     scope, &globals, &game_data, &player_movement_locked, running,
-                    &musics, &sound_effects,
+                    musics, sound_effects,
                 )?;
 
                 callbacks::bind_console_only_callbacks(scope, &globals, &game_data, &ui_data)?;
@@ -41,14 +41,14 @@ impl ConsoleCommandExecutor {
                 for input in self.input_queue.drain(..) {
                     let r: ReturnValuesString = self.lua_instance.load(&input).eval()?;
                     if !r.0.is_empty() {
-                        self.output_queue.push(f!("{}", r.0));
+                        self.output_queue.push(r.0);
                     }
                 }
 
                 Ok(())
             })?
         };
-        r.unwrap_or_else(|e| self.output_queue.push(f!("{}", e.to_string().trim_end())));
+        r.unwrap_or_else(|e| self.output_queue.push(e.to_string().trim_end().to_string()));
     }
 
     pub fn new() -> Self {

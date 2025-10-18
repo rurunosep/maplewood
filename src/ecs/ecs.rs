@@ -175,7 +175,7 @@ impl Ecs {
                 };
                 self.deferred_mutations.borrow_mut().push(Box::new(f));
             }
-        };
+        }
     }
 
     #[allow(dead_code)]
@@ -224,8 +224,8 @@ impl Ecs {
                 }
                 "CollisionTrigger" => self.add_component(id, sjfv::<CollisionTrigger>(data_c)?),
                 "AreaTrigger" => self.add_component(id, sjfv::<AreaTrigger>(data_c)?),
-                _ => Err(anyhow!("invalid component name `{}`", component_name))?,
-            };
+                _ => Err(anyhow!("invalid component name `{component_name}`"))?,
+            }
         };
         r.map_err(|e| {
             anyhow!(
@@ -257,8 +257,8 @@ impl Ecs {
             "InteractionTrigger" => self.remove_component::<InteractionTrigger>(id),
             "CollisionTrigger" => self.remove_component::<CollisionTrigger>(id),
             "AreaTrigger" => self.remove_component::<AreaTrigger>(id),
-            _ => return Err(anyhow!("invalid component name `{}`", component_name)),
-        };
+            _ => return Err(anyhow!("invalid component name `{component_name}`")),
+        }
 
         Ok(())
     }
@@ -266,25 +266,6 @@ impl Ecs {
     // This is only for debug or for easily generating component json
     // It doesn't include an id for restoring game state
     pub fn save_components_to_value(&self, id: EntityId) -> serde_json::Value {
-        let mut components = serde_json::Map::new();
-
-        insert::<Name>(&mut components, id, &self);
-        insert::<Position>(&mut components, id, &self);
-        insert::<Velocity>(&mut components, id, &self);
-        insert::<Collision>(&mut components, id, &self);
-        insert::<SfxEmitter>(&mut components, id, &self);
-        insert::<SpriteComp>(&mut components, id, &self);
-        insert::<Facing>(&mut components, id, &self);
-        insert::<Walking>(&mut components, id, &self);
-        insert::<Camera>(&mut components, id, &self);
-        insert::<AnimationComp>(&mut components, id, &self);
-        insert::<CharacterAnims>(&mut components, id, &self);
-        insert::<DualStateAnims>(&mut components, id, &self);
-        insert::<NamedAnims>(&mut components, id, &self);
-        insert::<InteractionTrigger>(&mut components, id, &self);
-        insert::<CollisionTrigger>(&mut components, id, &self);
-        insert::<AreaTrigger>(&mut components, id, &self);
-
         fn insert<C>(
             components: &mut serde_json::Map<String, serde_json::Value>,
             id: EntityId,
@@ -298,6 +279,25 @@ impl Ecs {
                 components.insert(C::name().to_string(), value);
             }
         }
+
+        let mut components = serde_json::Map::new();
+
+        insert::<Name>(&mut components, id, self);
+        insert::<Position>(&mut components, id, self);
+        insert::<Velocity>(&mut components, id, self);
+        insert::<Collision>(&mut components, id, self);
+        insert::<SfxEmitter>(&mut components, id, self);
+        insert::<SpriteComp>(&mut components, id, self);
+        insert::<Facing>(&mut components, id, self);
+        insert::<Walking>(&mut components, id, self);
+        insert::<Camera>(&mut components, id, self);
+        insert::<AnimationComp>(&mut components, id, self);
+        insert::<CharacterAnims>(&mut components, id, self);
+        insert::<DualStateAnims>(&mut components, id, self);
+        insert::<NamedAnims>(&mut components, id, self);
+        insert::<InteractionTrigger>(&mut components, id, self);
+        insert::<CollisionTrigger>(&mut components, id, self);
+        insert::<AreaTrigger>(&mut components, id, self);
 
         serde_json::Value::Object(components)
     }

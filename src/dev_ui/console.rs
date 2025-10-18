@@ -27,7 +27,7 @@ impl ConsoleWindow {
             .open(&mut self.open)
             .default_width(800.)
             .default_height(400.)
-            .show(&ctx, |ui| {
+            .show(ctx, |ui| {
                 // Input Line
                 self.input_panel.show(ui, &mut self.scrollback, command_executor);
 
@@ -71,7 +71,7 @@ impl InputPanel {
     ) {
         TopBottomPanel::bottom("input_panel").show_inside(ui, |ui| {
             let mut history_text =
-                self.history_cursor.and_then(|i| self.input_history.get(i)).map(|s| s.clone());
+                self.history_cursor.and_then(|i| self.input_history.get(i)).cloned();
 
             let textedit_ref = history_text.as_mut().unwrap_or(&mut self.input_text);
 
@@ -116,7 +116,7 @@ impl InputPanel {
                             egui::Event::Key { pressed: true, .. } => {
                                 if let Some(history_text) = &history_text {
                                     self.input_text = history_text.clone();
-                                };
+                                }
                                 self.history_cursor = None;
                             }
                             _ => {}
