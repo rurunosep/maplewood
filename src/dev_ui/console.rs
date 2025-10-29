@@ -122,6 +122,7 @@ impl InputPanel {
                         }
 
                         // After updating history scrolling
+                        #[allow(clippy::single_match)]
                         match event {
                             egui::Event::Key { key: Key::Enter, pressed: true, .. } => {
                                 // Add input to console command queue and scrollback

@@ -180,6 +180,7 @@ impl StoryVars {
             .copied()
     }
 
+    #[allow(clippy::option_map_unit_fn)]
     pub fn set(&mut self, key: &str, val: i32) {
         self.0
             .get_mut(key)
@@ -187,23 +188,3 @@ impl StoryVars {
             .map(|var| *var = val);
     }
 }
-
-// #![warn(clippy::nursery)]
-// #![warn(clippy::pedantic)]
-// #![allow(clippy::too_many_lines)]
-// #![allow(clippy::cast_possible_truncation)]
-// #![allow(clippy::cast_sign_loss)]
-// #![allow(clippy::cast_precision_loss)]
-// #![allow(clippy::cast_lossless)]
-// #![allow(clippy::wildcard_imports)]
-// #![allow(clippy::must_use_candidate)]
-// #![allow(clippy::cast_possible_wrap)]
-// #![allow(clippy::unnecessary_wraps)]
-// #![allow(clippy::module_name_repetitions)]
-// #![allow(clippy::too_many_arguments)]
-// #![allow(clippy::new_without_default)]
-// #![allow(clippy::module_inception)]
-// #![allow(clippy::redundant_closure_for_method_calls)]
-// #![allow(clippy::semicolon_if_nothing_returned)]
-// #![allow(clippy::elidable_lifetime_names)]
-// #![allow(clippy::or_fun_call)]

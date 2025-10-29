@@ -248,7 +248,7 @@ impl Renderer<'_> {
         }
 
         // Dev UI render pass
-        if dev_ui.active
+        if dev_ui.open
             && let Some(full_output) = dev_ui.full_output.take()
         {
             let paint_jobs =
@@ -378,7 +378,7 @@ impl Renderer<'_> {
                 let vec_coords = cell_pos - map.offset;
                 let vec_index = vec_coords.y * map.dimensions.x + vec_coords.x;
 
-                if let Some(tile_id) = layer.tile_ids.get(vec_index as usize).expect("") {
+                if let Some(Some(tile_id)) = layer.tile_ids.get(vec_index as usize) {
                     let top_left_in_viewport = map_pos_to_top_left_in_viewport(
                         cell_pos.to_map_units(),
                         Some(layer.offset),
@@ -415,9 +415,10 @@ impl Renderer<'_> {
         map: &Map,
         camera_rect: Rect<f64, MapUnits>,
     ) {
-        for (position, sprite_component, sine_offset_animation) in ecs
-            .query::<(&Position, &SpriteComp, Option<&SineOffsetAnimation>)>()
-            .sorted_by(|(p1, ..), (p2, ..)| p1.map_pos.y.partial_cmp(&p2.map_pos.y).expect(""))
+        for (position, sprite_component, sine_offset_animation) in
+            ecs.query::<(&Position, &SpriteComp, Option<&SineOffsetAnimation>)>().sorted_by(
+                |(p1, ..), (p2, ..)| p1.map_pos.y.partial_cmp(&p2.map_pos.y).expect("not nan"),
+            )
         {
             // Skip entities not on the current map
             if position.map != map.name {
@@ -625,6 +626,7 @@ impl Renderer<'_> {
     }
 }
 
+#[allow(clippy::needless_return)]
 fn map_pos_to_top_left_in_viewport(
     map_pos: MapPos,
     sprite_offset: Option<Vec2<i32, PixelUnits>>,

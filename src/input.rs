@@ -41,7 +41,7 @@ pub fn process_input(
 
             // Toggle dev ui
             Event::KeyDown { keycode: Some(Keycode::Backquote), .. } => {
-                dev_ui.active = !dev_ui.active;
+                dev_ui.open = !dev_ui.open;
             }
 
             // Player movement

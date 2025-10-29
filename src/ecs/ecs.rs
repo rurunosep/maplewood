@@ -45,10 +45,9 @@ pub type ComponentMap<C> = SecondaryMap<EntityId, RefCell<C>>;
 pub struct Ecs {
     // TODO implement slotmap myself so that I can control its serde functionality
     pub entity_ids: SlotMap<EntityId, ()>,
-    pub component_maps: AnyMap,
-    #[allow(clippy::type_complexity)]
-    pub deferred_mutations: RefCell<Vec<Box<dyn FnOnce(&mut Ecs)>>>,
-    pub deferred_entity_ids: RefCell<SlotMap<DeferredEntityId, EntityId>>,
+    component_maps: AnyMap,
+    deferred_mutations: RefCell<Vec<Box<dyn FnOnce(&mut Ecs)>>>,
+    deferred_entity_ids: RefCell<SlotMap<DeferredEntityId, EntityId>>,
 }
 
 impl Ecs {
@@ -134,14 +133,17 @@ impl Ecs {
         self.component_maps.get_mut::<ComponentMap<C>>().map(|cm| cm.remove(entity_id));
     }
 
-    // TODO explain all of this deferred operations code, cause it's confusing af
+    // NOW explain all of this deferred operations code, cause it's confusing af
 
     #[allow(dead_code)]
     pub fn add_entity_deferred(&self) -> DeferredEntityId {
         let def_id = self.deferred_entity_ids.borrow_mut().insert(Key::null());
         let f = move |ecs: &mut Ecs| {
             let real_id = ecs.add_entity();
-            *ecs.deferred_entity_ids.borrow_mut().get_mut(def_id).unwrap() = real_id;
+            *ecs.deferred_entity_ids
+                .borrow_mut()
+                .get_mut(def_id)
+                .expect("def ids only cleared after all closures executed") = real_id;
         };
         self.deferred_mutations.borrow_mut().push(Box::new(f));
         def_id
@@ -195,6 +197,8 @@ impl Ecs {
         self.deferred_entity_ids.borrow_mut().clear();
     }
 
+    // TODO single match-on-name func that takes callback?
+
     pub fn add_component_with_name(
         &mut self,
         id: EntityId,
@@ -228,7 +232,7 @@ impl Ecs {
         r.map_err(|e| {
             anyhow!(
                 "invalid json component\nname: {component_name}\ndata: {}\nerr: {e}",
-                serde_json::to_string_pretty(&data).expect("")
+                serde_json::to_string_pretty(&data).expect("is serde")
             )
         })
     }

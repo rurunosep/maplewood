@@ -99,7 +99,7 @@ impl EntityWindow {
             .show(ctx, |ui| {
                 ScrollArea::vertical().show(ui, |ui| {
                     if self.name.is_some() {
-                        ui.label(serde_json::to_string(&self.entity_id).expect(""));
+                        ui.label(serde_json::to_string(&self.entity_id).expect("is serde"));
                     }
 
                     for cc in &mut self.component_collapsibles {
@@ -112,7 +112,7 @@ impl EntityWindow {
     pub fn name(&self) -> String {
         match &self.name {
             Some(name) => name.clone(),
-            None => serde_json::to_string(&self.entity_id).expect(""),
+            None => serde_json::to_string(&self.entity_id).expect("is serde"),
         }
     }
 }
@@ -156,8 +156,10 @@ where
         }
 
         if !self.is_being_edited {
-            self.text =
-                component.as_deref().map(|c| serde_json::to_string_pretty(c).expect("")).expect("");
+            self.text = component
+                .as_deref()
+                .map(|c| serde_json::to_string_pretty(c).expect("is serde"))
+                .expect("early return if none");
         }
 
         drop(component);

@@ -48,7 +48,7 @@ impl RectFillPipeline {
                 entry_point: Some("fragment_main"),
                 compilation_options: PipelineCompilationOptions::default(),
                 targets: &[Some(ColorTargetState {
-                    format: surface_format.clone(),
+                    format: *surface_format,
                     blend: Some(BlendState::ALPHA_BLENDING),
                     write_mask: ColorWrites::ALL,
                 })],

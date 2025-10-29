@@ -36,3 +36,11 @@ winapi = {version = "0.3.9", features = ["winuser"]}
 fdeflate.opt-level = 3
 image.opt-level = 3
 png.opt-level = 3
+
+[lints.clippy]
+module_inception = "allow"
+new_without_default = "allow"
+redundant_closure = "allow"
+too_many_arguments = "allow"
+type_complexity = "allow"
+# unwrap_used = "warn"

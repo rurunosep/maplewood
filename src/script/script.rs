@@ -47,6 +47,30 @@ impl ScriptManager {
         self.start_queue.push_back(source.to_string());
     }
 
+    pub fn update(
+        &mut self,
+        game_data: &mut GameData,
+        ui_data: &mut UiData,
+        player_movement_locked: &mut bool,
+        running: &mut bool,
+        musics: &HashMap<String, Music>,
+        sound_effects: &HashMap<String, Chunk>,
+    ) {
+        for source in std::mem::take(&mut self.start_queue) {
+            self.start_script(&source, &game_data.story_vars);
+        }
+
+        for instance in self.instances.values_mut() {
+            #[rustfmt::skip]
+            instance.update(
+                game_data, ui_data, player_movement_locked, running, musics,
+                sound_effects,
+            );
+        }
+
+        self.instances.retain(|_, instance| instance.thread.status() == ThreadStatus::Resumable);
+    }
+
     fn start_script(&mut self, source: &str, story_vars: &StoryVars) {
         let metadata = extract_metadata(source);
 
@@ -64,6 +88,7 @@ impl ScriptManager {
             }
 
             // Skip exclusive scripts that are already running
+            // TODO deny exclusive but no name
             if metadata.exclusive
                 && let Some(this_script_name) = &metadata.name.as_ref().tap_none(|| {
                     log::error!("Attempted to start exclusive script with no identifying name")
@@ -99,30 +124,6 @@ impl ScriptManager {
             });
         };
         r.unwrap_or_else(|e| log::error!("Couldn't start script (err: {e})"));
-    }
-
-    pub fn update(
-        &mut self,
-        game_data: &mut GameData,
-        ui_data: &mut UiData,
-        player_movement_locked: &mut bool,
-        running: &mut bool,
-        musics: &HashMap<String, Music>,
-        sound_effects: &HashMap<String, Chunk>,
-    ) {
-        for source in std::mem::take(&mut self.start_queue) {
-            self.start_script(&source, &game_data.story_vars);
-        }
-
-        for instance in self.instances.values_mut() {
-            #[rustfmt::skip]
-            instance.update(
-                game_data, ui_data, player_movement_locked, running, musics,
-                sound_effects,
-            );
-        }
-
-        self.instances.retain(|_, instance| instance.thread.status() == ThreadStatus::Resumable);
     }
 }
 
@@ -224,10 +225,10 @@ pub fn extract_metadata(source: &str) -> ScriptMetadata {
 
 fn evaluate_story_var_condition(expression: &str, story_vars: &StoryVars) -> anyhow::Result<bool> {
     // Compile regex only once ever
-    static RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\{([^{}]*)\}").expect(""));
+    static RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\{([^{}]*)\}").expect("is valid"));
 
     let with_values = misc::try_replace_all(&RE, expression, |caps| {
-        let key = caps.get(1).expect("").as_str();
+        let key = caps.get(1).expect("regex has one capture").as_str();
         story_vars.0.get(key).context(f!("no story var `{key}`")).map(|val| val.to_string())
     })?;
 

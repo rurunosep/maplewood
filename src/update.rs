@@ -134,26 +134,26 @@ fn update_dual_state_animations(ecs: &Ecs) {
             continue;
         }
 
-        use DualStateAnimationState::*;
+        use DualStateAnimationState as S;
 
         // If a transition animation is finished playing, switch to the next state
         match (dual_anims.state, anim_comp.state) {
-            (FirstToSecond, PlaybackState::Stopped) => {
-                dual_anims.state = Second;
+            (S::FirstToSecond, PlaybackState::Stopped) => {
+                dual_anims.state = S::Second;
                 anim_comp.start(true);
             }
-            (SecondToFirst, PlaybackState::Stopped) => {
-                dual_anims.state = First;
+            (S::SecondToFirst, PlaybackState::Stopped) => {
+                dual_anims.state = S::First;
                 anim_comp.start(true);
             }
             _ => {}
         }
 
         anim_comp.clip = match dual_anims.state {
-            First => &dual_anims.first,
-            FirstToSecond => &dual_anims.first_to_second,
-            Second => &dual_anims.second,
-            SecondToFirst => &dual_anims.second_to_first,
+            S::First => &dual_anims.first,
+            S::FirstToSecond => &dual_anims.first_to_second,
+            S::Second => &dual_anims.second,
+            S::SecondToFirst => &dual_anims.second_to_first,
         }
         .clone();
     }
@@ -179,7 +179,7 @@ fn play_animations_and_set_sprites(ecs: &Ecs, delta: Duration) {
         } else {
             (elapsed % duration / clip.seconds_per_frame).floor() as usize
         };
-        let sprite = clip.frames.get(frame_index).expect("");
+        let sprite = clip.frames.get(frame_index).expect("modulo");
         sprite_comp.sprite = Some(sprite.clone());
 
         if finished {
@@ -209,7 +209,7 @@ fn apply_velocity_to_position(ecs: &Ecs) {
     }
 }
 
-fn start_collision_trigger_scripts(ecs: &Ecs, script_manager_new: &mut ScriptManager) {
+fn start_collision_trigger_scripts(ecs: &Ecs, script_manager: &mut ScriptManager) {
     let Some((player_id, player_position, player_collision)) =
         ecs.query_one_with_name::<(EntityId, &Position, &Collision)>(PLAYER_ENTITY_NAME)
     else {
@@ -237,7 +237,7 @@ fn start_collision_trigger_scripts(ecs: &Ecs, script_manager_new: &mut ScriptMan
                 .get_source()
                 .tap_err(|e| log::error!(once = true; "Couldn't get script source (err: {e})"))
         {
-            script_manager_new.queue_script(&source);
+            script_manager.queue_script(&source);
         }
     }
 }
@@ -258,7 +258,7 @@ fn resolve_collisions_with_tiles(ecs: &Ecs, world: &World) {
 
         let mut aabb = Aabb::new(map_pos, collision.hitbox);
 
-        // TODO some out of bounds positions have collision, and some do not
+        // TODO bug: some out of bounds positions have collision and some do not
 
         // Resolve collisions with the 9 cells centered around new position
         let new_cellpos = map_pos.to_cell_units();
@@ -295,7 +295,6 @@ fn resolve_collisions_with_entities(ecs: &Ecs) {
         let mut aabb = Aabb::new(position.map_pos, collision.hitbox);
 
         for (other_pos, other_coll) in ecs.query_except::<(&Position, &Collision)>(id) {
-            // Skip checking against entities not on the current map or not solid
             if other_pos.map != position.map || !other_coll.solid {
                 continue;
             }
@@ -361,7 +360,6 @@ fn update_camera(ecs: &Ecs, world: &World) {
     };
 
     // Update camera position to follow target entity
-    // (double ECS borrow)
     if let Some(target_name) = &camera_component.target_entity
         && let Some((target_position, _)) = ecs
             // query_one_with_name does NOT avoid a double borrow
@@ -418,23 +416,26 @@ fn update_sfx_emitting_entities(ecs: &Ecs, sound_effects: &HashMap<String, Chunk
             && let Some(chunk) = sound_effects
                 .get(sfx_name)
                 .tap_none(|| log::error!(once = true; "Sound effect doesn't exist: {sfx_name}"))
-            && let Ok(channel) = sdl2::mixer::Channel::all()
-                .play(chunk, if sfx.repeat { -1 } else { 0 })
-                .tap_err(|e| log::error!("Failed to play sound effect (err: {e:})"))
         {
-            sfx.channel = Some(channel);
+            let channel = sdl2::mixer::Channel::all()
+                .play(chunk, if sfx.repeat { -1 } else { 0 })
+                .tap_err(|e| log::error!("Failed to play sound effect (err: {e:})"));
+
+            // if let Ok(channel) = channel {
+            //     sfx.channel = Some(channel);
+            // }
+            sfx.channel = channel.ok();
         }
 
         // If entity is not on camera map, or it has no sfx to emit, and sfx is playing on a
         // channel, stop playing the sfx
-        if camera_map.is_none()
-            || pos.map != *camera_map.as_ref().expect("")
-            || sfx.sfx_name.is_none()
+        if (camera_map.is_none()
+            || pos.map != *camera_map.as_ref().expect("shortcircuit")
+            || sfx.sfx_name.is_none())
+            && let Some(channel) = sfx.channel
         {
-            if let Some(channel) = sfx.channel {
-                sdl2::mixer::Channel::halt(channel);
-                sfx.channel = None;
-            }
+            sdl2::mixer::Channel::halt(channel);
+            sfx.channel = None;
         }
     }
 }

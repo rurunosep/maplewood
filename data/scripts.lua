@@ -99,7 +99,7 @@ local stages = {
     lock_player_input()
     remove_camera_target()
 
-    walk(CAMERA_ENTITY_NAME, "up", 4, 0.05)
+    walk("_camera", "up", 4, 0.05)
     walk_wait("bakery_girl", "up", 0.75, 0.08)
     walk_wait("bakery_girl", "left", 8, 0.08)
     walk_wait("bakery_girl", "up", 4.5, 0.08)
@@ -116,7 +116,7 @@ local stages = {
     set_entity_visible("bakery::fire", true)
     play_sfx("flame")
     wait(1)
-    walk(CAMERA_ENTITY_NAME, "down", 4, 0.05)
+    walk("_camera", "down", 4, 0.05)
     wait(2)
     message("\"Take care!\"")
 
@@ -204,7 +204,7 @@ if get_story_var("main::pen_found") == 1 and get_story_var("bathroom::flooded") 
   set_entity_world_pos("_player", "hallway", 3.5, 3.5)
 
   wait(1)
-  walk_to_wait(CAMERA_ENTITY_NAME, "up", 6.01, 0.05)
+  walk_to_wait("_camera", "up", 6.01, 0.05)
   wait(1)
   switch_dual_state_animation("bathroom::sink_1", 2)
   play_sfx("faucet")

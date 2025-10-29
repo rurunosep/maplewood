@@ -20,7 +20,7 @@ pub struct DevUi<'window> {
     pub ctx: Context,
     pub state: EguiSDL2State,
     pub window: &'window SdlWindow,
-    pub active: bool,
+    pub open: bool,
     // Stored intermediately between processing and rendering for convenience
     pub full_output: Option<egui::FullOutput>,
     entities_list_window: EntitiesListWindow,
@@ -49,7 +49,7 @@ impl<'window> DevUi<'window> {
             ctx,
             state,
             window,
-            active: false,
+            open: false,
             full_output: None,
             entities_list_window: EntitiesListWindow::new(),
             entity_windows: HashMap::new(),
@@ -73,7 +73,7 @@ impl DevUi<'_> {
         script_manager: &ScriptManager,
         console: &mut ConsoleCommandExecutor,
     ) {
-        if !self.active {
+        if !self.open {
             return;
         }
 
@@ -84,17 +84,15 @@ impl DevUi<'_> {
         let full_output = ctx.run(state.raw_input.take(), |ctx| {
             // Create entity windows for new entities, and delete for deleted entities
             for id in ecs.entity_ids.keys() {
-                if !self.entity_windows.contains_key(&id) {
-                    self.entity_windows.insert(id, EntityWindow::new(id, ecs));
-                }
+                self.entity_windows.entry(id).or_insert_with(|| EntityWindow::new(id, ecs));
             }
             self.entity_windows.retain(|&k, _| ecs.entity_ids.contains_key(k));
 
-            // ... script windows ...
+            // .. and for scripts
             for (id, instance) in &script_manager.instances {
-                if !self.script_windows.contains_key(&id) {
-                    self.script_windows.insert(id, ScriptWindow::new(id, instance.name.clone()));
-                }
+                self.script_windows
+                    .entry(id)
+                    .or_insert_with(|| ScriptWindow::new(id, instance.name.clone()));
             }
             self.script_windows.retain(|&k, _| script_manager.instances.contains_key(k));
 
@@ -246,7 +244,7 @@ impl ScriptWindow {
             .show(ctx, |ui| {
                 ScrollArea::vertical().show(ui, |ui| {
                     if self.name.is_some() {
-                        ui.label(serde_json::to_string(&self.script_id).expect(""));
+                        ui.label(serde_json::to_string(&self.script_id).expect("is serde"));
                     }
 
                     ui.label(job);
@@ -260,7 +258,7 @@ impl ScriptWindow {
     fn name(&self) -> String {
         match &self.name {
             Some(name) => name.clone(),
-            None => serde_json::to_string(&self.script_id).expect(""),
+            None => serde_json::to_string(&self.script_id).expect("is serde"),
         }
     }
 }

@@ -353,13 +353,18 @@ pub fn lock_player_input(
 }
 
 pub fn set_camera_target(entity: String, ecs: &Ecs) -> mlua::Result<()> {
-    ecs.query_one_with_name::<&mut Camera>(CAMERA_ENTITY_NAME).unwrap().target_entity =
-        Some(entity);
+    let mut camera_component = ecs
+        .query_one_with_name::<&mut Camera>(CAMERA_ENTITY_NAME)
+        .ok_or(Error("no camera entity".to_string()))?;
+    camera_component.target_entity = Some(entity);
     Ok(())
 }
 
 pub fn remove_camera_target(ecs: &Ecs) -> mlua::Result<()> {
-    ecs.query_one_with_name::<&mut Camera>(CAMERA_ENTITY_NAME).unwrap().target_entity = None;
+    let mut camera_component = ecs
+        .query_one_with_name::<&mut Camera>(CAMERA_ENTITY_NAME)
+        .ok_or(Error("no camera entity".to_string()))?;
+    camera_component.target_entity = None;
     Ok(())
 }
 
@@ -536,8 +541,8 @@ pub fn anim_jump(entity: String, ecs: &mut Ecs) -> mlua::Result<()> {
 }
 
 pub fn play_sfx(name: String, sound_effects: &HashMap<String, Chunk>) -> mlua::Result<()> {
-    let sfx = sound_effects.get(&name).unwrap();
-    sdl2::mixer::Channel::all().play(sfx, 0).unwrap();
+    let sfx = sound_effects.get(&name).ok_or(Error(f!("no sfx `{name}`")))?;
+    sdl2::mixer::Channel::all().play(sfx, 0).map_err(|e| Error(e))?;
     Ok(())
 }
 
@@ -545,7 +550,8 @@ pub fn play_music(
     (name, should_loop): (String, bool),
     musics: &HashMap<String, Music>,
 ) -> mlua::Result<()> {
-    musics.get(&name).unwrap().play(if should_loop { -1 } else { 0 }).unwrap();
+    let music = musics.get(&name).ok_or(Error(f!("no music `{name}`")))?;
+    music.play(if should_loop { -1 } else { 0 }).map_err(|e| Error(e))?;
     Ok(())
 }
 
@@ -610,7 +616,7 @@ pub fn dump_entities_to_file(path: String, ecs: &Ecs) -> mlua::Result<()> {
     for id in ecs.entity_ids.keys() {
         entities.push(ecs.save_components_to_value(id));
     }
-    let json = serde_json::to_string_pretty(&serde_json::Value::Array(entities)).expect("");
+    let json = serde_json::to_string_pretty(&serde_json::Value::Array(entities)).expect("is serde");
 
     std::fs::write(&path, &json).map_err(|e| Error(e.to_string()))?;
 
