@@ -3790,9 +3790,9 @@
 								"fieldInstances": [
 									{ "__identifier": "name", "__type": "String", "__value": null, "__tile": null, "defUid": 756, "realEditorValues": [null] },
 									{ "__identifier": "source", "__type": "String", "__value": "", "__tile": null, "defUid": 753, "realEditorValues": [null] },
-									{ "__identifier": "external_source", "__type": "String", "__value": "scripts::bathroom::exita", "__tile": null, "defUid": 790, "realEditorValues": [{
+									{ "__identifier": "external_source", "__type": "String", "__value": "scripts::bathroom::exit", "__tile": null, "defUid": 790, "realEditorValues": [{
 										"id": "V_String",
-										"params": ["scripts::bathroom::exita"]
+										"params": ["scripts::bathroom::exit"]
 									}] },
 									{ "__identifier": "trigger", "__type": "LocalEnum.script_trigger", "__value": "soft_collision", "__tile": null, "defUid": 788, "realEditorValues": [{
 										"id": "V_String",

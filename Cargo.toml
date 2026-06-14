@@ -2,7 +2,7 @@
 authors = ["Kevin Hernandez-Rives <rurunosep@gmail.com>"]
 edition = "2024"
 name = "maplewood"
-version = "0.3.0"
+version = "0.3.1"
 
 [dependencies]
 anyhow = "1.0.100"
@@ -11,12 +11,12 @@ bytemuck = "1.20.0"
 colored = "3.0.0"
 derived-deref = "2.1.0"
 egui = "0.32.3"
-egui-sdl2-event = "1.32.3"
+egui-sdl2-event = "=1.32.3"
 egui_wgpu_backend = "0.35.0"
 evalexpr = "12.0.2"
 image = {version = "0.25.8", default-features = false, features = ["png", "rayon"]}
 itertools = "0.14.0"
-log = {version = "0.4.22", features = ["std", "kv"]}
+log = {version = "=0.4.30", features = ["std", "kv"]}
 mlua = {version = "0.11.4", features = ["lua54", "vendored"]}
 pollster = "0.4.0"
 regex = {version = "1.12.1", features = ["std"], default-features = false}
