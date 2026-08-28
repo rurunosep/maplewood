@@ -1,11 +1,11 @@
-use crate::components::{AnimationComp, Facing, InteractionTrigger, NamedAnims, Position, Walking};
+use crate::components::{Facing, InteractionTrigger, Position, Walking};
 use crate::data::PLAYER_ENTITY_NAME;
-use crate::math::Vec2;
+use crate::math::{MapUnits, Vec2};
 use crate::misc::{Aabb, Direction};
 use crate::script::ScriptManager;
 use crate::{DevUi, GameData, MessageWindow};
 use sdl2::event::Event;
-use sdl2::keyboard::Keycode;
+use sdl2::keyboard::{Keycode, Scancode};
 use tap::TapFallible;
 
 pub fn process_input(
@@ -19,23 +19,17 @@ pub fn process_input(
 ) {
     let GameData { ecs, .. } = game_data;
 
+    // Event-based input processing
     for event in event_pump.poll_iter() {
         // Update egui state with new input
-        dev_ui.state.sdl2_input_to_egui(dev_ui.window, &event);
+        if dev_ui.open {
+            dev_ui.state.sdl2_input_to_egui(dev_ui.window, &event);
+        }
 
+        // App level
         match event {
-            // Arbitrary testing
-            Event::KeyDown { keycode: Some(Keycode::A), .. } => {
-                let (mut ac, na) = ecs
-                    .query_one_with_name::<(&mut AnimationComp, &NamedAnims)>(PLAYER_ENTITY_NAME)
-                    .unwrap();
-                ac.clip = na.get("spin").unwrap().clone();
-                ac.forced = true;
-                ac.start(false);
-            }
-
             // Close program
-            Event::Quit { .. } | Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
+            Event::Quit { .. } => {
                 *running = false;
             }
 
@@ -43,72 +37,47 @@ pub fn process_input(
             Event::KeyDown { keycode: Some(Keycode::Backquote), .. } => {
                 dev_ui.open = !dev_ui.open;
             }
+            _ => {}
+        }
 
-            // Player movement
-            Event::KeyDown { keycode: Some(keycode), .. }
-                if keycode == Keycode::Up
-                    || keycode == Keycode::Down
-                    || keycode == Keycode::Left
-                    || keycode == Keycode::Right =>
-            {
-                let message_window: &Option<MessageWindow> = &*message_window;
-                let (mut facing, mut walking_component) = ecs
-                    .query_one_with_name::<(&mut Facing, &mut Walking)>(PLAYER_ENTITY_NAME)
-                    .unwrap();
-
-                // Some conditions (such as a message window open, or movement being forced)
-                // lock player movement. Scripts can also lock/unlock it
-                // as necessary.
-                if message_window.is_none()
-                    && walking_component.destination.is_none()
-                    && !player_movement_locked
-                {
-                    walking_component.speed = 0.12;
-                    walking_component.direction = match keycode {
-                        Keycode::Up => Direction::Up,
-                        Keycode::Down => Direction::Down,
-                        Keycode::Left => Direction::Left,
-                        Keycode::Right => Direction::Right,
-                        _ => unreachable!(),
-                    };
-                    facing.0 = walking_component.direction;
-                }
-            }
-
-            // End player movement if key matching player direction is released
-            Event::KeyUp { keycode: Some(keycode), .. }
-                if keycode
-                    == match ecs
-                        .query_one_with_name::<&Walking>(PLAYER_ENTITY_NAME)
-                        .unwrap()
-                        .direction
-                    {
-                        Direction::Up => Keycode::Up,
-                        Direction::Down => Keycode::Down,
-                        Direction::Left => Keycode::Left,
-                        Direction::Right => Keycode::Right,
-                    } =>
-            {
-                let mut walking_component =
-                    ecs.query_one_with_name::<&mut Walking>(PLAYER_ENTITY_NAME).unwrap();
-                // Don't end movement if it's being forced
-                // (I need to rework the way that input vs forced movement work)
-                if walking_component.destination.is_none() {
-                    walking_component.speed = 0.;
-                }
-            }
-
-            // Interact with entity to start script OR advance message
+        // UI level
+        match event {
+            // Advance message
             Event::KeyDown { keycode: Some(Keycode::Return | Keycode::Space), .. } => {
-                // Delegate to UI system then to world/entity system?
                 if message_window.is_some() {
                     *message_window = None;
-                } else {
-                    // Block interactions if movement is locked (it's really more like all player
-                    // entity control is locked)
-                    if player_movement_locked {
-                        continue;
+                }
+            }
+            _ => {}
+        }
+
+        // Player control level
+        // TODO rename player_movement_locked. it's actually player control locked, in general.
+        if !player_movement_locked && message_window.is_none() {
+            match event {
+                // Set player facing
+                // (facing depends on last directional key pressed, independent of movement)
+                Event::KeyDown { keycode: Some(keycode), .. }
+                    if keycode == Keycode::Up
+                        || keycode == Keycode::Down
+                        || keycode == Keycode::Left
+                        || keycode == Keycode::Right =>
+                {
+                    if let Some(mut facing) =
+                        ecs.query_one_with_name::<&mut Facing>(PLAYER_ENTITY_NAME)
+                    {
+                        facing.0 = match keycode {
+                            Keycode::Up => Direction::Up,
+                            Keycode::Down => Direction::Down,
+                            Keycode::Left => Direction::Left,
+                            Keycode::Right => Direction::Right,
+                            _ => unreachable!(),
+                        };
                     }
+                }
+
+                // Interact with entity to start script
+                Event::KeyDown { keycode: Some(Keycode::Return | Keycode::Space), .. } => {
                     // Select a specific point some distance in front of the player to check
                     // for the presence of an entity with an
                     // interaction script. This fails in some cases,
@@ -141,9 +110,37 @@ pub fn process_input(
                         }
                     }
                 }
+                _ => {}
             }
-
-            _ => {}
         }
+    }
+
+    // State-based input processing
+
+    // Player movement
+    let mut walking_component =
+        ecs.query_one_with_name::<&mut Walking>(PLAYER_ENTITY_NAME).unwrap();
+    walking_component.velocity = Vec2::default();
+    if message_window.is_none()
+        && walking_component.destination.is_none()
+        && !player_movement_locked
+    {
+        let mut direction: Vec2<f64, MapUnits> = Vec2::default();
+        if event_pump.keyboard_state().is_scancode_pressed(Scancode::Up) {
+            direction.y -= 1.0;
+        }
+        if event_pump.keyboard_state().is_scancode_pressed(Scancode::Down) {
+            direction.y += 1.0;
+        }
+        if event_pump.keyboard_state().is_scancode_pressed(Scancode::Left) {
+            direction.x -= 1.0;
+        }
+        if event_pump.keyboard_state().is_scancode_pressed(Scancode::Right) {
+            direction.x += 1.0;
+        }
+        if direction.length() != 0.0 {
+            direction = direction.normalize();
+        }
+        walking_component.velocity = direction * 0.12;
     }
 }

@@ -88,15 +88,18 @@ impl ScriptManager {
             }
 
             // Skip exclusive scripts that are already running
-            // TODO deny exclusive but no name
             if metadata.exclusive
-                && let Some(this_script_name) = &metadata.name.as_ref().tap_none(|| {
-                    log::error!("Attempted to start exclusive script with no identifying name")
-                })
-                && self
-                    .instances
-                    .values()
-                    .any(|other_script| other_script.name.as_ref() == Some(this_script_name))
+                && metadata
+                    .name
+                    .as_ref()
+                    .tap_none(|| {
+                        log::error!("Attempted to start exclusive script with no identifying name")
+                    })
+                    .is_none_or(|this_script_name| {
+                        self.instances.values().any(|other_script| {
+                            other_script.name.as_ref() == Some(this_script_name)
+                        })
+                    })
             {
                 return;
             }

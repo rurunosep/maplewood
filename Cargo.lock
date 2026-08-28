@@ -1051,6 +1051,7 @@ dependencies = [
  "itertools",
  "log",
  "mlua",
+ "num-traits",
  "pollster",
  "regex",
  "sdl2",

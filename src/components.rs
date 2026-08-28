@@ -153,6 +153,8 @@ pub struct Walking {
     pub speed: f64,
     pub direction: Direction,
     pub destination: Option<MapPos>,
+    //
+    pub velocity: Vec2<f64, MapUnits>,
 }
 impl Component for Walking {}
 

@@ -1,4 +1,5 @@
 use crate::misc::CELL_SIZE;
+use num_traits::real::Real;
 use serde::ser::SerializeStruct;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
@@ -102,6 +103,18 @@ impl<T: Div + Copy, U> Div<T> for Vec2<T, U> {
 impl<T: Div<Output = T> + Copy, U> DivAssign<T> for Vec2<T, U> {
     fn div_assign(&mut self, rhs: T) {
         *self = *self / rhs;
+    }
+}
+
+impl<T: Real + Copy, U> Vec2<T, U> {
+    pub fn length(self) -> T {
+        (self.x * self.x + self.y * self.y).sqrt()
+    }
+}
+
+impl<T: Real + Copy, U> Vec2<T, U> {
+    pub fn normalize(self) -> Self {
+        self / self.length()
     }
 }
 

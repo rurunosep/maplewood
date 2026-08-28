@@ -194,12 +194,13 @@ fn play_animations_and_set_sprites(ecs: &Ecs, delta: Duration) {
 
 fn set_velocity_from_walking(ecs: &Ecs) {
     for (mut velocity, walking) in ecs.query::<(&mut Velocity, &Walking)>() {
-        velocity.0 = match walking.direction {
-            Direction::Up => Vec2::new(0.0, -walking.speed),
-            Direction::Down => Vec2::new(0.0, walking.speed),
-            Direction::Left => Vec2::new(-walking.speed, 0.0),
-            Direction::Right => Vec2::new(walking.speed, 0.0),
-        }
+        // velocity.0 = match walking.direction {
+        //     Direction::Up => Vec2::new(0.0, -walking.speed),
+        //     Direction::Down => Vec2::new(0.0, walking.speed),
+        //     Direction::Left => Vec2::new(-walking.speed, 0.0),
+        //     Direction::Right => Vec2::new(walking.speed, 0.0),
+        // }
+        velocity.0 = walking.velocity;
     }
 }
 
