@@ -5,7 +5,7 @@ use crate::components::{
 };
 use crate::data::PLAYER_ENTITY_NAME;
 use crate::ecs::{Ecs, EntityId};
-use crate::math::{CellPos, MapUnits, Rect, Vec2};
+use crate::math::{MapUnits, Rect, Vec2};
 use crate::misc::{Aabb, Direction};
 use crate::script::{self, ScriptManager};
 use crate::world::World;
@@ -36,8 +36,7 @@ pub fn update(
     apply_walking_velocity(&game_data.ecs);
     apply_velocity_to_position(&game_data.ecs);
     start_collision_trigger_scripts(&game_data.ecs, script_manager);
-    resolve_collisions_with_tiles(&game_data.ecs, &game_data.world);
-    resolve_collisions_with_entities(&game_data.ecs);
+    resolve_collisions(&game_data.ecs, &game_data.world);
 
     update_camera(&game_data.ecs, &game_data.world);
 
@@ -241,49 +240,12 @@ fn start_collision_trigger_scripts(ecs: &Ecs, script_manager: &mut ScriptManager
     }
 }
 
-fn resolve_collisions_with_tiles(ecs: &Ecs, world: &World) {
-    // This only works for entities with velocities
-    for (mut position, collision, velocity) in ecs.query::<(&mut Position, &Collision, &Velocity)>()
-    {
-        if !collision.solid {
-            continue;
-        }
+fn resolve_collisions(ecs: &Ecs, world: &World) {
+    // In order for an entity to slide along collidable tiles or entities without getting stuck,
+    // we need to resolve collisions against everything along each axis separately.
+    // That means translating along x, resolving collisions against everything only along x, then
+    // translating along y and resolving collisions against everything along y.
 
-        let map_pos = position.map_pos;
-        let Some(map) = world.maps.get(&position.map) else {
-            log::error!(once = true; "Map doesn't exist: {}", &position.map);
-            continue;
-        };
-
-        let mut aabb = Aabb::new(map_pos, collision.hitbox);
-
-        // TODO bug: some out of bounds positions have collision and some do not
-
-        // Resolve collisions with the 9 cells centered around new position
-        let new_cellpos = map_pos.to_cell_units();
-        let cellposes_to_check: [CellPos; 9] = [
-            Vec2::new(new_cellpos.x - 1, new_cellpos.y - 1),
-            Vec2::new(new_cellpos.x, new_cellpos.y - 1),
-            Vec2::new(new_cellpos.x + 1, new_cellpos.y - 1),
-            Vec2::new(new_cellpos.x - 1, new_cellpos.y),
-            Vec2::new(new_cellpos.x, new_cellpos.y),
-            Vec2::new(new_cellpos.x + 1, new_cellpos.y),
-            Vec2::new(new_cellpos.x - 1, new_cellpos.y + 1),
-            Vec2::new(new_cellpos.x, new_cellpos.y + 1),
-            Vec2::new(new_cellpos.x + 1, new_cellpos.y + 1),
-        ];
-        for cell_aabb in
-            cellposes_to_check.iter().flat_map(|cp| map.collision_aabbs_for_cell(*cp)).flatten()
-        {
-            aabb.resolve_collision(&cell_aabb, velocity.0);
-        }
-
-        position.map_pos = aabb.center();
-    }
-}
-
-fn resolve_collisions_with_entities(ecs: &Ecs) {
-    // This only works for entities with velocities
     for (id, mut position, collision, velocity) in
         ecs.query::<(EntityId, &mut Position, &Collision, &Velocity)>()
     {
@@ -293,12 +255,64 @@ fn resolve_collisions_with_entities(ecs: &Ecs) {
 
         let mut aabb = Aabb::new(position.map_pos, collision.hitbox);
 
+        // Generate collision AABBs for the surrounding 9 tiles
+        let Some(map) = world.maps.get(&position.map) else {
+            log::error!(once = true; "Map doesn't exist: {}", &position.map);
+            continue;
+        };
+        let new_cellpos = position.map_pos.to_cell_units();
+        let cell_aabbs: Vec<_> = [
+            Vec2::new(new_cellpos.x - 1, new_cellpos.y - 1),
+            Vec2::new(new_cellpos.x + 0, new_cellpos.y - 1),
+            Vec2::new(new_cellpos.x + 1, new_cellpos.y - 1),
+            Vec2::new(new_cellpos.x - 1, new_cellpos.y + 0),
+            Vec2::new(new_cellpos.x + 0, new_cellpos.y + 0),
+            Vec2::new(new_cellpos.x + 1, new_cellpos.y + 0),
+            Vec2::new(new_cellpos.x - 1, new_cellpos.y + 1),
+            Vec2::new(new_cellpos.x + 0, new_cellpos.y + 1),
+            Vec2::new(new_cellpos.x + 1, new_cellpos.y + 1),
+        ]
+        .iter()
+        .flat_map(|cp| map.collision_aabbs_for_cell(*cp))
+        .flatten()
+        .collect();
+
+        // Temporarily revert translation along y
+        aabb.top -= velocity.0.y;
+        aabb.bottom -= velocity.0.y;
+
+        // Resolve collisions along x axis
+        for cell_aabb in &cell_aabbs {
+            aabb.resolve_collision_along_x(cell_aabb, velocity.0);
+        }
+
         for (other_pos, other_coll) in ecs.query_except::<(&Position, &Collision)>(id) {
             if other_pos.map != position.map || !other_coll.solid {
                 continue;
             }
+            aabb.resolve_collision_along_x(
+                &Aabb::new(other_pos.map_pos, other_coll.hitbox),
+                velocity.0,
+            );
+        }
 
-            aabb.resolve_collision(&Aabb::new(other_pos.map_pos, other_coll.hitbox), velocity.0);
+        // Reapply translation along y
+        aabb.top += velocity.0.y;
+        aabb.bottom += velocity.0.y;
+
+        // Resolve collisions along x axis
+        for cell_aabb in &cell_aabbs {
+            aabb.resolve_collision_along_y(cell_aabb, velocity.0);
+        }
+
+        for (other_pos, other_coll) in ecs.query_except::<(&Position, &Collision)>(id) {
+            if other_pos.map != position.map || !other_coll.solid {
+                continue;
+            }
+            aabb.resolve_collision_along_y(
+                &Aabb::new(other_pos.map_pos, other_coll.hitbox),
+                velocity.0,
+            );
         }
 
         position.map_pos = aabb.center();

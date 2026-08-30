@@ -202,6 +202,8 @@ impl Map {
     }
 
     // Get the collision AABBs for each of the 4 quarters of a cell at cellpos
+    // (Some out of bounds positions have collision and some do not. This isn't directly an issue,
+    // but it's a sign that something is wrong.)
     pub fn collision_aabbs_for_cell(&self, cell_pos: CellPos) -> [Option<Aabb>; 4] {
         let tlc = (cell_pos - self.offset) * 2; // "top-left coords"
         let top_left_index = tlc.y * self.dimensions.x * 2 + tlc.x;

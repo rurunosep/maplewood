@@ -57,20 +57,8 @@ impl Aabb {
         self.top < point.y && self.bottom > point.y && self.left < point.x && self.right > point.x
     }
 
-    pub fn resolve_collision(&mut self, other: &Self, velocity: Vec2<f64, MapUnits>) {
+    pub fn resolve_collision_along_x(&mut self, other: &Self, velocity: Vec2<f64, MapUnits>) {
         if self.intersects(other) {
-            if self.top < other.bottom && velocity.y < 0. {
-                let depth = other.bottom - self.top + 0.01;
-                self.top += depth;
-                self.bottom += depth;
-            }
-
-            if self.bottom > other.top && velocity.y > 0. {
-                let depth = self.bottom - other.top + 0.01;
-                self.top -= depth;
-                self.bottom -= depth;
-            }
-
             if self.left < other.right && velocity.x < 0. {
                 let depth = other.right - self.left + 0.01;
                 self.left += depth;
@@ -83,6 +71,32 @@ impl Aabb {
                 self.right -= depth;
             }
         }
+    }
+
+    pub fn resolve_collision_along_y(&mut self, other: &Self, velocity: Vec2<f64, MapUnits>) {
+        if self.intersects(other) {
+            if self.top < other.bottom && velocity.y < 0. {
+                let depth = other.bottom - self.top + 0.01;
+                self.top += depth;
+                self.bottom += depth;
+            }
+
+            if self.bottom > other.top && velocity.y > 0. {
+                let depth = self.bottom - other.top + 0.01;
+                self.top -= depth;
+                self.bottom -= depth;
+            }
+        }
+    }
+
+    pub fn resolve_collision(&mut self, other: &Self, velocity: Vec2<f64, MapUnits>) {
+        self.top -= velocity.y;
+        self.bottom -= velocity.y;
+        self.resolve_collision_along_x(other, velocity);
+
+        self.top += velocity.y;
+        self.bottom += velocity.y;
+        self.resolve_collision_along_y(other, velocity);
     }
 
     pub fn center(&self) -> MapPos {
