@@ -121,10 +121,7 @@ pub fn process_input(
     let mut walking_component =
         ecs.query_one_with_name::<&mut Walking>(PLAYER_ENTITY_NAME).unwrap();
     walking_component.velocity = Vec2::default();
-    if message_window.is_none()
-        && walking_component.destination.is_none()
-        && !player_movement_locked
-    {
+    if message_window.is_none() && !player_movement_locked {
         let mut direction: Vec2<f64, MapUnits> = Vec2::default();
         if event_pump.keyboard_state().is_scancode_pressed(Scancode::Up) {
             direction.y -= 1.0;

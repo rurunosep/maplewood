@@ -1,5 +1,5 @@
 use crate::ecs::Component;
-use crate::math::{MapPos, MapUnits, PixelUnits, Rect, Vec2};
+use crate::math::{MapUnits, PixelUnits, Rect, Vec2};
 use crate::misc::Direction;
 use crate::script;
 use crate::world::WorldPos;
@@ -32,6 +32,10 @@ impl Component for Name {}
 pub struct Position(pub WorldPos);
 impl Component for Position {}
 
+// This is an entity's velocity calculated for a single frame
+// It's reset to 0 each frame and then velocity sources and modifiers are applied to it
+// If velocity needs to be preserved across frames to model inertia or momentum, that will be
+// handled by a different component
 #[derive(Default, Clone, Serialize, Deserialize)]
 pub struct Velocity(pub Vec2<f64, MapUnits>);
 impl Component for Velocity {}
@@ -147,13 +151,13 @@ pub enum DualStateAnimationState {
 pub struct NamedAnims(pub HashMap<String, AnimationClip>);
 impl Component for NamedAnims {}
 
+// This represents an entity's capacity to move around of its own free will
+// It's set by player input or by some kind of pathing controller
+// (The pathing controller is probably a separate component?)
+// It applies a velocity every frame and sets appropriate facing
 #[derive(Default, Clone, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Walking {
-    pub speed: f64,
-    pub direction: Direction,
-    pub destination: Option<MapPos>,
-    //
     pub velocity: Vec2<f64, MapUnits>,
 }
 impl Component for Walking {}

@@ -1,11 +1,11 @@
 use crate::components::{
-    AnimationComp, Camera, Collision, DualStateAnimationState, DualStateAnims, Facing, NamedAnims,
-    Position, SfxEmitter, SineOffsetAnimation, Sprite, SpriteComp, Walking,
+    AnimationComp, Camera, Collision, DualStateAnimationState, DualStateAnims, NamedAnims,
+    Position, SfxEmitter, SineOffsetAnimation, Sprite, SpriteComp,
 };
-use crate::data::{CAMERA_ENTITY_NAME, PLAYER_ENTITY_NAME};
+use crate::data::CAMERA_ENTITY_NAME;
 use crate::ecs::{Ecs, EntityId};
 use crate::math::{Rect, Vec2};
-use crate::misc::{Direction, StoryVars};
+use crate::misc::StoryVars;
 use crate::script::WaitCondition;
 use crate::world::WorldPos;
 use crate::{GameData, MessageWindow, UiData};
@@ -101,8 +101,9 @@ pub fn bind_general_callbacks<'scope>(
     )?;
     globals.set(
         "lock_player_input",
-        scope.create_function_mut(|_, args| {
-            lock_player_input(args, *player_movement_locked.borrow_mut(), &game_data.borrow().ecs)
+        scope.create_function_mut(|_, ()| {
+            **player_movement_locked.borrow_mut() = true;
+            Ok(())
         })?,
     )?;
     globals.set(
@@ -123,16 +124,6 @@ pub fn bind_general_callbacks<'scope>(
     globals.set(
         "set_camera_clamp",
         scope.create_function_mut(|_, args| set_camera_clamp(args, &game_data.borrow().ecs))?,
-    )?;
-    globals
-        .set("walk", scope.create_function_mut(|_, args| walk(args, &game_data.borrow().ecs))?)?;
-    globals.set(
-        "walk_to",
-        scope.create_function_mut(|_, args| walk_to(args, &game_data.borrow().ecs))?,
-    )?;
-    globals.set(
-        "is_entity_walking",
-        scope.create_function(|_, args| is_entity_walking(args, &game_data.borrow().ecs))?,
     )?;
     globals.set(
         "play_object_animation",
@@ -337,21 +328,6 @@ pub fn set_entity_solid((entity, enabled): (String, bool), ecs: &Ecs) -> mlua::R
     Ok(())
 }
 
-pub fn lock_player_input(
-    _args: (),
-    player_movement_locked: &mut bool,
-    ecs: &Ecs,
-) -> mlua::Result<()> {
-    *player_movement_locked = true;
-
-    // I'll get to this in the movement rework
-    if let Some(mut walking) = ecs.query_one_with_name::<&mut Walking>(PLAYER_ENTITY_NAME) {
-        walking.speed = 0.;
-    }
-
-    Ok(())
-}
-
 pub fn set_camera_target(entity: String, ecs: &Ecs) -> mlua::Result<()> {
     let mut camera_component = ecs
         .query_one_with_name::<&mut Camera>(CAMERA_ENTITY_NAME)
@@ -373,80 +349,6 @@ pub fn set_camera_clamp(clamp: bool, ecs: &Ecs) -> mlua::Result<()> {
         camera.clamp_to_map = clamp;
     }
     Ok(())
-}
-
-// I'll get to this in the movement rework
-pub fn walk(
-    (entity, direction, distance, speed): (String, String, f64, f64),
-    ecs: &Ecs,
-) -> mlua::Result<()> {
-    let (position, mut walking, facing) = ecs
-        .query_one_with_name::<(&Position, &mut Walking, Option<&mut Facing>)>(&entity)
-        .ok_or(Error(f!("invalid entity `{entity}`")))?;
-
-    walking.direction = match direction.as_str() {
-        "up" => Ok(Direction::Up),
-        "down" => Ok(Direction::Down),
-        "left" => Ok(Direction::Left),
-        "right" => Ok(Direction::Right),
-        s => Err(Error(f!("invalid direction `{s}`"))),
-    }?;
-
-    walking.speed = speed;
-
-    walking.destination = Some(
-        position.map_pos
-            + match walking.direction {
-                Direction::Up => Vec2::new(0., -distance),
-                Direction::Down => Vec2::new(0., distance),
-                Direction::Left => Vec2::new(-distance, 0.),
-                Direction::Right => Vec2::new(distance, 0.),
-            },
-    );
-
-    if let Some(mut facing) = facing {
-        facing.0 = walking.direction;
-    }
-
-    Ok(())
-}
-
-// I'll get to this in the movement rework
-pub fn walk_to(
-    (entity, direction, destination, speed): (String, String, f64, f64),
-    ecs: &Ecs,
-) -> mlua::Result<()> {
-    let (position, mut walking, facing) = ecs
-        .query_one_with_name::<(&Position, &mut Walking, Option<&mut Facing>)>(&entity)
-        .ok_or(Error(f!("invalid entity `{entity}`")))?;
-
-    walking.direction = match direction.as_str() {
-        "up" => Ok(Direction::Up),
-        "down" => Ok(Direction::Down),
-        "left" => Ok(Direction::Left),
-        "right" => Ok(Direction::Right),
-        s => Err(Error(f!("invalid direction `{s}`"))),
-    }?;
-
-    walking.speed = speed;
-
-    walking.destination = Some(match walking.direction {
-        Direction::Up | Direction::Down => Vec2::new(position.map_pos.x, destination),
-        Direction::Left | Direction::Right => Vec2::new(destination, position.map_pos.y),
-    });
-
-    if let Some(mut facing) = facing {
-        facing.0 = walking.direction;
-    }
-
-    Ok(())
-}
-
-pub fn is_entity_walking(entity: String, ecs: &Ecs) -> mlua::Result<bool> {
-    let walking = ecs
-        .query_one_with_name::<&Walking>(&entity)
-        .ok_or(Error(f!("invalid entity `{entity}`")))?;
-    Ok(walking.destination.is_some())
 }
 
 pub fn play_object_animation((entity, repeat): (String, bool), ecs: &Ecs) -> mlua::Result<()> {

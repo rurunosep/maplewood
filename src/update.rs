@@ -9,7 +9,7 @@ use crate::math::{CellPos, MapUnits, Rect, Vec2};
 use crate::misc::{Aabb, Direction};
 use crate::script::{self, ScriptManager};
 use crate::world::World;
-use crate::{GameData, MessageWindow, UiData};
+use crate::{GameData, UiData};
 use sdl2::mixer::{Chunk, Music};
 use std::collections::HashMap;
 use std::time::Duration;
@@ -32,14 +32,12 @@ pub fn update(
         game_data, ui_data, player_movement_locked, running, musics, sound_effects,
     );
 
-    stop_player_movement_when_message_window_open(&game_data.ecs, &ui_data.message_window);
-
-    set_velocity_from_walking(&game_data.ecs);
+    initialize_velocity_to_zero(&game_data.ecs);
+    apply_walking_velocity(&game_data.ecs);
     apply_velocity_to_position(&game_data.ecs);
     start_collision_trigger_scripts(&game_data.ecs, script_manager);
     resolve_collisions_with_tiles(&game_data.ecs, &game_data.world);
     resolve_collisions_with_entities(&game_data.ecs);
-    end_walking_if_destination_reached(&game_data.ecs);
 
     update_camera(&game_data.ecs, &game_data.world);
 
@@ -117,7 +115,7 @@ fn update_character_animations(ecs: &Ecs) {
         }
         .clone();
 
-        if walk_comp.speed > 0. {
+        if walk_comp.velocity.length() > 0. {
             if anim_comp.state == PlaybackState::Stopped {
                 anim_comp.start(true);
             }
@@ -192,15 +190,15 @@ fn play_animations_and_set_sprites(ecs: &Ecs, delta: Duration) {
 // Movement and Collision
 // ------------------------------------------------------------------
 
-fn set_velocity_from_walking(ecs: &Ecs) {
+fn initialize_velocity_to_zero(ecs: &Ecs) {
+    for mut velocity in ecs.query::<&mut Velocity>() {
+        velocity.0 = Vec2::default();
+    }
+}
+
+fn apply_walking_velocity(ecs: &Ecs) {
     for (mut velocity, walking) in ecs.query::<(&mut Velocity, &Walking)>() {
-        // velocity.0 = match walking.direction {
-        //     Direction::Up => Vec2::new(0.0, -walking.speed),
-        //     Direction::Down => Vec2::new(0.0, walking.speed),
-        //     Direction::Left => Vec2::new(-walking.speed, 0.0),
-        //     Direction::Right => Vec2::new(walking.speed, 0.0),
-        // }
-        velocity.0 = walking.velocity;
+        velocity.0 += walking.velocity;
     }
 }
 
@@ -307,42 +305,9 @@ fn resolve_collisions_with_entities(ecs: &Ecs) {
     }
 }
 
-fn end_walking_if_destination_reached(ecs: &Ecs) {
-    for (mut position, mut walking) in ecs.query::<(&mut Position, &mut Walking)>() {
-        if let Some(destination) = walking.destination {
-            let passed_destination = match walking.direction {
-                Direction::Up => position.map_pos.y < destination.y,
-                Direction::Down => position.map_pos.y > destination.y,
-                Direction::Left => position.map_pos.x < destination.x,
-                Direction::Right => position.map_pos.x > destination.x,
-            };
-            if passed_destination {
-                position.map_pos = destination;
-                walking.speed = 0.;
-                walking.destination = None;
-            }
-        }
-    }
-}
-
 // ------------------------------------------------------------------
 // Misc
 // ------------------------------------------------------------------
-
-fn stop_player_movement_when_message_window_open(
-    ecs: &Ecs,
-    message_window: &Option<MessageWindow>,
-) {
-    // Stop player movement when message window is open, but only if that movement is
-    // from player input, not forced
-    if message_window.is_some()
-        && let Some(mut walking_component) =
-            ecs.query_one_with_name::<&mut Walking>(PLAYER_ENTITY_NAME)
-        && walking_component.destination.is_none()
-    {
-        walking_component.speed = 0.;
-    }
-}
 
 fn end_sine_offset_animations(ecs: &mut Ecs) {
     for (id, soa) in ecs.query::<(EntityId, &SineOffsetAnimation)>() {
