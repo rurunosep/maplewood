@@ -1,12 +1,12 @@
 use crate::components::{
     AnimationComp, AreaTrigger, Camera, CharacterAnims, Collision, CollisionTrigger,
-    DualStateAnimationState, DualStateAnims, Facing, Name, PlaybackState, Position, SfxEmitter,
-    SineOffsetAnimation, SpriteComp, Velocity, Walking,
+    DualStateAnimationState, DualStateAnims, Facing, Name, Pathing, PlaybackState, Position,
+    SfxEmitter, SineOffsetAnimation, SpriteComp, Velocity, Walking,
 };
 use crate::data::PLAYER_ENTITY_NAME;
 use crate::ecs::{Ecs, EntityId};
 use crate::math::{MapUnits, Rect, Vec2};
-use crate::misc::{Aabb, Direction};
+use crate::misc::{Aabb, DEFAULT_WALKING_SPEED, Direction};
 use crate::script::{self, ScriptManager};
 use crate::world::World;
 use crate::{GameData, UiData};
@@ -31,6 +31,8 @@ pub fn update(
     script_manager.update(
         game_data, ui_data, player_movement_locked, running, musics, sound_effects,
     );
+
+    walk_towards_pathing_target(&game_data.ecs);
 
     initialize_velocity_to_zero(&game_data.ecs);
     apply_walking_velocity(&game_data.ecs);
@@ -188,6 +190,28 @@ fn play_animations_and_set_sprites(ecs: &Ecs, delta: Duration) {
 // ------------------------------------------------------------------
 // Movement and Collision
 // ------------------------------------------------------------------
+
+fn walk_towards_pathing_target(ecs: &Ecs) {
+    for (mut walking, mut position, mut pathing, velocity) in
+        ecs.query::<(&mut Walking, &mut Position, &mut Pathing, &Velocity)>()
+    {
+        let Some(target) = pathing.target else {
+            continue;
+        };
+
+        let to_target = target - position.map_pos;
+
+        // If to_target and velocity point in generally opposite directions, the target
+        // has been reached and overshot
+        if to_target.dot(velocity.0) < 0.0 {
+            position.map_pos = target;
+            pathing.target = None;
+            continue;
+        }
+
+        walking.velocity = to_target.normalize() * DEFAULT_WALKING_SPEED;
+    }
+}
 
 fn initialize_velocity_to_zero(ecs: &Ecs) {
     for mut velocity in ecs.query::<&mut Velocity>() {

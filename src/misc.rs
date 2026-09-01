@@ -9,6 +9,7 @@ use tap::TapOptional;
 
 pub const WINDOW_SIZE: Vec2<u32, PixelUnits> = Vec2::new(1920, 1080);
 pub const CELL_SIZE: u32 = 16;
+pub const DEFAULT_WALKING_SPEED: f64 = 0.12;
 
 // Fallible version of Regex::replace_all mostly copy pasted from the docs
 pub fn try_replace_all(

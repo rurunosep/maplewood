@@ -1,5 +1,5 @@
 use crate::components::{
-    AnimationComp, Camera, Collision, DualStateAnimationState, DualStateAnims, NamedAnims,
+    AnimationComp, Camera, Collision, DualStateAnimationState, DualStateAnims, NamedAnims, Pathing,
     Position, SfxEmitter, SineOffsetAnimation, Sprite, SpriteComp,
 };
 use crate::data::CAMERA_ENTITY_NAME;
@@ -98,6 +98,14 @@ pub fn bind_general_callbacks<'scope>(
     globals.set(
         "set_entity_solid",
         scope.create_function_mut(|_, args| set_entity_solid(args, &game_data.borrow().ecs))?,
+    )?;
+    globals.set(
+        "path_to",
+        scope.create_function_mut(|_, args| path_to(args, &game_data.borrow().ecs))?,
+    )?;
+    globals.set(
+        "is_entity_pathing",
+        scope.create_function_mut(|_, args| is_entity_pathing(args, &game_data.borrow().ecs))?,
     )?;
     globals.set(
         "lock_player_input",
@@ -326,6 +334,21 @@ pub fn set_entity_solid((entity, enabled): (String, bool), ecs: &Ecs) -> mlua::R
         .ok_or(Error(f!("invalid entity `{entity}`")))?;
     collision.solid = enabled;
     Ok(())
+}
+
+pub fn path_to((entity, x, y): (String, f64, f64), ecs: &Ecs) -> mlua::Result<()> {
+    let mut pathing = ecs
+        .query_one_with_name::<&mut Pathing>(&entity)
+        .ok_or(Error(f!("invalid entity `{entity}`")))?;
+    pathing.target = Some(Vec2::new(x, y));
+    Ok(())
+}
+
+pub fn is_entity_pathing(entity: String, ecs: &Ecs) -> mlua::Result<bool> {
+    let pathing = ecs
+        .query_one_with_name::<&Pathing>(&entity)
+        .ok_or(Error(f!("invalid entity `{entity}`")))?;
+    Ok(pathing.target.is_some())
 }
 
 pub fn set_camera_target(entity: String, ecs: &Ecs) -> mlua::Result<()> {

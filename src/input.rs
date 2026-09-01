@@ -1,7 +1,7 @@
 use crate::components::{Facing, InteractionTrigger, Position, Walking};
 use crate::data::PLAYER_ENTITY_NAME;
 use crate::math::{MapUnits, Vec2};
-use crate::misc::{Aabb, Direction};
+use crate::misc::{Aabb, DEFAULT_WALKING_SPEED, Direction};
 use crate::script::ScriptManager;
 use crate::{DevUi, GameData, MessageWindow};
 use sdl2::event::Event;
@@ -56,7 +56,9 @@ pub fn process_input(
         if !player_movement_locked && message_window.is_none() {
             match event {
                 // Set player facing
-                // (facing depends on last directional key pressed, independent of movement)
+                // Facing depends on last directional key pressed, independent of movement
+                // (Or should facing be set by walking direction? In the case of the player, I like
+                // it being set by the last directional key pressed.)
                 Event::KeyDown { keycode: Some(keycode), .. }
                     if keycode == Keycode::Up
                         || keycode == Keycode::Down
@@ -120,9 +122,9 @@ pub fn process_input(
     // Player movement
     let mut walking_component =
         ecs.query_one_with_name::<&mut Walking>(PLAYER_ENTITY_NAME).unwrap();
-    walking_component.velocity = Vec2::default();
+    walking_component.velocity = Vec2::new(0., 0.);
     if message_window.is_none() && !player_movement_locked {
-        let mut direction: Vec2<f64, MapUnits> = Vec2::default();
+        let mut direction: Vec2<f64, MapUnits> = Vec2::new(0., 0.);
         if event_pump.keyboard_state().is_scancode_pressed(Scancode::Up) {
             direction.y -= 1.0;
         }
@@ -135,9 +137,6 @@ pub fn process_input(
         if event_pump.keyboard_state().is_scancode_pressed(Scancode::Right) {
             direction.x += 1.0;
         }
-        if direction.length() != 0.0 {
-            direction = direction.normalize();
-        }
-        walking_component.velocity = direction * 0.12;
+        walking_component.velocity = direction.normalize() * DEFAULT_WALKING_SPEED;
     }
 }

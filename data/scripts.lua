@@ -9,6 +9,9 @@ message("But you can't sleep without a plushy.")
 message("Legend says the kid in the classroom has a plushy.")
 message("(Press SPACE to interact and ~ to check out the dev UI.)")
 
+path_to_wait("_player", 10, 3.5)
+message("done")
+
 ---@script school_kid
 
 local stages = {

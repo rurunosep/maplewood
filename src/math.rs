@@ -113,8 +113,16 @@ impl<T: Real + Copy, U> Vec2<T, U> {
 }
 
 impl<T: Real + Copy, U> Vec2<T, U> {
+    // If the vector has zero length, return a zero vector rather than NaN
+    // Technically wrong, but much safer and still useful
     pub fn normalize(self) -> Self {
-        self / self.length()
+        if self.length().is_zero() { Vec2::new(T::zero(), T::zero()) } else { self / self.length() }
+    }
+}
+
+impl<T: Add<Output = T> + Mul<Output = T> + Copy, U> Vec2<T, U> {
+    pub fn dot(self, other: Self) -> T {
+        self.x * other.x + self.y * other.y
     }
 }
 

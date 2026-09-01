@@ -163,6 +163,12 @@ pub struct Walking {
 impl Component for Walking {}
 
 #[derive(Default, Clone, Serialize, Deserialize)]
+pub struct Pathing {
+    pub target: Option<Vec2<f64, MapUnits>>,
+}
+impl Component for Pathing {}
+
+#[derive(Default, Clone, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Camera {
     // This should be an Option<EntityIdentifier> when the time comes
