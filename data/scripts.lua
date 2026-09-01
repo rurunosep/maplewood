@@ -9,9 +9,6 @@ message("But you can't sleep without a plushy.")
 message("Legend says the kid in the classroom has a plushy.")
 message("(Press SPACE to interact and ~ to check out the dev UI.)")
 
-path_to_wait("_player", 10, 3.5)
-message("done")
-
 ---@script school_kid
 
 local stages = {
@@ -102,24 +99,27 @@ local stages = {
     lock_player_input()
     remove_camera_target()
 
-    walk("_camera", "up", 4, 0.05)
-    walk_wait("bakery_girl", "up", 0.75, 0.08)
-    walk_wait("bakery_girl", "left", 8, 0.08)
-    walk_wait("bakery_girl", "up", 4.5, 0.08)
-    walk_wait("bakery_girl", "right", 6.5, 0.08)
-    walk_wait("bakery_girl", "up", 0, 0.08)
+    set_walk_speed("_camera", 0.05)
+    path_rel("_camera", "up", 4)
+
+    set_walk_speed("bakery_girl", 0.08)
+    path_rel_wait("bakery_girl", "up", 0.75)
+    path_rel_wait("bakery_girl", "left", 8)
+    path_rel_wait("bakery_girl", "up", 4.5)
+    path_rel_wait("bakery_girl", "right", 6.5)
+    set_facing("bakery_girl", "up")
     wait(1)
-    walk_wait("bakery_girl", "left", 6.5, 0.08)
-    walk_wait("bakery_girl", "down", 4.5, 0.08)
-    walk_wait("bakery_girl", "right", 8, 0.08)
-    walk_wait("bakery_girl", "down", 0.4, 0.08)
+    path_rel_wait("bakery_girl", "left", 6.5)
+    path_rel_wait("bakery_girl", "down", 4.5)
+    path_rel_wait("bakery_girl", "right", 8)
+    path_rel_wait("bakery_girl", "down", 0.4)
     wait(0.5)
     message("\"Here's your bun!\"")
     wait(1)
     set_entity_visible("bakery::fire", true)
     play_sfx("flame")
     wait(1)
-    walk("_camera", "down", 4, 0.05)
+    path_rel("_camera", "down", 4)
     wait(2)
     message("\"Take care!\"")
 
@@ -146,9 +146,11 @@ stages[get_story_var("bakery_girl::stage")]()
 ---@start_condition {bakery_girl::stage} == 4
 set_story_var("bakery_girl::stage", 5)
 
+set_walk_speed("bakery_girl", 0.08)
+
 while true do
-  walk_wait("bakery_girl", "left", 2, 0.12)
-  walk_wait("bakery_girl", "right", 2, 0.12)
+  path_rel_wait("bakery_girl", "left", 2)
+  path_rel_wait("bakery_girl", "right", 2)
 end
 
 ---@script bathroom::door
@@ -207,7 +209,8 @@ if get_story_var("main::pen_found") == 1 and get_story_var("bathroom::flooded") 
   set_entity_world_pos("_player", "hallway", 3.5, 3.5)
 
   wait(1)
-  walk_to_wait("_camera", "up", 6.01, 0.05)
+  set_walk_speed("_camera", 0.05)
+  path_to_wait("_camera", "up", 6.01)
   wait(1)
   switch_dual_state_animation("bathroom::sink_1", 2)
   play_sfx("faucet")

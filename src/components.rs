@@ -152,13 +152,15 @@ pub struct NamedAnims(pub HashMap<String, AnimationClip>);
 impl Component for NamedAnims {}
 
 // This represents an entity's capacity to move around of its own free will
-// It's set by player input or by some kind of pathing controller
-// (The pathing controller is probably a separate component?)
+// It's set by player input or by a pathing component
 // It applies a velocity every frame and sets appropriate facing
-#[derive(Default, Clone, Serialize, Deserialize)]
+#[derive(SmartDefault, Clone, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Walking {
     pub velocity: Vec2<f64, MapUnits>,
+    // This is the speed the entity moves at when it moves, rather than the actual current speed
+    #[default = 0.12]
+    pub speed: f64,
 }
 impl Component for Walking {}
 

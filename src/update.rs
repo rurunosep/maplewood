@@ -6,10 +6,11 @@ use crate::components::{
 use crate::data::PLAYER_ENTITY_NAME;
 use crate::ecs::{Ecs, EntityId};
 use crate::math::{MapUnits, Rect, Vec2};
-use crate::misc::{Aabb, DEFAULT_WALKING_SPEED, Direction};
+use crate::misc::{Aabb, Direction};
 use crate::script::{self, ScriptManager};
 use crate::world::World;
 use crate::{GameData, UiData};
+use num_traits::Zero;
 use sdl2::mixer::{Chunk, Music};
 use std::collections::HashMap;
 use std::time::Duration;
@@ -33,6 +34,7 @@ pub fn update(
     );
 
     walk_towards_pathing_target(&game_data.ecs);
+    set_facing_from_walking(&game_data.ecs);
 
     initialize_velocity_to_zero(&game_data.ecs);
     apply_walking_velocity(&game_data.ecs);
@@ -191,28 +193,6 @@ fn play_animations_and_set_sprites(ecs: &Ecs, delta: Duration) {
 // Movement and Collision
 // ------------------------------------------------------------------
 
-fn walk_towards_pathing_target(ecs: &Ecs) {
-    for (mut walking, mut position, mut pathing, velocity) in
-        ecs.query::<(&mut Walking, &mut Position, &mut Pathing, &Velocity)>()
-    {
-        let Some(target) = pathing.target else {
-            continue;
-        };
-
-        let to_target = target - position.map_pos;
-
-        // If to_target and velocity point in generally opposite directions, the target
-        // has been reached and overshot
-        if to_target.dot(velocity.0) < 0.0 {
-            position.map_pos = target;
-            pathing.target = None;
-            continue;
-        }
-
-        walking.velocity = to_target.normalize() * DEFAULT_WALKING_SPEED;
-    }
-}
-
 fn initialize_velocity_to_zero(ecs: &Ecs) {
     for mut velocity in ecs.query::<&mut Velocity>() {
         velocity.0 = Vec2::default();
@@ -347,13 +327,45 @@ fn resolve_collisions(ecs: &Ecs, world: &World) {
 // Misc
 // ------------------------------------------------------------------
 
-fn end_sine_offset_animations(ecs: &mut Ecs) {
-    for (id, soa) in ecs.query::<(EntityId, &SineOffsetAnimation)>() {
-        if soa.start_time.elapsed() > soa.duration {
-            ecs.remove_component_deferred::<SineOffsetAnimation>(id);
+fn walk_towards_pathing_target(ecs: &Ecs) {
+    for (mut walking, mut position, mut pathing, velocity) in
+        ecs.query::<(&mut Walking, &mut Position, &mut Pathing, &Velocity)>()
+    {
+        let Some(target) = pathing.target else {
+            continue;
+        };
+
+        let to_target = target - position.map_pos;
+
+        // If to_target and velocity point in generally opposite directions, the target
+        // has been reached and overshot
+        if to_target.dot(velocity.0) < 0.0 || to_target.length().is_zero() {
+            position.map_pos = target;
+            pathing.target = None;
+            walking.velocity = Vec2::new(0., 0.);
+            continue;
         }
+
+        walking.velocity = to_target.normalize() * walking.speed;
     }
-    ecs.flush_deferred_mutations();
+}
+
+fn set_facing_from_walking(ecs: &Ecs) {
+    for (mut facing, walking) in ecs.query::<(&mut Facing, &Walking)>() {
+        let direction = walking.velocity.normalize();
+        if direction.dot(Vec2::new(0., -1.)) > 0.7 {
+            facing.0 = Direction::Up
+        };
+        if direction.dot(Vec2::new(0., 1.)) > 0.7 {
+            facing.0 = Direction::Down
+        };
+        if direction.dot(Vec2::new(-1., -0.)) > 0.7 {
+            facing.0 = Direction::Left
+        };
+        if direction.dot(Vec2::new(1., 0.)) > 0.7 {
+            facing.0 = Direction::Right
+        };
+    }
 }
 
 fn update_camera(ecs: &Ecs, world: &World) {
@@ -442,4 +454,13 @@ fn update_sfx_emitting_entities(ecs: &Ecs, sound_effects: &HashMap<String, Chunk
             sfx.channel = None;
         }
     }
+}
+
+fn end_sine_offset_animations(ecs: &mut Ecs) {
+    for (id, soa) in ecs.query::<(EntityId, &SineOffsetAnimation)>() {
+        if soa.start_time.elapsed() > soa.duration {
+            ecs.remove_component_deferred::<SineOffsetAnimation>(id);
+        }
+    }
+    ecs.flush_deferred_mutations();
 }

@@ -11,6 +11,11 @@ function path_to_wait(entity, x, y)
   wait_until_not_pathing(entity)
 end
 
+function path_rel_wait(entity, direction, distance)
+  path_rel(entity, direction, distance)
+  wait_until_not_pathing(entity)
+end
+
 function wait_until_not_pathing(entity)
   while (is_entity_pathing(entity)) do
     line_yielded_at = current_line(3)

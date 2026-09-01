@@ -1,11 +1,11 @@
 use crate::components::{
-    AnimationComp, Camera, Collision, DualStateAnimationState, DualStateAnims, NamedAnims, Pathing,
-    Position, SfxEmitter, SineOffsetAnimation, Sprite, SpriteComp,
+    AnimationComp, Camera, Collision, DualStateAnimationState, DualStateAnims, Facing, NamedAnims,
+    Pathing, Position, SfxEmitter, SineOffsetAnimation, Sprite, SpriteComp, Walking,
 };
 use crate::data::CAMERA_ENTITY_NAME;
 use crate::ecs::{Ecs, EntityId};
-use crate::math::{Rect, Vec2};
-use crate::misc::StoryVars;
+use crate::math::{MapUnits, Rect, Vec2};
+use crate::misc::{Direction, StoryVars};
 use crate::script::WaitCondition;
 use crate::world::WorldPos;
 use crate::{GameData, MessageWindow, UiData};
@@ -104,8 +104,20 @@ pub fn bind_general_callbacks<'scope>(
         scope.create_function_mut(|_, args| path_to(args, &game_data.borrow().ecs))?,
     )?;
     globals.set(
+        "path_rel",
+        scope.create_function_mut(|_, args| path_rel(args, &game_data.borrow().ecs))?,
+    )?;
+    globals.set(
         "is_entity_pathing",
         scope.create_function_mut(|_, args| is_entity_pathing(args, &game_data.borrow().ecs))?,
+    )?;
+    globals.set(
+        "set_walk_speed",
+        scope.create_function_mut(|_, args| set_walk_speed(args, &game_data.borrow().ecs))?,
+    )?;
+    globals.set(
+        "set_facing",
+        scope.create_function_mut(|_, args| set_facing(args, &game_data.borrow().ecs))?,
     )?;
     globals.set(
         "lock_player_input",
@@ -344,6 +356,53 @@ pub fn path_to((entity, x, y): (String, f64, f64), ecs: &Ecs) -> mlua::Result<()
     Ok(())
 }
 
+pub fn path_rel(
+    (entity, direction, distance): (String, String, f64),
+    ecs: &Ecs,
+) -> mlua::Result<()> {
+    let (mut pathing, position) = ecs
+        .query_one_with_name::<(&mut Pathing, &Position)>(&entity)
+        .ok_or(Error(f!("invalid entity `{entity}`")))?;
+
+    let direction: Vec2<f64, MapUnits> = match direction.as_str() {
+        "up" => Ok(Vec2::new(0., -1.)),
+        "down" => Ok(Vec2::new(0., 1.)),
+        "left" => Ok(Vec2::new(-1., 0.)),
+        "right" => Ok(Vec2::new(1., 0.)),
+        s => Err(Error(f!("invalid direction `{s}`"))),
+    }?;
+
+    pathing.target = Some(position.map_pos + (direction * distance));
+
+    Ok(())
+}
+
+pub fn set_walk_speed((entity, speed): (String, f64), ecs: &Ecs) -> mlua::Result<()> {
+    let mut walking = ecs
+        .query_one_with_name::<&mut Walking>(&entity)
+        .ok_or(Error(f!("invalid entity `{entity}`")))?;
+    walking.speed = speed;
+    Ok(())
+}
+
+pub fn set_facing((entity, direction): (String, String), ecs: &Ecs) -> mlua::Result<()> {
+    let mut facing = ecs
+        .query_one_with_name::<&mut Facing>(&entity)
+        .ok_or(Error(f!("invalid entity `{entity}`")))?;
+
+    let direction = match direction.as_str() {
+        "up" => Ok(Direction::Up),
+        "down" => Ok(Direction::Down),
+        "left" => Ok(Direction::Left),
+        "right" => Ok(Direction::Right),
+        s => Err(Error(f!("invalid direction `{s}`"))),
+    }?;
+
+    facing.0 = direction;
+
+    Ok(())
+}
+
 pub fn is_entity_pathing(entity: String, ecs: &Ecs) -> mlua::Result<bool> {
     let pathing = ecs
         .query_one_with_name::<&Pathing>(&entity)
@@ -378,7 +437,6 @@ pub fn play_object_animation((entity, repeat): (String, bool), ecs: &Ecs) -> mlu
     let mut anim_comp = ecs
         .query_one_with_name::<&mut AnimationComp>(&entity)
         .ok_or(Error(f!("invalid entity `{entity}`")))?;
-
     anim_comp.start(repeat);
     Ok(())
 }

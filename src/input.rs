@@ -1,7 +1,7 @@
 use crate::components::{Facing, InteractionTrigger, Position, Walking};
 use crate::data::PLAYER_ENTITY_NAME;
 use crate::math::{MapUnits, Vec2};
-use crate::misc::{Aabb, DEFAULT_WALKING_SPEED, Direction};
+use crate::misc::{Aabb, Direction};
 use crate::script::ScriptManager;
 use crate::{DevUi, GameData, MessageWindow};
 use sdl2::event::Event;
@@ -46,6 +46,8 @@ pub fn process_input(
             Event::KeyDown { keycode: Some(Keycode::Return | Keycode::Space), .. } => {
                 if message_window.is_some() {
                     *message_window = None;
+                    // Consume the input
+                    continue;
                 }
             }
             _ => {}
@@ -55,29 +57,6 @@ pub fn process_input(
         // TODO rename player_movement_locked. it's actually player control locked, in general.
         if !player_movement_locked && message_window.is_none() {
             match event {
-                // Set player facing
-                // Facing depends on last directional key pressed, independent of movement
-                // (Or should facing be set by walking direction? In the case of the player, I like
-                // it being set by the last directional key pressed.)
-                Event::KeyDown { keycode: Some(keycode), .. }
-                    if keycode == Keycode::Up
-                        || keycode == Keycode::Down
-                        || keycode == Keycode::Left
-                        || keycode == Keycode::Right =>
-                {
-                    if let Some(mut facing) =
-                        ecs.query_one_with_name::<&mut Facing>(PLAYER_ENTITY_NAME)
-                    {
-                        facing.0 = match keycode {
-                            Keycode::Up => Direction::Up,
-                            Keycode::Down => Direction::Down,
-                            Keycode::Left => Direction::Left,
-                            Keycode::Right => Direction::Right,
-                            _ => unreachable!(),
-                        };
-                    }
-                }
-
                 // Interact with entity to start script
                 Event::KeyDown { keycode: Some(Keycode::Return | Keycode::Space), .. } => {
                     // Select a specific point some distance in front of the player to check
@@ -120,9 +99,8 @@ pub fn process_input(
     // State-based input processing
 
     // Player movement
-    let mut walking_component =
-        ecs.query_one_with_name::<&mut Walking>(PLAYER_ENTITY_NAME).unwrap();
-    walking_component.velocity = Vec2::new(0., 0.);
+    let mut walking = ecs.query_one_with_name::<&mut Walking>(PLAYER_ENTITY_NAME).unwrap();
+    walking.velocity = Vec2::new(0., 0.);
     if message_window.is_none() && !player_movement_locked {
         let mut direction: Vec2<f64, MapUnits> = Vec2::new(0., 0.);
         if event_pump.keyboard_state().is_scancode_pressed(Scancode::Up) {
@@ -137,6 +115,6 @@ pub fn process_input(
         if event_pump.keyboard_state().is_scancode_pressed(Scancode::Right) {
             direction.x += 1.0;
         }
-        walking_component.velocity = direction.normalize() * DEFAULT_WALKING_SPEED;
+        walking.velocity = direction.normalize() * walking.speed;
     }
 }

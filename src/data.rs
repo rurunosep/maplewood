@@ -83,6 +83,7 @@ pub fn load_entities_from_source(ecs: &mut Ecs) {
     ecs.add_component(id, Position::default());
     ecs.add_component(id, Velocity::default());
     ecs.add_component(id, Walking::default());
+    ecs.add_component(id, Pathing::default());
 
     // Bathroom door blocker
     let id = ecs.add_entity();
@@ -149,6 +150,7 @@ pub fn load_entities_from_source(ecs: &mut Ecs) {
     // Bakery girl extension
     let id = ecs.query_one_with_name::<EntityId>("bakery_girl").unwrap();
     ecs.add_component(id, Velocity::default());
+    ecs.add_component(id, Pathing::default());
     ecs.add_component(
         id,
         InteractionTrigger {
