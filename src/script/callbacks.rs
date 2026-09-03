@@ -6,13 +6,13 @@ use crate::data::CAMERA_ENTITY_NAME;
 use crate::ecs::{Ecs, EntityId};
 use crate::math::{MapUnits, Rect, Vec2};
 use crate::misc::{Direction, StoryVars};
-use crate::script::WaitCondition;
+use crate::script::{self, WaitCondition};
 use crate::world::WorldPos;
 use crate::{GameData, MessageWindow, UiData};
 use mlua::{Function, Scope, Table};
 use sdl2::mixer::{Chunk, Music};
 use std::cell::RefCell;
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::fmt::{self, Display};
 use std::format as f;
 use std::sync::Arc;
@@ -54,6 +54,7 @@ pub fn bind_general_callbacks<'scope>(
     running: &'scope mut bool,
     musics: &'scope HashMap<String, Music>,
     sound_effects: &'scope HashMap<String, Chunk>,
+    script_start_queue: &'scope mut VecDeque<String>,
 ) -> mlua::Result<()> {
     globals.set(
         "get",
@@ -64,6 +65,10 @@ pub fn bind_general_callbacks<'scope>(
         scope.create_function_mut(|_, args| {
             set_story_var(args, &mut game_data.borrow_mut().story_vars)
         })?,
+    )?;
+    globals.set(
+        "start_script_from_file",
+        scope.create_function_mut(|_, args| start_script_from_file(args, script_start_queue))?,
     )?;
     globals.set(
         "get_entity_map_pos",
@@ -271,6 +276,16 @@ pub fn get_story_var(key: String, story_vars: &StoryVars) -> mlua::Result<i32> {
 
 pub fn set_story_var((key, val): (String, i32), story_vars: &mut StoryVars) -> mlua::Result<()> {
     story_vars.set(&key, val);
+    Ok(())
+}
+
+pub fn start_script_from_file(
+    (file_path, script_name): (String, String),
+    script_start_queue: &mut VecDeque<String>,
+) -> mlua::Result<()> {
+    let source =
+        script::read_script_from_file(file_path, &script_name).map_err(|e| Error(e.to_string()))?;
+    script_start_queue.push_back(source);
     Ok(())
 }
 

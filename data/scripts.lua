@@ -1,17 +1,19 @@
 ---@diagnostic disable: unreachable-code
 
--- --- @script start
--- --- @start_condition {start_script::started} == 0
--- set("start_script::started", 1)
+---@script start
+---@start_condition {start_script::started} == 0
+set("start_script::started", 1)
 
 -- message("You're sooo sleepy.")
 -- message("But you can't sleep without a plushy.")
 -- message("Legend says the kid in the classroom has a plushy.")
 -- message("(Press SPACE to interact and ~ to check out the dev UI.)")
 
----@script start
----@start_condition {start_script::started} == 0
-set("start_script::started", 1)
+start_script_from_file("data/scripts.lua", "star_move")
+set_entity_world_pos("bakery_girl", "overworld", 1, 3)
+start_script_from_file("data/scripts.lua", "face")
+
+---@script star_move
 
 while true do
   walk_to_wait("_player", 0, 4)
@@ -22,9 +24,6 @@ while true do
 end
 
 ---@script face
----@start_condition {face_script::started} == 0
-set("face_script::started", 1)
-set_entity_world_pos("bakery_girl", "overworld", 1, 3)
 
 while true do
   x, y = get_entity_map_pos("_player")

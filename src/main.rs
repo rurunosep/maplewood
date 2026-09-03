@@ -110,7 +110,6 @@ fn main() {
     let auto_scripts = vec![
         script::read_script_from_file("data/scripts.lua", "start").unwrap(),
         script::read_script_from_file("data/scripts.lua", "bakery_girl::panic").unwrap(),
-        script::read_script_from_file("data/scripts.lua", "face").unwrap(),
     ];
 
     let mut game_data = GameData { world, ecs, story_vars, auto_scripts };
@@ -153,7 +152,7 @@ fn main() {
 
         #[rustfmt::skip]
         console_command_executor.execute(
-            &mut game_data, &mut ui_data, &mut player_movement_locked, &mut running,
+            &mut game_data, &mut ui_data, &mut script_manager, &mut player_movement_locked, &mut running,
             &musics, &sound_effects,
         );
 

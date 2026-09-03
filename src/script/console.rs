@@ -1,4 +1,4 @@
-use crate::script::callbacks;
+use crate::script::{ScriptManager, callbacks};
 use crate::{GameData, UiData};
 use mlua::{FromLuaMulti, Lua};
 use sdl2::mixer::{Chunk, Music};
@@ -17,6 +17,7 @@ impl ConsoleCommandExecutor {
         &mut self,
         game_data: &mut GameData,
         ui_data: &mut UiData,
+        script_manager: &mut ScriptManager,
         player_movement_locked: &mut bool,
         running: &mut bool,
         musics: &HashMap<String, Music>,
@@ -33,7 +34,7 @@ impl ConsoleCommandExecutor {
                 #[rustfmt::skip]
                 callbacks::bind_general_callbacks(
                     scope, &globals, &game_data, &player_movement_locked, running,
-                    musics, sound_effects,
+                    musics, sound_effects, &mut script_manager.start_queue
                 )?;
 
                 callbacks::bind_console_only_callbacks(scope, &globals, &game_data, &ui_data)?;

@@ -18,7 +18,7 @@ new_key_type! { pub struct ScriptInstanceId; }
 
 pub struct ScriptManager {
     pub instances: SlotMap<ScriptInstanceId, ScriptInstance>,
-    start_queue: VecDeque<String>,
+    pub start_queue: VecDeque<String>,
 }
 
 pub struct ScriptInstance {
@@ -56,6 +56,7 @@ impl ScriptManager {
         musics: &HashMap<String, Music>,
         sound_effects: &HashMap<String, Chunk>,
     ) {
+        // TODO mem take????
         for source in std::mem::take(&mut self.start_queue) {
             self.start_script(&source, &game_data.story_vars);
         }
@@ -64,7 +65,7 @@ impl ScriptManager {
             #[rustfmt::skip]
             instance.update(
                 game_data, ui_data, player_movement_locked, running, musics,
-                sound_effects,
+                sound_effects, &mut self.start_queue,                
             );
         }
 
@@ -131,7 +132,7 @@ impl ScriptManager {
 }
 
 impl ScriptInstance {
-    pub fn update(
+    fn update(
         &mut self,
         game_data: &mut GameData,
         ui_data: &mut UiData,
@@ -139,6 +140,7 @@ impl ScriptInstance {
         running: &mut bool,
         musics: &HashMap<String, Music>,
         sound_effects: &HashMap<String, Chunk>,
+        script_start_queue: &mut VecDeque<String>,
     ) {
         // Update wait condition and skip if still waiting
         self.wait_condition = match self.wait_condition.clone() {
@@ -163,7 +165,7 @@ impl ScriptInstance {
                 #[rustfmt::skip]
                 callbacks::bind_general_callbacks(
                     scope, &globals, &game_data, &player_movement_locked, running,
-                    musics, sound_effects,
+                    musics, sound_effects, script_start_queue
                 )?;
 
                 #[rustfmt::skip]
