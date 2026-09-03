@@ -115,6 +115,6 @@ pub fn process_input(
         if event_pump.keyboard_state().is_scancode_pressed(Scancode::Right) {
             direction.x += 1.0;
         }
-        walking.velocity = direction.normalize() * walking.speed;
+        walking.velocity = direction.normalize() * walking.default_speed;
     }
 }

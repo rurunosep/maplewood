@@ -6,13 +6,18 @@ function wrap_yielding(f)
   end
 end
 
-function path_to_wait(entity, x, y)
-  path_to(entity, x, y)
+function yield()
+  line_yielded_at = current_line(2)
+  coroutine.yield()
+end
+
+function walk_wait(entity, direction, distance, speed)
+  walk(entity, direction, distance, speed)
   wait_until_not_pathing(entity)
 end
 
-function path_rel_wait(entity, direction, distance)
-  path_rel(entity, direction, distance)
+function walk_to_wait(entity, x, y, speed)
+  walk_to(entity, x, y, speed)
   wait_until_not_pathing(entity)
 end
 

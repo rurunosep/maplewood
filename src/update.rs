@@ -346,12 +346,16 @@ fn walk_towards_pathing_target(ecs: &Ecs) {
             continue;
         }
 
-        walking.velocity = to_target.normalize() * walking.speed;
+        walking.velocity = to_target.normalize() * pathing.speed.unwrap_or(walking.default_speed);
     }
 }
 
 fn set_facing_from_walking(ecs: &Ecs) {
     for (mut facing, walking) in ecs.query::<(&mut Facing, &Walking)>() {
+        if walking.velocity.length().is_zero() {
+            continue;
+        }
+
         let direction = walking.velocity.normalize();
         if direction.dot(Vec2::new(0., -1.)) > 0.7 {
             facing.0 = Direction::Up
@@ -437,9 +441,6 @@ fn update_sfx_emitting_entities(ecs: &Ecs, sound_effects: &HashMap<String, Chunk
                 .play(chunk, if sfx.repeat { -1 } else { 0 })
                 .tap_err(|e| log::error!("Failed to play sound effect (err: {e:})"));
 
-            // if let Ok(channel) = channel {
-            //     sfx.channel = Some(channel);
-            // }
             sfx.channel = channel.ok();
         }
 

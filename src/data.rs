@@ -20,7 +20,7 @@ pub fn load_entities_from_source(ecs: &mut Ecs) {
     ecs.add_component(id, Velocity::default());
     ecs.add_component(id, SpriteComp::default());
     ecs.add_component(id, Facing::default());
-    ecs.add_component(id, Walking::default());
+    ecs.add_component(id, Walking { default_speed: 0.12, ..Default::default() });
     ecs.add_component(id, Pathing::default());
     ecs.add_component(id, Collision { hitbox: Vec2::new(7. / 16., 5. / 16.), solid: true });
 
@@ -45,24 +45,6 @@ pub fn load_entities_from_source(ecs: &mut Ecs) {
             left: clip_from_row(1),
             right: clip_from_row(2),
         },
-    );
-
-    ecs.add_component(
-        id,
-        NamedAnims(HashMap::from([(
-            "spin".to_string(),
-            AnimationClip {
-                frames: [(6, 0), (6, 1), (6, 2), (6, 3)]
-                    .into_iter()
-                    .map(|(col, row)| Sprite {
-                        spritesheet: "characters".to_string(),
-                        rect: Rect::new(col * 16, row * 16, 16, 16),
-                        anchor: Vec2::new(8, 13),
-                    })
-                    .collect(),
-                seconds_per_frame: 0.1,
-            },
-        )])),
     );
 
     // Camera

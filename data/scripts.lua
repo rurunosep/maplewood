@@ -1,13 +1,36 @@
 ---@diagnostic disable: unreachable-code
 
+-- --- @script start
+-- --- @start_condition {start_script::started} == 0
+-- set("start_script::started", 1)
+
+-- message("You're sooo sleepy.")
+-- message("But you can't sleep without a plushy.")
+-- message("Legend says the kid in the classroom has a plushy.")
+-- message("(Press SPACE to interact and ~ to check out the dev UI.)")
+
 ---@script start
 ---@start_condition {start_script::started} == 0
-set_story_var("start_script::started", 1)
+set("start_script::started", 1)
 
-message("You're sooo sleepy.")
-message("But you can't sleep without a plushy.")
-message("Legend says the kid in the classroom has a plushy.")
-message("(Press SPACE to interact and ~ to check out the dev UI.)")
+while true do
+  walk_to_wait("_player", 0, 4)
+  walk_to_wait("_player", 1, 1.5)
+  walk_to_wait("_player", 2, 4, 0.05)
+  walk_to_wait("_player", -0.5, 2.5, 0.25)
+  walk_to_wait("_player", 2.5, 2.5, 0.25)
+end
+
+---@script face
+---@start_condition {face_script::started} == 0
+set("face_script::started", 1)
+set_entity_world_pos("bakery_girl", "overworld", 1, 3)
+
+while true do
+  x, y = get_entity_map_pos("_player")
+  set_facing_towards_point("bakery_girl", x, y)
+  yield()
+end
 
 ---@script school_kid
 
@@ -21,7 +44,7 @@ local stages = {
     message("\"Bring me the teacher's special pen from the broken\n" ..
       "toilet in the bathroom.\"")
 
-    set_story_var("school_kid::stage", 2)
+    set("school_kid::stage", 2)
   end,
 
   [2] = function()
@@ -33,7 +56,7 @@ local stages = {
     message("\"Thanks a lot!\"")
     message("\"The plushy is behind a punching bag in the gym.\"")
 
-    set_story_var("school_kid::stage", 4)
+    set("school_kid::stage", 4)
   end,
 
   [4] = function()
@@ -41,7 +64,7 @@ local stages = {
   end
 }
 
-stages[get_story_var("school_kid::stage")]()
+stages[get("school_kid::stage")]()
 
 ---@script janitor
 
@@ -56,8 +79,8 @@ local stages = {
     message("\"Get me a Super Sugar Bun from the bakery and I'll\n" ..
       "give you the key.\"")
 
-    set_story_var("janitor::stage", 3)
-    set_story_var("bakery_girl::stage", 2)
+    set("janitor::stage", 3)
+    set("bakery_girl::stage", 2)
   end,
 
   [3] = function()
@@ -68,8 +91,8 @@ local stages = {
     message("\"Thanks a bunch! Now I can run.\"")
     message("\"Here's the key.\"")
 
-    set_story_var("janitor::stage", 5)
-    set_story_var("bathroom::door::have_key", 1)
+    set("janitor::stage", 5)
+    set("bathroom::door::have_key", 1)
   end,
 
   [5] = function()
@@ -84,7 +107,7 @@ local stages = {
   [8] = function() end
 }
 
-stages[get_story_var("janitor::stage")]()
+stages[get("janitor::stage")]()
 
 ---@script bakery_girl
 
@@ -99,35 +122,34 @@ local stages = {
     lock_player_input()
     remove_camera_target()
 
-    set_walk_speed("_camera", 0.05)
-    path_rel("_camera", "up", 4)
+    walk("_camera", "up", 4, 0.05)
 
     set_walk_speed("bakery_girl", 0.08)
-    path_rel_wait("bakery_girl", "up", 0.75)
-    path_rel_wait("bakery_girl", "left", 8)
-    path_rel_wait("bakery_girl", "up", 4.5)
-    path_rel_wait("bakery_girl", "right", 6.5)
+    walk_wait("bakery_girl", "up", 0.75)
+    walk_wait("bakery_girl", "left", 8)
+    walk_wait("bakery_girl", "up", 4.5)
+    walk_wait("bakery_girl", "right", 6.5)
     set_facing("bakery_girl", "up")
     wait(1)
-    path_rel_wait("bakery_girl", "left", 6.5)
-    path_rel_wait("bakery_girl", "down", 4.5)
-    path_rel_wait("bakery_girl", "right", 8)
-    path_rel_wait("bakery_girl", "down", 0.4)
+    walk_wait("bakery_girl", "left", 6.5)
+    walk_wait("bakery_girl", "down", 4.5)
+    walk_wait("bakery_girl", "right", 8)
+    walk_wait("bakery_girl", "down", 0.4)
     wait(0.5)
     message("\"Here's your bun!\"")
     wait(1)
     set_entity_visible("bakery::fire", true)
     play_sfx("flame")
     wait(1)
-    path_rel("_camera", "down", 4)
+    walk("_camera", "down", 4)
     wait(2)
     message("\"Take care!\"")
 
     set_camera_target("_player")
     unlock_player_input()
 
-    set_story_var("bakery_girl::stage", 3)
-    set_story_var("janitor::stage", 4)
+    set("bakery_girl::stage", 3)
+    set("janitor::stage", 4)
   end,
 
   [3] = function()
@@ -140,51 +162,51 @@ local stages = {
   [5] = function() end
 }
 
-stages[get_story_var("bakery_girl::stage")]()
+stages[get("bakery_girl::stage")]()
 
 ---@script bakery_girl::panic
 ---@start_condition {bakery_girl::stage} == 4
-set_story_var("bakery_girl::stage", 5)
+set("bakery_girl::stage", 5)
 
 set_walk_speed("bakery_girl", 0.08)
 
 while true do
-  path_rel_wait("bakery_girl", "left", 2)
-  path_rel_wait("bakery_girl", "right", 2)
+  walk_wait("bakery_girl", "left", 2)
+  walk_wait("bakery_girl", "right", 2)
 end
 
 ---@script bathroom::door
 
-if get_story_var("bathroom::door::open") == 0 then
-  if get_story_var("bathroom::door::have_key") == 0 then
-    if get_story_var("school_kid::stage") == 2 then
+if get("bathroom::door::open") == 0 then
+  if get("bathroom::door::have_key") == 0 then
+    if get("school_kid::stage") == 2 then
       message("There's a note on the door:")
       message("\"Closed for repairs. If you need to get in, find me\n" ..
         "in the gym.\" - Janitor")
 
-      if get_story_var("janitor::stage") == 1 then
-        set_story_var("janitor::stage", 2)
+      if get("janitor::stage") == 1 then
+        set("janitor::stage", 2)
       end
     end
   else
     switch_dual_state_animation("bathroom::door", 2)
     set_entity_solid("bathroom::door::blocker", false)
 
-    set_story_var("bathroom::door::open", 1)
+    set("bathroom::door::open", 1)
   end
 end
 
 ---@script bathroom::toilet
 
-if get_story_var("main::pen_found") == 0 then
+if get("main::pen_found") == 0 then
   message("You found the pen.")
 
-  set_story_var("main::pen_found", 1)
-  set_story_var("school_kid::stage", 3)
+  set("main::pen_found", 1)
+  set("school_kid::stage", 3)
 
   set_entity_world_pos("bakery_girl", "hallway", 7.5, 4.5)
   set_entity_solid("bakery_girl", false)
-  set_story_var("bakery_girl::stage", 4)
+  set("bakery_girl::stage", 4)
   set_entity_visible("hallway::bakery_fire", true)
   set_entity_visible("hallway::bakery_firefighter", true)
   set_entity_visible("hallway::bakery_water_jet", true)
@@ -194,13 +216,13 @@ if get_story_var("main::pen_found") == 0 then
   play_named_animation("janitor", "sprinting", true)
   emit_entity_sfx("janitor", "running", true)
   play_object_animation("gym::treadmill_right", true)
-  set_story_var("janitor::stage", 6)
+  set("janitor::stage", 6)
 end
 
 ---@script bathroom::exit
 
-if get_story_var("main::pen_found") == 1 and get_story_var("bathroom::flooded") == 0 then
-  set_story_var("bathroom::flooded", 1)
+if get("main::pen_found") == 1 and get("bathroom::flooded") == 0 then
+  set("bathroom::flooded", 1)
 
   lock_player_input()
   remove_camera_target()
@@ -209,8 +231,7 @@ if get_story_var("main::pen_found") == 1 and get_story_var("bathroom::flooded") 
   set_entity_world_pos("_player", "hallway", 3.5, 3.5)
 
   wait(1)
-  set_walk_speed("_camera", 0.05)
-  path_to_wait("_camera", "up", 6.01)
+  walk_to_wait("_camera", "up", 6.01, 0.05)
   wait(1)
   switch_dual_state_animation("bathroom::sink_1", 2)
   play_sfx("faucet")
@@ -231,19 +252,19 @@ end
 
 ---@script overworld::shopping_cart
 
-if get_story_var("bakery_girl::stage") == 3 then
+if get("bakery_girl::stage") == 3 then
   message("Got a quarter.")
 
-  set_story_var("bakery_girl::stage", 4)
+  set("bakery_girl::stage", 4)
 end
 
 ---@script gym::punching_bag
 
-if get_story_var("school_kid::stage") == 4 and get_story_var("main::plushy_found") == 0 then
+if get("school_kid::stage") == 4 and get("main::plushy_found") == 0 then
   message("You found the plushy!")
   message("Now go outside and find somewhere cozy to sleep.")
 
-  set_story_var("main::plushy_found", 1)
+  set("main::plushy_found", 1)
 
   set_entity_visible("hallway::bathroom_fire", true)
   set_entity_visible("hallway::small_fire_1", true)
@@ -252,12 +273,12 @@ if get_story_var("school_kid::stage") == 4 and get_story_var("main::plushy_found
   set_entity_visible("hallway::bathroom_water_jet", true)
   set_entity_solid("hallway::bathroom_entrance_blocker", true)
 
-  set_story_var("janitor::stage", 7)
+  set("janitor::stage", 7)
 end
 
 ---@script overworld::garbage_bin
 
-if get_story_var("main::plushy_found") == 1 then
+if get("main::plushy_found") == 1 then
   message("This place is perfect to sleep!")
   message("Goodnight!")
 
@@ -266,11 +287,11 @@ end
 
 ---@script hallway::janitor_crash_trigger
 
-if get_story_var("janitor::stage") ~= 7 then
+if get("janitor::stage") ~= 7 then
   return
 end
 
-set_story_var("janitor::stage", 8)
+set("janitor::stage", 8)
 
 stop_object_animation("janitor")
 stop_entity_sfx("janitor")

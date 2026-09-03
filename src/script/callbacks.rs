@@ -56,11 +56,11 @@ pub fn bind_general_callbacks<'scope>(
     sound_effects: &'scope HashMap<String, Chunk>,
 ) -> mlua::Result<()> {
     globals.set(
-        "get_story_var",
+        "get",
         scope.create_function(|_, args| get_story_var(args, &game_data.borrow().story_vars))?,
     )?;
     globals.set(
-        "set_story_var",
+        "set",
         scope.create_function_mut(|_, args| {
             set_story_var(args, &mut game_data.borrow_mut().story_vars)
         })?,
@@ -99,13 +99,11 @@ pub fn bind_general_callbacks<'scope>(
         "set_entity_solid",
         scope.create_function_mut(|_, args| set_entity_solid(args, &game_data.borrow().ecs))?,
     )?;
+    globals
+        .set("walk", scope.create_function_mut(|_, args| walk(args, &game_data.borrow().ecs))?)?;
     globals.set(
-        "path_to",
-        scope.create_function_mut(|_, args| path_to(args, &game_data.borrow().ecs))?,
-    )?;
-    globals.set(
-        "path_rel",
-        scope.create_function_mut(|_, args| path_rel(args, &game_data.borrow().ecs))?,
+        "walk_to",
+        scope.create_function_mut(|_, args| walk_to(args, &game_data.borrow().ecs))?,
     )?;
     globals.set(
         "is_entity_pathing",
@@ -118,6 +116,12 @@ pub fn bind_general_callbacks<'scope>(
     globals.set(
         "set_facing",
         scope.create_function_mut(|_, args| set_facing(args, &game_data.borrow().ecs))?,
+    )?;
+    globals.set(
+        "set_facing_towards_point",
+        scope.create_function_mut(|_, args| {
+            set_facing_towards_point(args, &game_data.borrow().ecs)
+        })?,
     )?;
     globals.set(
         "lock_player_input",
@@ -348,16 +352,8 @@ pub fn set_entity_solid((entity, enabled): (String, bool), ecs: &Ecs) -> mlua::R
     Ok(())
 }
 
-pub fn path_to((entity, x, y): (String, f64, f64), ecs: &Ecs) -> mlua::Result<()> {
-    let mut pathing = ecs
-        .query_one_with_name::<&mut Pathing>(&entity)
-        .ok_or(Error(f!("invalid entity `{entity}`")))?;
-    pathing.target = Some(Vec2::new(x, y));
-    Ok(())
-}
-
-pub fn path_rel(
-    (entity, direction, distance): (String, String, f64),
+pub fn walk(
+    (entity, direction, distance, speed): (String, String, f64, Option<f64>),
     ecs: &Ecs,
 ) -> mlua::Result<()> {
     let (mut pathing, position) = ecs
@@ -373,6 +369,21 @@ pub fn path_rel(
     }?;
 
     pathing.target = Some(position.map_pos + (direction * distance));
+    pathing.speed = speed;
+
+    Ok(())
+}
+
+pub fn walk_to(
+    (entity, x, y, speed): (String, f64, f64, Option<f64>),
+    ecs: &Ecs,
+) -> mlua::Result<()> {
+    let mut pathing = ecs
+        .query_one_with_name::<&mut Pathing>(&entity)
+        .ok_or(Error(f!("invalid entity `{entity}`")))?;
+
+    pathing.target = Some(Vec2::new(x, y));
+    pathing.speed = speed;
 
     Ok(())
 }
@@ -381,7 +392,7 @@ pub fn set_walk_speed((entity, speed): (String, f64), ecs: &Ecs) -> mlua::Result
     let mut walking = ecs
         .query_one_with_name::<&mut Walking>(&entity)
         .ok_or(Error(f!("invalid entity `{entity}`")))?;
-    walking.speed = speed;
+    walking.default_speed = speed;
     Ok(())
 }
 
@@ -399,6 +410,29 @@ pub fn set_facing((entity, direction): (String, String), ecs: &Ecs) -> mlua::Res
     }?;
 
     facing.0 = direction;
+
+    Ok(())
+}
+
+pub fn set_facing_towards_point((entity, x, y): (String, f64, f64), ecs: &Ecs) -> mlua::Result<()> {
+    let (mut facing, position) = ecs
+        .query_one_with_name::<(&mut Facing, &Position)>(&entity)
+        .ok_or(Error(f!("invalid entity `{entity}`")))?;
+
+    let direction_to_point = (Vec2::new(x, y) - position.map_pos).normalize();
+
+    if direction_to_point.dot(Vec2::new(0., -1.)) > 0.7 {
+        facing.0 = Direction::Up
+    };
+    if direction_to_point.dot(Vec2::new(0., 1.)) > 0.7 {
+        facing.0 = Direction::Down
+    };
+    if direction_to_point.dot(Vec2::new(-1., -0.)) > 0.7 {
+        facing.0 = Direction::Left
+    };
+    if direction_to_point.dot(Vec2::new(1., 0.)) > 0.7 {
+        facing.0 = Direction::Right
+    };
 
     Ok(())
 }

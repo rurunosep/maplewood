@@ -110,6 +110,7 @@ fn main() {
     let auto_scripts = vec![
         script::read_script_from_file("data/scripts.lua", "start").unwrap(),
         script::read_script_from_file("data/scripts.lua", "bakery_girl::panic").unwrap(),
+        script::read_script_from_file("data/scripts.lua", "face").unwrap(),
     ];
 
     let mut game_data = GameData { world, ecs, story_vars, auto_scripts };

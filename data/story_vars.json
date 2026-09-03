@@ -2,6 +2,7 @@
   "main::plushy_found": 0,
   "main::pen_found": 0,
   "start_script::started": 0,
+  "face_script::started": 0,
   "bathroom::door::have_key": 0,
   "bathroom::door::open": 0,
   "bathroom::flooded": 0,

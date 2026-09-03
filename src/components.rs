@@ -158,15 +158,15 @@ impl Component for NamedAnims {}
 #[serde(default, deny_unknown_fields)]
 pub struct Walking {
     pub velocity: Vec2<f64, MapUnits>,
-    // This is the speed the entity moves at when it moves, rather than the actual current speed
-    #[default = 0.12]
-    pub speed: f64,
+    #[default = 0.08]
+    pub default_speed: f64,
 }
 impl Component for Walking {}
 
 #[derive(Default, Clone, Serialize, Deserialize)]
 pub struct Pathing {
     pub target: Option<Vec2<f64, MapUnits>>,
+    pub speed: Option<f64>,
 }
 impl Component for Pathing {}
 
