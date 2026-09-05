@@ -3,9 +3,9 @@ use crate::components::{
     Pathing, Position, SfxEmitter, SineOffsetAnimation, Sprite, SpriteComp, Walking,
 };
 use crate::data::CAMERA_ENTITY_NAME;
-use crate::ecs::{Ecs, EntityId};
+use crate::ecs::EntityId;
 use crate::math::{MapUnits, Rect, Vec2};
-use crate::misc::{Direction, StoryVars};
+use crate::misc::Direction;
 use crate::script::{self, Error, WaitCondition};
 use crate::world::WorldPos;
 use crate::{GameData, MessageWindow, UiData};
@@ -33,76 +33,248 @@ pub fn bind_general_callbacks<'scope>(
 ) -> mlua::Result<()> {
     globals.set(
         "get",
-        scope.create_function(|_, args| get_story_var(args, &game_data.borrow().story_vars))?,
+        scope.create_function(|_, key: String| {
+            game_data.borrow().story_vars.get(&key).ok_or(Error(f!("no story var `{key}`")).into())
+        })?,
     )?;
+
     globals.set(
         "set",
-        scope.create_function_mut(|_, args| {
-            set_story_var(args, &mut game_data.borrow_mut().story_vars)
+        scope.create_function_mut(|_, (key, val): (String, i32)| {
+            game_data.borrow_mut().story_vars.set(&key, val);
+            Ok(())
         })?,
     )?;
+
     globals.set(
         "start_script_from_file",
-        scope.create_function_mut(|_, args| start_script_from_file(args, script_start_queue))?,
+        scope.create_function_mut(|_, (file_path, script_name): (String, String)| {
+            let source = script::read_script_from_file(file_path, &script_name)
+                .map_err(|e| Error(e.to_string()))?;
+            script_start_queue.push_back(source);
+            Ok(())
+        })?,
     )?;
+
     globals.set(
         "get_entity_map_pos",
-        scope.create_function(|_, args| get_entity_map_pos(args, &game_data.borrow().ecs))?,
+        scope.create_function(|_, entity: String| {
+            let ecs = &game_data.borrow().ecs;
+            let position = ecs
+                .query_one_with_name::<&Position>(&entity)
+                .ok_or(Error(f!("invalid entity `{entity}`")))?;
+            Ok((position.map_pos.x, position.map_pos.y))
+        })?,
     )?;
+
     globals.set(
         "set_entity_map_pos",
-        scope.create_function_mut(|_, args| set_entity_map_pos(args, &game_data.borrow().ecs))?,
+        scope.create_function_mut(|_, (entity, x, y): (String, f64, f64)| {
+            let ecs = &game_data.borrow().ecs;
+            let mut position = ecs
+                .query_one_with_name::<&mut Position>(&entity)
+                .ok_or(Error(f!("invalid entity `{entity}`")))?;
+            position.map_pos = Vec2::new(x, y);
+            Ok(())
+        })?,
     )?;
+
     globals.set(
         "get_entity_world_pos",
-        scope.create_function(|_, args| get_entity_world_pos(args, &game_data.borrow().ecs))?,
+        scope.create_function(|_, entity: String| {
+            let ecs = &game_data.borrow().ecs;
+            let position = ecs
+                .query_one_with_name::<&Position>(&entity)
+                .ok_or(Error(f!("invalid entity `{entity}`")))?;
+            Ok((position.map.clone(), position.map_pos.x, position.map_pos.y))
+        })?,
     )?;
+
     globals.set(
         "set_entity_world_pos",
-        scope.create_function_mut(|_, args| {
-            set_entity_world_pos(args, &mut game_data.borrow_mut().ecs)
+        scope.create_function_mut(|_, (entity, map, x, y): (String, String, f64, f64)| {
+            let ecs = &mut game_data.borrow_mut().ecs;
+            let entity_id = ecs
+                .query_one_with_name::<EntityId>(&entity)
+                .ok_or(Error(f!("invalid entity `{entity}`")))?;
+            ecs.add_component(entity_id, Position(WorldPos::new(&map, x, y)));
+            Ok(())
         })?,
     )?;
+
+    #[rustfmt::skip]
     globals.set(
-        "set_forced_sprite",
-        scope.create_function_mut(|_, args| set_forced_sprite(args, &game_data.borrow().ecs))?,
+        "set_forced_sprite",        
+        scope.create_function_mut(
+            |_,
+             (entity, spritesheet, rect_x, rect_y, rect_w, rect_h, anchor_x, anchor_y):
+                (String, String, u32, u32, u32, u32, i32, i32)| {
+                let ecs = &game_data.borrow().ecs;
+                let mut sprite_component = ecs
+                    .query_one_with_name::<&mut SpriteComp>(&entity)
+                    .ok_or(Error(f!("invalid entity `{entity}`")))?;
+
+                sprite_component.forced_sprite = Some(Sprite {
+                    spritesheet,
+                    rect: Rect::new(rect_x, rect_y, rect_w, rect_h),
+                    anchor: Vec2::new(anchor_x, anchor_y),
+                });
+
+                Ok(())
+            },
+        )?,
     )?;
+
     globals.set(
         "remove_forced_sprite",
-        scope.create_function_mut(|_, args| remove_forced_sprite(args, &game_data.borrow().ecs))?,
-    )?;
-    globals.set(
-        "set_entity_visible",
-        scope.create_function_mut(|_, args| set_entity_visible(args, &game_data.borrow().ecs))?,
-    )?;
-    globals.set(
-        "set_entity_solid",
-        scope.create_function_mut(|_, args| set_entity_solid(args, &game_data.borrow().ecs))?,
-    )?;
-    globals
-        .set("walk", scope.create_function_mut(|_, args| walk(args, &game_data.borrow().ecs))?)?;
-    globals.set(
-        "walk_to",
-        scope.create_function_mut(|_, args| walk_to(args, &game_data.borrow().ecs))?,
-    )?;
-    globals.set(
-        "is_entity_pathing",
-        scope.create_function_mut(|_, args| is_entity_pathing(args, &game_data.borrow().ecs))?,
-    )?;
-    globals.set(
-        "set_walk_speed",
-        scope.create_function_mut(|_, args| set_walk_speed(args, &game_data.borrow().ecs))?,
-    )?;
-    globals.set(
-        "set_facing",
-        scope.create_function_mut(|_, args| set_facing(args, &game_data.borrow().ecs))?,
-    )?;
-    globals.set(
-        "set_facing_towards_point",
-        scope.create_function_mut(|_, args| {
-            set_facing_towards_point(args, &game_data.borrow().ecs)
+        scope.create_function_mut(|_, entity: String| {
+            let ecs = &game_data.borrow().ecs;
+            let mut sprite_component = ecs
+                .query_one_with_name::<&mut SpriteComp>(&entity)
+                .ok_or(Error(f!("invalid entity `{entity}`")))?;
+            sprite_component.forced_sprite = None;
+            Ok(())
         })?,
     )?;
+
+    globals.set(
+        "set_entity_visible",
+        scope.create_function_mut(|_, (entity, visible): (String, bool)| {
+            let ecs = &game_data.borrow().ecs;
+            let mut sprite = ecs
+                .query_one_with_name::<&mut SpriteComp>(&entity)
+                .ok_or(Error(f!("invalid entity `{entity}`")))?;
+            sprite.visible = visible;
+            Ok(())
+        })?,
+    )?;
+
+    globals.set(
+        "set_entity_solid",
+        scope.create_function_mut(|_, (entity, enabled): (String, bool)| {
+            let ecs = &game_data.borrow().ecs;
+            let mut collision = ecs
+                .query_one_with_name::<&mut Collision>(&entity)
+                .ok_or(Error(f!("invalid entity `{entity}`")))?;
+            collision.solid = enabled;
+            Ok(())
+        })?,
+    )?;
+
+    globals.set(
+        "walk",
+        scope.create_function_mut(
+            |_, (entity, direction, distance, speed): (String, String, f64, Option<f64>)| {
+                let ecs = &game_data.borrow().ecs;
+                let (mut pathing, position) = ecs
+                    .query_one_with_name::<(&mut Pathing, &Position)>(&entity)
+                    .ok_or(Error(f!("invalid entity `{entity}`")))?;
+
+                let direction: Vec2<f64, MapUnits> = match direction.as_str() {
+                    "up" => Ok(Vec2::new(0., -1.)),
+                    "down" => Ok(Vec2::new(0., 1.)),
+                    "left" => Ok(Vec2::new(-1., 0.)),
+                    "right" => Ok(Vec2::new(1., 0.)),
+                    s => Err(Error(f!("invalid direction `{s}`"))),
+                }?;
+
+                pathing.target = Some(position.map_pos + (direction * distance));
+                pathing.speed = speed;
+
+                Ok(())
+            },
+        )?,
+    )?;
+
+    globals.set(
+        "walk_to",
+        scope.create_function_mut(
+            |_, (entity, x, y, speed): (String, f64, f64, Option<f64>)| {
+                let ecs = &game_data.borrow().ecs;
+                let mut pathing = ecs
+                    .query_one_with_name::<&mut Pathing>(&entity)
+                    .ok_or(Error(f!("invalid entity `{entity}`")))?;
+
+                pathing.target = Some(Vec2::new(x, y));
+                pathing.speed = speed;
+
+                Ok(())
+            },
+        )?,
+    )?;
+
+    globals.set(
+        "is_entity_pathing",
+        scope.create_function_mut(|_, entity: String| {
+            let ecs = &game_data.borrow().ecs;
+            let pathing = ecs
+                .query_one_with_name::<&Pathing>(&entity)
+                .ok_or(Error(f!("invalid entity `{entity}`")))?;
+            Ok(pathing.target.is_some())
+        })?,
+    )?;
+
+    globals.set(
+        "set_walk_speed",
+        scope.create_function_mut(|_, (entity, speed): (String, f64)| {
+            let ecs = &game_data.borrow().ecs;
+            let mut walking = ecs
+                .query_one_with_name::<&mut Walking>(&entity)
+                .ok_or(Error(f!("invalid entity `{entity}`")))?;
+            walking.default_speed = speed;
+            Ok(())
+        })?,
+    )?;
+
+    globals.set(
+        "set_facing",
+        scope.create_function_mut(|_, (entity, direction): (String, String)| {
+            let ecs = &game_data.borrow().ecs;
+            let mut facing = ecs
+                .query_one_with_name::<&mut Facing>(&entity)
+                .ok_or(Error(f!("invalid entity `{entity}`")))?;
+
+            let direction = match direction.as_str() {
+                "up" => Ok(Direction::Up),
+                "down" => Ok(Direction::Down),
+                "left" => Ok(Direction::Left),
+                "right" => Ok(Direction::Right),
+                s => Err(Error(f!("invalid direction `{s}`"))),
+            }?;
+
+            facing.0 = direction;
+
+            Ok(())
+        })?,
+    )?;
+
+    globals.set(
+        "set_facing_towards_point",
+        scope.create_function_mut(|_, (entity, x, y): (String, f64, f64)| {
+            let ecs = &game_data.borrow().ecs;
+            let (mut facing, position) = ecs
+                .query_one_with_name::<(&mut Facing, &Position)>(&entity)
+                .ok_or(Error(f!("invalid entity `{entity}`")))?;
+
+            let direction_to_point = (Vec2::new(x, y) - position.map_pos).normalize();
+
+            if direction_to_point.dot(Vec2::new(0., -1.)) > 0.7 {
+                facing.0 = Direction::Up
+            };
+            if direction_to_point.dot(Vec2::new(0., 1.)) > 0.7 {
+                facing.0 = Direction::Down
+            };
+            if direction_to_point.dot(Vec2::new(-1., -0.)) > 0.7 {
+                facing.0 = Direction::Left
+            };
+            if direction_to_point.dot(Vec2::new(1., 0.)) > 0.7 {
+                facing.0 = Direction::Right
+            };
+
+            Ok(())
+        })?,
+    )?;
+
     globals.set(
         "lock_player_input",
         scope.create_function_mut(|_, ()| {
@@ -110,6 +282,7 @@ pub fn bind_general_callbacks<'scope>(
             Ok(())
         })?,
     )?;
+
     globals.set(
         "unlock_player_input",
         scope.create_function_mut(|_, ()| {
@@ -117,57 +290,205 @@ pub fn bind_general_callbacks<'scope>(
             Ok(())
         })?,
     )?;
+
     globals.set(
         "set_camera_target",
-        scope.create_function_mut(|_, args| set_camera_target(args, &game_data.borrow().ecs))?,
-    )?;
-    globals.set(
-        "remove_camera_target",
-        scope.create_function_mut(|_, ()| remove_camera_target(&game_data.borrow().ecs))?,
-    )?;
-    globals.set(
-        "set_camera_clamp",
-        scope.create_function_mut(|_, args| set_camera_clamp(args, &game_data.borrow().ecs))?,
-    )?;
-    globals.set(
-        "play_object_animation",
-        scope
-            .create_function_mut(|_, args| play_object_animation(args, &game_data.borrow().ecs))?,
-    )?;
-    globals.set(
-        "stop_object_animation",
-        scope
-            .create_function_mut(|_, args| stop_object_animation(args, &game_data.borrow().ecs))?,
-    )?;
-    globals.set(
-        "switch_dual_state_animation",
-        scope.create_function_mut(|_, args| {
-            switch_dual_state_animation(args, &game_data.borrow().ecs)
+        scope.create_function_mut(|_, entity: String| {
+            let ecs = &game_data.borrow().ecs;
+            let mut camera_component = ecs
+                .query_one_with_name::<&mut Camera>(CAMERA_ENTITY_NAME)
+                .ok_or(Error("no camera entity".to_string()))?;
+            camera_component.target_entity = Some(entity);
+            Ok(())
         })?,
     )?;
+
+    globals.set(
+        "remove_camera_target",
+        scope.create_function_mut(|_, ()| {
+            let ecs = &game_data.borrow().ecs;
+            let mut camera_component = ecs
+                .query_one_with_name::<&mut Camera>(CAMERA_ENTITY_NAME)
+                .ok_or(Error("no camera entity".to_string()))?;
+            camera_component.target_entity = None;
+            Ok(())
+        })?,
+    )?;
+
+    globals.set(
+        "set_camera_clamp",
+        scope.create_function_mut(|_, clamp: bool| {
+            let ecs = &game_data.borrow().ecs;
+            if let Some(mut camera) = ecs.query::<&mut Camera>().next() {
+                camera.clamp_to_map = clamp;
+            }
+            Ok(())
+        })?,
+    )?;
+
+    globals.set(
+        "play_object_animation",
+        scope.create_function_mut(|_, (entity, repeat): (String, bool)| {
+            let ecs = &game_data.borrow().ecs;
+            let mut anim_comp = ecs
+                .query_one_with_name::<&mut AnimationComp>(&entity)
+                .ok_or(Error(f!("invalid entity `{entity}`")))?;
+            anim_comp.start(repeat);
+            Ok(())
+        })?,
+    )?;
+
+    globals.set(
+        "stop_object_animation",
+        scope.create_function_mut(|_, entity: String| {
+            let ecs = &game_data.borrow().ecs;
+            let mut anim_comp = ecs
+                .query_one_with_name::<&mut AnimationComp>(&entity)
+                .ok_or(Error(f!("invalid entity `{entity}`")))?;
+            anim_comp.stop();
+            Ok(())
+        })?,
+    )?;
+
+    globals.set(
+        "switch_dual_state_animation",
+        scope.create_function_mut(|_, (entity, state): (String, i32)| {
+            let ecs = &game_data.borrow().ecs;
+            let (mut anim_comp, mut dual_anims) = ecs
+                .query_one_with_name::<(&mut AnimationComp, &mut DualStateAnims)>(&entity)
+                .ok_or(Error(f!("invalid entity `{entity}`")))?;
+
+            let state = match state {
+                1 => Ok(DualStateAnimationState::SecondToFirst),
+                2 => Ok(DualStateAnimationState::FirstToSecond),
+                _ => Err(Error("state must be 1 or 2".to_string())),
+            }?;
+
+            dual_anims.state = state;
+            anim_comp.start(false);
+
+            Ok(())
+        })?,
+    )?;
+
     globals.set(
         "play_named_animation",
-        scope.create_function_mut(|_, args| play_named_animation(args, &game_data.borrow().ecs))?,
+        scope.create_function_mut(|_, (entity, animation, repeat): (String, String, bool)| {
+            let ecs = &game_data.borrow().ecs;
+            let (mut anim_comp, anims) = ecs
+                .query_one_with_name::<(&mut AnimationComp, &NamedAnims)>(&entity)
+                .ok_or(Error(f!("invalid entity `{entity}`")))?;
+
+            let clip = anims
+                .get(&animation)
+                .ok_or(Error(f!("no animation `{animation}` on entity `{entity}`")))?;
+
+            anim_comp.clip = clip.clone();
+            anim_comp.forced = true;
+            anim_comp.start(repeat);
+
+            Ok(())
+        })?,
     )?;
+
     globals.set(
         "anim_quiver",
-        scope.create_function_mut(|_, args| anim_quiver(args, &mut game_data.borrow_mut().ecs))?,
+        scope.create_function_mut(|_, (entity, duration): (String, f64)| {
+            let ecs = &mut game_data.borrow_mut().ecs;
+            let id = ecs
+                .query_one_with_name::<EntityId>(&entity)
+                .ok_or(Error(f!("invalid entity `{entity}`")))?;
+
+            ecs.add_component(
+                id,
+                SineOffsetAnimation {
+                    start_time: Instant::now(),
+                    duration: Duration::from_secs_f64(duration),
+                    amplitude: 0.03,
+                    frequency: 10.,
+                    direction: Vec2::new(1., 0.),
+                },
+            );
+
+            Ok(())
+        })?,
     )?;
+
     globals.set(
         "anim_jump",
-        scope.create_function_mut(|_, args| anim_jump(args, &mut game_data.borrow_mut().ecs))?,
+        scope.create_function_mut(|_, entity: String| {
+            let ecs = &mut game_data.borrow_mut().ecs;
+            let id = ecs
+                .query_one_with_name::<EntityId>(&entity)
+                .ok_or(Error(f!("invalid entity `{entity}`")))?;
+
+            ecs.add_component(
+                id,
+                SineOffsetAnimation {
+                    start_time: Instant::now(),
+                    duration: Duration::from_secs_f64(0.3),
+                    amplitude: 0.5,
+                    frequency: 1. / 2. / 0.3,
+                    direction: Vec2::new(0., -1.),
+                },
+            );
+
+            Ok(())
+        })?,
     )?;
-    globals.set("play_sfx", scope.create_function(|_, args| play_sfx(args, sound_effects))?)?;
-    globals.set("play_music", scope.create_function_mut(|_, args| play_music(args, musics))?)?;
-    globals.set("stop_music", scope.create_function_mut(|_, args| stop_music(args))?)?;
+
+    globals.set(
+        "play_sfx",
+        scope.create_function(|_, name: String| {
+            let sfx = sound_effects.get(&name).ok_or(Error(f!("no sfx `{name}`")))?;
+            sdl2::mixer::Channel::all().play(sfx, 0).map_err(|e| Error(e))?;
+            Ok(())
+        })?,
+    )?;
+
+    globals.set(
+        "play_music",
+        scope.create_function_mut(|_, (name, should_loop): (String, bool)| {
+            let music = musics.get(&name).ok_or(Error(f!("no music `{name}`")))?;
+            music.play(if should_loop { -1 } else { 0 }).map_err(|e| Error(e))?;
+            Ok(())
+        })?,
+    )?;
+
+    globals.set(
+        "stop_music",
+        scope.create_function_mut(|_, fade_out_time: f64| {
+            let _ = Music::fade_out((fade_out_time * 1000.) as i32);
+            Ok(())
+        })?,
+    )?;
+
     globals.set(
         "emit_entity_sfx",
-        scope.create_function(|_, args| emit_entity_sfx(args, &game_data.borrow().ecs))?,
+        scope.create_function(|_, (entity, sfx, repeat): (String, String, bool)| {
+            let ecs = &game_data.borrow().ecs;
+            let mut sfx_comp = ecs
+                .query_one_with_name::<&mut SfxEmitter>(&entity)
+                .ok_or(Error(f!("invalid entity `{entity}`")))?;
+            sfx_comp.sfx_name = Some(sfx);
+            sfx_comp.repeat = repeat;
+            Ok(())
+        })?,
     )?;
+
     globals.set(
         "stop_entity_sfx",
-        scope.create_function(|_, args| stop_entity_sfx(args, &game_data.borrow().ecs))?,
+        scope.create_function(|_, entity: String| {
+            let ecs = &game_data.borrow().ecs;
+            let mut sfx_comp = ecs
+                .query_one_with_name::<&mut SfxEmitter>(&entity)
+                .ok_or(Error(f!("invalid entity `{entity}`")))?;
+            sfx_comp.sfx_name = None;
+            sfx_comp.repeat = false;
+            Ok(())
+        })?,
     )?;
+
     globals.set(
         "close_game",
         scope.create_function_mut(|_, ()| {
@@ -175,14 +496,42 @@ pub fn bind_general_callbacks<'scope>(
             Ok(())
         })?,
     )?;
+
     globals.set(
         "add_component",
-        scope.create_function(|_, args| add_component(args, &mut game_data.borrow_mut().ecs))?,
+        scope.create_function(
+            |_, (entity_name, component_name, component_json): (String, String, String)| {
+                let ecs = &mut game_data.borrow_mut().ecs;
+                let entity_id = ecs
+                    .query_one_with_name::<EntityId>(&entity_name)
+                    .ok_or(Error(f!("invalid entity `{entity_name}`")))?;
+
+                let value = serde_json::from_str::<serde_json::Value>(&component_json)
+                    .map_err(|e| Error(f!("invalid json (err: {e})")))?;
+
+                ecs.add_component_with_name(entity_id, &component_name, &value)
+                    .map_err(|e| Error(e.to_string()))?;
+
+                Ok(())
+            },
+        )?,
     )?;
+
     globals.set(
         "remove_component",
-        scope.create_function(|_, args| remove_component(args, &mut game_data.borrow_mut().ecs))?,
+        scope.create_function(|_, (entity_name, component_name): (String, String)| {
+            let ecs = &mut game_data.borrow_mut().ecs;
+            let id = ecs
+                .query_one_with_name::<EntityId>(&entity_name)
+                .ok_or(Error(f!("invalid entity `{entity_name}`")))?;
+
+            ecs.remove_component_with_name(id, &component_name)
+                .map_err(|e| Error(e.to_string()))?;
+
+            Ok(())
+        })?,
     )?;
+
     globals.set(
         "log",
         scope.create_function(|_, message: String| {
@@ -205,8 +554,11 @@ pub fn bind_script_only_callbacks<'scope>(
 
     globals.set(
         "message",
-        wrap_yielding.call::<Function>(scope.create_function_mut(|_, args| {
-            message(args, &mut ui_data.borrow_mut().message_window, *wait_condition.borrow_mut())
+        wrap_yielding.call::<Function>(scope.create_function_mut(|_, message: String| {
+            let message_window = &mut ui_data.borrow_mut().message_window;
+            *message_window = Some(MessageWindow { message });
+            **wait_condition.borrow_mut() = Some(WaitCondition::Message);
+            Ok(())
         })?)?,
     )?;
     globals.set(
@@ -229,413 +581,32 @@ pub fn bind_console_only_callbacks<'scope>(
 ) -> mlua::Result<()> {
     globals.set(
         "message",
-        scope.create_function_mut(|_, args| {
-            message(args, &mut ui_data.borrow_mut().message_window, &mut None)
+        scope.create_function_mut(|_, message: String| {
+            let message_window: &mut Option<MessageWindow> =
+                &mut ui_data.borrow_mut().message_window;
+            let wait_condition: &mut Option<WaitCondition> = &mut None;
+            *message_window = Some(MessageWindow { message });
+            *wait_condition = Some(WaitCondition::Message);
+            Ok(())
         })?,
     )?;
+
     globals.set(
         "dump_entities_to_file",
-        scope.create_function(|_, args| dump_entities_to_file(args, &game_data.borrow().ecs))?,
+        scope.create_function(|_, path: String| {
+            let ecs = &game_data.borrow().ecs;
+            let mut entities = Vec::new();
+            for id in ecs.entity_ids.keys() {
+                entities.push(ecs.save_components_to_value(id));
+            }
+            let json = serde_json::to_string_pretty(&serde_json::Value::Array(entities))
+                .expect("is serde");
+
+            std::fs::write(&path, &json).map_err(|e| Error(e.to_string()))?;
+
+            Ok(())
+        })?,
     )?;
 
-    Ok(())
-}
-
-// ----------------------------------------------
-// ----------------------------------------------
-// Should I inline the callbacks? Is there a need for this indirection anymore?
-
-pub fn get_story_var(key: String, story_vars: &StoryVars) -> mlua::Result<i32> {
-    story_vars.get(&key).ok_or(Error(f!("no story var `{key}`")).into())
-}
-
-pub fn set_story_var((key, val): (String, i32), story_vars: &mut StoryVars) -> mlua::Result<()> {
-    story_vars.set(&key, val);
-    Ok(())
-}
-
-pub fn start_script_from_file(
-    (file_path, script_name): (String, String),
-    script_start_queue: &mut VecDeque<String>,
-) -> mlua::Result<()> {
-    let source =
-        script::read_script_from_file(file_path, &script_name).map_err(|e| Error(e.to_string()))?;
-    script_start_queue.push_back(source);
-    Ok(())
-}
-
-pub fn get_entity_map_pos(entity: String, ecs: &Ecs) -> mlua::Result<(f64, f64)> {
-    let position = ecs
-        .query_one_with_name::<&Position>(&entity)
-        .ok_or(Error(f!("invalid entity `{entity}`")))?;
-    Ok((position.map_pos.x, position.map_pos.y))
-}
-
-// Requires entity to have a position component already, since map is omitted
-pub fn set_entity_map_pos((entity, x, y): (String, f64, f64), ecs: &Ecs) -> mlua::Result<()> {
-    let mut position = ecs
-        .query_one_with_name::<&mut Position>(&entity)
-        .ok_or(Error(f!("invalid entity `{entity}`")))?;
-    position.map_pos = Vec2::new(x, y);
-    Ok(())
-}
-
-pub fn get_entity_world_pos(entity: String, ecs: &Ecs) -> mlua::Result<(String, f64, f64)> {
-    let position = ecs
-        .query_one_with_name::<&Position>(&entity)
-        .ok_or(Error(f!("invalid entity `{entity}`")))?;
-    Ok((position.map.clone(), position.map_pos.x, position.map_pos.y))
-}
-
-// Will attach a new position component
-pub fn set_entity_world_pos(
-    (entity, map, x, y): (String, String, f64, f64),
-    ecs: &mut Ecs,
-) -> mlua::Result<()> {
-    let entity_id = ecs
-        .query_one_with_name::<EntityId>(&entity)
-        .ok_or(Error(f!("invalid entity `{entity}`")))?;
-    ecs.add_component(entity_id, Position(WorldPos::new(&map, x, y)));
-    Ok(())
-}
-
-#[rustfmt::skip]
-pub fn set_forced_sprite(
-    (entity, spritesheet, rect_x, rect_y, rect_w, rect_h, anchor_x, anchor_y):
-        (String, String, u32, u32, u32, u32, i32, i32,),
-    ecs: &Ecs,
-) -> mlua::Result<()> {
-    let mut sprite_component = ecs
-        .query_one_with_name::<&mut SpriteComp>(&entity)
-        .ok_or(Error(f!("invalid entity `{entity}`")))?;
-
-    sprite_component.forced_sprite = Some(Sprite {
-        spritesheet,
-        rect: Rect::new(rect_x, rect_y, rect_w, rect_h),
-        anchor: Vec2::new(anchor_x, anchor_y),
-    });
-
-    Ok(())
-}
-
-pub fn remove_forced_sprite(entity: String, ecs: &Ecs) -> mlua::Result<()> {
-    let mut sprite_component = ecs
-        .query_one_with_name::<&mut SpriteComp>(&entity)
-        .ok_or(Error(f!("invalid entity `{entity}`")))?;
-    sprite_component.forced_sprite = None;
-    Ok(())
-}
-
-pub fn set_entity_visible((entity, visible): (String, bool), ecs: &Ecs) -> mlua::Result<()> {
-    let mut sprite = ecs
-        .query_one_with_name::<&mut SpriteComp>(&entity)
-        .ok_or(Error(f!("invalid entity `{entity}`")))?;
-    sprite.visible = visible;
-    Ok(())
-}
-
-pub fn set_entity_solid((entity, enabled): (String, bool), ecs: &Ecs) -> mlua::Result<()> {
-    let mut collision = ecs
-        .query_one_with_name::<&mut Collision>(&entity)
-        .ok_or(Error(f!("invalid entity `{entity}`")))?;
-    collision.solid = enabled;
-    Ok(())
-}
-
-pub fn walk(
-    (entity, direction, distance, speed): (String, String, f64, Option<f64>),
-    ecs: &Ecs,
-) -> mlua::Result<()> {
-    let (mut pathing, position) = ecs
-        .query_one_with_name::<(&mut Pathing, &Position)>(&entity)
-        .ok_or(Error(f!("invalid entity `{entity}`")))?;
-
-    let direction: Vec2<f64, MapUnits> = match direction.as_str() {
-        "up" => Ok(Vec2::new(0., -1.)),
-        "down" => Ok(Vec2::new(0., 1.)),
-        "left" => Ok(Vec2::new(-1., 0.)),
-        "right" => Ok(Vec2::new(1., 0.)),
-        s => Err(Error(f!("invalid direction `{s}`"))),
-    }?;
-
-    pathing.target = Some(position.map_pos + (direction * distance));
-    pathing.speed = speed;
-
-    Ok(())
-}
-
-pub fn walk_to(
-    (entity, x, y, speed): (String, f64, f64, Option<f64>),
-    ecs: &Ecs,
-) -> mlua::Result<()> {
-    let mut pathing = ecs
-        .query_one_with_name::<&mut Pathing>(&entity)
-        .ok_or(Error(f!("invalid entity `{entity}`")))?;
-
-    pathing.target = Some(Vec2::new(x, y));
-    pathing.speed = speed;
-
-    Ok(())
-}
-
-pub fn set_walk_speed((entity, speed): (String, f64), ecs: &Ecs) -> mlua::Result<()> {
-    let mut walking = ecs
-        .query_one_with_name::<&mut Walking>(&entity)
-        .ok_or(Error(f!("invalid entity `{entity}`")))?;
-    walking.default_speed = speed;
-    Ok(())
-}
-
-pub fn set_facing((entity, direction): (String, String), ecs: &Ecs) -> mlua::Result<()> {
-    let mut facing = ecs
-        .query_one_with_name::<&mut Facing>(&entity)
-        .ok_or(Error(f!("invalid entity `{entity}`")))?;
-
-    let direction = match direction.as_str() {
-        "up" => Ok(Direction::Up),
-        "down" => Ok(Direction::Down),
-        "left" => Ok(Direction::Left),
-        "right" => Ok(Direction::Right),
-        s => Err(Error(f!("invalid direction `{s}`"))),
-    }?;
-
-    facing.0 = direction;
-
-    Ok(())
-}
-
-pub fn set_facing_towards_point((entity, x, y): (String, f64, f64), ecs: &Ecs) -> mlua::Result<()> {
-    let (mut facing, position) = ecs
-        .query_one_with_name::<(&mut Facing, &Position)>(&entity)
-        .ok_or(Error(f!("invalid entity `{entity}`")))?;
-
-    let direction_to_point = (Vec2::new(x, y) - position.map_pos).normalize();
-
-    if direction_to_point.dot(Vec2::new(0., -1.)) > 0.7 {
-        facing.0 = Direction::Up
-    };
-    if direction_to_point.dot(Vec2::new(0., 1.)) > 0.7 {
-        facing.0 = Direction::Down
-    };
-    if direction_to_point.dot(Vec2::new(-1., -0.)) > 0.7 {
-        facing.0 = Direction::Left
-    };
-    if direction_to_point.dot(Vec2::new(1., 0.)) > 0.7 {
-        facing.0 = Direction::Right
-    };
-
-    Ok(())
-}
-
-pub fn is_entity_pathing(entity: String, ecs: &Ecs) -> mlua::Result<bool> {
-    let pathing = ecs
-        .query_one_with_name::<&Pathing>(&entity)
-        .ok_or(Error(f!("invalid entity `{entity}`")))?;
-    Ok(pathing.target.is_some())
-}
-
-pub fn set_camera_target(entity: String, ecs: &Ecs) -> mlua::Result<()> {
-    let mut camera_component = ecs
-        .query_one_with_name::<&mut Camera>(CAMERA_ENTITY_NAME)
-        .ok_or(Error("no camera entity".to_string()))?;
-    camera_component.target_entity = Some(entity);
-    Ok(())
-}
-
-pub fn remove_camera_target(ecs: &Ecs) -> mlua::Result<()> {
-    let mut camera_component = ecs
-        .query_one_with_name::<&mut Camera>(CAMERA_ENTITY_NAME)
-        .ok_or(Error("no camera entity".to_string()))?;
-    camera_component.target_entity = None;
-    Ok(())
-}
-
-pub fn set_camera_clamp(clamp: bool, ecs: &Ecs) -> mlua::Result<()> {
-    if let Some(mut camera) = ecs.query::<&mut Camera>().next() {
-        camera.clamp_to_map = clamp;
-    }
-    Ok(())
-}
-
-pub fn play_object_animation((entity, repeat): (String, bool), ecs: &Ecs) -> mlua::Result<()> {
-    let mut anim_comp = ecs
-        .query_one_with_name::<&mut AnimationComp>(&entity)
-        .ok_or(Error(f!("invalid entity `{entity}`")))?;
-    anim_comp.start(repeat);
-    Ok(())
-}
-
-pub fn stop_object_animation(entity: String, ecs: &Ecs) -> mlua::Result<()> {
-    let mut anim_comp = ecs
-        .query_one_with_name::<&mut AnimationComp>(&entity)
-        .ok_or(Error(f!("invalid entity `{entity}`")))?;
-    anim_comp.stop();
-    Ok(())
-}
-
-pub fn switch_dual_state_animation((entity, state): (String, i32), ecs: &Ecs) -> mlua::Result<()> {
-    let (mut anim_comp, mut dual_anims) = ecs
-        .query_one_with_name::<(&mut AnimationComp, &mut DualStateAnims)>(&entity)
-        .ok_or(Error(f!("invalid entity `{entity}`")))?;
-
-    let state = match state {
-        1 => Ok(DualStateAnimationState::SecondToFirst),
-        2 => Ok(DualStateAnimationState::FirstToSecond),
-        _ => Err(Error("state must be 1 or 2".to_string())),
-    }?;
-
-    dual_anims.state = state;
-    anim_comp.start(false);
-
-    Ok(())
-}
-
-pub fn play_named_animation(
-    (entity, animation, repeat): (String, String, bool),
-    ecs: &Ecs,
-) -> mlua::Result<()> {
-    let (mut anim_comp, anims) = ecs
-        .query_one_with_name::<(&mut AnimationComp, &NamedAnims)>(&entity)
-        .ok_or(Error(f!("invalid entity `{entity}`")))?;
-
-    let clip = anims
-        .get(&animation)
-        .ok_or(Error(f!("no animation `{animation}` on entity `{entity}`")))?;
-
-    anim_comp.clip = clip.clone();
-    anim_comp.forced = true;
-    anim_comp.start(repeat);
-
-    Ok(())
-}
-
-pub fn anim_quiver((entity, duration): (String, f64), ecs: &mut Ecs) -> mlua::Result<()> {
-    let id = ecs
-        .query_one_with_name::<EntityId>(&entity)
-        .ok_or(Error(f!("invalid entity `{entity}`")))?;
-
-    ecs.add_component(
-        id,
-        SineOffsetAnimation {
-            start_time: Instant::now(),
-            duration: Duration::from_secs_f64(duration),
-            amplitude: 0.03,
-            frequency: 10.,
-            direction: Vec2::new(1., 0.),
-        },
-    );
-
-    Ok(())
-}
-
-pub fn anim_jump(entity: String, ecs: &mut Ecs) -> mlua::Result<()> {
-    let id = ecs
-        .query_one_with_name::<EntityId>(&entity)
-        .ok_or(Error(f!("invalid entity `{entity}`")))?;
-
-    ecs.add_component(
-        id,
-        SineOffsetAnimation {
-            start_time: Instant::now(),
-            duration: Duration::from_secs_f64(0.3),
-            amplitude: 0.5,
-            frequency: 1. / 2. / 0.3,
-            direction: Vec2::new(0., -1.),
-        },
-    );
-
-    Ok(())
-}
-
-pub fn play_sfx(name: String, sound_effects: &HashMap<String, Chunk>) -> mlua::Result<()> {
-    let sfx = sound_effects.get(&name).ok_or(Error(f!("no sfx `{name}`")))?;
-    sdl2::mixer::Channel::all().play(sfx, 0).map_err(|e| Error(e))?;
-    Ok(())
-}
-
-pub fn play_music(
-    (name, should_loop): (String, bool),
-    musics: &HashMap<String, Music>,
-) -> mlua::Result<()> {
-    let music = musics.get(&name).ok_or(Error(f!("no music `{name}`")))?;
-    music.play(if should_loop { -1 } else { 0 }).map_err(|e| Error(e))?;
-    Ok(())
-}
-
-pub fn stop_music(fade_out_time: f64) -> mlua::Result<()> {
-    let _ = Music::fade_out((fade_out_time * 1000.) as i32);
-    Ok(())
-}
-
-pub fn emit_entity_sfx(
-    (entity, sfx, repeat): (String, String, bool),
-    ecs: &Ecs,
-) -> mlua::Result<()> {
-    let mut sfx_comp = ecs
-        .query_one_with_name::<&mut SfxEmitter>(&entity)
-        .ok_or(Error(f!("invalid entity `{entity}`")))?;
-    sfx_comp.sfx_name = Some(sfx);
-    sfx_comp.repeat = repeat;
-    Ok(())
-}
-
-pub fn stop_entity_sfx(entity: String, ecs: &Ecs) -> mlua::Result<()> {
-    let mut sfx_comp = ecs
-        .query_one_with_name::<&mut SfxEmitter>(&entity)
-        .ok_or(Error(f!("invalid entity `{entity}`")))?;
-    sfx_comp.sfx_name = None;
-    sfx_comp.repeat = false;
-    Ok(())
-}
-
-pub fn add_component(
-    (entity_name, component_name, component_json): (String, String, String),
-    ecs: &mut Ecs,
-) -> mlua::Result<()> {
-    let entity_id = ecs
-        .query_one_with_name::<EntityId>(&entity_name)
-        .ok_or(Error(f!("invalid entity `{entity_name}`")))?;
-
-    let value = serde_json::from_str::<serde_json::Value>(&component_json)
-        .map_err(|e| Error(f!("invalid json (err: {e})")))?;
-
-    ecs.add_component_with_name(entity_id, &component_name, &value)
-        .map_err(|e| Error(e.to_string()))?;
-
-    Ok(())
-}
-
-pub fn remove_component(
-    (entity_name, component_name): (String, String),
-    ecs: &mut Ecs,
-) -> mlua::Result<()> {
-    let id = ecs
-        .query_one_with_name::<EntityId>(&entity_name)
-        .ok_or(Error(f!("invalid entity `{entity_name}`")))?;
-
-    ecs.remove_component_with_name(id, &component_name).map_err(|e| Error(e.to_string()))?;
-
-    Ok(())
-}
-
-pub fn dump_entities_to_file(path: String, ecs: &Ecs) -> mlua::Result<()> {
-    let mut entities = Vec::new();
-    for id in ecs.entity_ids.keys() {
-        entities.push(ecs.save_components_to_value(id));
-    }
-    let json = serde_json::to_string_pretty(&serde_json::Value::Array(entities)).expect("is serde");
-
-    std::fs::write(&path, &json).map_err(|e| Error(e.to_string()))?;
-
-    Ok(())
-}
-
-pub fn message(
-    message: String,
-    message_window: &mut Option<MessageWindow>,
-    wait_condition: &mut Option<WaitCondition>,
-) -> mlua::Result<()> {
-    *message_window = Some(MessageWindow { message });
-    *wait_condition = Some(WaitCondition::Message);
     Ok(())
 }
