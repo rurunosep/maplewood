@@ -1,17 +1,18 @@
 use crate::misc::{self, StoryVars};
-use crate::script::callbacks;
+use crate::script::callbacks::{self};
 use crate::{GameData, UiData};
 use anyhow::{Context, anyhow};
-use mlua::{Lua, Thread, ThreadStatus};
+use mlua::{HookTriggers, Lua, Thread, ThreadStatus};
 use regex::Regex;
 use sdl2::mixer::{Chunk, Music};
 use slotmap::{SlotMap, new_key_type};
 use std::cell::RefCell;
 use std::collections::{HashMap, VecDeque};
-use std::format as f;
+use std::fmt::Display;
 use std::path::Path;
-use std::sync::LazyLock;
+use std::sync::{Arc, LazyLock};
 use std::time::Instant;
+use std::{fmt, format as f};
 use tap::{TapFallible, TapOptional};
 
 new_key_type! { pub struct ScriptInstanceId; }
@@ -65,7 +66,7 @@ impl ScriptManager {
             #[rustfmt::skip]
             instance.update(
                 game_data, ui_data, player_movement_locked, running, musics,
-                sound_effects, &mut self.start_queue,                
+                sound_effects, &mut self.start_queue
             );
         }
 
@@ -173,6 +174,11 @@ impl ScriptInstance {
                     scope, &globals, &ui_data, &wait_condition,
                 )?;
 
+                self.thread
+                    .set_hook(HookTriggers::new().every_nth_instruction(100_000), |_, _| {
+                        Err(Error(f!("executed too long without yielding")).into())
+                    })?;
+
                 self.thread.resume::<()>(())?;
 
                 Ok(())
@@ -181,6 +187,25 @@ impl ScriptInstance {
                 Some(name) => log::error!("Error executing script `{name}`:\n{e}"),
                 None => log::error!("Error executing unnamed script:\n{e}"),
             });
+    }
+}
+
+// Callbacks have to return mlua::Result<_> to satisfy scope.create_function and thread.set_hook
+// Use a simple custom error with impl From<Error> for mlua::Error
+#[derive(Debug)]
+pub struct Error(pub String);
+
+impl std::error::Error for Error {}
+
+impl Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl From<Error> for mlua::Error {
+    fn from(err: Error) -> Self {
+        mlua::Error::ExternalError(Arc::new(err))
     }
 }
 

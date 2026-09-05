@@ -6,45 +6,20 @@ use crate::data::CAMERA_ENTITY_NAME;
 use crate::ecs::{Ecs, EntityId};
 use crate::math::{MapUnits, Rect, Vec2};
 use crate::misc::{Direction, StoryVars};
-use crate::script::{self, WaitCondition};
+use crate::script::{self, Error, WaitCondition};
 use crate::world::WorldPos;
 use crate::{GameData, MessageWindow, UiData};
 use mlua::{Function, Scope, Table};
 use sdl2::mixer::{Chunk, Music};
 use std::cell::RefCell;
 use std::collections::{HashMap, VecDeque};
-use std::fmt::{self, Display};
 use std::format as f;
-use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 // TODO differentiate between "no entity" and "missing components" in error messages
 
-// Callbacks have to return mlua::Result<_> to satisfy scope.create_function
-// Use a simple custom error with impl From<Error> for mlua::Error
-
 // Currently, all errors in callbacks return an error aborting the script
 // Callbacks may log warns, but I think all errors should return and abort
-
-#[derive(Debug)]
-pub struct Error(String);
-
-impl std::error::Error for Error {}
-
-impl Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-impl From<Error> for mlua::Error {
-    fn from(err: Error) -> Self {
-        mlua::Error::ExternalError(Arc::new(err))
-    }
-}
-
-// ----------------------------------------------
-// ----------------------------------------------
 
 pub fn bind_general_callbacks<'scope>(
     scope: &'scope Scope<'scope, '_>,
