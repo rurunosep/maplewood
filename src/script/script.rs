@@ -115,7 +115,7 @@ impl ScriptManager {
             lua_instance.globals().set(
                 "current_line",
                 lua_instance.create_function(|lua, level: usize| {
-                    Ok(lua.inspect_stack(level, |d| d.current_line()))
+                    Ok(lua.inspect_stack(level + 1, |d| d.current_line()))
                 })?,
             )?;
 
@@ -174,6 +174,7 @@ impl ScriptInstance {
                     scope, &globals, &ui_data, &wait_condition,
                 )?;
 
+                // Set execution limit hook
                 self.thread
                     .set_hook(HookTriggers::new().every_nth_instruction(100_000), |_, _| {
                         Err(Error(f!("executed too long without yielding")).into())

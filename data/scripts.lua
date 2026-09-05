@@ -249,14 +249,6 @@ else
   set_entity_world_pos("_player", "hallway", 3.5, 3.5)
 end
 
----@script overworld::shopping_cart
-
-if get("bakery_girl::stage") == 3 then
-  message("Got a quarter.")
-
-  set("bakery_girl::stage", 4)
-end
-
 ---@script gym::punching_bag
 
 if get("school_kid::stage") == 4 and get("main::plushy_found") == 0 then

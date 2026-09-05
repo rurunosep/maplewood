@@ -3800,7 +3800,7 @@
 									}] },
 									{ "__identifier": "start_condition", "__type": "String", "__value": "{\n  \"story_var\": \"bathroom::exit::running\",\n  \"value\": 0\n}", "__tile": null, "defUid": 757, "realEditorValues": [{
 										"id": "V_String",
-										"params": ["{\\n  \"story_var\": \"bathroom::exit::running\",\\n  \"value\": 0\\n}"]
+										"params": ["{\n  \"story_var\": \"bathroom::exit::running\",\n  \"value\": 0\n}"]
 									}] },
 									{ "__identifier": "abort_condition", "__type": "String", "__value": null, "__tile": null, "defUid": 789, "realEditorValues": [] },
 									{ "__identifier": "set_on_start", "__type": "String", "__value": "[\"bathroom::exit::running\", 1]", "__tile": null, "defUid": 758, "realEditorValues": [{
@@ -5358,35 +5358,6 @@
 								],
 								"__worldX": 184,
 								"__worldY": 408
-							},
-							{
-								"__identifier": "simple_script",
-								"__grid": [11,10],
-								"__pivot": [0.5,0.5],
-								"__tags": [],
-								"__tile": null,
-								"__smartColor": "#181425",
-								"iid": "393983a0-b0a0-11ee-a29b-bdd74e591271",
-								"width": 16,
-								"height": 16,
-								"defUid": 752,
-								"px": [184,168],
-								"fieldInstances": [
-									{ "__identifier": "name", "__type": "String", "__value": null, "__tile": null, "defUid": 756, "realEditorValues": [] },
-									{ "__identifier": "source", "__type": "String", "__value": "", "__tile": null, "defUid": 753, "realEditorValues": [] },
-									{ "__identifier": "external_source", "__type": "String", "__value": "scripts::bakery_girl", "__tile": null, "defUid": 790, "realEditorValues": [{
-										"id": "V_String",
-										"params": ["scripts::bakery_girl"]
-									}] },
-									{ "__identifier": "trigger", "__type": "LocalEnum.script_trigger", "__value": null, "__tile": null, "defUid": 788, "realEditorValues": [null] },
-									{ "__identifier": "start_condition", "__type": "String", "__value": null, "__tile": null, "defUid": 757, "realEditorValues": [] },
-									{ "__identifier": "abort_condition", "__type": "String", "__value": null, "__tile": null, "defUid": 789, "realEditorValues": [] },
-									{ "__identifier": "set_on_start", "__type": "String", "__value": null, "__tile": null, "defUid": 758, "realEditorValues": [] },
-									{ "__identifier": "set_on_finish", "__type": "String", "__value": null, "__tile": null, "defUid": 759, "realEditorValues": [] },
-									{ "__identifier": "json_components", "__type": "String", "__value": null, "__tile": null, "defUid": 845, "realEditorValues": [] }
-								],
-								"__worldX": 184,
-								"__worldY": 424
 							},
 							{
 								"__identifier": "simple_anim",
@@ -8121,7 +8092,7 @@
 									}] },
 									{ "__identifier": "start_condition", "__type": "String", "__value": "{\n  \"story_var\": \"janitor::stage\",\n  \"value\": 7\n}", "__tile": null, "defUid": 757, "realEditorValues": [{
 										"id": "V_String",
-										"params": ["{\\n  \"story_var\": \"janitor::stage\",\\n  \"value\": 7\\n}"]
+										"params": ["{\n  \"story_var\": \"janitor::stage\",\n  \"value\": 7\n}"]
 									}] },
 									{ "__identifier": "abort_condition", "__type": "String", "__value": null, "__tile": null, "defUid": 789, "realEditorValues": [] },
 									{ "__identifier": "set_on_start", "__type": "String", "__value": "[\"janitor::stage\", 8]", "__tile": null, "defUid": 758, "realEditorValues": [{
@@ -10646,30 +10617,6 @@
 								],
 								"__worldX": -112,
 								"__worldY": -88
-							},
-							{
-								"__identifier": "generic",
-								"__grid": [11,9],
-								"__pivot": [0.5,0.5],
-								"__tags": [],
-								"__tile": null,
-								"__smartColor": "#3A4466",
-								"iid": "4d3ba610-8560-11f0-9d19-d7b75578d648",
-								"width": 16,
-								"height": 16,
-								"defUid": 842,
-								"px": [184,152],
-								"fieldInstances": [
-									{ "__identifier": "name", "__type": "String", "__value": null, "__tile": null, "defUid": 843, "realEditorValues": [] },
-									{ "__identifier": "json_components", "__type": "String", "__value": "{\n  \"Name\": \"a_generic\",\n  \"Velocity\": {\n    \"x\": 1.0,\n    \"y\": 2.0\n  }\n}", "__tile": null, "defUid": 844, "realEditorValues": [{
-										"id": "V_String",
-										"params": [
-											"{\\n  \"Name\": \"a_generic\",\\n  \"Velocity\": {\\n    \"x\": 1.0,\\n    \"y\": 2.0\\n  }\\n}"
-										]
-									}] }
-								],
-								"__worldX": 24,
-								"__worldY": -8
 							}
 						]
 					},
