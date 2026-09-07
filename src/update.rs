@@ -10,7 +10,6 @@ use crate::misc::{Aabb, Direction};
 use crate::script::{self, ScriptManager};
 use crate::world::World;
 use crate::{GameData, UiData};
-use num_traits::Zero;
 use sdl2::mixer::{Chunk, Music};
 use std::collections::HashMap;
 use std::time::Duration;
@@ -195,7 +194,7 @@ fn play_animations_and_set_sprites(ecs: &Ecs, delta: Duration) {
 
 fn initialize_velocity_to_zero(ecs: &Ecs) {
     for mut velocity in ecs.query::<&mut Velocity>() {
-        velocity.0 = Vec2::default();
+        velocity.0 = Vec2::zero();
     }
 }
 
@@ -339,10 +338,10 @@ fn walk_towards_pathing_target(ecs: &Ecs) {
 
         // If to_target and velocity point in generally opposite directions, the target
         // has been reached and overshot
-        if to_target.dot(velocity.0) < 0.0 || to_target.length().is_zero() {
+        if to_target.dot(velocity.0) < 0.0 || to_target.is_zero() {
             position.map_pos = target;
             pathing.target = None;
-            walking.velocity = Vec2::new(0., 0.);
+            walking.velocity = Vec2::zero();
             continue;
         }
 
@@ -352,7 +351,7 @@ fn walk_towards_pathing_target(ecs: &Ecs) {
 
 fn set_facing_from_walking(ecs: &Ecs) {
     for (mut facing, walking) in ecs.query::<(&mut Facing, &Walking)>() {
-        if walking.velocity.length().is_zero() {
+        if walking.velocity.is_zero() {
             continue;
         }
 

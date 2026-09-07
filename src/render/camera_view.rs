@@ -1,7 +1,7 @@
 use crate::components::{OverheadText, Position, SineOffsetAnimation, SpriteComp};
 use crate::data::CAMERA_ENTITY_NAME;
 use crate::ecs::Ecs;
-use crate::math::{CellPos, CellUnits, MapUnits, Rect, Vec2};
+use crate::math::{CellPos, CellUnits, MapPos, MapUnits, PixelUnits, Rect, Vec2};
 use crate::misc::CELL_SIZE;
 use crate::render::rect_copy::RectCopyPipeline;
 use crate::render::renderer::Texture;
@@ -9,7 +9,6 @@ use crate::world::{Map, TileLayer, World};
 use itertools::Itertools;
 use std::collections::HashMap;
 use std::f64::consts::PI;
-use tap::{Pipe, TapOptional};
 use wgpu::{
     BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindingResource, Color, CommandEncoder,
     Device, Extent3d, LoadOp, Operations, Queue, RenderPass, RenderPassColorAttachment,
@@ -99,57 +98,60 @@ impl CameraView {
             occlusion_query_set: None,
         });
 
-        if let Some(camera_position) = ecs.query_one_with_name::<&Position>(CAMERA_ENTITY_NAME)
-            && let Some(map) = world.maps.get(&camera_position.map).tap_none(
-                || log::error!(once = true; "Map doesn't exist: {}", &camera_position.map),
-            )
-        {
-            let camera_rect: Rect<f64, MapUnits> = Rect::new_from_center(
-                camera_position.map_pos.x,
-                camera_position.map_pos.y,
-                self.texture.size.0 as f64 / CELL_SIZE as f64 / ZOOM,
-                self.texture.size.1 as f64 / CELL_SIZE as f64 / ZOOM,
-            );
+        let Some(camera_position) = ecs.query_one_with_name::<&Position>(CAMERA_ENTITY_NAME) else {
+            return;
+        };
 
-            // Draw tile layers below entities
-            for layer in map.tile_layers.iter().take_while_inclusive(|l| l.name != "interiors_3") {
-                self.draw_tile_layer(
-                    &mut render_pass,
-                    self.texture.size,
-                    layer,
-                    map,
-                    camera_rect,
-                    rect_copy_pipeline,
-                    tilesets,
-                );
-            }
+        let Some(map) = world.maps.get(&camera_position.map) else {
+            log::error!(once = true; "Map doesn't exist: {}", &camera_position.map);
+            return;
+        };
 
-            // Draw entities
-            self.draw_entities(
+        let camera_rect: Rect<f64, MapUnits> = Rect::new_from_center(
+            camera_position.map_pos.x,
+            camera_position.map_pos.y,
+            self.texture.size.0 as f64 / CELL_SIZE as f64 / ZOOM,
+            self.texture.size.1 as f64 / CELL_SIZE as f64 / ZOOM,
+        );
+
+        // Draw tile layers below entities
+        for layer in map.tile_layers.iter().take_while_inclusive(|l| l.name != "interiors_3") {
+            self.draw_tile_layer(
                 &mut render_pass,
                 self.texture.size,
-                ecs,
+                layer,
                 map,
                 camera_rect,
                 rect_copy_pipeline,
-                spritesheets,
+                tilesets,
             );
-
-            // Draw tile layers above entities
-            for layer in map.tile_layers.iter().skip_while(|l| l.name != "exteriors_4") {
-                self.draw_tile_layer(
-                    &mut render_pass,
-                    self.texture.size,
-                    layer,
-                    map,
-                    camera_rect,
-                    rect_copy_pipeline,
-                    tilesets,
-                );
-            }
-
-            self.draw_overhead_text(&mut render_pass, ecs, map, camera_rect, device, queue);
         }
+
+        // Draw entities
+        self.draw_entities(
+            &mut render_pass,
+            self.texture.size,
+            ecs,
+            map,
+            camera_rect,
+            rect_copy_pipeline,
+            spritesheets,
+        );
+
+        // Draw tile layers above entities
+        for layer in map.tile_layers.iter().skip_while(|l| l.name != "exteriors_4") {
+            self.draw_tile_layer(
+                &mut render_pass,
+                self.texture.size,
+                layer,
+                map,
+                camera_rect,
+                rect_copy_pipeline,
+                tilesets,
+            );
+        }
+
+        self.draw_overhead_text(&mut render_pass, ecs, map, camera_rect, device, queue);
     }
 
     fn draw_tile_layer(
@@ -178,21 +180,11 @@ impl CameraView {
                 let vec_index = vec_coords.y * map.dimensions.x + vec_coords.x;
 
                 if let Some(Some(tile_id)) = layer.tile_ids.get(vec_index as usize) {
-                    let top_left_in_viewport = {
-                        let map_pos = cell_pos.to_map_units();
-                        let sprite_offset = Some(layer.offset);
-                        let map_pos_relative_to_camera_top_left = map_pos - camera_rect.top_left();
-
-                        let position_in_viewport =
-                            map_pos_relative_to_camera_top_left * CELL_SIZE as f64 * ZOOM;
-
-                        let top_left_in_viewport = position_in_viewport
-                            + sprite_offset
-                                .unwrap_or_default()
-                                .pipe(|so| Vec2::new(so.x as f64 * ZOOM, so.y as f64 * ZOOM));
-
-                        top_left_in_viewport
-                    };
+                    let top_left_in_viewport = map_pos_to_top_left_in_viewport(
+                        cell_pos.to_map_units(),
+                        Some(layer.offset),
+                        camera_rect,
+                    );
 
                     let tile_y_in_tileset = (tile_id / tileset_width_in_tiles) * CELL_SIZE;
                     let tile_x_in_tileset = (tile_id % tileset_width_in_tiles) * CELL_SIZE;
@@ -205,8 +197,8 @@ impl CameraView {
                         tile_y_in_tileset,
                         CELL_SIZE,
                         CELL_SIZE,
-                        top_left_in_viewport.x.floor() as i32,
-                        top_left_in_viewport.y.floor() as i32,
+                        top_left_in_viewport.x,
+                        top_left_in_viewport.y,
                         (CELL_SIZE as f64 * ZOOM) as u32,
                         (CELL_SIZE as f64 * ZOOM) as u32,
                     );
@@ -260,20 +252,8 @@ impl CameraView {
                 position += offset;
             }
 
-            let top_left_in_viewport = {
-                let sprite_offset = Some(sprite.anchor * -1);
-                let map_pos_relative_to_camera_top_left = position - camera_rect.top_left();
-
-                let position_in_viewport =
-                    map_pos_relative_to_camera_top_left * CELL_SIZE as f64 * ZOOM;
-
-                let top_left_in_viewport = position_in_viewport
-                    + sprite_offset
-                        .unwrap_or_default()
-                        .pipe(|so| Vec2::new(so.x as f64 * ZOOM, so.y as f64 * ZOOM));
-
-                top_left_in_viewport
-            };
+            let top_left_in_viewport =
+                map_pos_to_top_left_in_viewport(position, Some(sprite.anchor * -1), camera_rect);
 
             rect_copy_pipeline.execute(
                 render_pass,
@@ -283,8 +263,8 @@ impl CameraView {
                 sprite.rect.top(),
                 sprite.rect.width,
                 sprite.rect.height,
-                top_left_in_viewport.x.floor() as i32,
-                top_left_in_viewport.y.floor() as i32,
+                top_left_in_viewport.x,
+                top_left_in_viewport.y,
                 (sprite.rect.width as f64 * ZOOM) as u32,
                 (sprite.rect.height as f64 * ZOOM) as u32,
             );
@@ -307,6 +287,8 @@ impl CameraView {
                 continue;
             }
 
+            // TODO incorporate zoom in text scale and position?
+
             let mut section = OwnedSection::default().add_text(
                 OwnedText::new(overhead.text.clone()).with_scale(48.).with_color([0., 0., 0., 1.]),
             );
@@ -327,14 +309,19 @@ impl CameraView {
     }
 }
 
-// #[allow(clippy::needless_return)]
-// pub fn map_pos_to_top_left_in_viewport(
-//     map_pos: MapPos,
-//     sprite_offset: Option<Vec2<i32, PixelUnits>>,
-//     camera_rect: Rect<f64, MapUnits>,
-// ) -> Vec2<i32, PixelUnits> {
-//     let map_pos_relative_to_camera_top_left = map_pos - camera_rect.top_left();
-//     let position_in_viewport = map_pos_relative_to_camera_top_left.to_pixel_units();
-//     let top_left_in_viewport = position_in_viewport + sprite_offset.unwrap_or_default();
-//     return top_left_in_viewport;
-// }
+#[allow(clippy::needless_return)]
+pub fn map_pos_to_top_left_in_viewport(
+    map_pos: MapPos,
+    sprite_offset: Option<Vec2<i32, PixelUnits>>,
+    camera_rect: Rect<f64, MapUnits>,
+) -> Vec2<i32, PixelUnits> {
+    let map_pos_relative_to_camera_top_left = map_pos - camera_rect.top_left();
+
+    let position_in_viewport =
+        (map_pos_relative_to_camera_top_left * CELL_SIZE as f64 * ZOOM).cast_unit::<PixelUnits>();
+
+    let top_left_in_viewport =
+        position_in_viewport + sprite_offset.unwrap_or_default().cast::<f64>() * ZOOM;
+
+    top_left_in_viewport.floor().cast::<i32>()
+}

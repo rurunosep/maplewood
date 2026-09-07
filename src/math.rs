@@ -1,5 +1,5 @@
-use crate::misc::CELL_SIZE;
 use num_traits::real::Real;
+use num_traits::{NumCast, Zero};
 use serde::ser::SerializeStruct;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
@@ -110,19 +110,45 @@ impl<T: Real + Copy, U> Vec2<T, U> {
     pub fn length(self) -> T {
         (self.x * self.x + self.y * self.y).sqrt()
     }
-}
 
-impl<T: Real + Copy, U> Vec2<T, U> {
     // If the vector has zero length, return a zero vector rather than NaN
     // Technically wrong, but much safer and still useful
     pub fn normalize(self) -> Self {
-        if self.length().is_zero() { Vec2::new(T::zero(), T::zero()) } else { self / self.length() }
+        if self.is_zero() { Vec2::zero() } else { self / self.length() }
+    }
+
+    pub fn floor(self) -> Self {
+        Vec2::new(self.x.floor(), self.y.floor())
+    }
+}
+
+impl<T: Zero, U> Vec2<T, U> {
+    pub fn zero() -> Vec2<T, U> {
+        Vec2::new(T::zero(), T::zero())
+    }
+
+    pub fn is_zero(&self) -> bool {
+        self.x.is_zero() && self.y.is_zero()
     }
 }
 
 impl<T: Add<Output = T> + Mul<Output = T> + Copy, U> Vec2<T, U> {
     pub fn dot(self, other: Self) -> T {
         self.x * other.x + self.y * other.y
+    }
+}
+
+// TODO impl From?
+
+impl<T: NumCast + Copy, U> Vec2<T, U> {
+    pub fn cast<NewT: NumCast>(self) -> Vec2<NewT, U> {
+        Vec2::new(NumCast::from(self.x).unwrap(), NumCast::from(self.y).unwrap())
+    }
+}
+
+impl<T: Copy, U> Vec2<T, U> {
+    pub fn cast_unit<NewU>(self) -> Vec2<T, NewU> {
+        Vec2::new(self.x, self.y)
     }
 }
 
@@ -216,16 +242,6 @@ impl<T: Copy + Add<Output = T>, U> Rect<T, U> {
 // Conversions
 
 impl Vec2<f64, MapUnits> {
-    // If I render directly onto the surface instead of onto an intermediate camera buffer that is
-    // scaled later, then these pixel values will be a bit inaccurate, since they still need to be
-    // multiplied by the render scale
-    pub fn to_pixel_units(self) -> Vec2<i32, PixelUnits> {
-        Vec2::new(
-            (self.x * CELL_SIZE as f64).floor() as i32,
-            (self.y * CELL_SIZE as f64).floor() as i32,
-        )
-    }
-
     pub fn to_cell_units(self) -> Vec2<i32, CellUnits> {
         Vec2::new(self.x.floor() as i32, self.y.floor() as i32)
     }

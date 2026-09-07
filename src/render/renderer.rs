@@ -17,7 +17,6 @@ use wgpu_text::glyph_brush::ab_glyph::FontVec;
 use wgpu_text::glyph_brush::{Section, Text};
 use wgpu_text::{BrushBuilder, TextBrush};
 
-// Rename this?
 pub struct Texture {
     pub bind_group: BindGroup,
     pub view: TextureView,

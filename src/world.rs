@@ -14,7 +14,7 @@ pub struct WorldPos {
 
 impl Default for WorldPos {
     fn default() -> Self {
-        Self { map: "overworld".to_string(), map_pos: Vec2::default() }
+        Self { map: "overworld".to_string(), map_pos: Vec2::new(0., 0.) }
     }
 }
 
