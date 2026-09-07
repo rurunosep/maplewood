@@ -9,9 +9,9 @@ set("start_script::started", 1)
 -- message("Legend says the kid in the classroom has a plushy.")
 -- message("(Press SPACE to interact and ~ to check out the dev UI.)")
 
-start_script_from_file("data/scripts.lua", "star_move")
-set_entity_world_pos("bakery_girl", "overworld", 1, 3)
-start_script_from_file("data/scripts.lua", "face")
+-- start_script_from_file("data/scripts.lua", "star_move")
+-- set_entity_world_pos("bakery_girl", "overworld", 1, 3)
+-- start_script_from_file("data/scripts.lua", "face")
 
 ---@script star_move
 

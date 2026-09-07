@@ -1,5 +1,4 @@
 use crate::ecs::Ecs;
-use crate::math::{MapPos, MapUnits, PixelUnits, Rect, Vec2};
 use crate::render::camera_view::CameraView;
 use crate::render::rect_copy::RectCopyPipeline;
 use crate::render::rect_fill::RectFillPipeline;
@@ -112,10 +111,12 @@ impl Renderer<'_> {
             surface_format,
         );
 
-        let font = FontVec::try_from_vec(font_data.clone()).unwrap();
-        let camera_view_brush = BrushBuilder::using_font(font).build(&device, 0, 0, surface_format);
-
-        let camera_view = CameraView { texture: None, brush: camera_view_brush };
+        let camera_view = CameraView::new(
+            &device,
+            surface_size,
+            surface_format,
+            &rect_copy_pipeline.texture_bind_group_layout,
+        );
 
         Self {
             device,
@@ -148,13 +149,6 @@ impl Renderer<'_> {
             self.device.create_command_encoder(&CommandEncoderDescriptor { label: None });
 
         // Camera render pass
-        self.camera_view.resize_texture(
-            &self.device,
-            &self.queue,
-            ecs,
-            &self.rect_copy_pipeline.texture_bind_group_layout,
-            &surface_texture.texture.format(),
-        );
         self.camera_view.render(
             &mut encoder,
             &self.device,
@@ -182,21 +176,19 @@ impl Renderer<'_> {
             });
 
             // Draw camera texture to screen
-            if let Some(camera_texture) = &self.camera_view.texture {
-                self.rect_copy_pipeline.execute(
-                    &mut render_pass,
-                    surface_size,
-                    camera_texture,
-                    0,
-                    0,
-                    camera_texture.size.0,
-                    camera_texture.size.1,
-                    0,
-                    0,
-                    surface_size.0,
-                    surface_size.1,
-                );
-            }
+            self.rect_copy_pipeline.execute(
+                &mut render_pass,
+                surface_size,
+                &self.camera_view.texture,
+                0,
+                0,
+                self.camera_view.texture.size.0,
+                self.camera_view.texture.size.1,
+                0,
+                0,
+                surface_size.0,
+                surface_size.1,
+            );
 
             self.draw_message_window(&mut render_pass, surface_size, &ui_data.message_window);
         }
@@ -388,16 +380,4 @@ impl Renderer<'_> {
         self.egui_render_pass.add_textures(&self.device, &self.queue, &textures_delta).unwrap();
         self.egui_render_pass.remove_textures(textures_delta).unwrap();
     }
-}
-
-#[allow(clippy::needless_return)]
-pub fn map_pos_to_top_left_in_viewport(
-    map_pos: MapPos,
-    sprite_offset: Option<Vec2<i32, PixelUnits>>,
-    camera_rect: Rect<f64, MapUnits>,
-) -> Vec2<i32, PixelUnits> {
-    let map_pos_relative_to_camera_top_left = map_pos - camera_rect.top_left();
-    let position_in_viewport = map_pos_relative_to_camera_top_left.to_pixel_units();
-    let top_left_in_viewport = position_in_viewport + sprite_offset.unwrap_or_default();
-    return top_left_in_viewport;
 }
