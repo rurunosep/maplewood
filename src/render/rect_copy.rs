@@ -5,18 +5,32 @@ use wgpu::*;
 
 pub struct RectCopyPipeline {
     pub pipeline: RenderPipeline,
+    pub texture_bind_group_layout: BindGroupLayout,
+    pub sampler_bind_group: BindGroup,
 }
 
 impl RectCopyPipeline {
-    pub fn new(
-        device: &Device,
-        surface_format: &TextureFormat,
-        texture_bind_group_layout: &BindGroupLayout,
-    ) -> Self {
+    pub fn new(device: &Device, surface_format: &TextureFormat) -> Self {
         let shader = device.create_shader_module(ShaderModuleDescriptor {
             label: Some("rect copy shader"),
             source: ShaderSource::Wgsl(include_str!("shaders/rect_copy_shader.wgsl").into()),
         });
+
+        let texture_bind_group_layout =
+            device.create_bind_group_layout(&BindGroupLayoutDescriptor {
+                label: None,
+                entries: &[BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: ShaderStages::FRAGMENT,
+                    ty: BindingType::Texture {
+                        // What is filterable? and what's a filtering sampler?
+                        sample_type: TextureSampleType::Float { filterable: true },
+                        view_dimension: TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
+                }],
+            });
 
         let sampler_bind_group_layout =
             device.create_bind_group_layout(&BindGroupLayoutDescriptor {
@@ -31,7 +45,7 @@ impl RectCopyPipeline {
 
         let pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
             label: Some("rect copy pipeline layout"),
-            bind_group_layouts: &[&sampler_bind_group_layout, texture_bind_group_layout],
+            bind_group_layouts: &[&sampler_bind_group_layout, &texture_bind_group_layout],
             push_constant_ranges: &[PushConstantRange {
                 stages: ShaderStages::VERTEX,
                 // Must have alignment of 4 (this struct happens to require no padding)
@@ -73,14 +87,29 @@ impl RectCopyPipeline {
             cache: None,
         });
 
-        Self { pipeline }
+        let sampler = device.create_sampler(&SamplerDescriptor {
+            label: None,
+            address_mode_u: AddressMode::ClampToEdge,
+            address_mode_v: AddressMode::ClampToEdge,
+            address_mode_w: AddressMode::ClampToEdge,
+            mag_filter: FilterMode::Nearest,
+            min_filter: FilterMode::Nearest,
+            mipmap_filter: FilterMode::Nearest,
+            ..Default::default()
+        });
+        let sampler_bind_group = device.create_bind_group(&BindGroupDescriptor {
+            label: None,
+            layout: &sampler_bind_group_layout,
+            entries: &[BindGroupEntry { binding: 0, resource: BindingResource::Sampler(&sampler) }],
+        });
+
+        Self { pipeline, texture_bind_group_layout, sampler_bind_group }
     }
 
     pub fn execute(
         &self,
         render_pass: &mut RenderPass,
         render_target_size: (u32, u32),
-        sampler_bind_group: &BindGroup,
         src_texture: &Texture,
         src_x: u32,
         src_y: u32,
@@ -110,7 +139,7 @@ impl RectCopyPipeline {
         };
 
         render_pass.set_pipeline(&self.pipeline);
-        render_pass.set_bind_group(0, sampler_bind_group, &[]);
+        render_pass.set_bind_group(0, &self.sampler_bind_group, &[]);
         render_pass.set_bind_group(1, &src_texture.bind_group, &[]);
         render_pass.set_push_constants(ShaderStages::VERTEX, 0, bytemuck::cast_slice(&[params]));
         render_pass.draw(0..6, 0..1);

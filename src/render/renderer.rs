@@ -1,22 +1,18 @@
-use crate::components::{Camera, Position, SineOffsetAnimation, SpriteComp};
-use crate::data::CAMERA_ENTITY_NAME;
 use crate::ecs::Ecs;
-use crate::math::{CellPos, CellUnits, MapPos, MapUnits, PixelUnits, Rect, Vec2};
-use crate::misc::CELL_SIZE;
+use crate::math::{MapPos, MapUnits, PixelUnits, Rect, Vec2};
+use crate::render::camera_view::CameraView;
 use crate::render::rect_copy::RectCopyPipeline;
 use crate::render::rect_fill::RectFillPipeline;
-use crate::world::{Map, TileLayer, World};
+use crate::world::World;
 use crate::{DevUi, MessageWindow, UiData};
 use egui::TexturesDelta;
 use image::GenericImageView;
-use itertools::Itertools;
 use pollster::FutureExt;
 use sdl2::video::Window;
 use std::collections::HashMap;
-use std::f64::consts::PI;
 use std::format as f;
 use std::path::Path;
-use tap::{Pipe, TapFallible, TapOptional};
+use tap::{Pipe, TapFallible};
 use wgpu::*;
 use wgpu_text::glyph_brush::ab_glyph::FontVec;
 use wgpu_text::glyph_brush::{Section, Text};
@@ -34,13 +30,12 @@ pub struct Renderer<'window> {
     queue: Queue,
     surface: Surface<'window>,
     egui_render_pass: egui_wgpu_backend::RenderPass,
-    texture_bind_group_layout: BindGroupLayout,
     rect_copy_pipeline: RectCopyPipeline,
     rect_fill_pipeline: RectFillPipeline,
-    sampler_bind_group: BindGroup,
     tilesets: HashMap<String, Texture>,
     spritesheets: HashMap<String, Texture>,
     brush: TextBrush<FontVec>,
+    camera_view: CameraView,
 }
 
 impl Renderer<'_> {
@@ -79,9 +74,6 @@ impl Renderer<'_> {
             })
             .block_on()
             .unwrap();
-        // For now, keep the default behavior of panicking on uncaptured wgpu errors
-        // If I don't want to panic, I can gracefully log them like this:
-        // device.on_uncaptured_error(Box::new(|e| log::error!("Wgpu error: {e}")));
 
         let surface_capabilities = surface.get_capabilities(&adapter);
         let surface_format = surface_capabilities
@@ -103,51 +95,16 @@ impl Renderer<'_> {
         };
         surface.configure(&device, &surface_config);
 
-        // (I can actually reference the egui_wgpu_backend::RenderPass code to see how it
-        // structures and solves several problems. It looks pretty informative.)
         let egui_render_pass = egui_wgpu_backend::RenderPass::new(&device, surface_format, 1);
 
-        let texture_bind_group_layout =
-            device.create_bind_group_layout(&BindGroupLayoutDescriptor {
-                label: None,
-                entries: &[BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: ShaderStages::FRAGMENT,
-                    ty: BindingType::Texture {
-                        // What is filterable? and what's a filtering sampler?
-                        sample_type: TextureSampleType::Float { filterable: true },
-                        view_dimension: TextureViewDimension::D2,
-                        multisampled: false,
-                    },
-                    count: None,
-                }],
-            });
-
-        let rect_copy_pipeline =
-            RectCopyPipeline::new(&device, &surface_format, &texture_bind_group_layout);
+        let rect_copy_pipeline = RectCopyPipeline::new(&device, &surface_format);
         let rect_fill_pipeline = RectFillPipeline::new(&device, &surface_format);
-
-        let sampler = device.create_sampler(&SamplerDescriptor {
-            label: None,
-            address_mode_u: AddressMode::ClampToEdge,
-            address_mode_v: AddressMode::ClampToEdge,
-            address_mode_w: AddressMode::ClampToEdge,
-            mag_filter: FilterMode::Nearest,
-            min_filter: FilterMode::Nearest,
-            mipmap_filter: FilterMode::Nearest,
-            ..Default::default()
-        });
-        let sampler_bind_group = device.create_bind_group(&BindGroupDescriptor {
-            label: None,
-            layout: &rect_copy_pipeline.pipeline.get_bind_group_layout(0),
-            entries: &[BindGroupEntry { binding: 0, resource: BindingResource::Sampler(&sampler) }],
-        });
 
         let tilesets = HashMap::new();
         let spritesheets = HashMap::new();
 
         let font_data = std::fs::read("assets/Grand9KPixel.ttf").unwrap();
-        let font = FontVec::try_from_vec(font_data).unwrap();
+        let font = FontVec::try_from_vec(font_data.clone()).unwrap();
         let brush = BrushBuilder::using_font(font).build(
             &device,
             surface_size.0,
@@ -155,18 +112,22 @@ impl Renderer<'_> {
             surface_format,
         );
 
+        let font = FontVec::try_from_vec(font_data.clone()).unwrap();
+        let camera_view_brush = BrushBuilder::using_font(font).build(&device, 0, 0, surface_format);
+
+        let camera_view = CameraView { texture: None, brush: camera_view_brush };
+
         Self {
             device,
             queue,
             surface,
             egui_render_pass,
-            texture_bind_group_layout,
             rect_copy_pipeline,
             rect_fill_pipeline,
-            sampler_bind_group,
             tilesets,
             spritesheets,
             brush,
+            camera_view,
         }
     }
 
@@ -186,30 +147,24 @@ impl Renderer<'_> {
         let mut encoder =
             self.device.create_command_encoder(&CommandEncoderDescriptor { label: None });
 
-        // Does the camera texture have to be recreated every frame? Can I save and reuse it?
-        let camera_texture = ecs.query_one_with_name::<&Camera>(CAMERA_ENTITY_NAME).map(|camera| {
-            self.prepare_camera_texture(camera.size, surface_texture.texture.format())
-        });
-
         // Camera render pass
-        // Render the world as seen by the camera onto a texture to be later rendered onto the
-        // surface at the appropriate scale
-        if let Some(camera_texture) = &camera_texture {
-            let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
-                label: None,
-                color_attachments: &[Some(RenderPassColorAttachment {
-                    view: &camera_texture.view,
-                    resolve_target: None,
-                    ops: Operations { load: LoadOp::Clear(Color::BLACK), store: StoreOp::Store },
-                    depth_slice: None,
-                })],
-                depth_stencil_attachment: None,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-            });
-
-            self.render_camera_view(&mut render_pass, camera_texture.size, world, ecs);
-        }
+        self.camera_view.resize_texture(
+            &self.device,
+            &self.queue,
+            ecs,
+            &self.rect_copy_pipeline.texture_bind_group_layout,
+            &surface_texture.texture.format(),
+        );
+        self.camera_view.render(
+            &mut encoder,
+            &self.device,
+            &self.queue,
+            ecs,
+            world,
+            &self.rect_copy_pipeline,
+            &self.tilesets,
+            &self.spritesheets,
+        );
 
         // Main render pass
         {
@@ -227,11 +182,10 @@ impl Renderer<'_> {
             });
 
             // Draw camera texture to screen
-            if let Some(camera_texture) = &camera_texture {
+            if let Some(camera_texture) = &self.camera_view.texture {
                 self.rect_copy_pipeline.execute(
                     &mut render_pass,
                     surface_size,
-                    &self.sampler_bind_group,
                     camera_texture,
                     0,
                     0,
@@ -278,196 +232,6 @@ impl Renderer<'_> {
 
         self.queue.submit([encoder.finish()]);
         surface_texture.present();
-    }
-
-    fn prepare_camera_texture(
-        &self,
-        camera_size: Vec2<f64, MapUnits>,
-        surface_format: TextureFormat,
-    ) -> Texture {
-        let camera_texture_size =
-            ((camera_size.x * CELL_SIZE as f64) as u32, (camera_size.y * CELL_SIZE as f64) as u32);
-        let camera_wgpu_texture = self.device.create_texture(&TextureDescriptor {
-            label: None,
-            size: Extent3d {
-                width: camera_texture_size.0,
-                height: camera_texture_size.1,
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: TextureDimension::D2,
-            // Must have format of surface because rect copy pipeline is configured for it
-            format: surface_format,
-            usage: TextureUsages::RENDER_ATTACHMENT | TextureUsages::TEXTURE_BINDING,
-            view_formats: &[],
-        });
-        let camera_texture_view =
-            camera_wgpu_texture.create_view(&TextureViewDescriptor::default());
-        let camera_texture_bind_group = self.device.create_bind_group(&BindGroupDescriptor {
-            label: None,
-            layout: &self.texture_bind_group_layout,
-            entries: &[BindGroupEntry {
-                binding: 0,
-                resource: BindingResource::TextureView(&camera_texture_view),
-            }],
-        });
-
-        Texture {
-            bind_group: camera_texture_bind_group,
-            view: camera_texture_view,
-            size: camera_texture_size,
-        }
-    }
-
-    fn render_camera_view<'rpass>(
-        &'rpass self,
-        render_pass: &mut RenderPass<'rpass>,
-        render_target_size: (u32, u32),
-        world: &World,
-        ecs: &Ecs,
-    ) {
-        if let Some((camera_position, camera_component)) =
-            ecs.query_one_with_name::<(&Position, &Camera)>(CAMERA_ENTITY_NAME)
-            && let Some(map) = world.maps.get(&camera_position.map).tap_none(
-                || log::error!(once = true; "Map doesn't exist: {}", &camera_position.map),
-            )
-        {
-            let camera_rect: Rect<f64, MapUnits> = Rect::new_from_center(
-                camera_position.map_pos.x,
-                camera_position.map_pos.y,
-                camera_component.size.x,
-                camera_component.size.y,
-            );
-
-            // Draw tile layers below entities
-            for layer in map.tile_layers.iter().take_while_inclusive(|l| l.name != "interiors_3") {
-                self.draw_tile_layer(render_pass, render_target_size, layer, map, camera_rect);
-            }
-
-            // Draw entities
-            self.draw_entities(render_pass, render_target_size, ecs, map, camera_rect);
-
-            // Draw tile layers above entities
-            for layer in map.tile_layers.iter().skip_while(|l| l.name != "exteriors_4") {
-                self.draw_tile_layer(render_pass, render_target_size, layer, map, camera_rect);
-            }
-        }
-    }
-
-    fn draw_tile_layer(
-        &self,
-        render_pass: &mut RenderPass,
-        render_target_size: (u32, u32),
-        layer: &TileLayer,
-        map: &Map,
-        camera_rect: Rect<f64, MapUnits>,
-    ) {
-        let Some(tileset) = self.tilesets.get(&layer.tileset_path) else {
-            log::error!(once = true; "Tileset doesn't exist: {}", &layer.tileset_path);
-            return;
-        };
-
-        let tileset_width_in_tiles = tileset.size.0 / CELL_SIZE;
-
-        let map_bounds: Rect<i32, CellUnits> =
-            Rect::new(map.offset.x, map.offset.y, map.dimensions.x, map.dimensions.y);
-        for col in map_bounds.left()..map_bounds.right() {
-            for row in map_bounds.top()..map_bounds.bottom() {
-                let cell_pos = CellPos::new(col, row);
-                let vec_coords = cell_pos - map.offset;
-                let vec_index = vec_coords.y * map.dimensions.x + vec_coords.x;
-
-                if let Some(Some(tile_id)) = layer.tile_ids.get(vec_index as usize) {
-                    let top_left_in_viewport = map_pos_to_top_left_in_viewport(
-                        cell_pos.to_map_units(),
-                        Some(layer.offset),
-                        camera_rect,
-                    );
-
-                    let tile_y_in_tileset = (tile_id / tileset_width_in_tiles) * CELL_SIZE;
-                    let tile_x_in_tileset = (tile_id % tileset_width_in_tiles) * CELL_SIZE;
-
-                    self.rect_copy_pipeline.execute(
-                        render_pass,
-                        render_target_size,
-                        &self.sampler_bind_group,
-                        tileset,
-                        tile_x_in_tileset,
-                        tile_y_in_tileset,
-                        CELL_SIZE,
-                        CELL_SIZE,
-                        top_left_in_viewport.x,
-                        top_left_in_viewport.y,
-                        CELL_SIZE,
-                        CELL_SIZE,
-                    );
-                }
-            }
-        }
-    }
-
-    fn draw_entities(
-        &self,
-        render_pass: &mut RenderPass,
-        render_target_size: (u32, u32),
-        ecs: &Ecs,
-        map: &Map,
-        camera_rect: Rect<f64, MapUnits>,
-    ) {
-        for (position, sprite_component, sine_offset_animation) in
-            ecs.query::<(&Position, &SpriteComp, Option<&SineOffsetAnimation>)>().sorted_by(
-                |(p1, ..), (p2, ..)| p1.map_pos.y.partial_cmp(&p2.map_pos.y).expect("not nan"),
-            )
-        {
-            // Skip entities not on the current map
-            if position.map != map.name {
-                continue;
-            }
-
-            if !sprite_component.visible {
-                continue;
-            }
-
-            // Choose sprite to draw
-            let Some(sprite) =
-                sprite_component.forced_sprite.as_ref().or(sprite_component.sprite.as_ref())
-            else {
-                continue;
-            };
-
-            let Some(spritesheet) = self.spritesheets.get(&sprite.spritesheet) else {
-                log::error!(once = true; "Spritesheet doesn't exist: {}", &sprite.spritesheet);
-                continue;
-            };
-
-            // If entity has a SineOffsetAnimation, offset sprite position accordingly
-            let mut position = position.map_pos;
-            if let Some(soa) = sine_offset_animation {
-                let offset = soa.direction
-                    * (soa.start_time.elapsed().as_secs_f64() * soa.frequency * (PI * 2.)).sin()
-                    * soa.amplitude;
-                position += offset;
-            }
-
-            let top_left_in_viewport =
-                map_pos_to_top_left_in_viewport(position, Some(sprite.anchor * -1), camera_rect);
-
-            self.rect_copy_pipeline.execute(
-                render_pass,
-                render_target_size,
-                &self.sampler_bind_group,
-                spritesheet,
-                sprite.rect.left(),
-                sprite.rect.top(),
-                sprite.rect.width,
-                sprite.rect.height,
-                top_left_in_viewport.x,
-                top_left_in_viewport.y,
-                sprite.rect.width,
-                sprite.rect.height,
-            );
-        }
     }
 
     fn draw_message_window<'rpass>(
@@ -605,7 +369,7 @@ impl Renderer<'_> {
 
         let texture_bind_group = self.device.create_bind_group(&BindGroupDescriptor {
             label: None,
-            layout: &self.texture_bind_group_layout,
+            layout: &self.rect_copy_pipeline.texture_bind_group_layout,
             entries: &[BindGroupEntry {
                 binding: 0,
                 resource: BindingResource::TextureView(&texture_view),
@@ -627,7 +391,7 @@ impl Renderer<'_> {
 }
 
 #[allow(clippy::needless_return)]
-fn map_pos_to_top_left_in_viewport(
+pub fn map_pos_to_top_left_in_viewport(
     map_pos: MapPos,
     sprite_offset: Option<Vec2<i32, PixelUnits>>,
     camera_rect: Rect<f64, MapUnits>,

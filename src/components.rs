@@ -249,3 +249,8 @@ impl ScriptSource {
         }
     }
 }
+
+pub struct OverheadText {
+    pub text: String,
+}
+impl Component for OverheadText {}
