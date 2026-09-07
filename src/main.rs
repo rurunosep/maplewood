@@ -159,7 +159,7 @@ fn main() {
         #[rustfmt::skip]
         update::update(
             &mut game_data, &mut ui_data, &mut script_manager, &mut player_movement_locked,
-            &mut running, &musics, &sound_effects, delta
+            &mut running, &musics, &sound_effects, delta, renderer.camera_texture_size()
         );
 
         renderer.render(&game_data.world, &game_data.ecs, &ui_data, &mut dev_ui);

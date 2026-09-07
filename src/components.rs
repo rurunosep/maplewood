@@ -175,7 +175,7 @@ impl Component for Pathing {}
 pub struct Camera {
     // This should be an Option<EntityIdentifier> when the time comes
     pub target_entity: Option<String>,
-    pub size: Vec2<f64, MapUnits>,
+    pub zoom: f64,
     pub clamp_to_map: bool,
 }
 impl Component for Camera {}

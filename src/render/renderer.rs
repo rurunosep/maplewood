@@ -379,4 +379,8 @@ impl Renderer<'_> {
         self.egui_render_pass.add_textures(&self.device, &self.queue, &textures_delta).unwrap();
         self.egui_render_pass.remove_textures(textures_delta).unwrap();
     }
+
+    pub fn camera_texture_size(&self) -> (u32, u32) {
+        self.camera_view.texture.size
+    }
 }

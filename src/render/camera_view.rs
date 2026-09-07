@@ -1,4 +1,4 @@
-use crate::components::{OverheadText, Position, SineOffsetAnimation, SpriteComp};
+use crate::components::{Camera, OverheadText, Position, SineOffsetAnimation, SpriteComp};
 use crate::data::CAMERA_ENTITY_NAME;
 use crate::ecs::Ecs;
 use crate::math::{CellPos, CellUnits, MapPos, MapUnits, PixelUnits, Rect, Vec2};
@@ -18,8 +18,6 @@ use wgpu::{
 use wgpu_text::glyph_brush::ab_glyph::FontVec;
 use wgpu_text::glyph_brush::{OwnedSection, OwnedText};
 use wgpu_text::{BrushBuilder, TextBrush};
-
-const ZOOM: f64 = 4.;
 
 pub struct CameraView {
     pub texture: Texture,
@@ -98,7 +96,9 @@ impl CameraView {
             occlusion_query_set: None,
         });
 
-        let Some(camera_position) = ecs.query_one_with_name::<&Position>(CAMERA_ENTITY_NAME) else {
+        let Some((camera_position, camera_component)) =
+            ecs.query_one_with_name::<(&Position, &Camera)>(CAMERA_ENTITY_NAME)
+        else {
             return;
         };
 
@@ -110,8 +110,8 @@ impl CameraView {
         let camera_rect: Rect<f64, MapUnits> = Rect::new_from_center(
             camera_position.map_pos.x,
             camera_position.map_pos.y,
-            self.texture.size.0 as f64 / CELL_SIZE as f64 / ZOOM,
-            self.texture.size.1 as f64 / CELL_SIZE as f64 / ZOOM,
+            self.texture.size.0 as f64 / CELL_SIZE as f64 / camera_component.zoom,
+            self.texture.size.1 as f64 / CELL_SIZE as f64 / camera_component.zoom,
         );
 
         // Draw tile layers below entities
@@ -124,6 +124,7 @@ impl CameraView {
                 camera_rect,
                 rect_copy_pipeline,
                 tilesets,
+                camera_component.zoom,
             );
         }
 
@@ -136,6 +137,7 @@ impl CameraView {
             camera_rect,
             rect_copy_pipeline,
             spritesheets,
+            camera_component.zoom,
         );
 
         // Draw tile layers above entities
@@ -148,10 +150,19 @@ impl CameraView {
                 camera_rect,
                 rect_copy_pipeline,
                 tilesets,
+                camera_component.zoom,
             );
         }
 
-        self.draw_overhead_text(&mut render_pass, ecs, map, camera_rect, device, queue);
+        self.draw_overhead_text(
+            &mut render_pass,
+            ecs,
+            map,
+            camera_rect,
+            device,
+            queue,
+            camera_component.zoom,
+        );
     }
 
     fn draw_tile_layer(
@@ -163,6 +174,7 @@ impl CameraView {
         camera_rect: Rect<f64, MapUnits>,
         rect_copy_pipeline: &RectCopyPipeline,
         tilesets: &HashMap<String, Texture>,
+        zoom: f64,
     ) {
         let Some(tileset) = tilesets.get(&layer.tileset_path) else {
             log::error!(once = true; "Tileset doesn't exist: {}", &layer.tileset_path);
@@ -184,6 +196,7 @@ impl CameraView {
                         cell_pos.to_map_units(),
                         Some(layer.offset),
                         camera_rect,
+                        zoom,
                     );
 
                     let tile_y_in_tileset = (tile_id / tileset_width_in_tiles) * CELL_SIZE;
@@ -199,8 +212,8 @@ impl CameraView {
                         CELL_SIZE,
                         top_left_in_viewport.x,
                         top_left_in_viewport.y,
-                        (CELL_SIZE as f64 * ZOOM) as u32,
-                        (CELL_SIZE as f64 * ZOOM) as u32,
+                        (CELL_SIZE as f64 * zoom) as u32,
+                        (CELL_SIZE as f64 * zoom) as u32,
                     );
                 }
             }
@@ -216,6 +229,7 @@ impl CameraView {
         camera_rect: Rect<f64, MapUnits>,
         rect_copy_pipeline: &RectCopyPipeline,
         spritesheets: &HashMap<String, Texture>,
+        zoom: f64,
     ) {
         for (position, sprite_component, sine_offset_animation) in
             ecs.query::<(&Position, &SpriteComp, Option<&SineOffsetAnimation>)>().sorted_by(
@@ -252,8 +266,12 @@ impl CameraView {
                 position += offset;
             }
 
-            let top_left_in_viewport =
-                map_pos_to_top_left_in_viewport(position, Some(sprite.anchor * -1), camera_rect);
+            let top_left_in_viewport = map_pos_to_top_left_in_viewport(
+                position,
+                Some(sprite.anchor * -1),
+                camera_rect,
+                zoom,
+            );
 
             rect_copy_pipeline.execute(
                 render_pass,
@@ -265,8 +283,8 @@ impl CameraView {
                 sprite.rect.height,
                 top_left_in_viewport.x,
                 top_left_in_viewport.y,
-                (sprite.rect.width as f64 * ZOOM) as u32,
-                (sprite.rect.height as f64 * ZOOM) as u32,
+                (sprite.rect.width as f64 * zoom) as u32,
+                (sprite.rect.height as f64 * zoom) as u32,
             );
         }
     }
@@ -279,6 +297,7 @@ impl CameraView {
         camera_rect: Rect<f64, MapUnits>,
         device: &Device,
         queue: &Queue,
+        zoom: f64,
     ) {
         let mut sections: Vec<OwnedSection> = Vec::new();
 
@@ -294,7 +313,7 @@ impl CameraView {
             );
 
             let entity_pos_in_viewport =
-                (position.map_pos - camera_rect.top_left()) * CELL_SIZE as f64 * ZOOM;
+                (position.map_pos - camera_rect.top_left()) * CELL_SIZE as f64 * zoom;
             let text_width =
                 self.brush.glyph_bounds(&section).map(|rect| rect.width()).unwrap_or(0.);
             let text_position = entity_pos_in_viewport - Vec2::new(text_width as f64 / 2., 100.);
@@ -314,14 +333,15 @@ pub fn map_pos_to_top_left_in_viewport(
     map_pos: MapPos,
     sprite_offset: Option<Vec2<i32, PixelUnits>>,
     camera_rect: Rect<f64, MapUnits>,
+    zoom: f64,
 ) -> Vec2<i32, PixelUnits> {
     let map_pos_relative_to_camera_top_left = map_pos - camera_rect.top_left();
 
     let position_in_viewport =
-        (map_pos_relative_to_camera_top_left * CELL_SIZE as f64 * ZOOM).cast_unit::<PixelUnits>();
+        (map_pos_relative_to_camera_top_left * CELL_SIZE as f64 * zoom).cast_unit::<PixelUnits>();
 
     let top_left_in_viewport =
-        position_in_viewport + sprite_offset.unwrap_or_default().cast::<f64>() * ZOOM;
+        position_in_viewport + sprite_offset.unwrap_or_default().cast::<f64>() * zoom;
 
     top_left_in_viewport.floor().cast::<i32>()
 }
