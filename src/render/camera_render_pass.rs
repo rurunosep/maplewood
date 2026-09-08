@@ -13,12 +13,12 @@ use wgpu::{
     RenderPassColorAttachment, RenderPassDescriptor, StoreOp,
 };
 use wgpu_text::TextBrush;
-use wgpu_text::glyph_brush::ab_glyph::FontVec;
+use wgpu_text::glyph_brush::ab_glyph::FontArc;
 use wgpu_text::glyph_brush::{OwnedSection, OwnedText};
 
 pub struct CameraRenderPass {
     pub texture: Texture,
-    pub text_brush: TextBrush<FontVec>,
+    pub text_brush: TextBrush<FontArc>,
 }
 
 impl CameraRenderPass {
@@ -27,14 +27,14 @@ impl CameraRenderPass {
         encoder: &mut CommandEncoder,
         device: &Device,
         queue: &Queue,
-        ecs: &Ecs,
-        world: &World,
         rect_copy_pipeline: &RectCopyPipeline,
         tilesets: &HashMap<String, Texture>,
         spritesheets: &HashMap<String, Texture>,
         camera_id: EntityId,
         camera_position: WorldPos,
         zoom: f64,
+        ecs: &Ecs,
+        world: &World,
     ) {
         let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
             label: None,
@@ -65,65 +65,65 @@ impl CameraRenderPass {
         for layer in map.tile_layers.iter().take_while_inclusive(|l| l.name != "interiors_3") {
             self.draw_tile_layer(
                 &mut render_pass,
-                self.texture.size,
-                layer,
-                map,
-                camera_rect,
                 rect_copy_pipeline,
                 tilesets,
+                self.texture.size,
+                camera_rect,
                 zoom,
+                layer,
+                map,
             );
         }
 
         // Draw entities
         self.draw_entities(
             &mut render_pass,
-            self.texture.size,
-            ecs,
-            map,
-            camera_rect,
             rect_copy_pipeline,
             spritesheets,
+            self.texture.size,
+            camera_rect,
             zoom,
             camera_id,
+            ecs,
+            map,
         );
 
         // Draw tile layers above entities
         for layer in map.tile_layers.iter().skip_while(|l| l.name != "exteriors_4") {
             self.draw_tile_layer(
                 &mut render_pass,
-                self.texture.size,
-                layer,
-                map,
-                camera_rect,
                 rect_copy_pipeline,
                 tilesets,
+                self.texture.size,
+                camera_rect,
                 zoom,
+                layer,
+                map,
             );
         }
 
         self.draw_overhead_text(
             &mut render_pass,
-            ecs,
-            map,
-            camera_rect,
             device,
             queue,
+            camera_rect,
             zoom,
             camera_id,
+            ecs,
+            map,
         );
     }
 
     fn draw_tile_layer(
         &self,
         render_pass: &mut RenderPass,
-        render_target_size: (u32, u32),
-        layer: &TileLayer,
-        map: &Map,
-        camera_rect: Rect<f64, MapUnits>,
         rect_copy_pipeline: &RectCopyPipeline,
         tilesets: &HashMap<String, Texture>,
+        render_target_size: (u32, u32),
+        camera_rect: Rect<f64, MapUnits>,
         zoom: f64,
+        layer: &TileLayer,
+        map: &Map,
     ) {
         let Some(tileset) = tilesets.get(&layer.tileset_path) else {
             log::error!(once = true; "Tileset doesn't exist: {}", &layer.tileset_path);
@@ -134,37 +134,43 @@ impl CameraRenderPass {
 
         let map_bounds: Rect<i32, CellUnits> =
             Rect::new(map.offset.x, map.offset.y, map.dimensions.x, map.dimensions.y);
+
         for col in map_bounds.left()..map_bounds.right() {
             for row in map_bounds.top()..map_bounds.bottom() {
                 let cell_pos = CellPos::new(col, row);
                 let vec_coords = cell_pos - map.offset;
                 let vec_index = vec_coords.y * map.dimensions.x + vec_coords.x;
+                let Some(Some(tile_id)) = layer.tile_ids.get(vec_index as usize) else {
+                    continue;
+                };
 
-                if let Some(Some(tile_id)) = layer.tile_ids.get(vec_index as usize) {
-                    let top_left_in_viewport = map_pos_to_top_left_in_viewport(
-                        cell_pos.to_map_units(),
-                        Some(layer.offset),
-                        camera_rect,
-                        zoom,
-                    );
+                let tile_y_in_tileset = (tile_id / tileset_width_in_tiles) * CELL_SIZE;
+                let tile_x_in_tileset = (tile_id % tileset_width_in_tiles) * CELL_SIZE;
 
-                    let tile_y_in_tileset = (tile_id / tileset_width_in_tiles) * CELL_SIZE;
-                    let tile_x_in_tileset = (tile_id % tileset_width_in_tiles) * CELL_SIZE;
+                let top_left_in_viewport = map_pos_to_top_left_in_viewport(
+                    cell_pos.to_map_units(),
+                    Some(layer.offset),
+                    camera_rect,
+                    zoom,
+                );
 
-                    rect_copy_pipeline.execute(
-                        render_pass,
-                        render_target_size,
-                        tileset,
-                        tile_x_in_tileset,
-                        tile_y_in_tileset,
-                        CELL_SIZE,
-                        CELL_SIZE,
-                        top_left_in_viewport.x,
-                        top_left_in_viewport.y,
-                        (CELL_SIZE as f64 * zoom) as u32,
-                        (CELL_SIZE as f64 * zoom) as u32,
-                    );
-                }
+                // (Stretch the dest width and height by one screen pixel as a litte hack to
+                // fill up gaps left by floating point math errors when using arbitrary zoom
+                // values)
+
+                rect_copy_pipeline.execute(
+                    render_pass,
+                    render_target_size,
+                    tileset,
+                    tile_x_in_tileset,
+                    tile_y_in_tileset,
+                    CELL_SIZE,
+                    CELL_SIZE,
+                    top_left_in_viewport.x,
+                    top_left_in_viewport.y,
+                    (CELL_SIZE as f64 * zoom) as u32 + 1,
+                    (CELL_SIZE as f64 * zoom) as u32 + 1,
+                );
             }
         }
     }
@@ -172,14 +178,14 @@ impl CameraRenderPass {
     fn draw_entities(
         &self,
         render_pass: &mut RenderPass,
-        render_target_size: (u32, u32),
-        ecs: &Ecs,
-        map: &Map,
-        camera_rect: Rect<f64, MapUnits>,
         rect_copy_pipeline: &RectCopyPipeline,
         spritesheets: &HashMap<String, Texture>,
+        render_target_size: (u32, u32),
+        camera_rect: Rect<f64, MapUnits>,
         zoom: f64,
         camera_id: EntityId,
+        ecs: &Ecs,
+        map: &Map,
     ) {
         for (position, sprite_component, sine_offset_animation) in ecs
             .query_except::<(&Position, &SpriteComp, Option<&SineOffsetAnimation>)>(camera_id)
@@ -243,13 +249,13 @@ impl CameraRenderPass {
     fn draw_overhead_text<'rpass>(
         &'rpass mut self,
         render_pass: &mut RenderPass<'rpass>,
-        ecs: &Ecs,
-        map: &Map,
-        camera_rect: Rect<f64, MapUnits>,
         device: &Device,
         queue: &Queue,
+        camera_rect: Rect<f64, MapUnits>,
         zoom: f64,
         camera_id: EntityId,
+        ecs: &Ecs,
+        map: &Map,
     ) {
         let mut sections: Vec<OwnedSection> = Vec::new();
 
@@ -268,8 +274,10 @@ impl CameraRenderPass {
 
             let entity_pos_in_viewport =
                 (position.map_pos - camera_rect.top_left()) * CELL_SIZE as f64 * zoom;
+
             let text_width =
                 self.text_brush.glyph_bounds(&section).map(|rect| rect.width()).unwrap_or(0.);
+
             let text_position =
                 entity_pos_in_viewport - Vec2::new(text_width as f64 / 2., 30. * zoom);
 

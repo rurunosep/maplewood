@@ -19,8 +19,7 @@ pub fn load_entities_from_source(ecs: &mut Ecs) {
     ecs.add_component(id, Velocity::default());
     ecs.add_component(id, SpriteComp::default());
     ecs.add_component(id, Facing::default());
-    // ecs.add_component(id, Walking { default_speed: 0.12, ..Default::default() });
-    ecs.add_component(id, Walking { default_speed: 0.05, ..Default::default() });
+    ecs.add_component(id, Walking { default_speed: 0.12, ..Default::default() });
     ecs.add_component(id, Pathing::default());
     ecs.add_component(id, Collision { hitbox: Vec2::new(7. / 16., 5. / 16.), solid: true });
 
@@ -56,8 +55,7 @@ pub fn load_entities_from_source(ecs: &mut Ecs) {
         id,
         Camera {
             render_target_size: (1920, 1080),
-            // zoom: 4.,
-            zoom: 20.,
+            zoom: 4.,
             target_entity: Some(PLAYER_ENTITY_NAME.to_string()),
             clamp_to_map: true,
         },

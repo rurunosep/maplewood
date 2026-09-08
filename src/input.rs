@@ -1,5 +1,5 @@
-use crate::components::{Facing, InteractionTrigger, Position, Walking};
-use crate::data::PLAYER_ENTITY_NAME;
+use crate::components::{Camera, Facing, InteractionTrigger, Position, Walking};
+use crate::data::{CAMERA_ENTITY_NAME, PLAYER_ENTITY_NAME};
 use crate::math::{MapUnits, Vec2};
 use crate::misc::{Aabb, Direction};
 use crate::script::ScriptManager;
@@ -48,6 +48,18 @@ pub fn process_input(
                     *message_window = None;
                     // Consume the input
                     continue;
+                }
+            }
+            _ => {}
+        }
+
+        // Zoom (where does this actually go?)
+        match event {
+            Event::MouseWheel { precise_y, .. } => {
+                if let Some(mut camera) = ecs.query_one_with_name::<&mut Camera>(CAMERA_ENTITY_NAME)
+                {
+                    camera.zoom = (camera.zoom * std::f64::consts::E.powf(precise_y as f64 * 0.1))
+                        .clamp(0.1, 50.0);
                 }
             }
             _ => {}

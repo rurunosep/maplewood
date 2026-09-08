@@ -16,7 +16,7 @@ use std::format as f;
 use std::path::Path;
 use tap::{Pipe, TapFallible};
 use wgpu::*;
-use wgpu_text::glyph_brush::ab_glyph::FontVec;
+use wgpu_text::glyph_brush::ab_glyph::FontArc;
 use wgpu_text::glyph_brush::{Section, Text};
 use wgpu_text::{BrushBuilder, TextBrush};
 
@@ -32,14 +32,14 @@ pub struct Renderer<'window> {
     queue: Queue,
     surface: Surface<'window>,
     surface_format: TextureFormat,
-    egui_render_pass: egui_wgpu_backend::RenderPass,
     rect_copy_pipeline: RectCopyPipeline,
     rect_fill_pipeline: RectFillPipeline,
+    camera_render_passes: SparseSecondaryMap<EntityId, CameraRenderPass>,
+    egui_render_pass: egui_wgpu_backend::RenderPass,
     tilesets: HashMap<String, Texture>,
     spritesheets: HashMap<String, Texture>,
-    brush: TextBrush<FontVec>,
-    // TODO
-    camera_render_passes: SparseSecondaryMap<EntityId, CameraRenderPass>,
+    font: FontArc,
+    text_brush: TextBrush<FontArc>,
 }
 
 impl Renderer<'_> {
@@ -99,22 +99,20 @@ impl Renderer<'_> {
         };
         surface.configure(&device, &surface_config);
 
-        let egui_render_pass = egui_wgpu_backend::RenderPass::new(&device, surface_format, 1);
-
         let rect_copy_pipeline = RectCopyPipeline::new(&device, &surface_format);
         let rect_fill_pipeline = RectFillPipeline::new(&device, &surface_format);
-
-        let tilesets = HashMap::new();
-        let spritesheets = HashMap::new();
 
         let camera_render_passes: SparseSecondaryMap<EntityId, CameraRenderPass> =
             SparseSecondaryMap::new();
 
-        // TODO dont duplicate font data. can we build brush with arc or something?
+        let egui_render_pass = egui_wgpu_backend::RenderPass::new(&device, surface_format, 1);
+
+        let tilesets = HashMap::new();
+        let spritesheets = HashMap::new();
 
         let font_data = std::fs::read("assets/Grand9KPixel.ttf").unwrap();
-        let font = FontVec::try_from_vec(font_data.clone()).unwrap();
-        let brush = BrushBuilder::using_font(font).build(
+        let font = FontArc::try_from_vec(font_data.clone()).unwrap();
+        let text_brush = BrushBuilder::using_font(font.clone()).build(
             &device,
             surface_size.0,
             surface_size.1,
@@ -126,13 +124,14 @@ impl Renderer<'_> {
             queue,
             surface,
             surface_format,
-            egui_render_pass,
             rect_copy_pipeline,
             rect_fill_pipeline,
+            camera_render_passes,
+            egui_render_pass,
             tilesets,
             spritesheets,
-            brush,
-            camera_render_passes,
+            font,
+            text_brush,
         }
     }
 
@@ -155,27 +154,25 @@ impl Renderer<'_> {
         // Render camera views
         for (id, camera_comp, position) in ecs.query::<(EntityId, &mut Camera, &Position)>() {
             let Some(camera_render_pass) = self.camera_render_passes.get_mut(id) else {
-                // TODO log error?
                 continue;
             };
 
-            // TODO clean up?
             camera_render_pass.render(
                 &mut encoder,
                 &self.device,
                 &self.queue,
-                ecs,
-                world,
                 &self.rect_copy_pipeline,
                 &self.tilesets,
                 &self.spritesheets,
                 id,
                 position.0.clone(),
                 camera_comp.zoom,
+                ecs,
+                world,
             );
         }
 
-        self.brush.queue(&self.device, &self.queue, [] as [&Section; 0]).unwrap();
+        self.text_brush.queue(&self.device, &self.queue, [] as [&Section; 0]).unwrap();
 
         // Main render pass
         {
@@ -194,7 +191,7 @@ impl Renderer<'_> {
 
             // Draw camera texture to screen
             if let Some(camera_id) = ecs.query_one_with_name::<EntityId>(CAMERA_ENTITY_NAME)
-                // TODO log error?
+                // Log error?
                 && let Some(camera_render_pass) = self.camera_render_passes.get(camera_id)
             {
                 self.rect_copy_pipeline.execute(
@@ -306,8 +303,8 @@ impl Renderer<'_> {
                 Text::new(&message_window.message).with_scale(48.).with_color([1., 1., 1., 1.]),
             )
             .with_screen_position((80., render_target_size.1 as f32 - 224.));
-        self.brush.queue(&self.device, &self.queue, [section]).unwrap();
-        self.brush.draw(render_pass);
+        self.text_brush.queue(&self.device, &self.queue, [section]).unwrap();
+        self.text_brush.draw(render_pass);
     }
 
     pub fn load_tilesets(&mut self) {
@@ -462,10 +459,7 @@ impl Renderer<'_> {
             size: render_target_size,
         };
 
-        // TODO dont duplicate font data. can we build brush with arc or something?
-        let font_data = std::fs::read("assets/Grand9KPixel.ttf").unwrap();
-        let font = FontVec::try_from_vec(font_data).unwrap();
-        let text_brush = BrushBuilder::using_font(font).build(
+        let text_brush = BrushBuilder::using_font(self.font.clone()).build(
             &self.device,
             render_target_size.0,
             render_target_size.1,

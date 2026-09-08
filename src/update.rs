@@ -372,55 +372,57 @@ fn set_facing_from_walking(ecs: &Ecs) {
 }
 
 fn update_camera(ecs: &Ecs, world: &World) {
-    let Some((camera_id, mut position, camera_component)) =
-        ecs.query::<(EntityId, &mut Position, &Camera)>().next()
-    else {
-        return;
-    };
-
-    // Update camera position to follow target entity
-    if let Some(target_name) = &camera_component.target_entity
-        && let Some((target_position, _)) = ecs
-            // query_one_with_name does NOT avoid a double borrow
-            // Only query_except and query_one_with_id filter in ways that avoid a double borrow
-            // So we have to query_except(camera_id), then filter results by name
-            .query_except::<(&Position, &Name)>(camera_id)
-            .find(|(_, name)| name.eq(target_name))
-            .tap_none(|| log::error!(once = true; "Invalid camera target: {}", &target_name))
+    for (camera_id, mut position, camera_component) in
+        ecs.query::<(EntityId, &mut Position, &Camera)>()
     {
-        *position = target_position.clone();
-    }
+        // Update camera position to follow target entity
+        if let Some(target_name) = &camera_component.target_entity
+            && let Some((target_position, _)) = ecs
+                // query_one_with_name does NOT avoid a double borrow
+                // Only query_except and query_one_with_id filter in ways that avoid a double borrow
+                // So we have to query_except(camera_id), then filter results by name
+                .query_except::<(&Position, &Name)>(camera_id)
+                .find(|(_, name)| name.eq(target_name))
+                .tap_none(|| log::error!(once = true; "Invalid camera target: {}", &target_name))
+        {
+            *position = target_position.clone();
+        }
 
-    // Clamp camera to map
-    if camera_component.clamp_to_map
-        && let Some(camera_map) = world
-            .maps
-            .get(&position.map)
-            .tap_none(|| log::error!(once = true; "Map doesn't exist: {}", &position.map))
-    {
-        let map_bounds: Rect<f64, MapUnits> = Rect::new(
-            camera_map.offset.x as f64,
-            camera_map.offset.y as f64,
-            camera_map.dimensions.x as f64,
-            camera_map.dimensions.y as f64,
-        );
-
-        // TODO associated function on camera component?
-        let camera_size: Vec2<f64, MapUnits> = Vec2::new(
-            camera_component.render_target_size.0 as f64 / CELL_SIZE as f64 / camera_component.zoom,
-            camera_component.render_target_size.1 as f64 / CELL_SIZE as f64 / camera_component.zoom,
-        );
-
-        // (If map is smaller than viewport, skip clamping, or clamp() will panic)
-        if map_bounds.width >= camera_size.x && map_bounds.height >= camera_size.y {
-            position.map_pos.x = position.map_pos.x.clamp(
-                map_bounds.left() + camera_size.x / 2.,
-                map_bounds.right() - camera_size.x / 2.,
+        // Clamp camera to map
+        if camera_component.clamp_to_map
+            && let Some(camera_map) = world
+                .maps
+                .get(&position.map)
+                .tap_none(|| log::error!(once = true; "Map doesn't exist: {}", &position.map))
+        {
+            let map_bounds: Rect<f64, MapUnits> = Rect::new(
+                camera_map.offset.x as f64,
+                camera_map.offset.y as f64,
+                camera_map.dimensions.x as f64,
+                camera_map.dimensions.y as f64,
             );
-            position.map_pos.y = position.map_pos.y.clamp(
-                map_bounds.top() + camera_size.y / 2.,
-                map_bounds.bottom() - camera_size.y / 2.,
+
+            // TODO associated function on camera component?
+            let camera_size: Vec2<f64, MapUnits> = Vec2::new(
+                camera_component.render_target_size.0 as f64
+                    / CELL_SIZE as f64
+                    / camera_component.zoom,
+                camera_component.render_target_size.1 as f64
+                    / CELL_SIZE as f64
+                    / camera_component.zoom,
             );
+
+            // (If map is smaller than viewport, skip clamping, or clamp() will panic)
+            if map_bounds.width >= camera_size.x && map_bounds.height >= camera_size.y {
+                position.map_pos.x = position.map_pos.x.clamp(
+                    map_bounds.left() + camera_size.x / 2.,
+                    map_bounds.right() - camera_size.x / 2.,
+                );
+                position.map_pos.y = position.map_pos.y.clamp(
+                    map_bounds.top() + camera_size.y / 2.,
+                    map_bounds.bottom() - camera_size.y / 2.,
+                );
+            }
         }
     }
 }
