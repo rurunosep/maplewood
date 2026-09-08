@@ -58,6 +58,7 @@ pub fn load_entities_from_source(ecs: &mut Ecs) {
             zoom: 4.,
             target_entity: Some(PLAYER_ENTITY_NAME.to_string()),
             clamp_to_map: true,
+            overlay_color: None,
         },
     );
     ecs.add_component(id, Position::default());
@@ -76,6 +77,7 @@ pub fn load_entities_from_source(ecs: &mut Ecs) {
             zoom: 2.,
             target_entity: None,
             clamp_to_map: false,
+            overlay_color: None,
         },
     );
 

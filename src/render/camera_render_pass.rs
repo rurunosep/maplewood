@@ -3,6 +3,7 @@ use crate::ecs::{Ecs, EntityId};
 use crate::math::{CellPos, CellUnits, MapPos, MapUnits, PixelUnits, Rect, Vec2};
 use crate::misc::CELL_SIZE;
 use crate::render::rect_copy::RectCopyPipeline;
+use crate::render::rect_fill::RectFillPipeline;
 use crate::render::renderer::Texture;
 use crate::world::{Map, TileLayer, World, WorldPos};
 use itertools::Itertools;
@@ -28,14 +29,34 @@ impl CameraRenderPass {
         device: &Device,
         queue: &Queue,
         rect_copy_pipeline: &RectCopyPipeline,
+        rect_fill_pipeline: &RectFillPipeline,
         tilesets: &HashMap<String, Texture>,
         spritesheets: &HashMap<String, Texture>,
         camera_id: EntityId,
         camera_position: WorldPos,
         zoom: f64,
+        overlay_color: Option<[f32; 4]>,
         ecs: &Ecs,
         world: &World,
     ) {
+        let Some(map) = world.maps.get(&camera_position.map) else {
+            log::error!(once = true; "Map doesn't exist: {}", &camera_position.map);
+            return;
+        };
+
+        let camera_rect: Rect<f64, MapUnits> = Rect::new_from_center(
+            camera_position.map_pos.x,
+            camera_position.map_pos.y,
+            self.texture.size.0 as f64 / CELL_SIZE as f64 / zoom,
+            self.texture.size.1 as f64 / CELL_SIZE as f64 / zoom,
+        );
+
+        // Text queueing must be done before starting the render pass
+        // (In general, data staging must be separate from drawing. We do anything that uses the
+        // queue, such as modifying buffers, before the render pass and then draw within the
+        // render pass using the prepared data.)
+        self.queue_overhead_text(device, queue, camera_rect, zoom, camera_id, ecs, map);
+
         let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
             label: None,
             color_attachments: &[Some(RenderPassColorAttachment {
@@ -48,18 +69,6 @@ impl CameraRenderPass {
             timestamp_writes: None,
             occlusion_query_set: None,
         });
-
-        let Some(map) = world.maps.get(&camera_position.map) else {
-            log::error!(once = true; "Map doesn't exist: {}", &camera_position.map);
-            return;
-        };
-
-        let camera_rect: Rect<f64, MapUnits> = Rect::new_from_center(
-            camera_position.map_pos.x,
-            camera_position.map_pos.y,
-            self.texture.size.0 as f64 / CELL_SIZE as f64 / zoom,
-            self.texture.size.1 as f64 / CELL_SIZE as f64 / zoom,
-        );
 
         // Draw tile layers below entities
         for layer in map.tile_layers.iter().take_while_inclusive(|l| l.name != "interiors_3") {
@@ -102,16 +111,21 @@ impl CameraRenderPass {
             );
         }
 
-        self.draw_overhead_text(
-            &mut render_pass,
-            device,
-            queue,
-            camera_rect,
-            zoom,
-            camera_id,
-            ecs,
-            map,
-        );
+        // Draw queued overhead text
+        self.text_brush.draw(&mut render_pass);
+
+        // Draw overlay color
+        if let Some(overlay_color) = overlay_color {
+            rect_fill_pipeline.execute(
+                &mut render_pass,
+                self.texture.size,
+                0,
+                0,
+                self.texture.size.0,
+                self.texture.size.1,
+                overlay_color,
+            );
+        }
     }
 
     fn draw_tile_layer(
@@ -246,9 +260,8 @@ impl CameraRenderPass {
         }
     }
 
-    fn draw_overhead_text<'rpass>(
-        &'rpass mut self,
-        render_pass: &mut RenderPass<'rpass>,
+    fn queue_overhead_text(
+        &mut self,
         device: &Device,
         queue: &Queue,
         camera_rect: Rect<f64, MapUnits>,
@@ -287,7 +300,6 @@ impl CameraRenderPass {
         }
 
         self.text_brush.queue(device, queue, &sections).unwrap();
-        self.text_brush.draw(render_pass);
     }
 }
 

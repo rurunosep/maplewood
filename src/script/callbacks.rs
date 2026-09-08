@@ -1,7 +1,7 @@
 use crate::components::{
     AnimationComp, Camera, Collision, DualStateAnimationState, DualStateAnims, Facing,
-    LerpCameraZoom, NamedAnims, Pathing, Position, SfxEmitter, SineOffsetAnimation, Sprite,
-    SpriteComp, Walking,
+    LerpCameraOverlayColor, LerpCameraZoom, NamedAnims, Pathing, Position, SfxEmitter,
+    SineOffsetAnimation, Sprite, SpriteComp, Walking,
 };
 use crate::ecs::EntityId;
 use crate::math::{MapUnits, Rect, Vec2};
@@ -329,6 +329,48 @@ pub fn bind_general_callbacks<'scope>(
 
                         None => {
                             camera_component.zoom = new_zoom;
+                        }
+                    }
+                    // (drop component refs)
+                }
+                ecs.flush_deferred_mutations();
+
+                Ok(())
+            },
+        )?,
+    )?;
+
+    globals.set(
+        "set_camera_overlay_color",
+        scope.create_function_mut(
+            |_, (camera_name, new_color, lerp_time): (String, Option<[f32; 4]>, Option<f64>)| {
+                let ecs = &mut game_data.borrow_mut().ecs;
+
+                {
+                    let (id, mut camera_component) = ecs
+                        .query_one_with_name::<(EntityId, &mut Camera)>(&camera_name)
+                        .ok_or(Error(f!("invalid entity `{camera_name}`")))?;
+
+                    match lerp_time {
+                        Some(lerp_time) => {
+                            ecs.add_component_deferred(
+                                id,
+                                LerpCameraOverlayColor {
+                                    start_value: camera_component
+                                        .overlay_color
+                                        .unwrap_or([0., 0., 0., 0.]),
+                                    end_value: new_color.unwrap_or([0., 0., 0., 0.]),
+                                    start_time: Instant::now(),
+                                    end_time: Instant::now() + Duration::from_secs_f64(lerp_time),
+                                },
+                            );
+                        }
+
+                        None => {
+                            camera_component.overlay_color = match new_color {
+                                Some([0., 0., 0., 0.]) => None,
+                                x => x,
+                            };
                         }
                     }
                     // (drop component refs)

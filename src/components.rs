@@ -180,6 +180,7 @@ pub struct Camera {
     // This should be an Option<EntityIdentifier> when the time comes
     pub target_entity: Option<String>,
     pub clamp_to_map: bool,
+    pub overlay_color: Option<[f32; 4]>,
 }
 impl Component for Camera {}
 
@@ -191,6 +192,15 @@ pub struct LerpCameraZoom {
     pub end_time: Instant,
 }
 impl Component for LerpCameraZoom {}
+
+// (not serde)
+pub struct LerpCameraOverlayColor {
+    pub start_value: [f32; 4],
+    pub end_value: [f32; 4],
+    pub start_time: Instant,
+    pub end_time: Instant,
+}
+impl Component for LerpCameraOverlayColor {}
 
 #[derive(Default, Clone, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]

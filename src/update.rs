@@ -1,7 +1,8 @@
 use crate::components::{
     AnimationComp, AreaTrigger, Camera, CharacterAnims, Collision, CollisionTrigger,
-    DualStateAnimationState, DualStateAnims, Facing, LerpCameraZoom, Name, Pathing, PlaybackState,
-    Position, SfxEmitter, SineOffsetAnimation, SpriteComp, Velocity, Walking,
+    DualStateAnimationState, DualStateAnims, Facing, LerpCameraOverlayColor, LerpCameraZoom, Name,
+    Pathing, PlaybackState, Position, SfxEmitter, SineOffsetAnimation, SpriteComp, Velocity,
+    Walking,
 };
 use crate::data::PLAYER_ENTITY_NAME;
 use crate::ecs::{Ecs, EntityId};
@@ -41,8 +42,9 @@ pub fn update(
     start_collision_trigger_scripts(&game_data.ecs, script_manager);
     resolve_collisions(&game_data.ecs, &game_data.world);
 
-    update_camera(&game_data.ecs, &game_data.world);
+    camera_follow_target_and_clamp(&game_data.ecs, &game_data.world);
     lerp_camera_zoom(&mut game_data.ecs);
+    lerp_camera_overlay_color(&mut game_data.ecs);
 
     update_character_animations(&game_data.ecs);
     update_dual_state_animations(&game_data.ecs);
@@ -51,10 +53,6 @@ pub fn update(
     update_sfx_emitting_entities(&game_data.ecs, sound_effects);
     end_sine_offset_animations(&mut game_data.ecs);
 }
-
-// ------------------------------------------------------------------
-// Scripts
-// ------------------------------------------------------------------
 
 fn start_auto_scripts(script_manager: &mut ScriptManager, auto_scripts: &Vec<String>) {
     for source in auto_scripts {
@@ -97,10 +95,6 @@ fn start_area_trigger_scripts(script_manager: &mut ScriptManager, ecs: &Ecs) {
         }
     }
 }
-
-// ------------------------------------------------------------------
-// Animation
-// ------------------------------------------------------------------
 
 fn update_character_animations(ecs: &Ecs) {
     for (mut anim_comp, char_anims, facing, walk_comp) in
@@ -188,10 +182,6 @@ fn play_animations_and_set_sprites(ecs: &Ecs, delta: Duration) {
         }
     }
 }
-
-// ------------------------------------------------------------------
-// Movement and Collision
-// ------------------------------------------------------------------
 
 fn initialize_velocity_to_zero(ecs: &Ecs) {
     for mut velocity in ecs.query::<&mut Velocity>() {
@@ -323,10 +313,6 @@ fn resolve_collisions(ecs: &Ecs, world: &World) {
     }
 }
 
-// ------------------------------------------------------------------
-// Misc
-// ------------------------------------------------------------------
-
 fn walk_towards_pathing_target(ecs: &Ecs) {
     for (mut walking, mut position, mut pathing, velocity) in
         ecs.query::<(&mut Walking, &mut Position, &mut Pathing, &Velocity)>()
@@ -372,7 +358,7 @@ fn set_facing_from_walking(ecs: &Ecs) {
     }
 }
 
-fn update_camera(ecs: &Ecs, world: &World) {
+fn camera_follow_target_and_clamp(ecs: &Ecs, world: &World) {
     for (camera_id, mut position, camera_component) in
         ecs.query::<(EntityId, &mut Position, &Camera)>()
     {
@@ -431,13 +417,37 @@ fn update_camera(ecs: &Ecs, world: &World) {
 }
 
 fn lerp_camera_zoom(ecs: &mut Ecs) {
-    for (id, mut camera, lerp_zoom) in ecs.query::<(EntityId, &mut Camera, &LerpCameraZoom)>() {
-        let duration = lerp_zoom.end_time - lerp_zoom.start_time;
-        let elapsed = Instant::now() - lerp_zoom.start_time;
+    for (id, mut camera, lerp_comp) in ecs.query::<(EntityId, &mut Camera, &LerpCameraZoom)>() {
+        let duration = lerp_comp.end_time - lerp_comp.start_time;
+        let elapsed = Instant::now() - lerp_comp.start_time;
         let interp = elapsed.div_duration_f64(duration).clamp(0., 1.);
-        camera.zoom = lerp_zoom.start_value * (1. - interp) + lerp_zoom.end_value * interp;
+        camera.zoom = lerp_comp.start_value * (1. - interp) + lerp_comp.end_value * interp;
 
-        if interp == 1. {
+        if interp >= 1. {
+            ecs.remove_component_deferred::<LerpCameraZoom>(id);
+        }
+    }
+    ecs.flush_deferred_mutations();
+}
+
+fn lerp_camera_overlay_color(ecs: &mut Ecs) {
+    for (id, mut camera, lerp_comp) in
+        ecs.query::<(EntityId, &mut Camera, &LerpCameraOverlayColor)>()
+    {
+        let duration = lerp_comp.end_time - lerp_comp.start_time;
+        let elapsed = Instant::now() - lerp_comp.start_time;
+        let interp = elapsed.div_duration_f64(duration).clamp(0., 1.);
+
+        let new_color = std::array::from_fn(|i| {
+            lerp_comp.start_value[i] * (1. - interp as f32) + lerp_comp.end_value[i] * interp as f32
+        });
+
+        camera.overlay_color = match new_color {
+            [0., 0., 0., 0.] => None,
+            _ => Some(new_color),
+        };
+
+        if interp >= 1. {
             ecs.remove_component_deferred::<LerpCameraZoom>(id);
         }
     }

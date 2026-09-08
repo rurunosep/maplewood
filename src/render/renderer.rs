@@ -160,11 +160,13 @@ impl Renderer<'_> {
                 &self.device,
                 &self.queue,
                 &self.rect_copy_pipeline,
+                &self.rect_fill_pipeline,
                 &self.tilesets,
                 &self.spritesheets,
                 id,
                 position.0.clone(),
                 camera_comp.zoom,
+                camera_comp.overlay_color,
                 ecs,
                 world,
             );
