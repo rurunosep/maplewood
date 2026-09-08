@@ -14,6 +14,8 @@ mod script;
 mod update;
 mod world;
 
+use crate::components::Camera;
+use crate::ecs::EntityId;
 use crate::misc::{LOGGER, WINDOW_SIZE};
 use crate::script::ScriptManager;
 use crate::script::console::ConsoleCommandExecutor;
@@ -104,6 +106,14 @@ fn main() {
     loader::load_entities_from_file(&mut ecs, "data/entities.json");
     data::load_entities_from_source(&mut ecs);
 
+    // if let Some(mut camera_component) = ecs.query_one_with_name::<&mut
+    // Camera>(CAMERA_ENTITY_NAME) {     camera_component.render_pass =
+    // Some(renderer.camera_view.clone()); }
+
+    for (id, camera) in ecs.query::<(EntityId, &Camera)>() {
+        renderer.create_camera_render_pass(id, camera.render_target_size);
+    }
+
     let mut story_vars = StoryVars(HashMap::new());
     loader::load_story_vars_from_file(&mut story_vars, "data/story_vars.json");
 
@@ -159,7 +169,7 @@ fn main() {
         #[rustfmt::skip]
         update::update(
             &mut game_data, &mut ui_data, &mut script_manager, &mut player_movement_locked,
-            &mut running, &musics, &sound_effects, delta, renderer.camera_texture_size()
+            &mut running, &musics, &sound_effects, delta
         );
 
         renderer.render(&game_data.world, &game_data.ecs, &ui_data, &mut dev_ui);

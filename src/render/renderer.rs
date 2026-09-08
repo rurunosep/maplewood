@@ -1,5 +1,7 @@
-use crate::ecs::Ecs;
-use crate::render::camera_view::CameraView;
+use crate::components::{Camera, Position};
+use crate::data::CAMERA_ENTITY_NAME;
+use crate::ecs::{Ecs, EntityId};
+use crate::render::camera_render_pass::CameraRenderPass;
 use crate::render::rect_copy::RectCopyPipeline;
 use crate::render::rect_fill::RectFillPipeline;
 use crate::world::World;
@@ -8,6 +10,7 @@ use egui::TexturesDelta;
 use image::GenericImageView;
 use pollster::FutureExt;
 use sdl2::video::Window;
+use slotmap::SparseSecondaryMap;
 use std::collections::HashMap;
 use std::format as f;
 use std::path::Path;
@@ -17,6 +20,7 @@ use wgpu_text::glyph_brush::ab_glyph::FontVec;
 use wgpu_text::glyph_brush::{Section, Text};
 use wgpu_text::{BrushBuilder, TextBrush};
 
+#[derive(Clone)]
 pub struct Texture {
     pub bind_group: BindGroup,
     pub view: TextureView,
@@ -27,13 +31,15 @@ pub struct Renderer<'window> {
     device: Device,
     queue: Queue,
     surface: Surface<'window>,
+    surface_format: TextureFormat,
     egui_render_pass: egui_wgpu_backend::RenderPass,
     rect_copy_pipeline: RectCopyPipeline,
     rect_fill_pipeline: RectFillPipeline,
     tilesets: HashMap<String, Texture>,
     spritesheets: HashMap<String, Texture>,
     brush: TextBrush<FontVec>,
-    camera_view: CameraView,
+    // TODO
+    camera_render_passes: SparseSecondaryMap<EntityId, CameraRenderPass>,
 }
 
 impl Renderer<'_> {
@@ -101,6 +107,11 @@ impl Renderer<'_> {
         let tilesets = HashMap::new();
         let spritesheets = HashMap::new();
 
+        let camera_render_passes: SparseSecondaryMap<EntityId, CameraRenderPass> =
+            SparseSecondaryMap::new();
+
+        // TODO dont duplicate font data. can we build brush with arc or something?
+
         let font_data = std::fs::read("assets/Grand9KPixel.ttf").unwrap();
         let font = FontVec::try_from_vec(font_data.clone()).unwrap();
         let brush = BrushBuilder::using_font(font).build(
@@ -110,24 +121,18 @@ impl Renderer<'_> {
             surface_format,
         );
 
-        let camera_view = CameraView::new(
-            &device,
-            surface_size,
-            surface_format,
-            &rect_copy_pipeline.texture_bind_group_layout,
-        );
-
         Self {
             device,
             queue,
             surface,
+            surface_format,
             egui_render_pass,
             rect_copy_pipeline,
             rect_fill_pipeline,
             tilesets,
             spritesheets,
             brush,
-            camera_view,
+            camera_render_passes,
         }
     }
 
@@ -147,17 +152,30 @@ impl Renderer<'_> {
         let mut encoder =
             self.device.create_command_encoder(&CommandEncoderDescriptor { label: None });
 
-        // Camera render pass
-        self.camera_view.render(
-            &mut encoder,
-            &self.device,
-            &self.queue,
-            ecs,
-            world,
-            &self.rect_copy_pipeline,
-            &self.tilesets,
-            &self.spritesheets,
-        );
+        // Render camera views
+        for (id, camera_comp, position) in ecs.query::<(EntityId, &mut Camera, &Position)>() {
+            let Some(camera_render_pass) = self.camera_render_passes.get_mut(id) else {
+                // TODO log error?
+                continue;
+            };
+
+            // TODO clean up?
+            camera_render_pass.render(
+                &mut encoder,
+                &self.device,
+                &self.queue,
+                ecs,
+                world,
+                &self.rect_copy_pipeline,
+                &self.tilesets,
+                &self.spritesheets,
+                id,
+                position.0.clone(),
+                camera_comp.zoom,
+            );
+        }
+
+        self.brush.queue(&self.device, &self.queue, [] as [&Section; 0]).unwrap();
 
         // Main render pass
         {
@@ -175,19 +193,55 @@ impl Renderer<'_> {
             });
 
             // Draw camera texture to screen
-            self.rect_copy_pipeline.execute(
-                &mut render_pass,
-                surface_size,
-                &self.camera_view.texture,
-                0,
-                0,
-                self.camera_view.texture.size.0,
-                self.camera_view.texture.size.1,
-                0,
-                0,
-                surface_size.0,
-                surface_size.1,
-            );
+            if let Some(camera_id) = ecs.query_one_with_name::<EntityId>(CAMERA_ENTITY_NAME)
+                // TODO log error?
+                && let Some(camera_render_pass) = self.camera_render_passes.get(camera_id)
+            {
+                self.rect_copy_pipeline.execute(
+                    &mut render_pass,
+                    surface_size,
+                    &camera_render_pass.texture,
+                    0,
+                    0,
+                    camera_render_pass.texture.size.0,
+                    camera_render_pass.texture.size.1,
+                    0,
+                    0,
+                    camera_render_pass.texture.size.0,
+                    camera_render_pass.texture.size.1,
+                );
+            }
+
+            // Draw corner camera
+            if let Some(camera_id) = ecs.query_one_with_name::<EntityId>("corner_camera")
+                && let Some(camera_render_pass) = self.camera_render_passes.get(camera_id)
+            {
+                // Draw the border/background
+                self.rect_fill_pipeline.execute(
+                    &mut render_pass,
+                    surface_size,
+                    surface_size.0 as i32 - camera_render_pass.texture.size.0 as i32 - 10,
+                    surface_size.1 as i32 - camera_render_pass.texture.size.1 as i32 - 10,
+                    camera_render_pass.texture.size.0 + 10,
+                    camera_render_pass.texture.size.1 + 10,
+                    [0., 0., 0., 1.],
+                );
+
+                // Draw the camera texture
+                self.rect_copy_pipeline.execute(
+                    &mut render_pass,
+                    surface_size,
+                    &camera_render_pass.texture,
+                    0,
+                    0,
+                    camera_render_pass.texture.size.0,
+                    camera_render_pass.texture.size.1,
+                    surface_size.0 as i32 - camera_render_pass.texture.size.0 as i32,
+                    surface_size.1 as i32 - camera_render_pass.texture.size.1 as i32,
+                    camera_render_pass.texture.size.0,
+                    camera_render_pass.texture.size.1,
+                );
+            }
 
             self.draw_message_window(&mut render_pass, surface_size, &ui_data.message_window);
         }
@@ -374,13 +428,58 @@ impl Renderer<'_> {
         }
     }
 
+    pub fn create_camera_render_pass(
+        &mut self,
+        camera_id: EntityId,
+        render_target_size: (u32, u32),
+    ) {
+        let wgpu_texture = self.device.create_texture(&TextureDescriptor {
+            label: None,
+            size: Extent3d {
+                width: render_target_size.0,
+                height: render_target_size.1,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: TextureDimension::D2,
+            format: self.surface_format.clone(),
+            usage: TextureUsages::RENDER_ATTACHMENT | TextureUsages::TEXTURE_BINDING,
+            view_formats: &[],
+        });
+        let texture_view = wgpu_texture.create_view(&TextureViewDescriptor::default());
+        let camera_texture_bind_group = self.device.create_bind_group(&BindGroupDescriptor {
+            label: None,
+            layout: &self.rect_copy_pipeline.texture_bind_group_layout,
+            entries: &[BindGroupEntry {
+                binding: 0,
+                resource: BindingResource::TextureView(&texture_view),
+            }],
+        });
+        let texture = Texture {
+            bind_group: camera_texture_bind_group,
+            view: texture_view,
+            size: render_target_size,
+        };
+
+        // TODO dont duplicate font data. can we build brush with arc or something?
+        let font_data = std::fs::read("assets/Grand9KPixel.ttf").unwrap();
+        let font = FontVec::try_from_vec(font_data).unwrap();
+        let text_brush = BrushBuilder::using_font(font).build(
+            &self.device,
+            render_target_size.0,
+            render_target_size.1,
+            self.surface_format.clone(),
+        );
+
+        let camera_render_pass = CameraRenderPass { texture, text_brush };
+
+        self.camera_render_passes.insert(camera_id, camera_render_pass);
+    }
+
     // Part of the hack to make egui properly set initial screen_rect
     pub fn update_egui_textures_without_rendering(&mut self, textures_delta: TexturesDelta) {
         self.egui_render_pass.add_textures(&self.device, &self.queue, &textures_delta).unwrap();
         self.egui_render_pass.remove_textures(textures_delta).unwrap();
-    }
-
-    pub fn camera_texture_size(&self) -> (u32, u32) {
-        self.camera_view.texture.size
     }
 }

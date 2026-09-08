@@ -173,9 +173,11 @@ impl Component for Pathing {}
 #[derive(Default, Clone, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Camera {
+    // The render target texture is created at this size during game initialization
+    pub render_target_size: (u32, u32),
+    pub zoom: f64,
     // This should be an Option<EntityIdentifier> when the time comes
     pub target_entity: Option<String>,
-    pub zoom: f64,
     pub clamp_to_map: bool,
 }
 impl Component for Camera {}

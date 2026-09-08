@@ -24,7 +24,6 @@ pub fn update(
     musics: &HashMap<String, Music<'_>>,
     sound_effects: &HashMap<String, Chunk>,
     delta: Duration,
-    camera_texture_size: (u32, u32),
 ) {
     start_auto_scripts(script_manager, &game_data.auto_scripts);
     start_area_trigger_scripts(script_manager, &game_data.ecs);
@@ -42,7 +41,7 @@ pub fn update(
     start_collision_trigger_scripts(&game_data.ecs, script_manager);
     resolve_collisions(&game_data.ecs, &game_data.world);
 
-    update_camera(&game_data.ecs, &game_data.world, camera_texture_size);
+    update_camera(&game_data.ecs, &game_data.world);
 
     update_character_animations(&game_data.ecs);
     update_dual_state_animations(&game_data.ecs);
@@ -372,8 +371,8 @@ fn set_facing_from_walking(ecs: &Ecs) {
     }
 }
 
-fn update_camera(ecs: &Ecs, world: &World, camera_texture_size: (u32, u32)) {
-    let Some((camera_id, mut camera_position, camera_component)) =
+fn update_camera(ecs: &Ecs, world: &World) {
+    let Some((camera_id, mut position, camera_component)) =
         ecs.query::<(EntityId, &mut Position, &Camera)>().next()
     else {
         return;
@@ -389,15 +388,15 @@ fn update_camera(ecs: &Ecs, world: &World, camera_texture_size: (u32, u32)) {
             .find(|(_, name)| name.eq(target_name))
             .tap_none(|| log::error!(once = true; "Invalid camera target: {}", &target_name))
     {
-        *camera_position = target_position.clone();
+        *position = target_position.clone();
     }
 
     // Clamp camera to map
     if camera_component.clamp_to_map
         && let Some(camera_map) = world
             .maps
-            .get(&camera_position.map)
-            .tap_none(|| log::error!(once = true; "Map doesn't exist: {}", &camera_position.map))
+            .get(&position.map)
+            .tap_none(|| log::error!(once = true; "Map doesn't exist: {}", &position.map))
     {
         let map_bounds: Rect<f64, MapUnits> = Rect::new(
             camera_map.offset.x as f64,
@@ -406,18 +405,19 @@ fn update_camera(ecs: &Ecs, world: &World, camera_texture_size: (u32, u32)) {
             camera_map.dimensions.y as f64,
         );
 
+        // TODO associated function on camera component?
         let camera_size: Vec2<f64, MapUnits> = Vec2::new(
-            camera_texture_size.0 as f64 / CELL_SIZE as f64 / camera_component.zoom,
-            camera_texture_size.1 as f64 / CELL_SIZE as f64 / camera_component.zoom,
+            camera_component.render_target_size.0 as f64 / CELL_SIZE as f64 / camera_component.zoom,
+            camera_component.render_target_size.1 as f64 / CELL_SIZE as f64 / camera_component.zoom,
         );
 
         // (If map is smaller than viewport, skip clamping, or clamp() will panic)
         if map_bounds.width >= camera_size.x && map_bounds.height >= camera_size.y {
-            camera_position.map_pos.x = camera_position.map_pos.x.clamp(
+            position.map_pos.x = position.map_pos.x.clamp(
                 map_bounds.left() + camera_size.x / 2.,
                 map_bounds.right() - camera_size.x / 2.,
             );
-            camera_position.map_pos.y = camera_position.map_pos.y.clamp(
+            position.map_pos.y = position.map_pos.y.clamp(
                 map_bounds.top() + camera_size.y / 2.,
                 map_bounds.bottom() - camera_size.y / 2.,
             );

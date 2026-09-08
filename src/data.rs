@@ -19,7 +19,8 @@ pub fn load_entities_from_source(ecs: &mut Ecs) {
     ecs.add_component(id, Velocity::default());
     ecs.add_component(id, SpriteComp::default());
     ecs.add_component(id, Facing::default());
-    ecs.add_component(id, Walking { default_speed: 0.12, ..Default::default() });
+    // ecs.add_component(id, Walking { default_speed: 0.12, ..Default::default() });
+    ecs.add_component(id, Walking { default_speed: 0.05, ..Default::default() });
     ecs.add_component(id, Pathing::default());
     ecs.add_component(id, Collision { hitbox: Vec2::new(7. / 16., 5. / 16.), solid: true });
 
@@ -46,7 +47,7 @@ pub fn load_entities_from_source(ecs: &mut Ecs) {
         },
     );
 
-    ecs.add_component(id, OverheadText { text: "hello".to_string() });
+    ecs.add_component(id, OverheadText { text: "test".to_string() });
 
     // Camera
     let id = ecs.add_entity();
@@ -54,8 +55,10 @@ pub fn load_entities_from_source(ecs: &mut Ecs) {
     ecs.add_component(
         id,
         Camera {
-            target_entity: Some(PLAYER_ENTITY_NAME.to_string()),
+            render_target_size: (1920, 1080),
+            // zoom: 4.,
             zoom: 20.,
+            target_entity: Some(PLAYER_ENTITY_NAME.to_string()),
             clamp_to_map: true,
         },
     );
@@ -63,6 +66,20 @@ pub fn load_entities_from_source(ecs: &mut Ecs) {
     ecs.add_component(id, Velocity::default());
     ecs.add_component(id, Walking::default());
     ecs.add_component(id, Pathing::default());
+
+    // Corner Camera
+    let id = ecs.add_entity();
+    ecs.add_component(id, Name("corner_camera".to_string()));
+    ecs.add_component(id, Position(WorldPos::new("overworld", 1.5, 2.5)));
+    ecs.add_component(
+        id,
+        Camera {
+            render_target_size: (1920 / 3, 1080 / 3),
+            zoom: 2.,
+            target_entity: None,
+            clamp_to_map: false,
+        },
+    );
 
     // Bathroom door blocker
     let id = ecs.add_entity();

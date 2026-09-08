@@ -1,77 +1,27 @@
-use crate::components::{Camera, OverheadText, Position, SineOffsetAnimation, SpriteComp};
-use crate::data::CAMERA_ENTITY_NAME;
-use crate::ecs::Ecs;
+use crate::components::{OverheadText, Position, SineOffsetAnimation, SpriteComp};
+use crate::ecs::{Ecs, EntityId};
 use crate::math::{CellPos, CellUnits, MapPos, MapUnits, PixelUnits, Rect, Vec2};
 use crate::misc::CELL_SIZE;
 use crate::render::rect_copy::RectCopyPipeline;
 use crate::render::renderer::Texture;
-use crate::world::{Map, TileLayer, World};
+use crate::world::{Map, TileLayer, World, WorldPos};
 use itertools::Itertools;
 use std::collections::HashMap;
 use std::f64::consts::PI;
 use wgpu::{
-    BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindingResource, Color, CommandEncoder,
-    Device, Extent3d, LoadOp, Operations, Queue, RenderPass, RenderPassColorAttachment,
-    RenderPassDescriptor, StoreOp, TextureDescriptor, TextureDimension, TextureFormat,
-    TextureUsages, TextureViewDescriptor,
+    Color, CommandEncoder, Device, LoadOp, Operations, Queue, RenderPass,
+    RenderPassColorAttachment, RenderPassDescriptor, StoreOp,
 };
+use wgpu_text::TextBrush;
 use wgpu_text::glyph_brush::ab_glyph::FontVec;
 use wgpu_text::glyph_brush::{OwnedSection, OwnedText};
-use wgpu_text::{BrushBuilder, TextBrush};
 
-pub struct CameraView {
+pub struct CameraRenderPass {
     pub texture: Texture,
-    // TODO single brush? do we need two anymore?
-    pub brush: TextBrush<FontVec>,
+    pub text_brush: TextBrush<FontVec>,
 }
 
-impl CameraView {
-    pub fn new(
-        device: &Device,
-        surface_size: (u32, u32),
-        surface_format: TextureFormat,
-        texture_bind_group_layout: &BindGroupLayout,
-    ) -> CameraView {
-        let wgpu_texture = device.create_texture(&TextureDescriptor {
-            label: None,
-            size: Extent3d {
-                width: surface_size.0,
-                height: surface_size.1,
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: TextureDimension::D2,
-            // Must have format of surface because rect copy pipeline is configured for it
-            format: surface_format.clone(),
-            usage: TextureUsages::RENDER_ATTACHMENT | TextureUsages::TEXTURE_BINDING,
-            view_formats: &[],
-        });
-        let texture_view = wgpu_texture.create_view(&TextureViewDescriptor::default());
-        let texture_bind_group = device.create_bind_group(&BindGroupDescriptor {
-            label: None,
-            layout: texture_bind_group_layout,
-            entries: &[BindGroupEntry {
-                binding: 0,
-                resource: BindingResource::TextureView(&texture_view),
-            }],
-        });
-
-        let font_data = std::fs::read("assets/Grand9KPixel.ttf").unwrap();
-        let font = FontVec::try_from_vec(font_data.clone()).unwrap();
-        let brush = BrushBuilder::using_font(font).build(
-            &device,
-            surface_size.0,
-            surface_size.1,
-            surface_format.clone(),
-        );
-
-        let texture =
-            Texture { bind_group: texture_bind_group, view: texture_view, size: surface_size };
-
-        CameraView { texture, brush }
-    }
-
+impl CameraRenderPass {
     pub fn render(
         &mut self,
         encoder: &mut CommandEncoder,
@@ -82,6 +32,9 @@ impl CameraView {
         rect_copy_pipeline: &RectCopyPipeline,
         tilesets: &HashMap<String, Texture>,
         spritesheets: &HashMap<String, Texture>,
+        camera_id: EntityId,
+        camera_position: WorldPos,
+        zoom: f64,
     ) {
         let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
             label: None,
@@ -96,12 +49,6 @@ impl CameraView {
             occlusion_query_set: None,
         });
 
-        let Some((camera_position, camera_component)) =
-            ecs.query_one_with_name::<(&Position, &Camera)>(CAMERA_ENTITY_NAME)
-        else {
-            return;
-        };
-
         let Some(map) = world.maps.get(&camera_position.map) else {
             log::error!(once = true; "Map doesn't exist: {}", &camera_position.map);
             return;
@@ -110,8 +57,8 @@ impl CameraView {
         let camera_rect: Rect<f64, MapUnits> = Rect::new_from_center(
             camera_position.map_pos.x,
             camera_position.map_pos.y,
-            self.texture.size.0 as f64 / CELL_SIZE as f64 / camera_component.zoom,
-            self.texture.size.1 as f64 / CELL_SIZE as f64 / camera_component.zoom,
+            self.texture.size.0 as f64 / CELL_SIZE as f64 / zoom,
+            self.texture.size.1 as f64 / CELL_SIZE as f64 / zoom,
         );
 
         // Draw tile layers below entities
@@ -124,7 +71,7 @@ impl CameraView {
                 camera_rect,
                 rect_copy_pipeline,
                 tilesets,
-                camera_component.zoom,
+                zoom,
             );
         }
 
@@ -137,7 +84,8 @@ impl CameraView {
             camera_rect,
             rect_copy_pipeline,
             spritesheets,
-            camera_component.zoom,
+            zoom,
+            camera_id,
         );
 
         // Draw tile layers above entities
@@ -150,7 +98,7 @@ impl CameraView {
                 camera_rect,
                 rect_copy_pipeline,
                 tilesets,
-                camera_component.zoom,
+                zoom,
             );
         }
 
@@ -161,7 +109,8 @@ impl CameraView {
             camera_rect,
             device,
             queue,
-            camera_component.zoom,
+            zoom,
+            camera_id,
         );
     }
 
@@ -230,11 +179,13 @@ impl CameraView {
         rect_copy_pipeline: &RectCopyPipeline,
         spritesheets: &HashMap<String, Texture>,
         zoom: f64,
+        camera_id: EntityId,
     ) {
-        for (position, sprite_component, sine_offset_animation) in
-            ecs.query::<(&Position, &SpriteComp, Option<&SineOffsetAnimation>)>().sorted_by(
-                |(p1, ..), (p2, ..)| p1.map_pos.y.partial_cmp(&p2.map_pos.y).expect("not nan"),
-            )
+        for (position, sprite_component, sine_offset_animation) in ecs
+            .query_except::<(&Position, &SpriteComp, Option<&SineOffsetAnimation>)>(camera_id)
+            .sorted_by(|(p1, ..), (p2, ..)| {
+                p1.map_pos.y.partial_cmp(&p2.map_pos.y).expect("not nan")
+            })
         {
             // Skip entities not on the current map
             if position.map != map.name {
@@ -298,33 +249,37 @@ impl CameraView {
         device: &Device,
         queue: &Queue,
         zoom: f64,
+        camera_id: EntityId,
     ) {
         let mut sections: Vec<OwnedSection> = Vec::new();
 
-        for (position, overhead) in ecs.query::<(&Position, &OverheadText)>() {
+        for (position, overhead) in ecs.query_except::<(&Position, &OverheadText)>(camera_id) {
             if position.map != map.name {
                 continue;
             }
 
-            // TODO incorporate zoom in text scale and position?
+            // How exactly should scale and position be affected by zoom?
 
             let mut section = OwnedSection::default().add_text(
-                OwnedText::new(overhead.text.clone()).with_scale(48.).with_color([0., 0., 0., 1.]),
+                OwnedText::new(overhead.text.clone())
+                    .with_scale(16. * zoom as f32)
+                    .with_color([0., 0., 0., 1.]),
             );
 
             let entity_pos_in_viewport =
                 (position.map_pos - camera_rect.top_left()) * CELL_SIZE as f64 * zoom;
             let text_width =
-                self.brush.glyph_bounds(&section).map(|rect| rect.width()).unwrap_or(0.);
-            let text_position = entity_pos_in_viewport - Vec2::new(text_width as f64 / 2., 100.);
+                self.text_brush.glyph_bounds(&section).map(|rect| rect.width()).unwrap_or(0.);
+            let text_position =
+                entity_pos_in_viewport - Vec2::new(text_width as f64 / 2., 30. * zoom);
 
             section.screen_position = (text_position.x as f32, text_position.y as f32);
 
             sections.push(section);
         }
 
-        self.brush.queue(device, queue, &sections).unwrap();
-        self.brush.draw(render_pass);
+        self.text_brush.queue(device, queue, &sections).unwrap();
+        self.text_brush.draw(render_pass);
     }
 }
 
