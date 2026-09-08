@@ -106,10 +106,6 @@ fn main() {
     loader::load_entities_from_file(&mut ecs, "data/entities.json");
     data::load_entities_from_source(&mut ecs);
 
-    // if let Some(mut camera_component) = ecs.query_one_with_name::<&mut
-    // Camera>(CAMERA_ENTITY_NAME) {     camera_component.render_pass =
-    // Some(renderer.camera_view.clone()); }
-
     for (id, camera) in ecs.query::<(EntityId, &Camera)>() {
         renderer.create_camera_render_pass(id, camera.render_target_size);
     }

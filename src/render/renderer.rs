@@ -10,7 +10,6 @@ use egui::TexturesDelta;
 use image::GenericImageView;
 use pollster::FutureExt;
 use sdl2::video::Window;
-use slotmap::SparseSecondaryMap;
 use std::collections::HashMap;
 use std::format as f;
 use std::path::Path;
@@ -34,7 +33,7 @@ pub struct Renderer<'window> {
     surface_format: TextureFormat,
     rect_copy_pipeline: RectCopyPipeline,
     rect_fill_pipeline: RectFillPipeline,
-    camera_render_passes: SparseSecondaryMap<EntityId, CameraRenderPass>,
+    camera_render_passes: HashMap<EntityId, CameraRenderPass>,
     egui_render_pass: egui_wgpu_backend::RenderPass,
     tilesets: HashMap<String, Texture>,
     spritesheets: HashMap<String, Texture>,
@@ -102,8 +101,7 @@ impl Renderer<'_> {
         let rect_copy_pipeline = RectCopyPipeline::new(&device, &surface_format);
         let rect_fill_pipeline = RectFillPipeline::new(&device, &surface_format);
 
-        let camera_render_passes: SparseSecondaryMap<EntityId, CameraRenderPass> =
-            SparseSecondaryMap::new();
+        let camera_render_passes: HashMap<EntityId, CameraRenderPass> = HashMap::new();
 
         let egui_render_pass = egui_wgpu_backend::RenderPass::new(&device, surface_format, 1);
 
@@ -153,7 +151,7 @@ impl Renderer<'_> {
 
         // Render camera views
         for (id, camera_comp, position) in ecs.query::<(EntityId, &mut Camera, &Position)>() {
-            let Some(camera_render_pass) = self.camera_render_passes.get_mut(id) else {
+            let Some(camera_render_pass) = self.camera_render_passes.get_mut(&id) else {
                 continue;
             };
 
@@ -171,8 +169,6 @@ impl Renderer<'_> {
                 world,
             );
         }
-
-        self.text_brush.queue(&self.device, &self.queue, [] as [&Section; 0]).unwrap();
 
         // Main render pass
         {
@@ -192,7 +188,7 @@ impl Renderer<'_> {
             // Draw camera texture to screen
             if let Some(camera_id) = ecs.query_one_with_name::<EntityId>(CAMERA_ENTITY_NAME)
                 // Log error?
-                && let Some(camera_render_pass) = self.camera_render_passes.get(camera_id)
+                && let Some(camera_render_pass) = self.camera_render_passes.get(&camera_id)
             {
                 self.rect_copy_pipeline.execute(
                     &mut render_pass,
@@ -211,7 +207,7 @@ impl Renderer<'_> {
 
             // Draw corner camera
             if let Some(camera_id) = ecs.query_one_with_name::<EntityId>("corner_camera")
-                && let Some(camera_render_pass) = self.camera_render_passes.get(camera_id)
+                && let Some(camera_render_pass) = self.camera_render_passes.get(&camera_id)
             {
                 // Draw the border/background
                 self.rect_fill_pipeline.execute(

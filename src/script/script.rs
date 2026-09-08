@@ -57,7 +57,6 @@ impl ScriptManager {
         musics: &HashMap<String, Music>,
         sound_effects: &HashMap<String, Chunk>,
     ) {
-        // TODO mem take????
         for source in std::mem::take(&mut self.start_queue) {
             self.start_script(&source, &game_data.story_vars);
         }

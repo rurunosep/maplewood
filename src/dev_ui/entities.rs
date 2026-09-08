@@ -83,6 +83,7 @@ impl EntityWindow {
             Box::new(ComponentCollapsible::<CollisionTrigger>::new(entity_id)),
             Box::new(ComponentCollapsible::<AreaTrigger>::new(entity_id)),
             Box::new(ComponentCollapsible::<Pathing>::new(entity_id)),
+            Box::new(ComponentCollapsible::<OverheadText>::new(entity_id)),
         ];
 
         Self { open: false, window_id, entity_id, name, component_collapsibles: ccs }

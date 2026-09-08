@@ -175,6 +175,7 @@ impl Component for Pathing {}
 pub struct Camera {
     // The render target texture is created at this size during game initialization
     pub render_target_size: (u32, u32),
+    // Take care that this isn't 0 (or negative), or we get a fatal NaN in some places
     pub zoom: f64,
     // This should be an Option<EntityIdentifier> when the time comes
     pub target_entity: Option<String>,
@@ -182,7 +183,16 @@ pub struct Camera {
 }
 impl Component for Camera {}
 
-#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+// (not serde)
+pub struct LerpCameraZoom {
+    pub start_value: f64,
+    pub end_value: f64,
+    pub start_time: Instant,
+    pub end_time: Instant,
+}
+impl Component for LerpCameraZoom {}
+
+#[derive(Default, Clone, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Collision {
     pub hitbox: Vec2<f64, MapUnits>,
@@ -200,7 +210,7 @@ pub struct SfxEmitter {
 }
 impl Component for SfxEmitter {}
 
-// Not serde (can't save or load, and doesn't appear in dev ui)
+// (not serde)
 pub struct SineOffsetAnimation {
     pub start_time: Instant,
     pub duration: Duration,
@@ -252,6 +262,7 @@ impl ScriptSource {
     }
 }
 
+#[derive(Clone, Serialize, Deserialize)]
 pub struct OverheadText {
     pub text: String,
 }

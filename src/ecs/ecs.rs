@@ -97,7 +97,10 @@ impl Ecs {
     }
 
     // Does NOT filter in a way that avoids double borrow in a nested query
-    // (Because it filters by name during the query)
+    // Because it filters by name during the query
+    // TODO map from entity name to entity id?
+    // This would also solve the double borrow, in addition to being faster
+    // Add an explicit add_component<Name> that adds the component and registers the name
     pub fn query_one_with_name<'ecs, Q>(&'ecs self, name: &str) -> Option<Q::Result<'ecs>>
     where
         Q: Query + 'static,
@@ -227,6 +230,7 @@ impl Ecs {
                 "InteractionTrigger" => self.add_component(id, sjfv::<InteractionTrigger>(data_c)?),
                 "CollisionTrigger" => self.add_component(id, sjfv::<CollisionTrigger>(data_c)?),
                 "AreaTrigger" => self.add_component(id, sjfv::<AreaTrigger>(data_c)?),
+                "OverheadText" => self.add_component(id, sjfv::<OverheadText>(data_c)?),
                 _ => Err(anyhow!("invalid component name `{component_name}`"))?,
             }
         };
@@ -261,6 +265,7 @@ impl Ecs {
             "InteractionTrigger" => self.remove_component::<InteractionTrigger>(id),
             "CollisionTrigger" => self.remove_component::<CollisionTrigger>(id),
             "AreaTrigger" => self.remove_component::<AreaTrigger>(id),
+            "OverheadText" => self.remove_component::<OverheadText>(id),
             _ => return Err(anyhow!("invalid component name `{component_name}`")),
         }
 

@@ -1,8 +1,8 @@
 use crate::components::{
-    AnimationComp, Camera, Collision, DualStateAnimationState, DualStateAnims, Facing, NamedAnims,
-    Pathing, Position, SfxEmitter, SineOffsetAnimation, Sprite, SpriteComp, Walking,
+    AnimationComp, Camera, Collision, DualStateAnimationState, DualStateAnims, Facing,
+    LerpCameraZoom, NamedAnims, Pathing, Position, SfxEmitter, SineOffsetAnimation, Sprite,
+    SpriteComp, Walking,
 };
-use crate::data::CAMERA_ENTITY_NAME;
 use crate::ecs::EntityId;
 use crate::math::{MapUnits, Rect, Vec2};
 use crate::misc::Direction;
@@ -293,35 +293,61 @@ pub fn bind_general_callbacks<'scope>(
 
     globals.set(
         "set_camera_target",
-        scope.create_function_mut(|_, entity: String| {
+        scope.create_function_mut(|_, (camera_name, target_name): (String, Option<String>)| {
             let ecs = &game_data.borrow().ecs;
             let mut camera_component = ecs
-                .query_one_with_name::<&mut Camera>(CAMERA_ENTITY_NAME)
-                .ok_or(Error("no camera entity".to_string()))?;
-            camera_component.target_entity = Some(entity);
+                .query_one_with_name::<&mut Camera>(&camera_name)
+                .ok_or(Error(f!("invalid entity `{camera_name}`")))?;
+            camera_component.target_entity = target_name;
             Ok(())
         })?,
     )?;
 
     globals.set(
-        "remove_camera_target",
-        scope.create_function_mut(|_, ()| {
-            let ecs = &game_data.borrow().ecs;
-            let mut camera_component = ecs
-                .query_one_with_name::<&mut Camera>(CAMERA_ENTITY_NAME)
-                .ok_or(Error("no camera entity".to_string()))?;
-            camera_component.target_entity = None;
-            Ok(())
-        })?,
+        "set_camera_zoom",
+        scope.create_function_mut(
+            |_, (camera_name, new_zoom, lerp_time): (String, f64, Option<f64>)| {
+                let ecs = &mut game_data.borrow_mut().ecs;
+
+                {
+                    let (id, mut camera_component) = ecs
+                        .query_one_with_name::<(EntityId, &mut Camera)>(&camera_name)
+                        .ok_or(Error(f!("invalid entity `{camera_name}`")))?;
+
+                    match lerp_time {
+                        Some(lerp_time) => {
+                            ecs.add_component_deferred(
+                                id,
+                                LerpCameraZoom {
+                                    start_value: camera_component.zoom,
+                                    end_value: new_zoom,
+                                    start_time: Instant::now(),
+                                    end_time: Instant::now() + Duration::from_secs_f64(lerp_time),
+                                },
+                            );
+                        }
+
+                        None => {
+                            camera_component.zoom = new_zoom;
+                        }
+                    }
+                    // (drop component refs)
+                }
+                ecs.flush_deferred_mutations();
+
+                Ok(())
+            },
+        )?,
     )?;
 
     globals.set(
         "set_camera_clamp",
-        scope.create_function_mut(|_, clamp: bool| {
+        scope.create_function_mut(|_, (camera_name, clamp): (String, bool)| {
             let ecs = &game_data.borrow().ecs;
-            if let Some(mut camera) = ecs.query::<&mut Camera>().next() {
-                camera.clamp_to_map = clamp;
-            }
+            let mut camera_component = ecs
+                .query_one_with_name::<&mut Camera>(&camera_name)
+                .ok_or(Error(f!("invalid entity `{camera_name}`")))?;
+            camera_component.clamp_to_map = clamp;
             Ok(())
         })?,
     )?;

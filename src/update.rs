@@ -1,7 +1,7 @@
 use crate::components::{
     AnimationComp, AreaTrigger, Camera, CharacterAnims, Collision, CollisionTrigger,
-    DualStateAnimationState, DualStateAnims, Facing, Name, Pathing, PlaybackState, Position,
-    SfxEmitter, SineOffsetAnimation, SpriteComp, Velocity, Walking,
+    DualStateAnimationState, DualStateAnims, Facing, LerpCameraZoom, Name, Pathing, PlaybackState,
+    Position, SfxEmitter, SineOffsetAnimation, SpriteComp, Velocity, Walking,
 };
 use crate::data::PLAYER_ENTITY_NAME;
 use crate::ecs::{Ecs, EntityId};
@@ -12,7 +12,7 @@ use crate::world::World;
 use crate::{GameData, UiData};
 use sdl2::mixer::{Chunk, Music};
 use std::collections::HashMap;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tap::{TapFallible, TapOptional};
 
 pub fn update(
@@ -42,6 +42,7 @@ pub fn update(
     resolve_collisions(&game_data.ecs, &game_data.world);
 
     update_camera(&game_data.ecs, &game_data.world);
+    lerp_camera_zoom(&mut game_data.ecs);
 
     update_character_animations(&game_data.ecs);
     update_dual_state_animations(&game_data.ecs);
@@ -388,6 +389,8 @@ fn update_camera(ecs: &Ecs, world: &World) {
             *position = target_position.clone();
         }
 
+        // TODO set the camera position to the center of the target entity's optional sprite?
+
         // Clamp camera to map
         if camera_component.clamp_to_map
             && let Some(camera_map) = world
@@ -425,6 +428,20 @@ fn update_camera(ecs: &Ecs, world: &World) {
             }
         }
     }
+}
+
+fn lerp_camera_zoom(ecs: &mut Ecs) {
+    for (id, mut camera, lerp_zoom) in ecs.query::<(EntityId, &mut Camera, &LerpCameraZoom)>() {
+        let duration = lerp_zoom.end_time - lerp_zoom.start_time;
+        let elapsed = Instant::now() - lerp_zoom.start_time;
+        let interp = elapsed.div_duration_f64(duration).clamp(0., 1.);
+        camera.zoom = lerp_zoom.start_value * (1. - interp) + lerp_zoom.end_value * interp;
+
+        if interp == 1. {
+            ecs.remove_component_deferred::<LerpCameraZoom>(id);
+        }
+    }
+    ecs.flush_deferred_mutations();
 }
 
 // TODO proximity sound
