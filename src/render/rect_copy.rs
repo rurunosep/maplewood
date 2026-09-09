@@ -3,6 +3,9 @@ use bytemuck::{Pod, Zeroable};
 use tap::Pipe;
 use wgpu::*;
 
+// TODO rect copy depth (currently z is hardcoded to 0, and layering depends on draw order)
+// TODO rect copy alpha (currently alpha is pulled straight from texture)
+
 pub struct RectCopyPipeline {
     pub pipeline: RenderPipeline,
     pub texture_bind_group_layout: BindGroupLayout,

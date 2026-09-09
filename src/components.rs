@@ -170,17 +170,22 @@ pub struct Pathing {
 }
 impl Component for Pathing {}
 
-#[derive(Default, Clone, Serialize, Deserialize)]
+#[derive(SmartDefault, Clone, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Camera {
     // The render target texture is created at this size during game initialization
     pub render_target_size: (u32, u32),
-    // Take care that this isn't 0 (or negative), or we get a fatal NaN in some places
+    pub rect_on_screen: Option<Rect<i32, PixelUnits>>,
+    pub visible: bool,
+    pub z_index: i32,
+    // Take care that zoom isn't 0 (or negative), or we get a fatal NaN in some places
+    #[default = 1.]
     pub zoom: f64,
     // This should be an Option<EntityIdentifier> when the time comes
     pub target_entity: Option<String>,
     pub clamp_to_map: bool,
     pub overlay_color: Option<[f32; 4]>,
+    pub border: bool,
 }
 impl Component for Camera {}
 

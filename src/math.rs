@@ -118,13 +118,13 @@ impl<T: Real + Copy, U> Vec2<T, U> {
     }
 
     pub fn floor(self) -> Self {
-        Vec2::new(self.x.floor(), self.y.floor())
+        Self::new(self.x.floor(), self.y.floor())
     }
 }
 
 impl<T: Zero, U> Vec2<T, U> {
-    pub fn zero() -> Vec2<T, U> {
-        Vec2::new(T::zero(), T::zero())
+    pub fn zero() -> Self {
+        Self::new(T::zero(), T::zero())
     }
 
     pub fn is_zero(&self) -> bool {
@@ -236,6 +236,17 @@ impl<T: Copy + Add<Output = T>, U> Rect<T, U> {
 
     pub fn top_left(&self) -> Vec2<T, U> {
         Vec2::new(self.x, self.y)
+    }
+}
+
+impl<T: NumCast + Copy, U> Rect<T, U> {
+    pub fn cast<NewT: NumCast>(self) -> Rect<NewT, U> {
+        Rect::new(
+            NumCast::from(self.x).unwrap(),
+            NumCast::from(self.y).unwrap(),
+            NumCast::from(self.width).unwrap(),
+            NumCast::from(self.height).unwrap(),
+        )
     }
 }
 

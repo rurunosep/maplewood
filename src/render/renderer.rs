@@ -1,5 +1,4 @@
 use crate::components::{Camera, Position};
-use crate::data::CAMERA_ENTITY_NAME;
 use crate::ecs::{Ecs, EntityId};
 use crate::render::camera_render_pass::CameraRenderPass;
 use crate::render::rect_copy::RectCopyPipeline;
@@ -8,6 +7,7 @@ use crate::world::World;
 use crate::{DevUi, MessageWindow, UiData};
 use egui::TexturesDelta;
 use image::GenericImageView;
+use itertools::Itertools;
 use pollster::FutureExt;
 use sdl2::video::Window;
 use std::collections::HashMap;
@@ -151,25 +151,25 @@ impl Renderer<'_> {
 
         // Render camera views
         for (id, camera_comp, position) in ecs.query::<(EntityId, &mut Camera, &Position)>() {
-            let Some(camera_render_pass) = self.camera_render_passes.get_mut(&id) else {
-                continue;
+            if camera_comp.visible
+                && let Some(camera_render_pass) = self.camera_render_passes.get_mut(&id)
+            {
+                camera_render_pass.render(
+                    &mut encoder,
+                    &self.device,
+                    &self.queue,
+                    &self.rect_copy_pipeline,
+                    &self.rect_fill_pipeline,
+                    &self.tilesets,
+                    &self.spritesheets,
+                    id,
+                    position.0.clone(),
+                    camera_comp.zoom,
+                    camera_comp.overlay_color,
+                    ecs,
+                    world,
+                );
             };
-
-            camera_render_pass.render(
-                &mut encoder,
-                &self.device,
-                &self.queue,
-                &self.rect_copy_pipeline,
-                &self.rect_fill_pipeline,
-                &self.tilesets,
-                &self.spritesheets,
-                id,
-                position.0.clone(),
-                camera_comp.zoom,
-                camera_comp.overlay_color,
-                ecs,
-                world,
-            );
         }
 
         // Main render pass
@@ -187,55 +187,41 @@ impl Renderer<'_> {
                 occlusion_query_set: None,
             });
 
-            // Draw camera texture to screen
-            if let Some(camera_id) = ecs.query_one_with_name::<EntityId>(CAMERA_ENTITY_NAME)
-                // Log error?
-                && let Some(camera_render_pass) = self.camera_render_passes.get(&camera_id)
+            // Draw cameras to screen
+            for (camera_id, camera_comp) in ecs
+                .query::<(EntityId, &Camera)>()
+                .sorted_by(|(_, c1), (_, c2)| c1.z_index.cmp(&c2.z_index))
             {
-                self.rect_copy_pipeline.execute(
-                    &mut render_pass,
-                    surface_size,
-                    &camera_render_pass.texture,
-                    0,
-                    0,
-                    camera_render_pass.texture.size.0,
-                    camera_render_pass.texture.size.1,
-                    0,
-                    0,
-                    camera_render_pass.texture.size.0,
-                    camera_render_pass.texture.size.1,
-                );
-            }
+                if camera_comp.visible
+                    && let Some(rect_on_screen) = camera_comp.rect_on_screen
+                    && let Some(camera_render_pass) = self.camera_render_passes.get(&camera_id)
+                {
+                    if camera_comp.border {
+                        self.rect_fill_pipeline.execute(
+                            &mut render_pass,
+                            surface_size,
+                            rect_on_screen.x - 10,
+                            rect_on_screen.y - 10,
+                            rect_on_screen.width as u32 + 20,
+                            rect_on_screen.height as u32 + 20,
+                            [0., 0., 0., 1.],
+                        );
+                    }
 
-            // Draw corner camera
-            if let Some(camera_id) = ecs.query_one_with_name::<EntityId>("corner_camera")
-                && let Some(camera_render_pass) = self.camera_render_passes.get(&camera_id)
-            {
-                // Draw the border/background
-                self.rect_fill_pipeline.execute(
-                    &mut render_pass,
-                    surface_size,
-                    surface_size.0 as i32 - camera_render_pass.texture.size.0 as i32 - 10,
-                    surface_size.1 as i32 - camera_render_pass.texture.size.1 as i32 - 10,
-                    camera_render_pass.texture.size.0 + 10,
-                    camera_render_pass.texture.size.1 + 10,
-                    [0., 0., 0., 1.],
-                );
-
-                // Draw the camera texture
-                self.rect_copy_pipeline.execute(
-                    &mut render_pass,
-                    surface_size,
-                    &camera_render_pass.texture,
-                    0,
-                    0,
-                    camera_render_pass.texture.size.0,
-                    camera_render_pass.texture.size.1,
-                    surface_size.0 as i32 - camera_render_pass.texture.size.0 as i32,
-                    surface_size.1 as i32 - camera_render_pass.texture.size.1 as i32,
-                    camera_render_pass.texture.size.0,
-                    camera_render_pass.texture.size.1,
-                );
+                    self.rect_copy_pipeline.execute(
+                        &mut render_pass,
+                        surface_size,
+                        &camera_render_pass.texture,
+                        0,
+                        0,
+                        camera_render_pass.texture.size.0,
+                        camera_render_pass.texture.size.1,
+                        rect_on_screen.x,
+                        rect_on_screen.y,
+                        rect_on_screen.width as u32,
+                        rect_on_screen.height as u32,
+                    );
+                };
             }
 
             self.draw_message_window(&mut render_pass, surface_size, &ui_data.message_window);

@@ -13,6 +13,42 @@ set("start_script::started", 1)
 -- set_entity_world_pos("bakery_girl", "overworld", 1, 3)
 -- start_script_from_file("data/scripts.lua", "face")
 
+start_script_from_file("data/scripts.lua", "cameras")
+
+---@script cameras
+
+set_camera_visible("_camera", false)
+set_camera_visible("corner_camera", false)
+
+set_camera_overlay_color("top_left_camera", { 0, 0, 0, 1 })
+set_camera_visible("top_left_camera", true)
+set_camera_zoom("top_left_camera", 6)
+set_camera_target("top_left_camera", "_player")
+
+set_camera_overlay_color("top_right_camera", { 0, 0, 0, 1 })
+set_camera_visible("top_right_camera", true)
+set_camera_zoom("top_right_camera", 6)
+set_camera_target("top_right_camera", "bakery_girl")
+
+set_camera_overlay_color("bottom_left_camera", { 0, 0, 0, 1 })
+set_camera_visible("bottom_left_camera", true)
+set_camera_zoom("bottom_left_camera", 6)
+set_camera_target("bottom_left_camera", "school_kid")
+
+set_camera_overlay_color("bottom_right_camera", { 0, 0, 0, 1 })
+set_camera_visible("bottom_right_camera", true)
+set_camera_zoom("bottom_right_camera", 6)
+set_camera_target("bottom_right_camera", "janitor")
+
+set_camera_overlay_color("top_left_camera", { 0, 0, 0, 0 }, 1)
+wait(1)
+set_camera_overlay_color("top_right_camera", { 0, 0, 0, 0 }, 1)
+wait(1)
+set_camera_overlay_color("bottom_left_camera", { 0, 0, 0, 0 }, 1)
+wait(1)
+set_camera_overlay_color("bottom_right_camera", { 0, 0, 0, 0 }, 1)
+wait(1)
+
 ---@script star_move
 
 while true do

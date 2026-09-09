@@ -1,10 +1,11 @@
 use crate::components::{
     AnimationClip, AnimationComp, Camera, CharacterAnims, Collision, Facing, InteractionTrigger,
-    Name, NamedAnims, OverheadText, Pathing, Position, ScriptSource, SfxEmitter, Sprite,
-    SpriteComp, Velocity, Walking,
+    Name, NamedAnims, Pathing, Position, ScriptSource, SfxEmitter, Sprite, SpriteComp, Velocity,
+    Walking,
 };
 use crate::ecs::{Ecs, EntityId};
 use crate::math::{Rect, Vec2};
+use crate::misc::WINDOW_SIZE;
 use crate::world::WorldPos;
 use std::collections::HashMap;
 
@@ -46,19 +47,21 @@ pub fn load_entities_from_source(ecs: &mut Ecs) {
         },
     );
 
-    ecs.add_component(id, OverheadText { text: "test".to_string() });
-
     // Camera
     let id = ecs.add_entity();
     ecs.add_component(id, Name(CAMERA_ENTITY_NAME.to_string()));
     ecs.add_component(
         id,
         Camera {
-            render_target_size: (1920, 1080),
+            render_target_size: (WINDOW_SIZE.x, WINDOW_SIZE.y),
             zoom: 4.,
+            visible: false,
             target_entity: Some(PLAYER_ENTITY_NAME.to_string()),
             clamp_to_map: true,
             overlay_color: None,
+            rect_on_screen: Some(Rect::new(0, 0, WINDOW_SIZE.x as i32, WINDOW_SIZE.y as i32)),
+            z_index: 0,
+            border: false,
         },
     );
     ecs.add_component(id, Position::default());
@@ -73,13 +76,94 @@ pub fn load_entities_from_source(ecs: &mut Ecs) {
     ecs.add_component(
         id,
         Camera {
-            render_target_size: (1920 / 3, 1080 / 3),
+            render_target_size: (WINDOW_SIZE.x / 3, WINDOW_SIZE.y / 3),
             zoom: 2.,
+            visible: false,
             target_entity: None,
             clamp_to_map: false,
             overlay_color: None,
+            rect_on_screen: Some(Rect::new(
+                WINDOW_SIZE.x as i32 / 3 * 2,
+                WINDOW_SIZE.y as i32 / 3 * 2,
+                WINDOW_SIZE.x as i32 / 3,
+                WINDOW_SIZE.y as i32 / 3,
+            )),
+            z_index: 1,
+            border: true,
         },
     );
+
+    // Four corner cameras
+    {
+        let camera_size: Vec2<u32, crate::math::PixelUnits> =
+            Vec2::new(WINDOW_SIZE.x / 2 - 30, WINDOW_SIZE.y / 2 - 30);
+
+        let id = ecs.add_entity();
+        ecs.add_component(id, Name("top_left_camera".to_string()));
+        ecs.add_component(id, Position::default());
+        ecs.add_component(
+            id,
+            Camera {
+                render_target_size: (camera_size.x, camera_size.y),
+                rect_on_screen: Some(Rect::new(20, 20, camera_size.x, camera_size.y).cast::<i32>()),
+                z_index: 1,
+                ..Default::default()
+            },
+        );
+
+        let id = ecs.add_entity();
+        ecs.add_component(id, Name("top_right_camera".to_string()));
+        ecs.add_component(id, Position::default());
+        ecs.add_component(
+            id,
+            Camera {
+                render_target_size: (camera_size.x, camera_size.y),
+                rect_on_screen: Some(
+                    Rect::new(WINDOW_SIZE.x - camera_size.x - 20, 20, camera_size.x, camera_size.y)
+                        .cast::<i32>(),
+                ),
+                z_index: 1,
+                ..Default::default()
+            },
+        );
+
+        let id = ecs.add_entity();
+        ecs.add_component(id, Name("bottom_left_camera".to_string()));
+        ecs.add_component(id, Position::default());
+        ecs.add_component(
+            id,
+            Camera {
+                render_target_size: (camera_size.x, camera_size.y),
+                rect_on_screen: Some(
+                    Rect::new(20, WINDOW_SIZE.y - camera_size.y - 20, camera_size.x, camera_size.y)
+                        .cast::<i32>(),
+                ),
+                z_index: 1,
+                ..Default::default()
+            },
+        );
+
+        let id = ecs.add_entity();
+        ecs.add_component(id, Name("bottom_right_camera".to_string()));
+        ecs.add_component(id, Position::default());
+        ecs.add_component(
+            id,
+            Camera {
+                render_target_size: (camera_size.x, camera_size.y),
+                rect_on_screen: Some(
+                    Rect::new(
+                        WINDOW_SIZE.x - camera_size.x - 20,
+                        WINDOW_SIZE.y - camera_size.y - 20,
+                        camera_size.x,
+                        camera_size.y,
+                    )
+                    .cast::<i32>(),
+                ),
+                z_index: 1,
+                ..Default::default()
+            },
+        );
+    }
 
     // Bathroom door blocker
     let id = ecs.add_entity();

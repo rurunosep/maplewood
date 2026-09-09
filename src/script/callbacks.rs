@@ -341,6 +341,18 @@ pub fn bind_general_callbacks<'scope>(
     )?;
 
     globals.set(
+        "set_camera_visible",
+        scope.create_function(|_, (camera_name, visible): (String, bool)| {
+            let ecs = &game_data.borrow().ecs;
+            let mut camera_component = ecs
+                .query_one_with_name::<&mut Camera>(&camera_name)
+                .ok_or(Error(f!("invalid entity `{camera_name}`")))?;
+            camera_component.visible = visible;
+            Ok(())
+        })?,
+    )?;
+
+    globals.set(
         "set_camera_overlay_color",
         scope.create_function_mut(
             |_, (camera_name, new_color, lerp_time): (String, Option<[f32; 4]>, Option<f64>)| {
