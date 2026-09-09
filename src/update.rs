@@ -38,9 +38,9 @@ pub fn update(
 
     initialize_velocity_to_zero(&game_data.ecs);
     apply_walking_velocity(&game_data.ecs);
-    apply_velocity_to_position(&game_data.ecs);
+    apply_velocity_to_position(&game_data.ecs, delta);
     start_collision_trigger_scripts(&game_data.ecs, script_manager);
-    resolve_collisions(&game_data.ecs, &game_data.world);
+    resolve_collisions(&game_data.ecs, &game_data.world, delta);
 
     camera_follow_target_and_clamp(&game_data.ecs, &game_data.world);
     lerp_camera_zoom(&mut game_data.ecs);
@@ -195,9 +195,9 @@ fn apply_walking_velocity(ecs: &Ecs) {
     }
 }
 
-fn apply_velocity_to_position(ecs: &Ecs) {
+fn apply_velocity_to_position(ecs: &Ecs, delta: Duration) {
     for (mut position, velocity) in ecs.query::<(&mut Position, &Velocity)>() {
-        position.map_pos += velocity.0;
+        position.map_pos += velocity.0 * delta.as_secs_f64();
     }
 }
 
@@ -234,7 +234,7 @@ fn start_collision_trigger_scripts(ecs: &Ecs, script_manager: &mut ScriptManager
     }
 }
 
-fn resolve_collisions(ecs: &Ecs, world: &World) {
+fn resolve_collisions(ecs: &Ecs, world: &World, delta: Duration) {
     // In order for an entity to slide along collidable tiles or entities without getting stuck,
     // we need to resolve collisions against everything along each axis separately.
     // That means translating along x, resolving collisions against everything only along x, then
@@ -272,8 +272,9 @@ fn resolve_collisions(ecs: &Ecs, world: &World) {
         .collect();
 
         // Temporarily revert translation along y
-        aabb.top -= velocity.0.y;
-        aabb.bottom -= velocity.0.y;
+        let y_translation = velocity.0.y * delta.as_secs_f64();
+        aabb.top -= y_translation;
+        aabb.bottom -= y_translation;
 
         // Resolve collisions along x axis
         for cell_aabb in &cell_aabbs {
@@ -291,8 +292,8 @@ fn resolve_collisions(ecs: &Ecs, world: &World) {
         }
 
         // Reapply translation along y
-        aabb.top += velocity.0.y;
-        aabb.bottom += velocity.0.y;
+        aabb.top += y_translation;
+        aabb.bottom += y_translation;
 
         // Resolve collisions along x axis
         for cell_aabb in &cell_aabbs {

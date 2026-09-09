@@ -155,11 +155,11 @@ local stages = {
     message("\"You need a Super Sugar Bun? Coming right up!\"")
 
     lock_player_input()
-    remove_camera_target()
+    set_camera_target("_camera", nil)
 
-    walk("_camera", "up", 4, 0.05)
+    walk("_camera", "up", 4, 3)
 
-    set_walk_speed("bakery_girl", 0.08)
+    set_walk_speed("bakery_girl", 5)
     walk_wait("bakery_girl", "up", 0.75)
     walk_wait("bakery_girl", "left", 8)
     walk_wait("bakery_girl", "up", 4.5)
@@ -180,7 +180,7 @@ local stages = {
     wait(2)
     message("\"Take care!\"")
 
-    set_camera_target("_player")
+    set_camera_target("_camera", "_player")
     unlock_player_input()
 
     set("bakery_girl::stage", 3)
@@ -260,7 +260,7 @@ if get("main::pen_found") == 1 and get("bathroom::flooded") == 0 then
   set("bathroom::flooded", 1)
 
   lock_player_input()
-  remove_camera_target()
+  set_camera_target("_camera", nil)
   set_camera_clamp(false)
 
   set_entity_world_pos("_player", "hallway", 3.5, 3.5)
@@ -279,7 +279,7 @@ if get("main::pen_found") == 1 and get("bathroom::flooded") == 0 then
   wait(4)
 
   set_camera_clamp(true)
-  set_camera_target("_player")
+  set_camera_target("_camera", "_player")
   unlock_player_input()
 else
   set_entity_world_pos("_player", "hallway", 3.5, 3.5)

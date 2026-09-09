@@ -158,7 +158,7 @@ impl Component for NamedAnims {}
 #[serde(default, deny_unknown_fields)]
 pub struct Walking {
     pub velocity: Vec2<f64, MapUnits>,
-    #[default = 0.08]
+    #[default = 5.]
     pub default_speed: f64,
 }
 impl Component for Walking {}
