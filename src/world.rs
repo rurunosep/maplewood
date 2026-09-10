@@ -1,4 +1,4 @@
-use crate::loader::ldtk_project;
+use crate::load::ldtk_project;
 use crate::math::{CellPos, CellUnits, MapPos, MapUnits, PixelUnits, Vec2};
 use crate::misc::Aabb;
 use serde::{Deserialize, Serialize};

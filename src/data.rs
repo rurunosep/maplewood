@@ -1,7 +1,7 @@
 use crate::components::{
     AnimationClip, AnimationComp, Camera, CharacterAnims, Collision, Facing, InteractionTrigger,
-    Name, NamedAnims, Pathing, Position, ScriptSource, SfxEmitter, Sprite, SpriteComp, Velocity,
-    Walking,
+    Name, NamedAnims, Pathing, Position, ScriptSource, SfxEmitter, Singing, Sprite, SpriteComp,
+    Velocity, Walking,
 };
 use crate::ecs::{Ecs, EntityId};
 use crate::math::{Rect, Vec2};
@@ -46,6 +46,8 @@ pub fn load_entities_from_source(ecs: &mut Ecs) {
             right: clip_from_row(2),
         },
     );
+
+    ecs.add_component(id, Singing { words: Vec::from([]) });
 
     // Camera
     let id = ecs.add_entity();

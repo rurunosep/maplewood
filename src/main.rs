@@ -6,7 +6,7 @@ mod data;
 mod dev_ui;
 mod ecs;
 mod input;
-mod loader;
+mod load;
 mod math;
 mod misc;
 mod render;
@@ -80,10 +80,10 @@ fn main() {
 
     sdl2::mixer::open_audio(41_100, AUDIO_S16SYS, DEFAULT_CHANNELS, 512).unwrap();
     sdl2::mixer::allocate_channels(10);
-    let sound_effects = loader::load_sound_effects();
-    let musics = loader::load_musics();
+    let sound_effects = load::load_sound_effects();
+    let musics = load::load_musics();
 
-    let ldtk_project: loader::ldtk_project::Project =
+    let ldtk_project: load::ldtk_project::Project =
         serde_json::from_str(&std::fs::read_to_string("data/world.ldtk").unwrap()).unwrap();
 
     let mut world = World::new();
@@ -102,8 +102,8 @@ fn main() {
     let mut ecs = Ecs::new();
     // Load in order of ldtk > file > source, so that entities defined in previous steps may be
     // extended by components defined in following steps
-    loader::ldtk_entities::load_entities_from_ldtk(&mut ecs, &ldtk_project);
-    loader::load_entities_from_file(&mut ecs, "data/entities.json");
+    load::ldtk_entities::load_entities_from_ldtk(&mut ecs, &ldtk_project);
+    load::load_entities_from_file(&mut ecs, "data/entities.json");
     data::load_entities_from_source(&mut ecs);
 
     for (id, camera) in ecs.query::<(EntityId, &Camera)>() {
@@ -111,7 +111,7 @@ fn main() {
     }
 
     let mut story_vars = StoryVars(HashMap::new());
-    loader::load_story_vars_from_file(&mut story_vars, "data/story_vars.json");
+    load::load_story_vars_from_file(&mut story_vars, "data/story_vars.json");
 
     let auto_scripts = vec![
         script::read_script_from_file("data/scripts.lua", "start").unwrap(),

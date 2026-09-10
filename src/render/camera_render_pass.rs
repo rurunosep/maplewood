@@ -1,4 +1,4 @@
-use crate::components::{OverheadText, Position, SineOffsetAnimation, SpriteComp};
+use crate::components::{OverheadText, Position, SineOffsetAnimation, Singing, SpriteComp};
 use crate::ecs::{Ecs, EntityId};
 use crate::math::{CellPos, CellUnits, MapPos, MapUnits, PixelUnits, Rect, Vec2};
 use crate::misc::CELL_SIZE;
@@ -55,7 +55,7 @@ impl CameraRenderPass {
         // (In general, data staging must be separate from drawing. We do anything that uses the
         // queue, such as modifying buffers, before the render pass and then draw within the
         // render pass using the prepared data.)
-        self.queue_overhead_text(device, queue, camera_rect, zoom, camera_id, ecs, map);
+        self.queue_text(device, queue, camera_rect, zoom, camera_id, ecs, map);
 
         let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
             label: None,
@@ -111,7 +111,7 @@ impl CameraRenderPass {
             );
         }
 
-        // Draw queued overhead text
+        // Draw queued text
         self.text_brush.draw(&mut render_pass);
 
         // Draw overlay color
@@ -260,7 +260,7 @@ impl CameraRenderPass {
         }
     }
 
-    fn queue_overhead_text(
+    fn queue_text(
         &mut self,
         device: &Device,
         queue: &Queue,
@@ -270,8 +270,9 @@ impl CameraRenderPass {
         ecs: &Ecs,
         map: &Map,
     ) {
-        let mut sections: Vec<OwnedSection> = Vec::new();
+        let mut all_sections: Vec<OwnedSection> = Vec::new();
 
+        // Overhead text
         for (position, overhead) in ecs.query_except::<(&Position, &OverheadText)>(camera_id) {
             if position.map != map.name {
                 continue;
@@ -296,10 +297,44 @@ impl CameraRenderPass {
 
             section.screen_position = (text_position.x as f32, text_position.y as f32);
 
-            sections.push(section);
+            all_sections.push(section);
         }
 
-        self.text_brush.queue(device, queue, &sections).unwrap();
+        // Singing text
+        for (position, singing) in ecs.query_except::<(&Position, &Singing)>(camera_id) {
+            if position.map != map.name {
+                continue;
+            }
+
+            let entity_pos_in_viewport =
+                (position.map_pos - camera_rect.top_left()) * CELL_SIZE as f64 * zoom;
+            // Center entire current line instead of starting from arbitrary left bound?
+            let starting_x = entity_pos_in_viewport.x - 40. * zoom;
+            let baseline_y = entity_pos_in_viewport.y - 30. * zoom;
+
+            let mut singing_sections: Vec<OwnedSection> = Vec::new();
+
+            for (word, pitch) in &singing.words {
+                // Automatically add space between words?
+
+                let x = singing_sections
+                    .last()
+                    .and_then(|s| self.text_brush.glyph_bounds(s))
+                    .map(|rect| rect.max.x)
+                    .unwrap_or(starting_x as f32);
+                let y = baseline_y as f32 + (-1. * (*pitch as f32) * zoom as f32);
+
+                singing_sections.push(
+                    OwnedSection::default()
+                        .add_text(OwnedText::new(word).with_scale(8. * zoom as f32))
+                        .with_screen_position((x, y)),
+                );
+            }
+
+            all_sections.append(&mut singing_sections);
+        }
+
+        self.text_brush.queue(device, queue, &all_sections).unwrap();
     }
 }
 

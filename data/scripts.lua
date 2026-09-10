@@ -4,16 +4,83 @@
 ---@start_condition {start_script::started} == 0
 set("start_script::started", 1)
 
--- message("You're sooo sleepy.")
--- message("But you can't sleep without a plushy.")
--- message("Legend says the kid in the classroom has a plushy.")
--- message("(Press SPACE to interact and ~ to check out the dev UI.)")
+start_script_from_file("data/scripts.lua", "twinkle")
 
--- start_script_from_file("data/scripts.lua", "star_move")
--- set_entity_world_pos("bakery_girl", "overworld", 1, 3)
--- start_script_from_file("data/scripts.lua", "face")
+---@script twinkle
 
-start_script_from_file("data/scripts.lua", "cameras")
+message("Twinkle, Twinkle, Little Star")
+
+play_music("twinkle")
+
+sing_word("_player", "Twinkle, ", 0)
+wait(1)
+sing_word("_player", "twinkle, ", 1)
+wait(1)
+sing_word("_player", "little ", 2)
+wait(1)
+sing_word("_player", "star,", 1)
+wait(1)
+clear_singing("_player")
+
+sing_word("_player", "How I ", 1)
+wait(1)
+sing_word("_player", "wonder ", 0)
+wait(1)
+sing_word("_player", "what you ", -1)
+wait(1)
+sing_word("_player", "are,", -2)
+wait(1)
+clear_singing("_player")
+
+sing_word("_player", "Up a-", 1)
+wait(1)
+sing_word("_player", "bove the ", 0)
+wait(1)
+sing_word("_player", "world so ", -1)
+wait(1)
+sing_word("_player", "high,", -2)
+wait(1)
+clear_singing("_player")
+
+sing_word("_player", "Like a ", 1)
+wait(1)
+sing_word("_player", "diamond ", 0)
+wait(1)
+sing_word("_player", "in the ", -1)
+wait(1)
+sing_word("_player", "sky,", -2)
+wait(1)
+clear_singing("_player")
+
+sing_word("_player", "Twinkle, ", 0)
+wait(1)
+sing_word("_player", "twinkle, ", 1)
+wait(1)
+sing_word("_player", "little ", 2)
+wait(1)
+sing_word("_player", "star,", 1)
+wait(1)
+clear_singing("_player")
+
+sing_word("_player", "How I ", 1)
+wait(1)
+sing_word("_player", "wonder ", 0)
+wait(1)
+sing_word("_player", "what you ", -1)
+wait(1)
+sing_word("_player", "are,", -2)
+wait(1)
+clear_singing("_player")
+
+wait(1)
+
+set_facing("_player", "left")
+wait(0.1)
+set_facing("_player", "up")
+wait(0.1)
+set_facing("_player", "right")
+wait(0.1)
+set_facing("_player", "down")
 
 ---@script cameras
 

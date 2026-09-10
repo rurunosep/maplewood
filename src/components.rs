@@ -282,3 +282,9 @@ pub struct OverheadText {
     pub text: String,
 }
 impl Component for OverheadText {}
+
+#[derive(Clone, Serialize, Deserialize)]
+pub struct Singing {
+    pub words: Vec<(String, i32)>,
+}
+impl Component for Singing {}

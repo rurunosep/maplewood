@@ -1,7 +1,7 @@
 use crate::components::{
     AnimationComp, Camera, Collision, DualStateAnimationState, DualStateAnims, Facing,
     LerpCameraOverlayColor, LerpCameraZoom, NamedAnims, Pathing, Position, SfxEmitter,
-    SineOffsetAnimation, Sprite, SpriteComp, Walking,
+    SineOffsetAnimation, Singing, Sprite, SpriteComp, Walking,
 };
 use crate::ecs::EntityId;
 use crate::math::{MapUnits, Rect, Vec2};
@@ -617,6 +617,30 @@ pub fn bind_general_callbacks<'scope>(
         scope.create_function(|_, message: String| {
             // TODO include script name or id
             log::info!("{message}");
+            Ok(())
+        })?,
+    )?;
+
+    globals.set(
+        "sing_word",
+        scope.create_function(|_, (entity, word, pitch): (String, String, i32)| {
+            let ecs = &game_data.borrow().ecs;
+            let mut singing = ecs
+                .query_one_with_name::<&mut Singing>(&entity)
+                .ok_or(Error(f!("invalid entity `{entity}`")))?;
+            singing.words.push((word, pitch));
+            Ok(())
+        })?,
+    )?;
+
+    globals.set(
+        "clear_singing",
+        scope.create_function(|_, entity: String| {
+            let ecs = &game_data.borrow().ecs;
+            let mut singing = ecs
+                .query_one_with_name::<&mut Singing>(&entity)
+                .ok_or(Error(f!("invalid entity `{entity}`")))?;
+            singing.words.clear();
             Ok(())
         })?,
     )?;
