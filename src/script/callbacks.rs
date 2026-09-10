@@ -8,7 +8,7 @@ use crate::math::{MapUnits, Rect, Vec2};
 use crate::misc::Direction;
 use crate::script::{self, Error, WaitCondition};
 use crate::world::WorldPos;
-use crate::{GameData, MessageWindow, UiData};
+use crate::{GameData, MessageAdvanceCondition, MessageWindow, UiData};
 use mlua::{Function, Scope, Table};
 use sdl2::mixer::{Chunk, Music};
 use std::cell::RefCell;
@@ -660,11 +660,30 @@ pub fn bind_script_only_callbacks<'scope>(
         "message",
         wrap_yielding.call::<Function>(scope.create_function_mut(|_, message: String| {
             let message_window = &mut ui_data.borrow_mut().message_window;
-            *message_window = Some(MessageWindow { message });
+            *message_window =
+                Some(MessageWindow { message, advance_condition: MessageAdvanceCondition::Input });
             **wait_condition.borrow_mut() = Some(WaitCondition::Message);
             Ok(())
         })?)?,
     )?;
+
+    globals.set(
+        "message_timed",
+        wrap_yielding.call::<Function>(scope.create_function_mut(
+            |_, (message, duration): (String, f64)| {
+                let message_window = &mut ui_data.borrow_mut().message_window;
+                *message_window = Some(MessageWindow {
+                    message,
+                    advance_condition: MessageAdvanceCondition::Time(
+                        Instant::now() + Duration::from_secs_f64(duration),
+                    ),
+                });
+                **wait_condition.borrow_mut() = Some(WaitCondition::Message);
+                Ok(())
+            },
+        )?)?,
+    )?;
+
     globals.set(
         "wait",
         wrap_yielding.call::<Function>(scope.create_function_mut(|_, duration: f64| {
@@ -686,11 +705,23 @@ pub fn bind_console_only_callbacks<'scope>(
     globals.set(
         "message",
         scope.create_function_mut(|_, message: String| {
-            let message_window: &mut Option<MessageWindow> =
-                &mut ui_data.borrow_mut().message_window;
-            let wait_condition: &mut Option<WaitCondition> = &mut None;
-            *message_window = Some(MessageWindow { message });
-            *wait_condition = Some(WaitCondition::Message);
+            let message_window = &mut ui_data.borrow_mut().message_window;
+            *message_window =
+                Some(MessageWindow { message, advance_condition: MessageAdvanceCondition::Input });
+            Ok(())
+        })?,
+    )?;
+
+    globals.set(
+        "message_timed",
+        scope.create_function_mut(|_, (message, duration): (String, f64)| {
+            let message_window = &mut ui_data.borrow_mut().message_window;
+            *message_window = Some(MessageWindow {
+                message,
+                advance_condition: MessageAdvanceCondition::Time(
+                    Instant::now() + Duration::from_secs_f64(duration),
+                ),
+            });
             Ok(())
         })?,
     )?;

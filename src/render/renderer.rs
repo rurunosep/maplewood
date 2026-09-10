@@ -4,7 +4,7 @@ use crate::render::camera_render_pass::CameraRenderPass;
 use crate::render::rect_copy::RectCopyPipeline;
 use crate::render::rect_fill::RectFillPipeline;
 use crate::world::World;
-use crate::{DevUi, MessageWindow, UiData};
+use crate::{DevUi, MessageAdvanceCondition, MessageWindow, UiData};
 use egui::TexturesDelta;
 use image::GenericImageView;
 use itertools::Itertools;
@@ -289,6 +289,19 @@ impl Renderer<'_> {
             .with_screen_position((80., render_target_size.1 as f32 - 224.));
         self.text_brush.queue(&self.device, &self.queue, [section]).unwrap();
         self.text_brush.draw(render_pass);
+
+        // Draw the thingy to show that you can click to advance
+        if matches!(message_window.advance_condition, MessageAdvanceCondition::Input) {
+            self.rect_fill_pipeline.execute(
+                render_pass,
+                render_target_size,
+                render_target_size.0 as i32 - 100,
+                render_target_size.1 as i32 - 100,
+                40,
+                40,
+                [1., 1., 1., 1.],
+            );
+        }
     }
 
     pub fn load_tilesets(&mut self) {

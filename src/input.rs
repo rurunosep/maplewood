@@ -3,7 +3,7 @@ use crate::data::{CAMERA_ENTITY_NAME, PLAYER_ENTITY_NAME};
 use crate::math::{MapUnits, Vec2};
 use crate::misc::{Aabb, Direction};
 use crate::script::ScriptManager;
-use crate::{DevUi, GameData, MessageWindow};
+use crate::{DevUi, GameData, MessageAdvanceCondition, MessageWindow};
 use sdl2::event::Event;
 use sdl2::keyboard::{Keycode, Scancode};
 use tap::TapFallible;
@@ -46,7 +46,12 @@ pub fn process_input(
         match event {
             // Advance message
             Event::KeyDown { keycode: Some(Keycode::Return | Keycode::Space), .. } => {
-                if message_window.is_some() {
+                if let Some(message_window_inner) = message_window
+                    && matches!(
+                        message_window_inner.advance_condition,
+                        MessageAdvanceCondition::Input
+                    )
+                {
                     *message_window = None;
                     // Consume the input
                     continue;

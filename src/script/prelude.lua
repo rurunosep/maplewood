@@ -9,6 +9,8 @@ function set_line_yielded_at()
   end
 end
 
+slya = set_line_yielded_at
+
 -- Clear line_yielded at only if it is equal to the line where the caller of
 -- this function was called.
 -- Any function that yields should call this after it calls coroutine.yield()
@@ -22,42 +24,51 @@ function clear_line_yielded_at()
   end
 end
 
+clya = clear_line_yielded_at
+
 -- Convert a normal function into one that does the same thing then yields
 function wrap_yielding(f)
   return function(...)
     f(...)
-    set_line_yielded_at()
+    slya()
     coroutine.yield()
-    clear_line_yielded_at()
+    clya()
   end
 end
 
 function yield()
-  set_line_yielded_at()
+  slya()
   coroutine.yield()
-  clear_line_yielded_at()
+  clya()
 end
 
 function walk_wait(entity, direction, distance, speed)
   walk(entity, direction, distance, speed)
-  set_line_yielded_at()
+  slya()
   wait_until_not_pathing(entity)
-  clear_line_yielded_at()
+  clya()
 end
 
 function walk_to_wait(entity, x, y, speed)
   walk_to(entity, x, y, speed)
-  set_line_yielded_at()
+  slya()
   wait_until_not_pathing(entity)
-  clear_line_yielded_at()
+  clya()
 end
 
 function wait_until_not_pathing(entity)
   while (is_entity_pathing(entity)) do
-    set_line_yielded_at()
+    slya()
     coroutine.yield()
-    clear_line_yielded_at()
+    clya()
   end
+end
+
+function sing_word_wait(entity, word, pitch, time)
+  sing_word(entity, word, pitch)
+  slya()
+  wait(time)
+  clya()
 end
 
 -- Because LDtk doesn't handle "\n" properly

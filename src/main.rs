@@ -41,6 +41,12 @@ pub struct UiData {
 
 pub struct MessageWindow {
     pub message: String,
+    pub advance_condition: MessageAdvanceCondition,
+}
+
+pub enum MessageAdvanceCondition {
+    Input,
+    Time(Instant),
 }
 
 fn main() {
@@ -163,6 +169,7 @@ fn main() {
         );
 
         #[rustfmt::skip]
+        // Game UI, scripts, and entities
         update::update(
             &mut game_data, &mut ui_data, &mut script_manager, &mut player_movement_locked,
             &mut running, &musics, &sound_effects, delta

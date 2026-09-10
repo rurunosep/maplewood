@@ -10,7 +10,7 @@ use crate::math::{MapUnits, Rect, Vec2};
 use crate::misc::{Aabb, CELL_SIZE, Direction};
 use crate::script::{self, ScriptManager};
 use crate::world::World;
-use crate::{GameData, UiData};
+use crate::{GameData, MessageAdvanceCondition, MessageWindow, UiData};
 use sdl2::mixer::{Chunk, Music};
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
@@ -26,6 +26,8 @@ pub fn update(
     sound_effects: &HashMap<String, Chunk>,
     delta: Duration,
 ) {
+    update_message_window(&mut ui_data.message_window);
+
     start_auto_scripts(script_manager, &game_data.auto_scripts);
     start_area_trigger_scripts(script_manager, &game_data.ecs);
     #[rustfmt::skip]
@@ -93,6 +95,15 @@ fn start_area_trigger_scripts(script_manager: &mut ScriptManager, ecs: &Ecs) {
         {
             script_manager.queue_script(&source);
         }
+    }
+}
+
+fn update_message_window(message_window: &mut Option<MessageWindow>) {
+    if let Some(message_window_inner) = message_window
+        && let MessageAdvanceCondition::Time(end) = message_window_inner.advance_condition
+        && Instant::now() > end
+    {
+        *message_window = None;
     }
 }
 
