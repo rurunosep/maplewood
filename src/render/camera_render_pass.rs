@@ -30,8 +30,7 @@ impl CameraRenderPass {
         queue: &Queue,
         rect_copy_pipeline: &RectCopyPipeline,
         rect_fill_pipeline: &RectFillPipeline,
-        tilesets: &HashMap<String, Texture>,
-        spritesheets: &HashMap<String, Texture>,
+        asset_textures: &HashMap<String, Texture>,
         camera_id: EntityId,
         camera_position: WorldPos,
         zoom: f64,
@@ -75,7 +74,7 @@ impl CameraRenderPass {
             self.draw_tile_layer(
                 &mut render_pass,
                 rect_copy_pipeline,
-                tilesets,
+                asset_textures,
                 self.texture.size,
                 camera_rect,
                 zoom,
@@ -88,7 +87,7 @@ impl CameraRenderPass {
         self.draw_entities(
             &mut render_pass,
             rect_copy_pipeline,
-            spritesheets,
+            asset_textures,
             self.texture.size,
             camera_rect,
             zoom,
@@ -102,7 +101,7 @@ impl CameraRenderPass {
             self.draw_tile_layer(
                 &mut render_pass,
                 rect_copy_pipeline,
-                tilesets,
+                asset_textures,
                 self.texture.size,
                 camera_rect,
                 zoom,
@@ -132,14 +131,14 @@ impl CameraRenderPass {
         &self,
         render_pass: &mut RenderPass,
         rect_copy_pipeline: &RectCopyPipeline,
-        tilesets: &HashMap<String, Texture>,
+        asset_textures: &HashMap<String, Texture>,
         render_target_size: (u32, u32),
         camera_rect: Rect<f64, MapUnits>,
         zoom: f64,
         layer: &TileLayer,
         map: &Map,
     ) {
-        let Some(tileset) = tilesets.get(&layer.tileset_path) else {
+        let Some(tileset) = asset_textures.get(&layer.tileset_path) else {
             log::error!(once = true; "Tileset doesn't exist: {}", &layer.tileset_path);
             return;
         };
@@ -193,7 +192,7 @@ impl CameraRenderPass {
         &self,
         render_pass: &mut RenderPass,
         rect_copy_pipeline: &RectCopyPipeline,
-        spritesheets: &HashMap<String, Texture>,
+        asset_textures: &HashMap<String, Texture>,
         render_target_size: (u32, u32),
         camera_rect: Rect<f64, MapUnits>,
         zoom: f64,
@@ -207,7 +206,6 @@ impl CameraRenderPass {
                 p1.map_pos.y.partial_cmp(&p2.map_pos.y).expect("not nan")
             })
         {
-            // Skip entities not on the current map
             if position.map != map.name {
                 continue;
             }
@@ -216,14 +214,13 @@ impl CameraRenderPass {
                 continue;
             }
 
-            // Choose sprite to draw
             let Some(sprite) =
                 sprite_component.forced_sprite.as_ref().or(sprite_component.sprite.as_ref())
             else {
                 continue;
             };
 
-            let Some(spritesheet) = spritesheets.get(&sprite.spritesheet) else {
+            let Some(spritesheet) = asset_textures.get(&sprite.spritesheet) else {
                 log::error!(once = true; "Spritesheet doesn't exist: {}", &sprite.spritesheet);
                 continue;
             };
@@ -270,6 +267,9 @@ impl CameraRenderPass {
         ecs: &Ecs,
         map: &Map,
     ) {
+        // TODO look into using glyph_brush directly
+        // Reference wgpu_text and implement it myself
+
         let mut all_sections: Vec<OwnedSection> = Vec::new();
 
         // Overhead text
@@ -334,11 +334,16 @@ impl CameraRenderPass {
             all_sections.append(&mut singing_sections);
         }
 
+        // queue should only be called once for all the text I'm drawing this frame with this brush.
+        // If I call it more than once, later calls seem to fuck up the previously queued text.
+        // I think multiple calls works with the inner glyph_brush brush, but I think the wgpu_text
+        // wrapper does some extra work that is overwritten by subsequent calls.
+        // I think the problem is that the wgpu_text brush calls the inner's process_queued.
+        // Just collect all sections and then queue them all in one call.
         self.text_brush.queue(device, queue, &all_sections).unwrap();
     }
 }
 
-#[allow(clippy::needless_return)]
 pub fn map_pos_to_top_left_in_viewport(
     map_pos: MapPos,
     sprite_offset: Option<Vec2<i32, PixelUnits>>,

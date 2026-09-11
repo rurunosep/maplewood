@@ -97,8 +97,7 @@ pub fn load_entities_from_source(ecs: &mut Ecs) {
 
     // Four corner cameras
     {
-        let camera_size: Vec2<u32, crate::math::PixelUnits> =
-            Vec2::new(WINDOW_SIZE.x / 2 - 30, WINDOW_SIZE.y / 2 - 30);
+        let camera_size: Vec2<u32> = Vec2::new(WINDOW_SIZE.x / 2 - 30, WINDOW_SIZE.y / 2 - 30);
 
         let id = ecs.add_entity();
         ecs.add_component(id, Name("top_left_camera".to_string()));

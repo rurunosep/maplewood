@@ -4,9 +4,10 @@
 ---@start_condition {start_script::started} == 0
 set("start_script::started", 1)
 
-message("This one advances by input.")
-message_timed("This one advances in 3 seconds.", 3)
-message("This one is by input again.")
+message("This one advances with input.")
+message_timed("This one advances in 2 seconds.", 2)
+message("This is\nthree lines\ntall.")
+
 
 ---@script twinkle
 

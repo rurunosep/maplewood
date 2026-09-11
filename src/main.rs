@@ -71,8 +71,7 @@ fn main() {
         .unwrap();
 
     let mut renderer = Renderer::new(&window);
-    renderer.load_tilesets();
-    renderer.load_spritesheets();
+    renderer.load_asset_textures();
 
     let mut dev_ui = DevUi::new(&window);
 

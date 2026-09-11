@@ -1,5 +1,6 @@
 use crate::components::{Camera, Position};
 use crate::ecs::{Ecs, EntityId};
+use crate::math::{PixelUnits, Rect};
 use crate::render::camera_render_pass::CameraRenderPass;
 use crate::render::rect_copy::RectCopyPipeline;
 use crate::render::rect_fill::RectFillPipeline;
@@ -35,8 +36,7 @@ pub struct Renderer<'window> {
     rect_fill_pipeline: RectFillPipeline,
     camera_render_passes: HashMap<EntityId, CameraRenderPass>,
     egui_render_pass: egui_wgpu_backend::RenderPass,
-    tilesets: HashMap<String, Texture>,
-    spritesheets: HashMap<String, Texture>,
+    asset_textures: HashMap<String, Texture>,
     font: FontArc,
     text_brush: TextBrush<FontArc>,
 }
@@ -105,8 +105,7 @@ impl Renderer<'_> {
 
         let egui_render_pass = egui_wgpu_backend::RenderPass::new(&device, surface_format, 1);
 
-        let tilesets = HashMap::new();
-        let spritesheets = HashMap::new();
+        let asset_textures = HashMap::new();
 
         let font_data = std::fs::read("assets/Grand9KPixel.ttf").unwrap();
         let font = FontArc::try_from_vec(font_data.clone()).unwrap();
@@ -126,8 +125,7 @@ impl Renderer<'_> {
             rect_fill_pipeline,
             camera_render_passes,
             egui_render_pass,
-            tilesets,
-            spritesheets,
+            asset_textures,
             font,
             text_brush,
         }
@@ -150,7 +148,7 @@ impl Renderer<'_> {
             self.device.create_command_encoder(&CommandEncoderDescriptor { label: None });
 
         // Render camera views
-        for (id, camera_comp, position) in ecs.query::<(EntityId, &mut Camera, &Position)>() {
+        for (id, camera_comp, position) in ecs.query::<(EntityId, &Camera, &Position)>() {
             if camera_comp.visible
                 && let Some(camera_render_pass) = self.camera_render_passes.get_mut(&id)
             {
@@ -160,8 +158,7 @@ impl Renderer<'_> {
                     &self.queue,
                     &self.rect_copy_pipeline,
                     &self.rect_fill_pipeline,
-                    &self.tilesets,
-                    &self.spritesheets,
+                    &self.asset_textures,
                     id,
                     position.0.clone(),
                     camera_comp.zoom,
@@ -271,22 +268,27 @@ impl Renderer<'_> {
         };
 
         // Draw the window itself
-        self.rect_fill_pipeline.execute(
+        let message_window_nine_slice = NineSlice {
+            texture_name: "ui_travelbook.png".to_string(),
+            rect_in_texture: Rect::new(160, 336, 64, 32),
+            inset_size: 8,
+        };
+        let rect_on_screen: Rect<u32> = Rect::new(200, 840, 1520, 200);
+        draw_nine_slice(
             render_pass,
+            &self.rect_copy_pipeline,
+            &self.asset_textures,
             render_target_size,
-            40,
-            render_target_size.1 as i32 - 240,
-            render_target_size.0 - 80,
-            200,
-            [0.02, 0.02, 0.02, 1.],
+            &message_window_nine_slice,
+            rect_on_screen,
+            4,
         );
 
         // Draw the text
+        let text_color = [0., 0., 0., 1.];
         let section = Section::default()
-            .add_text(
-                Text::new(&message_window.message).with_scale(48.).with_color([1., 1., 1., 1.]),
-            )
-            .with_screen_position((80., render_target_size.1 as f32 - 224.));
+            .add_text(Text::new(&message_window.message).with_scale(48.).with_color(text_color))
+            .with_screen_position((rect_on_screen.x as f32 + 40., rect_on_screen.y as f32 + 20.));
         self.text_brush.queue(&self.device, &self.queue, [section]).unwrap();
         self.text_brush.draw(render_pass);
 
@@ -295,16 +297,17 @@ impl Renderer<'_> {
             self.rect_fill_pipeline.execute(
                 render_pass,
                 render_target_size,
-                render_target_size.0 as i32 - 100,
-                render_target_size.1 as i32 - 100,
+                rect_on_screen.right() as i32 - 80,
+                rect_on_screen.bottom() as i32 - 80,
                 40,
                 40,
-                [1., 1., 1., 1.],
+                [0., 0., 0., 1.],
             );
         }
     }
 
-    pub fn load_tilesets(&mut self) {
+    pub fn load_asset_textures(&mut self) {
+        // Tilesets
         if let Ok(dir) = std::fs::read_dir("assets/tilesets/")
             .tap_err(|_| log::error!("Couldn't open assets/tilesets/"))
         {
@@ -326,15 +329,14 @@ impl Renderer<'_> {
                     start.elapsed().as_secs_f64()
                 );
 
-                self.tilesets.insert(f!("../assets/tilesets/{file_name}"), texture);
+                self.asset_textures.insert(f!("../assets/tilesets/{file_name}"), texture);
 
                 Some(())
             })
             .for_each(drop);
         }
-    }
 
-    pub fn load_spritesheets(&mut self) {
+        // Spritesheets
         if let Ok(dir) = std::fs::read_dir("assets/spritesheets/")
             .tap_err(|_| log::error!("Couldn't open assets/spritesheets/"))
         {
@@ -356,12 +358,20 @@ impl Renderer<'_> {
                     start.elapsed().as_secs_f64()
                 );
 
-                self.spritesheets.insert(file_stem, texture);
+                // TODO store as "spritesheets/{file_name}" or something like that
+                self.asset_textures.insert(file_stem, texture);
 
                 Some(())
             })
             .for_each(drop);
         }
+
+        // Ui Spritesheet
+        let start = std::time::Instant::now();
+        let path = "assets/ui_travelbook.png";
+        let texture = self.load_texture(path);
+        log::debug!("Loaded {} in {:.2} secs", path, start.elapsed().as_secs_f64());
+        self.asset_textures.insert("ui_travelbook.png".to_string(), texture);
     }
 
     fn load_texture<P>(&self, path: P) -> Texture
@@ -472,5 +482,149 @@ impl Renderer<'_> {
     pub fn update_egui_textures_without_rendering(&mut self, textures_delta: TexturesDelta) {
         self.egui_render_pass.add_textures(&self.device, &self.queue, &textures_delta).unwrap();
         self.egui_render_pass.remove_textures(textures_delta).unwrap();
+    }
+}
+
+struct NineSlice {
+    texture_name: String,
+    rect_in_texture: Rect<u32, PixelUnits>,
+    inset_size: u32,
+}
+
+// TODO validation or some other fix. currently panics on u32 subtraction with underflow
+fn draw_nine_slice<'rpass>(
+    render_pass: &mut RenderPass<'rpass>,
+    rect_copy_pipeline: &RectCopyPipeline,
+    asset_textures: &HashMap<String, Texture>,
+    render_target_size: (u32, u32),
+    nine_slice: &NineSlice,
+    screen_rect: Rect<u32>,
+    scale: u32,
+) {
+    let Some(texture) = asset_textures.get(&nine_slice.texture_name) else {
+        log::error!(once = true; "Texture doesn't exist: {}", nine_slice.texture_name);
+        return;
+    };
+
+    let inset = nine_slice.inset_size;
+    let tex_rect = nine_slice.rect_in_texture;
+
+    let tex_slices_and_screen_slices: [(Rect<u32>, Rect<u32>); 9] = [
+        // Top left
+        (
+            Rect::new(tex_rect.left(), tex_rect.top(), inset, inset),
+            Rect::new(screen_rect.left(), screen_rect.top(), inset * scale, inset * scale),
+        ),
+        // Top
+        (
+            Rect::new(tex_rect.left() + inset, tex_rect.top(), tex_rect.width - inset * 2, inset),
+            Rect::new(
+                screen_rect.left() + inset * scale,
+                screen_rect.top(),
+                screen_rect.width - inset * 2 * scale,
+                inset * scale,
+            ),
+        ),
+        // Top right
+        (
+            Rect::new(tex_rect.right() - inset, tex_rect.top(), inset, inset),
+            Rect::new(
+                screen_rect.right() - inset * scale,
+                screen_rect.top(),
+                inset * scale,
+                inset * scale,
+            ),
+        ),
+        // Left
+        (
+            Rect::new(tex_rect.left(), tex_rect.top() + inset, inset, tex_rect.height - inset * 2),
+            Rect::new(
+                screen_rect.left(),
+                screen_rect.top() + inset * scale,
+                inset * scale,
+                screen_rect.height - inset * 2 * scale,
+            ),
+        ),
+        // Middle
+        (
+            Rect::new(
+                tex_rect.left() + inset,
+                tex_rect.top() + inset,
+                tex_rect.width - inset * 2,
+                tex_rect.height - inset * 2,
+            ),
+            Rect::new(
+                screen_rect.left() + inset * scale,
+                screen_rect.top() + inset * scale,
+                screen_rect.width - inset * 2 * scale,
+                screen_rect.height - inset * 2 * scale,
+            ),
+        ),
+        // Right
+        (
+            Rect::new(
+                tex_rect.right() - inset,
+                tex_rect.top() + inset,
+                inset,
+                tex_rect.height - inset * 2,
+            ),
+            Rect::new(
+                screen_rect.right() - inset * scale,
+                screen_rect.top() + inset * scale,
+                inset * scale,
+                screen_rect.height - inset * 2 * scale,
+            ),
+        ),
+        // Bottom left
+        (
+            Rect::new(tex_rect.left(), tex_rect.bottom() - inset, inset, inset),
+            Rect::new(
+                screen_rect.left(),
+                screen_rect.bottom() - inset * scale,
+                inset * scale,
+                inset * scale,
+            ),
+        ),
+        // Bottom
+        (
+            Rect::new(
+                tex_rect.left() + inset,
+                tex_rect.bottom() - inset,
+                tex_rect.width - inset * 2,
+                inset,
+            ),
+            Rect::new(
+                screen_rect.left() + inset * scale,
+                screen_rect.bottom() - inset * scale,
+                screen_rect.width - inset * 2 * scale,
+                inset * scale,
+            ),
+        ),
+        // Bottom right
+        (
+            Rect::new(tex_rect.right() - inset, tex_rect.bottom() - inset, inset, inset),
+            Rect::new(
+                screen_rect.right() - inset * scale,
+                screen_rect.bottom() - inset * scale,
+                inset * scale,
+                inset * scale,
+            ),
+        ),
+    ];
+
+    for (tex_rect, screen_rect) in tex_slices_and_screen_slices {
+        rect_copy_pipeline.execute(
+            render_pass,
+            render_target_size,
+            texture,
+            tex_rect.x,
+            tex_rect.y,
+            tex_rect.width,
+            tex_rect.height,
+            screen_rect.x as i32,
+            screen_rect.y as i32,
+            screen_rect.width,
+            screen_rect.height,
+        );
     }
 }

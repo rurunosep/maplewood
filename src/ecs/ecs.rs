@@ -40,6 +40,7 @@ impl From<DeferredEntityId> for RealOrDeferredEntityId {
 }
 
 type QueryResultIter<'r, Q> = Box<dyn Iterator<Item = <Q as Query>::Result<'r>> + 'r>;
+// TODO rework ecs without refcells
 pub type ComponentMap<C> = SecondaryMap<EntityId, RefCell<C>>;
 
 pub struct Ecs {

@@ -6,6 +6,7 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Sub, SubAssign};
 
+pub struct NoUnits;
 pub struct MapUnits;
 pub struct CellUnits;
 pub struct PixelUnits;
@@ -17,7 +18,7 @@ pub type CellPos = Vec2<i32, CellUnits>;
 
 #[derive(Serialize, Deserialize)]
 #[serde(default)]
-pub struct Vec2<T, U> {
+pub struct Vec2<T, U = NoUnits> {
     pub x: T,
     pub y: T,
     #[serde(skip)]
@@ -168,7 +169,7 @@ impl Vec2<f64, MapUnits> {
 
 #[derive(Serialize, Deserialize)]
 #[serde(default)]
-pub struct Rect<T, U> {
+pub struct Rect<T, U = NoUnits> {
     pub x: T,
     pub y: T,
     pub width: T,
