@@ -6,6 +6,7 @@ use crate::script::ScriptManager;
 use crate::{DevUi, GameData, MessageAdvanceCondition, MessageWindow};
 use sdl2::event::Event;
 use sdl2::keyboard::{Keycode, Scancode};
+use std::time::Instant;
 use tap::TapFallible;
 
 pub fn process_input(
@@ -52,7 +53,14 @@ pub fn process_input(
                         MessageAdvanceCondition::Input
                     )
                 {
-                    *message_window = None;
+                    if message_window_inner.num_visible_chars < message_window_inner.message.len() {
+                        // Skip typewriter text
+                        message_window_inner.num_visible_chars = message_window_inner.message.len();
+                        message_window_inner.last_char_time = Instant::now();
+                    } else {
+                        // Advance message
+                        *message_window = None;
+                    }
                     // Consume the input
                     continue;
                 }

@@ -5,13 +5,14 @@ use crate::render::camera_render_pass::CameraRenderPass;
 use crate::render::rect_copy::RectCopyPipeline;
 use crate::render::rect_fill::RectFillPipeline;
 use crate::world::World;
-use crate::{DevUi, MessageAdvanceCondition, MessageWindow, UiData};
+use crate::{DevUi, MessageAdvanceCondition, MessageWindow, UiData, misc};
 use egui::TexturesDelta;
 use image::GenericImageView;
 use itertools::Itertools;
 use pollster::FutureExt;
 use sdl2::video::Window;
 use std::collections::HashMap;
+use std::f64::consts::PI;
 use std::format as f;
 use std::path::Path;
 use tap::{Pipe, TapFallible};
@@ -273,7 +274,7 @@ impl Renderer<'_> {
             rect_in_texture: Rect::new(160, 336, 64, 32),
             inset_size: 8,
         };
-        let rect_on_screen: Rect<u32> = Rect::new(200, 840, 1520, 200);
+        let rect_on_screen: Rect<u32> = Rect::new(400, 840, 1120, 200);
         draw_nine_slice(
             render_pass,
             &self.rect_copy_pipeline,
@@ -285,23 +286,44 @@ impl Renderer<'_> {
         );
 
         // Draw the text
-        let text_color = [0., 0., 0., 1.];
+        let (visible_chars, hidden_chars) =
+            message_window.message.split_at(message_window.num_visible_chars);
+        let visible_text = Text::new(visible_chars).with_scale(48.).with_color([0., 0., 0., 1.]);
+        let hidden_text = Text::new(hidden_chars).with_scale(48.).with_color([0., 0., 0., 0.]);
         let section = Section::default()
-            .add_text(Text::new(&message_window.message).with_scale(48.).with_color(text_color))
+            .add_text(visible_text)
+            .add_text(hidden_text)
+            .with_bounds((rect_on_screen.width as f32 - 80., rect_on_screen.height as f32 - 40.))
             .with_screen_position((rect_on_screen.x as f32 + 40., rect_on_screen.y as f32 + 20.));
         self.text_brush.queue(&self.device, &self.queue, [section]).unwrap();
         self.text_brush.draw(render_pass);
 
         // Draw the thingy to show that you can click to advance
         if matches!(message_window.advance_condition, MessageAdvanceCondition::Input) {
-            self.rect_fill_pipeline.execute(
+            let Some(texture) = self.asset_textures.get("ui_travelbook.png") else {
+                log::error!(once = true; "Texture doesn't exist: ui_travelbook.png");
+                return;
+            };
+
+            let tex_rect: Rect<u32> = Rect::new(48, 496, 16, 16);
+
+            let bob_frequency = 1.5;
+            let bob_amplitude = 8.;
+            let y_offset =
+                (misc::get_seconds_since_start() * bob_frequency * PI * 2.).sin() * bob_amplitude;
+
+            self.rect_copy_pipeline.execute(
                 render_pass,
                 render_target_size,
+                texture,
+                tex_rect.x,
+                tex_rect.y,
+                tex_rect.width,
+                tex_rect.height,
                 rect_on_screen.right() as i32 - 80,
-                rect_on_screen.bottom() as i32 - 80,
-                40,
-                40,
-                [0., 0., 0., 1.],
+                rect_on_screen.bottom() as i32 - 80 + y_offset as i32,
+                64,
+                64,
             );
         }
     }

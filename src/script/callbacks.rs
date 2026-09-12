@@ -658,30 +658,11 @@ pub fn bind_script_only_callbacks<'scope>(
 
     globals.set(
         "message",
-        wrap_yielding.call::<Function>(scope.create_function_mut(|_, message: String| {
-            let message_window = &mut ui_data.borrow_mut().message_window;
-            *message_window =
-                Some(MessageWindow { message, advance_condition: MessageAdvanceCondition::Input });
+        wrap_yielding.call::<Function>(scope.create_function_mut(|_, args| {
+            message_callback(args, &mut ui_data.borrow_mut().message_window)?;
             **wait_condition.borrow_mut() = Some(WaitCondition::Message);
             Ok(())
         })?)?,
-    )?;
-
-    globals.set(
-        "message_timed",
-        wrap_yielding.call::<Function>(scope.create_function_mut(
-            |_, (message, duration): (String, f64)| {
-                let message_window = &mut ui_data.borrow_mut().message_window;
-                *message_window = Some(MessageWindow {
-                    message,
-                    advance_condition: MessageAdvanceCondition::Time(
-                        Instant::now() + Duration::from_secs_f64(duration),
-                    ),
-                });
-                **wait_condition.borrow_mut() = Some(WaitCondition::Message);
-                Ok(())
-            },
-        )?)?,
     )?;
 
     globals.set(
@@ -704,25 +685,8 @@ pub fn bind_console_only_callbacks<'scope>(
 ) -> mlua::Result<()> {
     globals.set(
         "message",
-        scope.create_function_mut(|_, message: String| {
-            let message_window = &mut ui_data.borrow_mut().message_window;
-            *message_window =
-                Some(MessageWindow { message, advance_condition: MessageAdvanceCondition::Input });
-            Ok(())
-        })?,
-    )?;
-
-    globals.set(
-        "message_timed",
-        scope.create_function_mut(|_, (message, duration): (String, f64)| {
-            let message_window = &mut ui_data.borrow_mut().message_window;
-            *message_window = Some(MessageWindow {
-                message,
-                advance_condition: MessageAdvanceCondition::Time(
-                    Instant::now() + Duration::from_secs_f64(duration),
-                ),
-            });
-            Ok(())
+        scope.create_function_mut(|_, args| {
+            message_callback(args, &mut ui_data.borrow_mut().message_window)
         })?,
     )?;
 
@@ -742,6 +706,28 @@ pub fn bind_console_only_callbacks<'scope>(
             Ok(())
         })?,
     )?;
+
+    Ok(())
+}
+
+// TODO pass a chars_per_second. maybe 0 skips and nil uses default?
+
+fn message_callback(
+    (message, chars_per_second, advance_delay): (String, Option<f64>, Option<f64>),
+    message_window: &mut Option<MessageWindow>,
+) -> mlua::Result<()> {
+    let chars_per_second = chars_per_second.unwrap_or(50.);
+
+    *message_window = Some(MessageWindow {
+        message: message.clone(),
+        chars_per_second,
+        advance_condition: match advance_delay {
+            Some(duration) => MessageAdvanceCondition::Time(Duration::from_secs_f64(duration)),
+            None => MessageAdvanceCondition::Input,
+        },
+        num_visible_chars: if chars_per_second <= 0. { message.len() } else { 1 },
+        last_char_time: Instant::now(),
+    });
 
     Ok(())
 }

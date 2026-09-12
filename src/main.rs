@@ -42,15 +42,22 @@ pub struct UiData {
 pub struct MessageWindow {
     pub message: String,
     pub advance_condition: MessageAdvanceCondition,
+    pub chars_per_second: f64,
+    pub num_visible_chars: usize,
+    pub last_char_time: Instant,
 }
 
 pub enum MessageAdvanceCondition {
     Input,
-    Time(Instant),
+    // Duration starts after message has finished typing
+    Time(Duration),
 }
 
 fn main() {
     unsafe { std::env::set_var("RUST_BACKTRACE", "0") };
+
+    // Initialize start time
+    misc::get_seconds_since_start();
 
     LOGGER.init();
 

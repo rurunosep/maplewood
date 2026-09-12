@@ -4,10 +4,14 @@
 ---@start_condition {start_script::started} == 0
 set("start_script::started", 1)
 
-message("This one advances with input.")
-message_timed("This one advances in 2 seconds.", 2)
-message("This is\nthree lines\ntall.")
-
+message("Message widows are skinned now.", 0)
+message("And they can type out like this.")
+message("So far they've needed a click to advance.")
+message("But this one advances itself a second after it's finished.", nil, 1)
+message(
+  "This one needs a click again, but it's really long. You can click to skip the typing effect. It's a whole lot of yap. And then you click again to advance it.")
+message("This one types out really fast.", 200)
+message("And this one is slow.", 10)
 
 ---@script twinkle
 
@@ -249,7 +253,7 @@ stages[get("bakery_girl::stage")]()
 ---@start_condition {bakery_girl::stage} == 4
 set("bakery_girl::stage", 5)
 
-set_walk_speed("bakery_girl", 0.08)
+set_walk_speed("bakery_girl", 7)
 
 while true do
   walk_wait("bakery_girl", "left", 2)
@@ -307,12 +311,12 @@ if get("main::pen_found") == 1 and get("bathroom::flooded") == 0 then
 
   lock_player_input()
   set_camera_target("_camera", nil)
-  set_camera_clamp(false)
+  set_camera_clamp("_camera", false)
 
   set_entity_world_pos("_player", "hallway", 3.5, 3.5)
 
   wait(1)
-  walk_to_wait("_camera", "up", 6.01, 0.05)
+  walk_wait("_camera", "up", 6.01, 3)
   wait(1)
   switch_dual_state_animation("bathroom::sink_1", 2)
   play_sfx("faucet")
@@ -324,7 +328,7 @@ if get("main::pen_found") == 1 and get("bathroom::flooded") == 0 then
   play_sfx("faucet")
   wait(4)
 
-  set_camera_clamp(true)
+  set_camera_clamp("_camera", true)
   set_camera_target("_camera", "_player")
   unlock_player_input()
 else

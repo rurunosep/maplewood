@@ -99,11 +99,29 @@ fn start_area_trigger_scripts(script_manager: &mut ScriptManager, ecs: &Ecs) {
 }
 
 fn update_message_window(message_window: &mut Option<MessageWindow>) {
-    if let Some(message_window_inner) = message_window
-        && let MessageAdvanceCondition::Time(end) = message_window_inner.advance_condition
-        && Instant::now() > end
+    let message_window_option = message_window;
+    let Some(message_window) = message_window_option.as_mut() else {
+        return;
+    };
+
+    // Advance typewriter text
+    if message_window.chars_per_second > 0. {
+        let seconds_per_char = 1. / message_window.chars_per_second;
+        let duration_per_char = Duration::from_secs_f64(seconds_per_char);
+
+        while message_window.num_visible_chars < message_window.message.len()
+            && Instant::now() > message_window.last_char_time + duration_per_char
+        {
+            message_window.num_visible_chars += 1;
+            message_window.last_char_time += duration_per_char;
+        }
+    }
+
+    // Advance timed message window
+    if let MessageAdvanceCondition::Time(duration) = message_window.advance_condition
+        && Instant::now() > message_window.last_char_time + duration
     {
-        *message_window = None;
+        *message_window_option = None;
     }
 }
 

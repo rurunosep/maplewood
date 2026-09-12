@@ -5,6 +5,7 @@ use log::{Level, Metadata, Record};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::sync::{LazyLock, Mutex};
+use std::time::Instant;
 use tap::TapOptional;
 
 pub const WINDOW_SIZE: Vec2<u32, PixelUnits> = Vec2::new(1920, 1080);
@@ -26,6 +27,11 @@ pub fn try_replace_all(
     }
     new.push_str(&haystack[last_match..]);
     Ok(new)
+}
+
+pub fn get_seconds_since_start() -> f64 {
+    static START: LazyLock<Instant> = LazyLock::new(|| Instant::now());
+    START.elapsed().as_secs_f64()
 }
 
 #[derive(Clone, Copy, Default, Debug)]
