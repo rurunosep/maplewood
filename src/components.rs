@@ -207,6 +207,15 @@ pub struct LerpCameraOverlayColor {
 }
 impl Component for LerpCameraOverlayColor {}
 
+// (not serde)
+pub struct CameraShake {
+    pub amplitude: f64,
+    pub duration: Duration,
+    pub frequency: f64,
+    pub start_time: Instant,
+}
+impl Component for CameraShake {}
+
 #[derive(Default, Clone, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Collision {

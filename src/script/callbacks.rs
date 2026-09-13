@@ -1,5 +1,5 @@
 use crate::components::{
-    AnimationComp, Camera, Collision, DualStateAnimationState, DualStateAnims, Facing,
+    AnimationComp, Camera, CameraShake, Collision, DualStateAnimationState, DualStateAnims, Facing,
     LerpCameraOverlayColor, LerpCameraZoom, NamedAnims, Pathing, Position, SfxEmitter,
     SineOffsetAnimation, Singing, Sprite, SpriteComp, Walking,
 };
@@ -69,7 +69,7 @@ pub fn bind_general_callbacks<'scope>(
 
     globals.set(
         "set_entity_map_pos",
-        scope.create_function_mut(|_, (entity, x, y): (String, f64, f64)| {
+        scope.create_function(|_, (entity, x, y): (String, f64, f64)| {
             let ecs = &game_data.borrow().ecs;
             let mut position = ecs
                 .query_one_with_name::<&mut Position>(&entity)
@@ -92,7 +92,7 @@ pub fn bind_general_callbacks<'scope>(
 
     globals.set(
         "set_entity_world_pos",
-        scope.create_function_mut(|_, (entity, map, x, y): (String, String, f64, f64)| {
+        scope.create_function(|_, (entity, map, x, y): (String, String, f64, f64)| {
             let ecs = &mut game_data.borrow_mut().ecs;
             let entity_id = ecs
                 .query_one_with_name::<EntityId>(&entity)
@@ -105,7 +105,7 @@ pub fn bind_general_callbacks<'scope>(
     #[rustfmt::skip]
     globals.set(
         "set_forced_sprite",        
-        scope.create_function_mut(
+        scope.create_function(
             |_,
              (entity, spritesheet, rect_x, rect_y, rect_w, rect_h, anchor_x, anchor_y):
                 (String, String, u32, u32, u32, u32, i32, i32)| {
@@ -127,7 +127,7 @@ pub fn bind_general_callbacks<'scope>(
 
     globals.set(
         "remove_forced_sprite",
-        scope.create_function_mut(|_, entity: String| {
+        scope.create_function(|_, entity: String| {
             let ecs = &game_data.borrow().ecs;
             let mut sprite_component = ecs
                 .query_one_with_name::<&mut SpriteComp>(&entity)
@@ -139,7 +139,7 @@ pub fn bind_general_callbacks<'scope>(
 
     globals.set(
         "set_entity_visible",
-        scope.create_function_mut(|_, (entity, visible): (String, bool)| {
+        scope.create_function(|_, (entity, visible): (String, bool)| {
             let ecs = &game_data.borrow().ecs;
             let mut sprite = ecs
                 .query_one_with_name::<&mut SpriteComp>(&entity)
@@ -151,7 +151,7 @@ pub fn bind_general_callbacks<'scope>(
 
     globals.set(
         "set_entity_solid",
-        scope.create_function_mut(|_, (entity, enabled): (String, bool)| {
+        scope.create_function(|_, (entity, enabled): (String, bool)| {
             let ecs = &game_data.borrow().ecs;
             let mut collision = ecs
                 .query_one_with_name::<&mut Collision>(&entity)
@@ -163,7 +163,7 @@ pub fn bind_general_callbacks<'scope>(
 
     globals.set(
         "walk",
-        scope.create_function_mut(
+        scope.create_function(
             |_, (entity, direction, distance, speed): (String, String, f64, Option<f64>)| {
                 let ecs = &game_data.borrow().ecs;
                 let (mut pathing, position) = ecs
@@ -188,24 +188,22 @@ pub fn bind_general_callbacks<'scope>(
 
     globals.set(
         "walk_to",
-        scope.create_function_mut(
-            |_, (entity, x, y, speed): (String, f64, f64, Option<f64>)| {
-                let ecs = &game_data.borrow().ecs;
-                let mut pathing = ecs
-                    .query_one_with_name::<&mut Pathing>(&entity)
-                    .ok_or(Error(f!("invalid entity `{entity}`")))?;
+        scope.create_function(|_, (entity, x, y, speed): (String, f64, f64, Option<f64>)| {
+            let ecs = &game_data.borrow().ecs;
+            let mut pathing = ecs
+                .query_one_with_name::<&mut Pathing>(&entity)
+                .ok_or(Error(f!("invalid entity `{entity}`")))?;
 
-                pathing.target = Some(Vec2::new(x, y));
-                pathing.speed = speed;
+            pathing.target = Some(Vec2::new(x, y));
+            pathing.speed = speed;
 
-                Ok(())
-            },
-        )?,
+            Ok(())
+        })?,
     )?;
 
     globals.set(
         "is_entity_pathing",
-        scope.create_function_mut(|_, entity: String| {
+        scope.create_function(|_, entity: String| {
             let ecs = &game_data.borrow().ecs;
             let pathing = ecs
                 .query_one_with_name::<&Pathing>(&entity)
@@ -216,7 +214,7 @@ pub fn bind_general_callbacks<'scope>(
 
     globals.set(
         "set_walk_speed",
-        scope.create_function_mut(|_, (entity, speed): (String, f64)| {
+        scope.create_function(|_, (entity, speed): (String, f64)| {
             let ecs = &game_data.borrow().ecs;
             let mut walking = ecs
                 .query_one_with_name::<&mut Walking>(&entity)
@@ -228,7 +226,7 @@ pub fn bind_general_callbacks<'scope>(
 
     globals.set(
         "set_facing",
-        scope.create_function_mut(|_, (entity, direction): (String, String)| {
+        scope.create_function(|_, (entity, direction): (String, String)| {
             let ecs = &game_data.borrow().ecs;
             let mut facing = ecs
                 .query_one_with_name::<&mut Facing>(&entity)
@@ -250,7 +248,7 @@ pub fn bind_general_callbacks<'scope>(
 
     globals.set(
         "set_facing_towards_point",
-        scope.create_function_mut(|_, (entity, x, y): (String, f64, f64)| {
+        scope.create_function(|_, (entity, x, y): (String, f64, f64)| {
             let ecs = &game_data.borrow().ecs;
             let (mut facing, position) = ecs
                 .query_one_with_name::<(&mut Facing, &Position)>(&entity)
@@ -293,7 +291,7 @@ pub fn bind_general_callbacks<'scope>(
 
     globals.set(
         "set_camera_target",
-        scope.create_function_mut(|_, (camera_name, target_name): (String, Option<String>)| {
+        scope.create_function(|_, (camera_name, target_name): (String, Option<String>)| {
             let ecs = &game_data.borrow().ecs;
             let mut camera_component = ecs
                 .query_one_with_name::<&mut Camera>(&camera_name)
@@ -305,7 +303,7 @@ pub fn bind_general_callbacks<'scope>(
 
     globals.set(
         "set_camera_zoom",
-        scope.create_function_mut(
+        scope.create_function(
             |_, (camera_name, new_zoom, lerp_time): (String, f64, Option<f64>)| {
                 let ecs = &mut game_data.borrow_mut().ecs;
 
@@ -354,7 +352,7 @@ pub fn bind_general_callbacks<'scope>(
 
     globals.set(
         "set_camera_overlay_color",
-        scope.create_function_mut(
+        scope.create_function(
             |_, (camera_name, new_color, lerp_time): (String, Option<[f32; 4]>, Option<f64>)| {
                 let ecs = &mut game_data.borrow_mut().ecs;
 
@@ -396,7 +394,7 @@ pub fn bind_general_callbacks<'scope>(
 
     globals.set(
         "set_camera_clamp",
-        scope.create_function_mut(|_, (camera_name, clamp): (String, bool)| {
+        scope.create_function(|_, (camera_name, clamp): (String, bool)| {
             let ecs = &game_data.borrow().ecs;
             let mut camera_component = ecs
                 .query_one_with_name::<&mut Camera>(&camera_name)
@@ -407,8 +405,37 @@ pub fn bind_general_callbacks<'scope>(
     )?;
 
     globals.set(
+        "camera_shake",
+        scope.create_function(
+            |_,
+             (camera_name, amplitude, duration, frequency): (
+                String,
+                Option<f64>,
+                Option<f64>,
+                Option<f64>,
+            )| {
+                let amplitude = amplitude.unwrap_or(0.25);
+                let duration = Duration::from_secs_f64(duration.unwrap_or(0.6));
+                let frequency = frequency.unwrap_or(20.);
+
+                let ecs = &mut game_data.borrow_mut().ecs;
+                let id = ecs
+                    .query_one_with_name::<EntityId>(&camera_name)
+                    .ok_or(Error(f!("invalid entity `{camera_name}`")))?;
+
+                ecs.add_component(
+                    id,
+                    CameraShake { amplitude, duration, frequency, start_time: Instant::now() },
+                );
+
+                Ok(())
+            },
+        )?,
+    )?;
+
+    globals.set(
         "play_object_animation",
-        scope.create_function_mut(|_, (entity, repeat): (String, bool)| {
+        scope.create_function(|_, (entity, repeat): (String, bool)| {
             let ecs = &game_data.borrow().ecs;
             let mut anim_comp = ecs
                 .query_one_with_name::<&mut AnimationComp>(&entity)
@@ -420,7 +447,7 @@ pub fn bind_general_callbacks<'scope>(
 
     globals.set(
         "stop_object_animation",
-        scope.create_function_mut(|_, entity: String| {
+        scope.create_function(|_, entity: String| {
             let ecs = &game_data.borrow().ecs;
             let mut anim_comp = ecs
                 .query_one_with_name::<&mut AnimationComp>(&entity)
@@ -432,7 +459,7 @@ pub fn bind_general_callbacks<'scope>(
 
     globals.set(
         "switch_dual_state_animation",
-        scope.create_function_mut(|_, (entity, state): (String, i32)| {
+        scope.create_function(|_, (entity, state): (String, i32)| {
             let ecs = &game_data.borrow().ecs;
             let (mut anim_comp, mut dual_anims) = ecs
                 .query_one_with_name::<(&mut AnimationComp, &mut DualStateAnims)>(&entity)
@@ -453,7 +480,7 @@ pub fn bind_general_callbacks<'scope>(
 
     globals.set(
         "play_named_animation",
-        scope.create_function_mut(|_, (entity, animation, repeat): (String, String, bool)| {
+        scope.create_function(|_, (entity, animation, repeat): (String, String, bool)| {
             let ecs = &game_data.borrow().ecs;
             let (mut anim_comp, anims) = ecs
                 .query_one_with_name::<(&mut AnimationComp, &NamedAnims)>(&entity)
@@ -473,7 +500,7 @@ pub fn bind_general_callbacks<'scope>(
 
     globals.set(
         "anim_quiver",
-        scope.create_function_mut(|_, (entity, duration): (String, f64)| {
+        scope.create_function(|_, (entity, duration): (String, f64)| {
             let ecs = &mut game_data.borrow_mut().ecs;
             let id = ecs
                 .query_one_with_name::<EntityId>(&entity)
@@ -496,7 +523,7 @@ pub fn bind_general_callbacks<'scope>(
 
     globals.set(
         "anim_jump",
-        scope.create_function_mut(|_, entity: String| {
+        scope.create_function(|_, entity: String| {
             let ecs = &mut game_data.borrow_mut().ecs;
             let id = ecs
                 .query_one_with_name::<EntityId>(&entity)
@@ -528,7 +555,7 @@ pub fn bind_general_callbacks<'scope>(
 
     globals.set(
         "play_music",
-        scope.create_function_mut(|_, (name, should_loop): (String, bool)| {
+        scope.create_function(|_, (name, should_loop): (String, bool)| {
             let music = musics.get(&name).ok_or(Error(f!("no music `{name}`")))?;
             music.play(if should_loop { -1 } else { 0 }).map_err(|e| Error(e))?;
             Ok(())
@@ -537,7 +564,7 @@ pub fn bind_general_callbacks<'scope>(
 
     globals.set(
         "stop_music",
-        scope.create_function_mut(|_, fade_out_time: f64| {
+        scope.create_function(|_, fade_out_time: f64| {
             let _ = Music::fade_out((fade_out_time * 1000.) as i32);
             Ok(())
         })?,
@@ -709,8 +736,6 @@ pub fn bind_console_only_callbacks<'scope>(
 
     Ok(())
 }
-
-// TODO pass a chars_per_second. maybe 0 skips and nil uses default?
 
 fn message_callback(
     (message, chars_per_second, advance_delay): (String, Option<f64>, Option<f64>),

@@ -1,5 +1,5 @@
 use crate::components::{
-    AnimationComp, AreaTrigger, Camera, CharacterAnims, Collision, CollisionTrigger,
+    AnimationComp, AreaTrigger, Camera, CameraShake, CharacterAnims, Collision, CollisionTrigger,
     DualStateAnimationState, DualStateAnims, Facing, LerpCameraOverlayColor, LerpCameraZoom, Name,
     Pathing, PlaybackState, Position, SfxEmitter, SineOffsetAnimation, SpriteComp, Velocity,
     Walking,
@@ -47,6 +47,7 @@ pub fn update(
     camera_follow_target_and_clamp(&game_data.ecs, &game_data.world);
     lerp_camera_zoom(&mut game_data.ecs);
     lerp_camera_overlay_color(&mut game_data.ecs);
+    end_camera_shake(&mut game_data.ecs);
 
     update_character_animations(&game_data.ecs);
     update_dual_state_animations(&game_data.ecs);
@@ -103,6 +104,9 @@ fn update_message_window(message_window: &mut Option<MessageWindow>) {
     let Some(message_window) = message_window_option.as_mut() else {
         return;
     };
+
+    // TODO unicode-segmentation crate to advance text unicode character by unicode character rather
+    // than char by char. current implementation breaks if a character is made up of multiple bytes.
 
     // Advance typewriter text
     if message_window.chars_per_second > 0. {
@@ -479,6 +483,15 @@ fn lerp_camera_overlay_color(ecs: &mut Ecs) {
 
         if interp >= 1. {
             ecs.remove_component_deferred::<LerpCameraZoom>(id);
+        }
+    }
+    ecs.flush_deferred_mutations();
+}
+
+fn end_camera_shake(ecs: &mut Ecs) {
+    for (id, shake) in ecs.query::<(EntityId, &CameraShake)>() {
+        if shake.start_time.elapsed() > shake.duration {
+            ecs.remove_component_deferred::<CameraShake>(id);
         }
     }
     ecs.flush_deferred_mutations();

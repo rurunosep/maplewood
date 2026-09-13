@@ -1,4 +1,4 @@
-use crate::components::{Camera, Position};
+use crate::components::{Camera, CameraShake, Position};
 use crate::ecs::{Ecs, EntityId};
 use crate::math::{PixelUnits, Rect};
 use crate::render::camera_render_pass::CameraRenderPass;
@@ -149,10 +149,26 @@ impl Renderer<'_> {
             self.device.create_command_encoder(&CommandEncoderDescriptor { label: None });
 
         // Render camera views
-        for (id, camera_comp, position) in ecs.query::<(EntityId, &Camera, &Position)>() {
+        for (id, camera_comp, position, shake) in
+            ecs.query::<(EntityId, &Camera, &Position, Option<&CameraShake>)>()
+        {
             if camera_comp.visible
                 && let Some(camera_render_pass) = self.camera_render_passes.get_mut(&id)
             {
+                let mut position = position.0.clone();
+
+                // Apply camera shake to position
+                if let Some(shake) = shake {
+                    let amplitude = shake.amplitude
+                        * (1. - shake.start_time.elapsed().div_duration_f64(shake.duration));
+                    let y_offset =
+                        (shake.start_time.elapsed().as_secs_f64() * shake.frequency * PI * 2.)
+                            .sin()
+                            * amplitude
+                            * -1.;
+                    position.map_pos.y += y_offset;
+                }
+
                 camera_render_pass.render(
                     &mut encoder,
                     &self.device,
@@ -161,7 +177,7 @@ impl Renderer<'_> {
                     &self.rect_fill_pipeline,
                     &self.asset_textures,
                     id,
-                    position.0.clone(),
+                    position,
                     camera_comp.zoom,
                     camera_comp.overlay_color,
                     ecs,
@@ -288,6 +304,7 @@ impl Renderer<'_> {
         // Draw the text
         let (visible_chars, hidden_chars) =
             message_window.message.split_at(message_window.num_visible_chars);
+        // (split_at panics when splitting within a unicode character of multiple bytes, like "本")
         let visible_text = Text::new(visible_chars).with_scale(48.).with_color([0., 0., 0., 1.]);
         let hidden_text = Text::new(hidden_chars).with_scale(48.).with_color([0., 0., 0., 0.]);
         let section = Section::default()

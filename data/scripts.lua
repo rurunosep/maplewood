@@ -4,14 +4,14 @@
 ---@start_condition {start_script::started} == 0
 set("start_script::started", 1)
 
-message("Message widows are skinned now.", 0)
-message("And they can type out like this.")
-message("So far they've needed a click to advance.")
-message("But this one advances itself a second after it's finished.", nil, 1)
-message(
-  "This one needs a click again, but it's really long. You can click to skip the typing effect. It's a whole lot of yap. And then you click again to advance it.")
-message("This one types out really fast.", 200)
-message("And this one is slow.", 10)
+-- message("Message widows are skinned now.", 0)
+-- message("And they can type out like this.")
+-- message("So far they've needed a click to advance.")
+-- message("But this one advances itself a second after it's finished.", nil, 1)
+-- message(
+--   "This one needs a click again, but it's really long. You can click to skip the typing effect. It's a whole lot of yap. And then you click again to advance it.")
+-- message("This one types out really fast.", 200)
+-- message("And this one is slow.", 10)
 
 ---@script twinkle
 
@@ -372,12 +372,13 @@ set("janitor::stage", 8)
 
 stop_object_animation("janitor")
 stop_entity_sfx("janitor")
-set_forced_sprite("janitor", "janitor_down", 0, 0, 32, 16, 8, 8)
+set_forced_sprite("janitor", "janitor_down", 0, 0, 24, 16, 8, 8)
 set_entity_map_pos("janitor", 7, 14.8)
 set_entity_solid("janitor", false)
 
 set_entity_visible("hallway::wall_crack", true)
 play_sfx("rock_smash")
+camera_shake("_camera")
 
 ---@script bakery_girl_panic_setup
 
