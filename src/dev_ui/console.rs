@@ -1,7 +1,7 @@
 use crate::ConsoleCommandExecutor;
 use egui::{
-    CentralPanel, Context, FontFamily, Key, Label, RichText, ScrollArea, TextEdit, TextStyle,
-    TopBottomPanel, Widget, Window,
+    CentralPanel, Context, FontFamily, Key, Label, Panel, RichText, ScrollArea, TextEdit,
+    TextStyle, Widget, Window,
 };
 use std::collections::VecDeque;
 use std::format as f;
@@ -68,7 +68,7 @@ impl InputPanel {
         scrollback: &mut String,
         console: &mut ConsoleCommandExecutor,
     ) {
-        TopBottomPanel::bottom("input_panel").show_inside(ui, |ui| {
+        Panel::bottom("input_panel").show_inside(ui, |ui| {
             let mut history_text =
                 self.history_cursor.and_then(|i| self.input_history.get(i)).cloned();
 
@@ -78,7 +78,7 @@ impl InputPanel {
                 .desired_width(f32::INFINITY)
                 .font(TextStyle::Monospace)
                 .return_key(None)
-                .frame(false)
+                .frame(egui::Frame::NONE)
                 .show(ui);
 
             let mut should_move_cursor_to_end = false;

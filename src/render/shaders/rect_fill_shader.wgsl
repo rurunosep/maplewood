@@ -11,7 +11,7 @@ struct RectFillParams {
   color: vec4<f32>
 }
 
-var<push_constant> params: RectFillParams;
+var<immediate> params: RectFillParams;
 
 @vertex
 fn vertex_main(

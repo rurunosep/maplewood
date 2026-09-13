@@ -15,6 +15,7 @@ use std::f64::consts::PI;
 use std::format as f;
 use std::path::Path;
 use tap::{Pipe, TapFallible};
+use wgpu::rwh::{HasDisplayHandle, HasWindowHandle};
 use wgpu::*;
 use wgpu_text::glyph_brush::ab_glyph::FontArc;
 use wgpu_text::glyph_brush::{Section, Text};
@@ -43,16 +44,22 @@ pub struct Renderer<'window> {
 
 impl Renderer<'_> {
     pub fn new(window: &Window) -> Self {
-        let instance = Instance::new(&InstanceDescriptor {
+        let instance = Instance::new(InstanceDescriptor {
             backends: Backends::all(),
             flags: InstanceFlags::DEBUG | InstanceFlags::VALIDATION,
             memory_budget_thresholds: MemoryBudgetThresholds::default(),
             backend_options: BackendOptions::default(),
+            display: None,
         });
 
+        // If SDL ever internally recreates the window for whatever reason, the raw window handle
+        // will become invalid. Idk if that will ever come up, but it's good to know.
         let surface = unsafe {
             instance
-                .create_surface_unsafe(wgpu::SurfaceTargetUnsafe::from_window(window).unwrap())
+                .create_surface_unsafe(wgpu::SurfaceTargetUnsafe::RawHandle {
+                    raw_display_handle: Some(window.display_handle().unwrap().as_raw()),
+                    raw_window_handle: window.window_handle().unwrap().as_raw(),
+                })
                 .unwrap()
         };
 
@@ -68,10 +75,9 @@ impl Renderer<'_> {
         let (device, queue) = adapter
             .request_device(&DeviceDescriptor {
                 label: None,
-                // Push constants are only available on native. Can't target wasm.
-                required_features: Features::PUSH_CONSTANTS,
+                required_features: Features::IMMEDIATES,
                 // Limits should be kept to exactly what we need and no more
-                required_limits: Limits { max_push_constant_size: 32, ..Default::default() },
+                required_limits: Limits { max_immediate_size: 32, ..Default::default() },
                 memory_hints: MemoryHints::default(),
                 trace: Trace::Off,
                 experimental_features: ExperimentalFeatures::disabled(),
@@ -142,7 +148,15 @@ impl Renderer<'_> {
     }
 
     pub fn render(&mut self, world: &World, ecs: &Ecs, ui_data: &UiData, dev_ui: &DevUi) {
-        let surface_texture = self.surface.get_current_texture().unwrap();
+        let wgpu::CurrentSurfaceTexture::Success(surface_texture) =
+            self.surface.get_current_texture()
+        else {
+            // TODO error handle
+            return;
+        };
+
+        // let surface_texture = self.surface.get_current_texture().unwrap();
+
         let surface_texture_view =
             surface_texture.texture.create_view(&TextureViewDescriptor::default());
         let surface_size = surface_texture.texture.size().pipe(|s| (s.width, s.height));
@@ -219,6 +233,7 @@ impl Renderer<'_> {
                 depth_stencil_attachment: None,
                 timestamp_writes: None,
                 occlusion_query_set: None,
+                multiview_mask: None,
             });
 
             // Draw cameras to screen

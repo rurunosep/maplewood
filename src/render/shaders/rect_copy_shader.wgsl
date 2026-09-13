@@ -14,7 +14,7 @@ struct RectCopyParams {
   dest_right: f32,
 }
 
-var<push_constant> params: RectCopyParams;
+var<immediate> params: RectCopyParams;
 
 @vertex
 fn vertex_main(

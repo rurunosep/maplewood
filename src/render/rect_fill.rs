@@ -16,11 +16,8 @@ impl RectFillPipeline {
         let pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
             label: Some("rect fill pipeline layout"),
             bind_group_layouts: &[],
-            push_constant_ranges: &[PushConstantRange {
-                stages: ShaderStages::VERTEX,
-                // Must have alignment of 4 (this struct happens to require no padding)
-                range: 0..std::mem::size_of::<RectFillParams>() as u32,
-            }],
+            // Must have alignment of 4 (this struct happens to require no padding)
+            immediate_size: std::mem::size_of::<RectFillParams>() as u32,
         });
 
         let pipeline = device.create_render_pipeline(&RenderPipelineDescriptor {
@@ -53,7 +50,7 @@ impl RectFillPipeline {
                     write_mask: ColorWrites::ALL,
                 })],
             }),
-            multiview: None,
+            multiview_mask: None,
             cache: None,
         });
 
@@ -83,7 +80,7 @@ impl RectFillPipeline {
         };
 
         render_pass.set_pipeline(&self.pipeline);
-        render_pass.set_push_constants(ShaderStages::VERTEX, 0, bytemuck::cast_slice(&[params]));
+        render_pass.set_immediates(0, bytemuck::cast_slice(&[params]));
         render_pass.draw(0..6, 0..1);
     }
 }

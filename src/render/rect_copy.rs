@@ -48,12 +48,12 @@ impl RectCopyPipeline {
 
         let pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
             label: Some("rect copy pipeline layout"),
-            bind_group_layouts: &[&sampler_bind_group_layout, &texture_bind_group_layout],
-            push_constant_ranges: &[PushConstantRange {
-                stages: ShaderStages::VERTEX,
-                // Must have alignment of 4 (this struct happens to require no padding)
-                range: 0..std::mem::size_of::<RectCopyParams>() as u32,
-            }],
+            bind_group_layouts: &[
+                Some(&sampler_bind_group_layout),
+                Some(&texture_bind_group_layout),
+            ],
+            // Must have alignment of 4 (this struct happens to require no padding)
+            immediate_size: std::mem::size_of::<RectCopyParams>() as u32,
         });
 
         let pipeline = device.create_render_pipeline(&RenderPipelineDescriptor {
@@ -86,7 +86,7 @@ impl RectCopyPipeline {
                     write_mask: ColorWrites::ALL,
                 })],
             }),
-            multiview: None,
+            multiview_mask: None,
             cache: None,
         });
 
@@ -97,7 +97,7 @@ impl RectCopyPipeline {
             address_mode_w: AddressMode::ClampToEdge,
             mag_filter: FilterMode::Nearest,
             min_filter: FilterMode::Nearest,
-            mipmap_filter: FilterMode::Nearest,
+            mipmap_filter: MipmapFilterMode::Nearest,
             ..Default::default()
         });
         let sampler_bind_group = device.create_bind_group(&BindGroupDescriptor {
@@ -144,7 +144,7 @@ impl RectCopyPipeline {
         render_pass.set_pipeline(&self.pipeline);
         render_pass.set_bind_group(0, &self.sampler_bind_group, &[]);
         render_pass.set_bind_group(1, &src_texture.bind_group, &[]);
-        render_pass.set_push_constants(ShaderStages::VERTEX, 0, bytemuck::cast_slice(&[params]));
+        render_pass.set_immediates(0, bytemuck::cast_slice(&[params]));
         render_pass.draw(0..6, 0..1);
     }
 }

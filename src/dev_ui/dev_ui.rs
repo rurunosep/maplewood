@@ -40,7 +40,7 @@ impl<'window> DevUi<'window> {
         let state = EguiSDL2State::new(window.size().0, window.size().1, 1.);
 
         // Some translucent styling
-        ctx.style_mut(|s| {
+        ctx.global_style_mut(|s| {
             s.visuals.window_fill = s.visuals.window_fill.gamma_multiply(0.95);
             s.visuals.panel_fill = s.visuals.panel_fill.gamma_multiply(0.5);
             s.visuals.extreme_bg_color = s.visuals.extreme_bg_color.gamma_multiply(0.5);
@@ -83,7 +83,7 @@ impl DevUi<'_> {
 
         state.update_time(Some(start_time.elapsed().as_secs_f64()), 1. / 60.);
 
-        let full_output = ctx.run(state.raw_input.take(), |ctx| {
+        let full_output = ctx.run_ui(state.raw_input.take(), |ctx| {
             // Create entity windows for new entities, and delete for deleted entities
             for id in ecs.entity_ids.keys() {
                 self.entity_windows.entry(id).or_insert_with(|| EntityWindow::new(id, ecs));
