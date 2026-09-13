@@ -6,7 +6,6 @@ use crate::render::rect_copy::RectCopyPipeline;
 use crate::render::rect_fill::RectFillPipeline;
 use crate::world::World;
 use crate::{DevUi, MessageAdvanceCondition, MessageWindow, UiData, misc};
-use egui::TexturesDelta;
 use image::GenericImageView;
 use itertools::Itertools;
 use pollster::FutureExt;
@@ -36,7 +35,7 @@ pub struct Renderer<'window> {
     rect_copy_pipeline: RectCopyPipeline,
     rect_fill_pipeline: RectFillPipeline,
     camera_render_passes: HashMap<EntityId, CameraRenderPass>,
-    egui_render_pass: egui_wgpu_backend::RenderPass,
+    egui_renderer: egui_wgpu::Renderer,
     asset_textures: HashMap<String, Texture>,
     font: FontArc,
     text_brush: TextBrush<FontArc>,
@@ -75,6 +74,7 @@ impl Renderer<'_> {
                 required_limits: Limits { max_push_constant_size: 32, ..Default::default() },
                 memory_hints: MemoryHints::default(),
                 trace: Trace::Off,
+                experimental_features: ExperimentalFeatures::disabled(),
             })
             .block_on()
             .unwrap();
@@ -104,7 +104,16 @@ impl Renderer<'_> {
 
         let camera_render_passes: HashMap<EntityId, CameraRenderPass> = HashMap::new();
 
-        let egui_render_pass = egui_wgpu_backend::RenderPass::new(&device, surface_format, 1);
+        let egui_renderer = egui_wgpu::Renderer::new(
+            &device,
+            surface_format,
+            egui_wgpu::RendererOptions {
+                msaa_samples: 0,
+                depth_stencil_format: None,
+                dithering: true,
+                predictable_texture_filtering: false,
+            },
+        );
 
         let asset_textures = HashMap::new();
 
@@ -125,21 +134,14 @@ impl Renderer<'_> {
             rect_copy_pipeline,
             rect_fill_pipeline,
             camera_render_passes,
-            egui_render_pass,
+            egui_renderer,
             asset_textures,
             font,
             text_brush,
         }
     }
 
-    pub fn render(
-        &mut self,
-        world: &World,
-        ecs: &Ecs,
-        ui_data: &UiData,
-        // &mut cause we need to consume full_output.textures_delta
-        dev_ui: &mut DevUi,
-    ) {
+    pub fn render(&mut self, world: &World, ecs: &Ecs, ui_data: &UiData, dev_ui: &DevUi) {
         let surface_texture = self.surface.get_current_texture().unwrap();
         let surface_texture_view =
             surface_texture.texture.create_view(&TextureViewDescriptor::default());
@@ -184,6 +186,24 @@ impl Renderer<'_> {
                     world,
                 );
             };
+        }
+
+        // Update dev ui buffers and textures
+        if dev_ui.open {
+            self.egui_renderer.update_buffers(
+                &self.device,
+                &self.queue,
+                &mut encoder,
+                &dev_ui.paint_jobs,
+                &egui_wgpu::ScreenDescriptor {
+                    size_in_pixels: [surface_size.0, surface_size.1],
+                    pixels_per_point: dev_ui.ctx.pixels_per_point(),
+                },
+            );
+
+            for (id, image_delta) in &dev_ui.textures_delta.set {
+                self.egui_renderer.update_texture(&self.device, &self.queue, *id, image_delta);
+            }
         }
 
         // Main render pass
@@ -239,43 +259,31 @@ impl Renderer<'_> {
             }
 
             self.draw_message_window(&mut render_pass, surface_size, &ui_data.message_window);
+
+            // Draw dev ui
+            if dev_ui.open {
+                self.egui_renderer.render(
+                    &mut render_pass.forget_lifetime(),
+                    &dev_ui.paint_jobs,
+                    &egui_wgpu::ScreenDescriptor {
+                        size_in_pixels: [surface_size.0, surface_size.1],
+                        pixels_per_point: dev_ui.ctx.pixels_per_point(),
+                    },
+                );
+            }
         }
 
-        // Dev UI render pass
-        if dev_ui.open
-            && let Some(full_output) = dev_ui.full_output.take()
-        {
-            let paint_jobs =
-                dev_ui.ctx.tessellate(full_output.shapes, dev_ui.ctx.pixels_per_point());
-            let textures_delta = full_output.textures_delta;
-
-            let screen_descriptor = egui_wgpu_backend::ScreenDescriptor {
-                physical_width: surface_size.0,
-                physical_height: surface_size.1,
-                scale_factor: dev_ui.ctx.pixels_per_point(),
-            };
-
-            self.egui_render_pass.add_textures(&self.device, &self.queue, &textures_delta).unwrap();
-            self.egui_render_pass.update_buffers(
-                &self.device,
-                &self.queue,
-                &paint_jobs,
-                &screen_descriptor,
-            );
-
-            self.egui_render_pass
-                .execute(&mut encoder, &surface_texture_view, &paint_jobs, &screen_descriptor, None)
-                .unwrap();
-
-            self.egui_render_pass.remove_textures(textures_delta).unwrap();
+        // Free old dev ui textures
+        for id in &dev_ui.textures_delta.free {
+            self.egui_renderer.free_texture(id);
         }
 
         self.queue.submit([encoder.finish()]);
         surface_texture.present();
     }
 
-    fn draw_message_window<'rpass>(
-        &'rpass mut self,
+    fn draw_message_window<'s, 'rpass>(
+        &'s mut self,
         render_pass: &mut RenderPass<'rpass>,
         render_target_size: (u32, u32),
         message_window: &Option<MessageWindow>,
@@ -312,6 +320,7 @@ impl Renderer<'_> {
             .add_text(hidden_text)
             .with_bounds((rect_on_screen.width as f32 - 80., rect_on_screen.height as f32 - 40.))
             .with_screen_position((rect_on_screen.x as f32 + 40., rect_on_screen.y as f32 + 20.));
+        // TODO text section queueing should happen outside the render pass
         self.text_brush.queue(&self.device, &self.queue, [section]).unwrap();
         self.text_brush.draw(render_pass);
 
@@ -518,9 +527,13 @@ impl Renderer<'_> {
     }
 
     // Part of the hack to make egui properly set initial screen_rect
-    pub fn update_egui_textures_without_rendering(&mut self, textures_delta: TexturesDelta) {
-        self.egui_render_pass.add_textures(&self.device, &self.queue, &textures_delta).unwrap();
-        self.egui_render_pass.remove_textures(textures_delta).unwrap();
+    pub fn update_egui_textures_without_rendering(&mut self, textures_delta: egui::TexturesDelta) {
+        for (id, image_delta) in &textures_delta.set {
+            self.egui_renderer.update_texture(&self.device, &self.queue, *id, image_delta);
+        }
+        for id in &textures_delta.free {
+            self.egui_renderer.free_texture(id);
+        }
     }
 }
 

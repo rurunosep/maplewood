@@ -21,8 +21,9 @@ pub struct DevUi<'window> {
     pub state: EguiSDL2State,
     pub window: &'window SdlWindow,
     pub open: bool,
-    // Stored intermediately between processing and rendering for convenience
-    pub full_output: Option<egui::FullOutput>,
+    // Render data stored intermediately between processing and rendering
+    pub paint_jobs: Vec<egui::ClippedPrimitive>,
+    pub textures_delta: egui::TexturesDelta,
     entities_list_window: EntitiesListWindow,
     entity_windows: HashMap<EntityId, EntityWindow>,
     scripts_list_window: ScriptsListWindow,
@@ -50,7 +51,8 @@ impl<'window> DevUi<'window> {
             state,
             window,
             open: false,
-            full_output: None,
+            paint_jobs: Vec::new(),
+            textures_delta: egui::TexturesDelta::default(),
             entities_list_window: EntitiesListWindow::new(),
             entity_windows: HashMap::new(),
             scripts_list_window: ScriptsListWindow::new(),
@@ -100,7 +102,7 @@ impl DevUi<'_> {
             Window::new("Dev UI")
                 .title_bar(false)
                 .pivot(egui::Align2::RIGHT_TOP)
-                .default_pos(ctx.screen_rect().shrink(16.).right_top())
+                .default_pos(ctx.content_rect().shrink(16.).right_top())
                 .default_width(150.)
                 .show(ctx, |ui| {
                     ui.label(f!("Frame Duration: {frame_duration:.2}%"));
@@ -130,7 +132,9 @@ impl DevUi<'_> {
 
         // (Looks like this just updates the cursor and the clipboard text)
         state.process_output(window, &full_output.platform_output);
-        self.full_output = Some(full_output);
+
+        self.paint_jobs = ctx.tessellate(full_output.shapes, ctx.pixels_per_point());
+        self.textures_delta = full_output.textures_delta;
     }
 }
 
