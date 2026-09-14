@@ -103,7 +103,7 @@ impl DevUi<'_> {
                 .title_bar(false)
                 .pivot(egui::Align2::RIGHT_TOP)
                 .default_pos(ctx.content_rect().shrink(16.).right_top())
-                .default_width(150.)
+                .default_width(170.)
                 .show(ctx, |ui| {
                     ui.label(f!("Frame Duration: {frame_duration:.2}%"));
 

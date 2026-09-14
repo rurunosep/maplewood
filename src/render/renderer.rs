@@ -68,6 +68,7 @@ impl Renderer<'_> {
                 power_preference: PowerPreference::None,
                 force_fallback_adapter: false,
                 compatible_surface: Some(&surface),
+                apply_limit_buckets: false,
             })
             .block_on()
             .unwrap();
@@ -102,6 +103,7 @@ impl Renderer<'_> {
             desired_maximum_frame_latency: 2,
             alpha_mode: CompositeAlphaMode::Auto,
             view_formats: vec![],
+            color_space: SurfaceColorSpace::Auto,
         };
         surface.configure(&device, &surface_config);
 
@@ -147,7 +149,7 @@ impl Renderer<'_> {
         }
     }
 
-    pub fn render(&mut self, world: &World, ecs: &Ecs, ui_data: &UiData, dev_ui: &DevUi) {
+    pub fn render(&mut self, world: &World, ecs: &Ecs, ui_data: &UiData, dev_ui: &mut DevUi) {
         let wgpu::CurrentSurfaceTexture::Success(surface_texture) =
             self.surface.get_current_texture()
         else {
@@ -213,8 +215,10 @@ impl Renderer<'_> {
                 },
             );
 
-            for (id, image_delta) in &dev_ui.textures_delta.set {
-                self.egui_renderer.update_texture(&self.device, &self.queue, *id, image_delta);
+            for (id, image_deltas) in dev_ui.textures_delta.set.drain() {
+                for image_delta in image_deltas {
+                    self.egui_renderer.update_texture(&self.device, &self.queue, id, &image_delta);
+                }
             }
         }
 
@@ -287,12 +291,12 @@ impl Renderer<'_> {
         }
 
         // Free old dev ui textures
-        for id in &dev_ui.textures_delta.free {
-            self.egui_renderer.free_texture(id);
+        for id in dev_ui.textures_delta.free.drain() {
+            self.egui_renderer.free_texture(&id);
         }
 
         self.queue.submit([encoder.finish()]);
-        surface_texture.present();
+        self.queue.present(surface_texture);
     }
 
     fn draw_message_window<'s, 'rpass>(
@@ -540,9 +544,14 @@ impl Renderer<'_> {
     }
 
     // Part of the hack to make egui properly set initial screen_rect
-    pub fn update_egui_textures_without_rendering(&mut self, textures_delta: egui::TexturesDelta) {
-        for (id, image_delta) in &textures_delta.set {
-            self.egui_renderer.update_texture(&self.device, &self.queue, *id, image_delta);
+    pub fn update_egui_textures_without_rendering(
+        &mut self,
+        mut textures_delta: egui::TexturesDelta,
+    ) {
+        for (id, image_deltas) in textures_delta.set.drain() {
+            for image_delta in image_deltas {
+                self.egui_renderer.update_texture(&self.device, &self.queue, id, &image_delta);
+            }
         }
         for id in &textures_delta.free {
             self.egui_renderer.free_texture(id);

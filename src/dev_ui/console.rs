@@ -30,7 +30,7 @@ impl ConsoleWindow {
                 self.input_panel.show(ui, &mut self.scrollback, command_executor);
 
                 // Scrollback
-                CentralPanel::default().show_inside(ui, |ui| {
+                CentralPanel::default().show(ui, |ui| {
                     ScrollArea::vertical().stick_to_bottom(true).show(ui, |ui| {
                         // TODO colored console text
                         Label::new(RichText::new(&self.scrollback).family(FontFamily::Monospace))
@@ -68,7 +68,7 @@ impl InputPanel {
         scrollback: &mut String,
         console: &mut ConsoleCommandExecutor,
     ) {
-        Panel::bottom("input_panel").show_inside(ui, |ui| {
+        Panel::bottom("input_panel").show(ui, |ui| {
             let mut history_text =
                 self.history_cursor.and_then(|i| self.input_history.get(i)).cloned();
 

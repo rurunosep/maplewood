@@ -57,6 +57,7 @@ impl ScriptManager {
         musics: &HashMap<String, Music>,
         sound_effects: &HashMap<String, Chunk>,
     ) {
+        // (A script queued by another script will not start until the next frame)
         for source in std::mem::take(&mut self.start_queue) {
             self.start_script(&source, &game_data.story_vars);
         }
