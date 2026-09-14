@@ -3,6 +3,7 @@ use crate::components::*;
 use anyhow::anyhow;
 use anymap::AnyMap;
 use serde::Serialize;
+use serde::de::DeserializeOwned;
 use slotmap::{Key, SecondaryMap, SlotMap, new_key_type};
 use std::cell::RefCell;
 
@@ -209,8 +210,12 @@ impl Ecs {
         component_name: &str,
         data: &serde_json::Value,
     ) -> anyhow::Result<()> {
-        use serde_json::from_value as sjfv;
         let data_c = data.clone();
+
+        // Cause conversion from serde error to anyhow error with ? in the try block isn't working
+        fn sjfv<T: DeserializeOwned>(data: serde_json::Value) -> anyhow::Result<T> {
+            Ok(serde_json::from_value(data)?)
+        }
 
         let r: anyhow::Result<()> = try {
             match component_name {

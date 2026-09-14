@@ -151,11 +151,9 @@ impl Renderer<'_> {
         let wgpu::CurrentSurfaceTexture::Success(surface_texture) =
             self.surface.get_current_texture()
         else {
-            // TODO error handle
+            log::error!(once = true; "Couldn't get the current surface texture to render to");
             return;
         };
-
-        // let surface_texture = self.surface.get_current_texture().unwrap();
 
         let surface_texture_view =
             surface_texture.texture.create_view(&TextureViewDescriptor::default());
@@ -165,11 +163,11 @@ impl Renderer<'_> {
             self.device.create_command_encoder(&CommandEncoderDescriptor { label: None });
 
         // Render camera views
-        for (id, camera_comp, position, shake) in
+        for (camera_id, camera_component, position, shake) in
             ecs.query::<(EntityId, &Camera, &Position, Option<&CameraShake>)>()
         {
-            if camera_comp.visible
-                && let Some(camera_render_pass) = self.camera_render_passes.get_mut(&id)
+            if camera_component.visible
+                && let Some(camera_render_pass) = self.camera_render_passes.get_mut(&camera_id)
             {
                 let mut position = position.0.clone();
 
@@ -192,10 +190,10 @@ impl Renderer<'_> {
                     &self.rect_copy_pipeline,
                     &self.rect_fill_pipeline,
                     &self.asset_textures,
-                    id,
+                    camera_id,
                     position,
-                    camera_comp.zoom,
-                    camera_comp.overlay_color,
+                    camera_component.zoom,
+                    camera_component.overlay_color,
                     ecs,
                     world,
                 );
@@ -237,15 +235,15 @@ impl Renderer<'_> {
             });
 
             // Draw cameras to screen
-            for (camera_id, camera_comp) in ecs
+            for (camera_id, camera_component) in ecs
                 .query::<(EntityId, &Camera)>()
                 .sorted_by(|(_, c1), (_, c2)| c1.z_index.cmp(&c2.z_index))
             {
-                if camera_comp.visible
-                    && let Some(rect_on_screen) = camera_comp.rect_on_screen
+                if camera_component.visible
+                    && let Some(rect_on_screen) = camera_component.rect_on_screen
                     && let Some(camera_render_pass) = self.camera_render_passes.get(&camera_id)
                 {
-                    if camera_comp.border {
+                    if camera_component.border {
                         self.rect_fill_pipeline.execute(
                             &mut render_pass,
                             surface_size,

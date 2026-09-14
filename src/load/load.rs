@@ -16,7 +16,8 @@ where
     };
 
     let r: anyhow::Result<()> = try {
-        let entities_value: serde_json::Value = serde_json::from_str(&json)?;
+        let entities_value: serde_json::Value =
+            serde_json::from_str(&json).map_err(anyhow::Error::msg)?;
         let entities_array = entities_value.as_array().context("not an array")?;
 
         for components_value in entities_array {
@@ -64,7 +65,8 @@ where
     };
 
     let r: anyhow::Result<()> = try {
-        for (key, val) in serde_json::from_str::<serde_json::Value>(&json)?
+        for (key, val) in serde_json::from_str::<serde_json::Value>(&json)
+            .map_err(anyhow::Error::msg)?
             .as_object()
             .context("not an object")?
         {

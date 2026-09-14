@@ -489,6 +489,7 @@ dependencies = [
 [[package]]
 name = "egui-sdl2-event"
 version = "1.33.3"
+source = "git+https://github.com/rurunosep/egui-sdl2-event#4973d71df25cbcc9108536d62c02fb11299e6ff4"
 dependencies = [
  "egui",
  "sdl2",
