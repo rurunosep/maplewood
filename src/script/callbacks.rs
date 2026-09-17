@@ -1,7 +1,7 @@
 use crate::components::{
     AnimationComp, Camera, CameraShake, Collision, DualStateAnimationState, DualStateAnims, Facing,
-    LerpCameraOverlayColor, LerpCameraZoom, NamedAnims, Pathing, Position, SfxEmitter,
-    SineOffsetAnimation, Singing, Sprite, SpriteComp, Walking,
+    NamedAnims, Pathing, Position, SfxEmitter, SineOffsetAnimation, Singing, Sprite, SpriteComp,
+    TweenInstance, Tweens, Walking,
 };
 use crate::ecs::EntityId;
 use crate::math::{MapUnits, Rect, Vec2};
@@ -308,21 +308,32 @@ pub fn bind_general_callbacks<'scope>(
                 let ecs = &mut game_data.borrow_mut().ecs;
 
                 {
-                    let (id, mut camera_component) = ecs
-                        .query_one_with_name::<(EntityId, &mut Camera)>(&camera_name)
+                    let (id, mut camera_component, mut tweens) = ecs
+                        .query_one_with_name::<(EntityId, &mut Camera, Option<&mut Tweens>)>(
+                            &camera_name,
+                        )
                         .ok_or(Error(f!("invalid entity `{camera_name}`")))?;
 
                     match lerp_time {
                         Some(lerp_time) => {
-                            ecs.add_component_deferred(
-                                id,
-                                LerpCameraZoom {
-                                    start_value: camera_component.zoom,
-                                    end_value: new_zoom,
-                                    start_time: Instant::now(),
-                                    end_time: Instant::now() + Duration::from_secs_f64(lerp_time),
+                            let tween = TweenInstance {
+                                entity_id: id,
+                                mutator: |camera_component: &mut Camera, value: f64| {
+                                    camera_component.zoom = value
                                 },
-                            );
+                                start_value: camera_component.zoom,
+                                end_value: new_zoom,
+                                elapsed: Duration::ZERO,
+                                duration: Duration::from_secs_f64(lerp_time),
+                                _component: std::marker::PhantomData,
+                            };
+
+                            match tweens.as_mut() {
+                                Some(tweens) => tweens.0.push(Box::new(tween)),
+                                None => {
+                                    ecs.add_component_deferred(id, Tweens(vec![Box::new(tween)]))
+                                }
+                            }
                         }
 
                         None => {
@@ -357,23 +368,37 @@ pub fn bind_general_callbacks<'scope>(
                 let ecs = &mut game_data.borrow_mut().ecs;
 
                 {
-                    let (id, mut camera_component) = ecs
-                        .query_one_with_name::<(EntityId, &mut Camera)>(&camera_name)
+                    let (id, mut camera_component, mut tweens) = ecs
+                        .query_one_with_name::<(EntityId, &mut Camera, Option<&mut Tweens>)>(
+                            &camera_name,
+                        )
                         .ok_or(Error(f!("invalid entity `{camera_name}`")))?;
 
                     match lerp_time {
                         Some(lerp_time) => {
-                            ecs.add_component_deferred(
-                                id,
-                                LerpCameraOverlayColor {
-                                    start_value: camera_component
-                                        .overlay_color
-                                        .unwrap_or([0., 0., 0., 0.]),
-                                    end_value: new_color.unwrap_or([0., 0., 0., 0.]),
-                                    start_time: Instant::now(),
-                                    end_time: Instant::now() + Duration::from_secs_f64(lerp_time),
+                            let tween = TweenInstance {
+                                entity_id: id,
+                                mutator: |camera_component: &mut Camera, value: [f32; 4]| {
+                                    camera_component.overlay_color = match value {
+                                        [0., 0., 0., 0.] => None,
+                                        _ => Some(value),
+                                    }
                                 },
-                            );
+                                start_value: camera_component
+                                    .overlay_color
+                                    .unwrap_or([0., 0., 0., 0.]),
+                                end_value: new_color.unwrap_or([0., 0., 0., 0.]),
+                                elapsed: Duration::ZERO,
+                                duration: Duration::from_secs_f64(lerp_time),
+                                _component: std::marker::PhantomData,
+                            };
+
+                            match tweens.as_mut() {
+                                Some(tweens) => tweens.0.push(Box::new(tween)),
+                                None => {
+                                    ecs.add_component_deferred(id, Tweens(vec![Box::new(tween)]))
+                                }
+                            }
                         }
 
                         None => {
@@ -570,6 +595,7 @@ pub fn bind_general_callbacks<'scope>(
         })?,
     )?;
 
+    // TODO add sfx emitter component? remove when sfx done or stopped?
     globals.set(
         "emit_entity_sfx",
         scope.create_function(|_, (entity, sfx, repeat): (String, String, bool)| {

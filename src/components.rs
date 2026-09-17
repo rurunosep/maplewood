@@ -10,7 +10,6 @@ use serde::{Deserialize, Serialize};
 use smart_default::SmartDefault;
 use std::collections::HashMap;
 use std::marker::PhantomData;
-use std::ops::{Add, Mul};
 use std::time::{Duration, Instant};
 
 // I think eventually components should be organized into their domains
@@ -192,24 +191,6 @@ pub struct Camera {
 impl Component for Camera {}
 
 // (not serde)
-pub struct LerpCameraZoom {
-    pub start_value: f64,
-    pub end_value: f64,
-    pub start_time: Instant,
-    pub end_time: Instant,
-}
-impl Component for LerpCameraZoom {}
-
-// (not serde)
-pub struct LerpCameraOverlayColor {
-    pub start_value: [f32; 4],
-    pub end_value: [f32; 4],
-    pub start_time: Instant,
-    pub end_time: Instant,
-}
-impl Component for LerpCameraOverlayColor {}
-
-// (not serde)
 pub struct CameraShake {
     pub amplitude: f64,
     pub duration: Duration,
@@ -302,21 +283,27 @@ impl Component for Singing {}
 
 // Tweens
 
+// If I want to make this serde, I can look into the erased-serde crate or the typetag crate
+// Normal serde doesn't work with trait objects (dyn Trait)
+
+// (not serde)
 pub struct Tweens(pub Vec<Box<dyn Tween>>);
 impl Component for Tweens {}
 
 pub trait Tween {
-    fn update(&mut self, ecs: &Ecs);
+    fn update(&mut self, ecs: &Ecs, delta: Duration);
     fn is_finished(&self) -> bool;
 }
+
+// TODO interp type: linear, ease in, etc
 
 pub struct TweenInstance<C, V, F> {
     pub entity_id: EntityId,
     pub mutator: F,
     pub start_value: V,
     pub end_value: V,
-    pub start_time: Instant,
-    pub end_time: Instant,
+    pub elapsed: Duration,
+    pub duration: Duration,
     pub _component: PhantomData<C>,
 }
 
@@ -326,22 +313,21 @@ where
     V: Interp + Copy,
     F: Fn(&mut C, V),
 {
-    fn update(&mut self, ecs: &Ecs) {
+    fn update(&mut self, ecs: &Ecs, delta: Duration) {
         let Some(mut component) = ecs.query_one_with_id::<&mut C>(self.entity_id) else {
             log::error!(once = true; "Tried to tween non-existent component `{}` in entity `{:?}`", C::name(), self.entity_id);
             return;
         };
 
-        let duration = self.end_time - self.start_time;
-        let elapsed = self.start_time.elapsed();
-        let ratio = elapsed.div_duration_f64(duration).clamp(0., 1.);
-        let value = V::interpolate(self.start_value, self.end_value, ratio);
+        self.elapsed += delta;
 
+        let ratio = self.elapsed.div_duration_f64(self.duration).clamp(0., 1.);
+        let value = V::interpolate(self.start_value, self.end_value, ratio);
         (self.mutator)(&mut component, value);
     }
 
     fn is_finished(&self) -> bool {
-        Instant::now() > self.end_time
+        self.elapsed >= self.duration
     }
 }
 
@@ -349,11 +335,23 @@ pub trait Interp {
     fn interpolate(start: Self, end: Self, ratio: f64) -> Self;
 }
 
-impl<T> Interp for T
-where
-    T: Mul<f64, Output = T> + Add<Output = T>,
-{
-    fn interpolate(start: Self, end: Self, ratio: f64) -> Self {
+// Can't use blanket impl over Mul<f64> and Add cause of the absolute BS "upstream crates may add
+// new impl in future versions"
+
+impl Interp for f64 {
+    fn interpolate(start: f64, end: f64, ratio: f64) -> Self {
         start * (1.0 - ratio) + end * ratio
+    }
+}
+
+impl Interp for f32 {
+    fn interpolate(start: f32, end: f32, ratio: f64) -> Self {
+        (start as f64 * (1.0 - ratio) + end as f64 * ratio) as f32
+    }
+}
+
+impl<T: Interp + Copy> Interp for [T; 4] {
+    fn interpolate(start: Self, end: Self, ratio: f64) -> Self {
+        std::array::from_fn(|i| T::interpolate(start[i], end[i], ratio))
     }
 }

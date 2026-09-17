@@ -1,8 +1,7 @@
 use crate::components::{
     AnimationComp, AreaTrigger, Camera, CameraShake, CharacterAnims, Collision, CollisionTrigger,
-    DualStateAnimationState, DualStateAnims, Facing, LerpCameraOverlayColor, LerpCameraZoom, Name,
-    Pathing, PlaybackState, Position, SfxEmitter, SineOffsetAnimation, SpriteComp, Velocity,
-    Walking,
+    DualStateAnimationState, DualStateAnims, Facing, Name, Pathing, PlaybackState, Position,
+    SfxEmitter, SineOffsetAnimation, SpriteComp, Velocity, Walking,
 };
 use crate::data::PLAYER_ENTITY_NAME;
 use crate::ecs::{Ecs, EntityId};
@@ -45,16 +44,13 @@ pub fn update(
     resolve_collisions(&game_data.ecs, &game_data.world, delta);
 
     camera_follow_target_and_clamp(&game_data.ecs, &game_data.world);
-    lerp_camera_zoom(&mut game_data.ecs);
-    lerp_camera_overlay_color(&mut game_data.ecs);
     end_camera_shake(&mut game_data.ecs);
-
-    update_tweens(&mut game_data.ecs);
 
     update_character_animations(&game_data.ecs);
     update_dual_state_animations(&game_data.ecs);
     play_animations_and_set_sprites(&game_data.ecs, delta);
 
+    update_tweens(&mut game_data.ecs, delta);
     update_sfx_emitting_entities(&game_data.ecs, sound_effects);
     end_sine_offset_animations(&mut game_data.ecs);
 }
@@ -452,51 +448,13 @@ fn camera_follow_target_and_clamp(ecs: &Ecs, world: &World) {
     }
 }
 
-fn lerp_camera_zoom(ecs: &mut Ecs) {
-    for (id, mut camera, lerp_comp) in ecs.query::<(EntityId, &mut Camera, &LerpCameraZoom)>() {
-        let duration = lerp_comp.end_time - lerp_comp.start_time;
-        let elapsed = Instant::now() - lerp_comp.start_time;
-        let interp = elapsed.div_duration_f64(duration).clamp(0., 1.);
-        camera.zoom = lerp_comp.start_value * (1. - interp) + lerp_comp.end_value * interp;
-
-        if interp >= 1. {
-            ecs.remove_component_deferred::<LerpCameraZoom>(id);
-        }
-    }
-    ecs.flush_deferred_mutations();
-}
-
-fn update_tweens(ecs: &mut Ecs) {
+fn update_tweens(ecs: &mut Ecs, delta: Duration) {
     for mut tweens in ecs.query::<&mut crate::components::Tweens>() {
         for tween in &mut tweens.0 {
-            tween.update(ecs);
+            tween.update(ecs, delta);
         }
         tweens.0.retain(|t| !t.is_finished());
     }
-}
-
-fn lerp_camera_overlay_color(ecs: &mut Ecs) {
-    for (id, mut camera, lerp_comp) in
-        ecs.query::<(EntityId, &mut Camera, &LerpCameraOverlayColor)>()
-    {
-        let duration = lerp_comp.end_time - lerp_comp.start_time;
-        let elapsed = Instant::now() - lerp_comp.start_time;
-        let interp = elapsed.div_duration_f64(duration).clamp(0., 1.);
-
-        let new_color = std::array::from_fn(|i| {
-            lerp_comp.start_value[i] * (1. - interp as f32) + lerp_comp.end_value[i] * interp as f32
-        });
-
-        camera.overlay_color = match new_color {
-            [0., 0., 0., 0.] => None,
-            _ => Some(new_color),
-        };
-
-        if interp >= 1. {
-            ecs.remove_component_deferred::<LerpCameraZoom>(id);
-        }
-    }
-    ecs.flush_deferred_mutations();
 }
 
 fn end_camera_shake(ecs: &mut Ecs) {
