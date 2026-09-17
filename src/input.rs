@@ -20,22 +20,30 @@ pub fn process_input(
 ) {
     let GameData { ecs, .. } = game_data;
 
+    // (because we can't get the keyboard state while mutably iterating over the event pump)
     let is_lctrl_pressed = event_pump.keyboard_state().is_scancode_pressed(Scancode::LCtrl);
 
     // Event-based input processing
     for event in event_pump.poll_iter() {
-        // Update egui state with new input
-        if dev_ui.open {
-            dev_ui.state.sdl2_input_to_egui(dev_ui.window, &event);
-        }
-
-        // App level
         match event {
             // Close program
             Event::Quit { .. } => {
                 *running = false;
             }
+            _ => {}
+        }
 
+        // Update egui state with new input
+        if dev_ui.open {
+            dev_ui.state.sdl2_input_to_egui(dev_ui.window, &event);
+        }
+
+        // Consume keyboard input by egui
+        if matches!(event, Event::KeyDown { .. }) && dev_ui.ctx.egui_wants_keyboard_input() {
+            continue;
+        }
+
+        match event {
             // Toggle dev ui
             Event::KeyDown { keycode: Some(Keycode::Backquote), .. } => {
                 dev_ui.open = !dev_ui.open;
@@ -125,7 +133,10 @@ pub fn process_input(
     // Player movement
     let mut walking = ecs.query_one_with_name::<&mut Walking>(PLAYER_ENTITY_NAME).unwrap();
     walking.velocity = Vec2::zero();
-    if message_window.is_none() && !player_movement_locked {
+    if message_window.is_none()
+        && !player_movement_locked
+        && !dev_ui.ctx.egui_wants_keyboard_input()
+    {
         let mut direction: Vec2<f64, MapUnits> = Vec2::zero();
         if event_pump.keyboard_state().is_scancode_pressed(Scancode::Up) {
             direction.y -= 1.0;

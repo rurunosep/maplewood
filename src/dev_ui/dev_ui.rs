@@ -317,7 +317,7 @@ impl StoryVarsWindow {
                             };
                             ui.add_enabled(
                                 is_being_edited,
-                                TextEdit::singleline(text_ref).desired_width(10.),
+                                TextEdit::singleline(text_ref).desired_width(15.),
                             );
 
                             if is_being_edited {

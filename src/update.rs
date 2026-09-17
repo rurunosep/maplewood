@@ -305,13 +305,13 @@ fn resolve_collisions(ecs: &Ecs, world: &World, delta: Duration) {
         .collect();
 
         // Temporarily revert translation along y
-        let y_translation = velocity.0.y * delta.as_secs_f64();
-        aabb.top -= y_translation;
-        aabb.bottom -= y_translation;
+        let translation = velocity.0 * delta.as_secs_f64();
+        aabb.top -= translation.y;
+        aabb.bottom -= translation.y;
 
         // Resolve collisions along x axis
         for cell_aabb in &cell_aabbs {
-            aabb.resolve_collision_along_x(cell_aabb, velocity.0);
+            aabb.resolve_collision_along_x(cell_aabb, translation.x);
         }
 
         for (other_pos, other_coll) in ecs.query_except::<(&Position, &Collision)>(id) {
@@ -320,17 +320,17 @@ fn resolve_collisions(ecs: &Ecs, world: &World, delta: Duration) {
             }
             aabb.resolve_collision_along_x(
                 &Aabb::new(other_pos.map_pos, other_coll.hitbox),
-                velocity.0,
+                translation.x,
             );
         }
 
         // Reapply translation along y
-        aabb.top += y_translation;
-        aabb.bottom += y_translation;
+        aabb.top += translation.y;
+        aabb.bottom += translation.y;
 
         // Resolve collisions along x axis
         for cell_aabb in &cell_aabbs {
-            aabb.resolve_collision_along_y(cell_aabb, velocity.0);
+            aabb.resolve_collision_along_y(cell_aabb, translation.y);
         }
 
         for (other_pos, other_coll) in ecs.query_except::<(&Position, &Collision)>(id) {
@@ -339,7 +339,7 @@ fn resolve_collisions(ecs: &Ecs, world: &World, delta: Duration) {
             }
             aabb.resolve_collision_along_y(
                 &Aabb::new(other_pos.map_pos, other_coll.hitbox),
-                velocity.0,
+                translation.y,
             );
         }
 

@@ -107,7 +107,7 @@ impl<T: Div<Output = T> + Copy, U> DivAssign<T> for Vec2<T, U> {
     }
 }
 
-impl<T: Real + Copy, U> Vec2<T, U> {
+impl<T: Real, U> Vec2<T, U> {
     pub fn length(self) -> T {
         (self.x * self.x + self.y * self.y).sqrt()
     }
@@ -141,13 +141,13 @@ impl<T: Add<Output = T> + Mul<Output = T> + Copy, U> Vec2<T, U> {
 
 // TODO impl From?
 
-impl<T: NumCast + Copy, U> Vec2<T, U> {
+impl<T: NumCast, U> Vec2<T, U> {
     pub fn cast<NewT: NumCast>(self) -> Vec2<NewT, U> {
         Vec2::new(NumCast::from(self.x).unwrap(), NumCast::from(self.y).unwrap())
     }
 }
 
-impl<T: Copy, U> Vec2<T, U> {
+impl<T, U> Vec2<T, U> {
     pub fn cast_unit<NewU>(self) -> Vec2<T, NewU> {
         Vec2::new(self.x, self.y)
     }
@@ -186,10 +186,10 @@ impl<T, U> Rect<T, U> {
 
 impl<T, U> Rect<T, U>
 where
-    T: Sub<Output = T> + Div<Output = T> + From<f64> + Copy,
+    T: Sub<Output = T> + Div<Output = T> + From<u8> + Copy,
 {
     pub fn new_from_center(x: T, y: T, width: T, height: T) -> Self {
-        Self::new(x - width / 2.0.into(), y - height / 2.0.into(), width, height)
+        Self::new(x - width / 2.into(), y - height / 2.into(), width, height)
     }
 }
 
@@ -218,7 +218,7 @@ impl<T: Clone, U> Clone for Rect<T, U> {
 
 impl<T: Copy, U> Copy for Rect<T, U> {}
 
-impl<T: Copy + Add<Output = T>, U> Rect<T, U> {
+impl<T: Add<Output = T> + Copy, U> Rect<T, U> {
     pub fn left(&self) -> T {
         self.x
     }
@@ -240,7 +240,7 @@ impl<T: Copy + Add<Output = T>, U> Rect<T, U> {
     }
 }
 
-impl<T: NumCast + Copy, U> Rect<T, U> {
+impl<T: NumCast, U> Rect<T, U> {
     pub fn cast<NewT: NumCast>(self) -> Rect<NewT, U> {
         Rect::new(
             NumCast::from(self.x).unwrap(),

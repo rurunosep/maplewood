@@ -63,15 +63,20 @@ impl Aabb {
         self.top < point.y && self.bottom > point.y && self.left < point.x && self.right > point.x
     }
 
-    pub fn resolve_collision_along_x(&mut self, other: &Self, velocity: Vec2<f64, MapUnits>) {
+    // TODO limit depth to size of translation? (so no pushing back)
+
+    // Collision resolution takes translation to revert it as necessary.
+    // Should it take the translation or the old position? Translation is probably simpler.
+
+    pub fn resolve_collision_along_x(&mut self, other: &Self, x_translation: f64) {
         if self.intersects(other) {
-            if self.left < other.right && velocity.x < 0. {
+            if self.left < other.right && x_translation < 0. {
                 let depth = other.right - self.left + 0.01;
                 self.left += depth;
                 self.right += depth;
             }
 
-            if self.right > other.left && velocity.x > 0. {
+            if self.right > other.left && x_translation > 0. {
                 let depth = self.right - other.left + 0.01;
                 self.left -= depth;
                 self.right -= depth;
@@ -79,15 +84,15 @@ impl Aabb {
         }
     }
 
-    pub fn resolve_collision_along_y(&mut self, other: &Self, velocity: Vec2<f64, MapUnits>) {
+    pub fn resolve_collision_along_y(&mut self, other: &Self, y_translation: f64) {
         if self.intersects(other) {
-            if self.top < other.bottom && velocity.y < 0. {
+            if self.top < other.bottom && y_translation < 0. {
                 let depth = other.bottom - self.top + 0.01;
                 self.top += depth;
                 self.bottom += depth;
             }
 
-            if self.bottom > other.top && velocity.y > 0. {
+            if self.bottom > other.top && y_translation > 0. {
                 let depth = self.bottom - other.top + 0.01;
                 self.top -= depth;
                 self.bottom -= depth;
@@ -95,14 +100,14 @@ impl Aabb {
         }
     }
 
-    pub fn resolve_collision(&mut self, other: &Self, velocity: Vec2<f64, MapUnits>) {
-        self.top -= velocity.y;
-        self.bottom -= velocity.y;
-        self.resolve_collision_along_x(other, velocity);
+    pub fn resolve_collision(&mut self, other: &Self, translation: Vec2<f64, MapUnits>) {
+        self.top -= translation.y;
+        self.bottom -= translation.y;
+        self.resolve_collision_along_x(other, translation.x);
 
-        self.top += velocity.y;
-        self.bottom += velocity.y;
-        self.resolve_collision_along_y(other, velocity);
+        self.top += translation.y;
+        self.bottom += translation.y;
+        self.resolve_collision_along_y(other, translation.y);
     }
 
     pub fn center(&self) -> MapPos {
