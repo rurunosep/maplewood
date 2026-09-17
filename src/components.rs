@@ -1,4 +1,4 @@
-use crate::ecs::Component;
+use crate::ecs::{Component, Ecs, EntityId};
 use crate::math::{MapUnits, PixelUnits, Rect, Vec2};
 use crate::misc::Direction;
 use crate::script;
@@ -9,6 +9,8 @@ use sdl2::mixer::Channel;
 use serde::{Deserialize, Serialize};
 use smart_default::SmartDefault;
 use std::collections::HashMap;
+use std::marker::PhantomData;
+use std::ops::{Add, Mul};
 use std::time::{Duration, Instant};
 
 // I think eventually components should be organized into their domains
@@ -297,3 +299,61 @@ pub struct Singing {
     pub words: Vec<(String, i32)>,
 }
 impl Component for Singing {}
+
+// Tweens
+
+pub struct Tweens(pub Vec<Box<dyn Tween>>);
+impl Component for Tweens {}
+
+pub trait Tween {
+    fn update(&mut self, ecs: &Ecs);
+    fn is_finished(&self) -> bool;
+}
+
+pub struct TweenInstance<C, V, F> {
+    pub entity_id: EntityId,
+    pub mutator: F,
+    pub start_value: V,
+    pub end_value: V,
+    pub start_time: Instant,
+    pub end_time: Instant,
+    pub _component: PhantomData<C>,
+}
+
+impl<C, V, F> Tween for TweenInstance<C, V, F>
+where
+    C: Component + 'static,
+    V: Interp + Copy,
+    F: Fn(&mut C, V),
+{
+    fn update(&mut self, ecs: &Ecs) {
+        let Some(mut component) = ecs.query_one_with_id::<&mut C>(self.entity_id) else {
+            log::error!(once = true; "Tried to tween non-existent component `{}` in entity `{:?}`", C::name(), self.entity_id);
+            return;
+        };
+
+        let duration = self.end_time - self.start_time;
+        let elapsed = self.start_time.elapsed();
+        let ratio = elapsed.div_duration_f64(duration).clamp(0., 1.);
+        let value = V::interpolate(self.start_value, self.end_value, ratio);
+
+        (self.mutator)(&mut component, value);
+    }
+
+    fn is_finished(&self) -> bool {
+        Instant::now() > self.end_time
+    }
+}
+
+pub trait Interp {
+    fn interpolate(start: Self, end: Self, ratio: f64) -> Self;
+}
+
+impl<T> Interp for T
+where
+    T: Mul<f64, Output = T> + Add<Output = T>,
+{
+    fn interpolate(start: Self, end: Self, ratio: f64) -> Self {
+        start * (1.0 - ratio) + end * ratio
+    }
+}

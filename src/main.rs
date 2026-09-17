@@ -14,7 +14,7 @@ mod script;
 mod update;
 mod world;
 
-use crate::components::Camera;
+use crate::components::{Camera, Position, TweenInstance, Tweens};
 use crate::ecs::EntityId;
 use crate::misc::{LOGGER, WINDOW_SIZE};
 use crate::script::ScriptManager;
@@ -25,6 +25,7 @@ use misc::StoryVars;
 use render::renderer::Renderer;
 use sdl2::mixer::{AUDIO_S16SYS, DEFAULT_CHANNELS};
 use std::collections::HashMap;
+use std::marker::PhantomData;
 use std::time::{Duration, Instant};
 use world::{Map, World};
 
@@ -142,7 +143,39 @@ fn main() {
     let mut player_movement_locked = false;
 
     // Scratchpad
-    {}
+    {
+        let id = game_data.ecs.query_one_with_name::<EntityId>("_player").unwrap();
+        game_data.ecs.add_component(
+            id,
+            Tweens(vec![Box::new(TweenInstance {
+                entity_id: id,
+                mutator: |position: &mut Position, value: f64| {
+                    position.map_pos.x = value;
+                },
+                start_value: 0.,
+                end_value: 10.,
+                start_time: Instant::now(),
+                end_time: Instant::now() + Duration::from_secs_f64(5.),
+                _component: PhantomData,
+            })]),
+        );
+
+        let id = game_data.ecs.query_one_with_name::<EntityId>("_camera").unwrap();
+        game_data.ecs.add_component(
+            id,
+            Tweens(vec![Box::new(TweenInstance {
+                entity_id: id,
+                mutator: |camera: &mut Camera, value: f64| {
+                    camera.zoom = value;
+                },
+                start_value: 4.,
+                end_value: 10.,
+                start_time: Instant::now(),
+                end_time: Instant::now() + Duration::from_secs_f64(5.),
+                _component: PhantomData,
+            })]),
+        );
+    }
 
     // --------------------------------------------------------------
     // Main Loop

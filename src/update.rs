@@ -49,6 +49,8 @@ pub fn update(
     lerp_camera_overlay_color(&mut game_data.ecs);
     end_camera_shake(&mut game_data.ecs);
 
+    update_tweens(&mut game_data.ecs);
+
     update_character_animations(&game_data.ecs);
     update_dual_state_animations(&game_data.ecs);
     play_animations_and_set_sprites(&game_data.ecs, delta);
@@ -462,6 +464,15 @@ fn lerp_camera_zoom(ecs: &mut Ecs) {
         }
     }
     ecs.flush_deferred_mutations();
+}
+
+fn update_tweens(ecs: &mut Ecs) {
+    for mut tweens in ecs.query::<&mut crate::components::Tweens>() {
+        for tween in &mut tweens.0 {
+            tween.update(ecs);
+        }
+        tweens.0.retain(|t| !t.is_finished());
+    }
 }
 
 fn lerp_camera_overlay_color(ecs: &mut Ecs) {
