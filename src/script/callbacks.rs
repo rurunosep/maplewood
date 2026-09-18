@@ -59,7 +59,7 @@ pub fn bind_general_callbacks<'scope>(
         scope.create_function(|_, entity: String| {
             let ecs = &game_data.borrow().ecs;
             let position = ecs
-                .query_one_with_name::<&Position>(&entity)
+                .query_one::<&Position>(&entity)
                 .map_err(|err| Error(f!("invalid entity `{entity}` (err: {err})")))?;
             Ok((position.map_pos.x, position.map_pos.y))
         })?,
@@ -70,7 +70,7 @@ pub fn bind_general_callbacks<'scope>(
         scope.create_function(|_, (entity, x, y): (String, f64, f64)| {
             let ecs = &game_data.borrow().ecs;
             let mut position = ecs
-                .query_one_with_name::<&mut Position>(&entity)
+                .query_one::<&mut Position>(&entity)
                 .map_err(|err| Error(f!("invalid entity `{entity}` (err: {err})")))?;
             position.map_pos = Vec2::new(x, y);
             Ok(())
@@ -82,7 +82,7 @@ pub fn bind_general_callbacks<'scope>(
         scope.create_function(|_, entity: String| {
             let ecs = &game_data.borrow().ecs;
             let position = ecs
-                .query_one_with_name::<&Position>(&entity)
+                .query_one::<&Position>(&entity)
                 .map_err(|err| Error(f!("invalid entity `{entity}` (err: {err})")))?;
             Ok((position.map.clone(), position.map_pos.x, position.map_pos.y))
         })?,
@@ -93,7 +93,7 @@ pub fn bind_general_callbacks<'scope>(
         scope.create_function(|_, (entity, map, x, y): (String, String, f64, f64)| {
             let ecs = &mut game_data.borrow_mut().ecs;
             let entity_id = ecs
-                .query_one_with_name::<EntityId>(&entity)
+                .query_one::<EntityId>(&entity)
                 .map_err(|err| Error(f!("invalid entity `{entity}` (err: {err})")))?;
             ecs.add_component(entity_id, Position(WorldPos::new(&map, x, y)));
             Ok(())
@@ -109,7 +109,7 @@ pub fn bind_general_callbacks<'scope>(
                 (String, String, u32, u32, u32, u32, i32, i32)| {
                 let ecs = &game_data.borrow().ecs;
                 let mut sprite_component = ecs
-                    .query_one_with_name::<&mut SpriteComp>(&entity)
+                    .query_one::<&mut SpriteComp>(&entity)
                     .map_err(|err| Error(f!("invalid entity `{entity}` (err: {err})")))?;
 
                 sprite_component.forced_sprite = Some(Sprite {
@@ -128,7 +128,7 @@ pub fn bind_general_callbacks<'scope>(
         scope.create_function(|_, entity: String| {
             let ecs = &game_data.borrow().ecs;
             let mut sprite_component = ecs
-                .query_one_with_name::<&mut SpriteComp>(&entity)
+                .query_one::<&mut SpriteComp>(&entity)
                 .map_err(|err| Error(f!("invalid entity `{entity}` (err: {err})")))?;
             sprite_component.forced_sprite = None;
             Ok(())
@@ -140,7 +140,7 @@ pub fn bind_general_callbacks<'scope>(
         scope.create_function(|_, (entity, visible): (String, bool)| {
             let ecs = &game_data.borrow().ecs;
             let mut sprite = ecs
-                .query_one_with_name::<&mut SpriteComp>(&entity)
+                .query_one::<&mut SpriteComp>(&entity)
                 .map_err(|err| Error(f!("invalid entity `{entity}` (err: {err})")))?;
             sprite.visible = visible;
             Ok(())
@@ -152,7 +152,7 @@ pub fn bind_general_callbacks<'scope>(
         scope.create_function(|_, (entity, enabled): (String, bool)| {
             let ecs = &game_data.borrow().ecs;
             let mut collision = ecs
-                .query_one_with_name::<&mut Collision>(&entity)
+                .query_one::<&mut Collision>(&entity)
                 .map_err(|err| Error(f!("invalid entity `{entity}` (err: {err})")))?;
             collision.solid = enabled;
             Ok(())
@@ -164,9 +164,9 @@ pub fn bind_general_callbacks<'scope>(
         scope.create_function(
             |_, (entity, direction, distance, speed): (String, String, f64, Option<f64>)| {
                 let ecs = &game_data.borrow().ecs;
-                let (mut pathing, position) = ecs
-                    .query_one_with_name::<(&mut Pathing, &Position)>(&entity)
-                    .map_err(|err| Error(f!("invalid entity `{entity}` (err: {err})")))?;
+                let (mut pathing, position) =
+                    ecs.query_one::<(&mut Pathing, &Position)>(&entity)
+                        .map_err(|err| Error(f!("invalid entity `{entity}` (err: {err})")))?;
 
                 let direction: Vec2<f64, MapUnits> = match direction.as_str() {
                     "up" => Ok(Vec2::new(0., -1.)),
@@ -189,7 +189,7 @@ pub fn bind_general_callbacks<'scope>(
         scope.create_function(|_, (entity, x, y, speed): (String, f64, f64, Option<f64>)| {
             let ecs = &game_data.borrow().ecs;
             let mut pathing = ecs
-                .query_one_with_name::<&mut Pathing>(&entity)
+                .query_one::<&mut Pathing>(&entity)
                 .map_err(|err| Error(f!("invalid entity `{entity}` (err: {err})")))?;
 
             pathing.target = Some(Vec2::new(x, y));
@@ -204,7 +204,7 @@ pub fn bind_general_callbacks<'scope>(
         scope.create_function(|_, entity: String| {
             let ecs = &game_data.borrow().ecs;
             let pathing = ecs
-                .query_one_with_name::<&Pathing>(&entity)
+                .query_one::<&Pathing>(&entity)
                 .map_err(|err| Error(f!("invalid entity `{entity}` (err: {err})")))?;
             Ok(pathing.target.is_some())
         })?,
@@ -215,7 +215,7 @@ pub fn bind_general_callbacks<'scope>(
         scope.create_function(|_, (entity, speed): (String, f64)| {
             let ecs = &game_data.borrow().ecs;
             let mut walking = ecs
-                .query_one_with_name::<&mut Walking>(&entity)
+                .query_one::<&mut Walking>(&entity)
                 .map_err(|err| Error(f!("invalid entity `{entity}` (err: {err})")))?;
             walking.default_speed = speed;
             Ok(())
@@ -227,7 +227,7 @@ pub fn bind_general_callbacks<'scope>(
         scope.create_function(|_, (entity, direction): (String, String)| {
             let ecs = &game_data.borrow().ecs;
             let mut facing = ecs
-                .query_one_with_name::<&mut Facing>(&entity)
+                .query_one::<&mut Facing>(&entity)
                 .map_err(|err| Error(f!("invalid entity `{entity}` (err: {err})")))?;
 
             let direction = match direction.as_str() {
@@ -249,7 +249,7 @@ pub fn bind_general_callbacks<'scope>(
         scope.create_function(|_, (entity, x, y): (String, f64, f64)| {
             let ecs = &game_data.borrow().ecs;
             let (mut facing, position) = ecs
-                .query_one_with_name::<(&mut Facing, &Position)>(&entity)
+                .query_one::<(&mut Facing, &Position)>(&entity)
                 .map_err(|err| Error(f!("invalid entity `{entity}` (err: {err})")))?;
 
             let direction_to_point = (Vec2::new(x, y) - position.map_pos).normalize();
@@ -292,7 +292,7 @@ pub fn bind_general_callbacks<'scope>(
         scope.create_function(|_, (camera_name, target_name): (String, Option<String>)| {
             let ecs = &game_data.borrow().ecs;
             let mut camera_component = ecs
-                .query_one_with_name::<&mut Camera>(&camera_name)
+                .query_one::<&mut Camera>(&camera_name)
                 .map_err(|err| Error(f!("invalid entity `{camera_name}` (err: {err})")))?;
             camera_component.target_entity = target_name;
             Ok(())
@@ -307,9 +307,7 @@ pub fn bind_general_callbacks<'scope>(
 
                 {
                     let (id, mut camera_component, mut tweens) = ecs
-                        .query_one_with_name::<(EntityId, &mut Camera, Option<&mut Tweens>)>(
-                            &camera_name,
-                        )
+                        .query_one::<(EntityId, &mut Camera, Option<&mut Tweens>)>(&camera_name)
                         .map_err(|err| Error(f!("invalid entity `{camera_name}` (err: {err})")))?;
 
                     match lerp_time {
@@ -352,7 +350,7 @@ pub fn bind_general_callbacks<'scope>(
         scope.create_function(|_, (camera_name, visible): (String, bool)| {
             let ecs = &game_data.borrow().ecs;
             let mut camera_component = ecs
-                .query_one_with_name::<&mut Camera>(&camera_name)
+                .query_one::<&mut Camera>(&camera_name)
                 .map_err(|err| Error(f!("invalid entity `{camera_name}` (err: {err})")))?;
             camera_component.visible = visible;
             Ok(())
@@ -367,9 +365,7 @@ pub fn bind_general_callbacks<'scope>(
 
                 {
                     let (id, mut camera_component, mut tweens) = ecs
-                        .query_one_with_name::<(EntityId, &mut Camera, Option<&mut Tweens>)>(
-                            &camera_name,
-                        )
+                        .query_one::<(EntityId, &mut Camera, Option<&mut Tweens>)>(&camera_name)
                         .map_err(|err| Error(f!("invalid entity `{camera_name}` (err: {err})")))?;
 
                     match lerp_time {
@@ -420,7 +416,7 @@ pub fn bind_general_callbacks<'scope>(
         scope.create_function(|_, (camera_name, clamp): (String, bool)| {
             let ecs = &game_data.borrow().ecs;
             let mut camera_component = ecs
-                .query_one_with_name::<&mut Camera>(&camera_name)
+                .query_one::<&mut Camera>(&camera_name)
                 .map_err(|err| Error(f!("invalid entity `{camera_name}` (err: {err})")))?;
             camera_component.clamp_to_map = clamp;
             Ok(())
@@ -443,7 +439,7 @@ pub fn bind_general_callbacks<'scope>(
 
                 let ecs = &mut game_data.borrow_mut().ecs;
                 let id = ecs
-                    .query_one_with_name::<EntityId>(&camera_name)
+                    .query_one::<EntityId>(&camera_name)
                     .map_err(|err| Error(f!("invalid entity `{camera_name}` (err: {err})")))?;
 
                 ecs.add_component(
@@ -461,7 +457,7 @@ pub fn bind_general_callbacks<'scope>(
         scope.create_function(|_, (entity, repeat): (String, bool)| {
             let ecs = &game_data.borrow().ecs;
             let mut anim_comp = ecs
-                .query_one_with_name::<&mut AnimationComp>(&entity)
+                .query_one::<&mut AnimationComp>(&entity)
                 .map_err(|err| Error(f!("invalid entity `{entity}` (err: {err})")))?;
             anim_comp.start(repeat);
             Ok(())
@@ -473,7 +469,7 @@ pub fn bind_general_callbacks<'scope>(
         scope.create_function(|_, entity: String| {
             let ecs = &game_data.borrow().ecs;
             let mut anim_comp = ecs
-                .query_one_with_name::<&mut AnimationComp>(&entity)
+                .query_one::<&mut AnimationComp>(&entity)
                 .map_err(|err| Error(f!("invalid entity `{entity}` (err: {err})")))?;
             anim_comp.stop();
             Ok(())
@@ -485,7 +481,7 @@ pub fn bind_general_callbacks<'scope>(
         scope.create_function(|_, (entity, state): (String, i32)| {
             let ecs = &game_data.borrow().ecs;
             let (mut anim_comp, mut dual_anims) = ecs
-                .query_one_with_name::<(&mut AnimationComp, &mut DualStateAnims)>(&entity)
+                .query_one::<(&mut AnimationComp, &mut DualStateAnims)>(&entity)
                 .map_err(|err| Error(f!("invalid entity `{entity}` (err: {err})")))?;
 
             let state = match state {
@@ -506,7 +502,7 @@ pub fn bind_general_callbacks<'scope>(
         scope.create_function(|_, (entity, animation, repeat): (String, String, bool)| {
             let ecs = &game_data.borrow().ecs;
             let (mut anim_comp, anims) = ecs
-                .query_one_with_name::<(&mut AnimationComp, &NamedAnims)>(&entity)
+                .query_one::<(&mut AnimationComp, &NamedAnims)>(&entity)
                 .map_err(|err| Error(f!("invalid entity `{entity}` (err: {err})")))?;
 
             let clip = anims
@@ -526,7 +522,7 @@ pub fn bind_general_callbacks<'scope>(
         scope.create_function(|_, (entity, duration): (String, f64)| {
             let ecs = &mut game_data.borrow_mut().ecs;
             let id = ecs
-                .query_one_with_name::<EntityId>(&entity)
+                .query_one::<EntityId>(&entity)
                 .map_err(|err| Error(f!("invalid entity `{entity}` (err: {err})")))?;
 
             ecs.add_component(
@@ -549,7 +545,7 @@ pub fn bind_general_callbacks<'scope>(
         scope.create_function(|_, entity: String| {
             let ecs = &mut game_data.borrow_mut().ecs;
             let id = ecs
-                .query_one_with_name::<EntityId>(&entity)
+                .query_one::<EntityId>(&entity)
                 .map_err(|err| Error(f!("invalid entity `{entity}` (err: {err})")))?;
 
             ecs.add_component(
@@ -599,7 +595,7 @@ pub fn bind_general_callbacks<'scope>(
         scope.create_function(|_, (entity, sfx, repeat): (String, String, bool)| {
             let ecs = &game_data.borrow().ecs;
             let mut sfx_comp = ecs
-                .query_one_with_name::<&mut SfxEmitter>(&entity)
+                .query_one::<&mut SfxEmitter>(&entity)
                 .map_err(|err| Error(f!("invalid entity `{entity}` (err: {err})")))?;
             sfx_comp.sfx_name = Some(sfx);
             sfx_comp.repeat = repeat;
@@ -612,7 +608,7 @@ pub fn bind_general_callbacks<'scope>(
         scope.create_function(|_, entity: String| {
             let ecs = &game_data.borrow().ecs;
             let mut sfx_comp = ecs
-                .query_one_with_name::<&mut SfxEmitter>(&entity)
+                .query_one::<&mut SfxEmitter>(&entity)
                 .map_err(|err| Error(f!("invalid entity `{entity}` (err: {err})")))?;
             sfx_comp.sfx_name = None;
             sfx_comp.repeat = false;
@@ -634,7 +630,7 @@ pub fn bind_general_callbacks<'scope>(
             |_, (entity_name, component_name, component_json): (String, String, String)| {
                 let ecs = &mut game_data.borrow_mut().ecs;
                 let entity_id = ecs
-                    .query_one_with_name::<EntityId>(&entity_name)
+                    .query_one::<EntityId>(&entity_name)
                     .map_err(|err| Error(f!("invalid entity `{entity_name}` (err: {err})")))?;
 
                 let value = serde_json::from_str::<serde_json::Value>(&component_json)
@@ -653,7 +649,7 @@ pub fn bind_general_callbacks<'scope>(
         scope.create_function(|_, (entity_name, component_name): (String, String)| {
             let ecs = &mut game_data.borrow_mut().ecs;
             let id = ecs
-                .query_one_with_name::<EntityId>(&entity_name)
+                .query_one::<EntityId>(&entity_name)
                 .map_err(|err| Error(f!("invalid entity `{entity_name}` (err: {err})")))?;
 
             ecs.remove_component_with_name(id, &component_name)
@@ -677,7 +673,7 @@ pub fn bind_general_callbacks<'scope>(
         scope.create_function(|_, (entity, word, pitch): (String, String, i32)| {
             let ecs = &game_data.borrow().ecs;
             let mut singing = ecs
-                .query_one_with_name::<&mut Singing>(&entity)
+                .query_one::<&mut Singing>(&entity)
                 .map_err(|err| Error(f!("invalid entity `{entity}` (err: {err})")))?;
             singing.words.push((word, pitch));
             Ok(())
@@ -689,7 +685,7 @@ pub fn bind_general_callbacks<'scope>(
         scope.create_function(|_, entity: String| {
             let ecs = &game_data.borrow().ecs;
             let mut singing = ecs
-                .query_one_with_name::<&mut Singing>(&entity)
+                .query_one::<&mut Singing>(&entity)
                 .map_err(|err| Error(f!("invalid entity `{entity}` (err: {err})")))?;
             singing.words.clear();
             Ok(())

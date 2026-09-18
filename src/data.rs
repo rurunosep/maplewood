@@ -185,7 +185,7 @@ pub fn load_entities_from_source(ecs: &mut Ecs) {
     ecs.add_component(id, Collision { hitbox: Vec2::new(1., 1.), solid: false });
 
     // Janitor extension
-    let id = ecs.query_one_with_name::<EntityId>("janitor").unwrap();
+    let id = ecs.query_one::<EntityId>("janitor").unwrap();
     ecs.add_component(
         id,
         InteractionTrigger {
@@ -216,7 +216,7 @@ pub fn load_entities_from_source(ecs: &mut Ecs) {
     );
 
     // School kid extension
-    let id = ecs.query_one_with_name::<EntityId>("school_kid").unwrap();
+    let id = ecs.query_one::<EntityId>("school_kid").unwrap();
     ecs.add_component(
         id,
         InteractionTrigger {
@@ -229,7 +229,7 @@ pub fn load_entities_from_source(ecs: &mut Ecs) {
     );
 
     // Bakery girl extension
-    let id = ecs.query_one_with_name::<EntityId>("bakery_girl").unwrap();
+    let id = ecs.query_one::<EntityId>("bakery_girl").unwrap();
     ecs.add_component(id, Velocity::default());
     ecs.add_component(id, Pathing::default());
     ecs.add_component(

@@ -1,7 +1,7 @@
 use crate::components::{
     AnimationComp, AreaTrigger, Camera, CameraShake, CharacterAnims, Collision, CollisionTrigger,
-    DualStateAnimationState, DualStateAnims, Facing, Name, Pathing, PlaybackState, Position,
-    SfxEmitter, SineOffsetAnimation, SpriteComp, Velocity, Walking,
+    DualStateAnimationState, DualStateAnims, Facing, Pathing, PlaybackState, Position, SfxEmitter,
+    SineOffsetAnimation, SpriteComp, Velocity, Walking,
 };
 use crate::data::PLAYER_ENTITY_NAME;
 use crate::ecs::{Ecs, EntityId};
@@ -76,7 +76,7 @@ fn start_auto_scripts(script_manager: &mut ScriptManager, auto_scripts: &Vec<Str
 
 fn start_area_trigger_scripts(script_manager: &mut ScriptManager, ecs: &Ecs) {
     let Ok((player_aabb, player_map)) = ecs
-        .query_one_with_name::<(&Position, &Collision)>(PLAYER_ENTITY_NAME)
+        .query_one::<(&Position, &Collision)>(PLAYER_ENTITY_NAME)
         .map(|(pos, coll)| (Aabb::new(pos.map_pos, coll.hitbox), pos.map.clone()))
     else {
         return;
@@ -234,7 +234,7 @@ fn apply_velocity_to_position(ecs: &Ecs, delta: Duration) {
 
 fn start_collision_trigger_scripts(ecs: &Ecs, script_manager: &mut ScriptManager) {
     let Ok((player_id, player_position, player_collision)) =
-        ecs.query_one_with_name::<(EntityId, &Position, &Collision)>(PLAYER_ENTITY_NAME)
+        ecs.query_one::<(EntityId, &Position, &Collision)>(PLAYER_ENTITY_NAME)
     else {
         return;
     };
@@ -391,18 +391,12 @@ fn set_facing_from_walking(ecs: &Ecs) {
 }
 
 fn camera_follow_target_and_clamp(ecs: &Ecs, world: &World) {
-    for (camera_id, mut position, camera_component) in
-        ecs.query::<(EntityId, &mut Position, &Camera)>()
-    {
+    for (mut position, camera_component) in ecs.query::<(&mut Position, &Camera)>() {
         // Update camera position to follow target entity
         if let Some(target_name) = &camera_component.target_entity
-            && let Some((target_position, _)) = ecs
-                // query_one_with_name does NOT avoid a double borrow
-                // Only query_except and query_one_with_id filter in ways that avoid a double borrow
-                // So we have to query_except(camera_id), then filter results by name
-                .query_except::<(&Position, &Name)>(camera_id)
-                .find(|(_, name)| name.eq(target_name))
-                .tap_none(|| log::error!(once = true; "Invalid camera target: {}", &target_name))
+            && let Ok(target_position) = ecs
+                .query_one::<&Position>(target_name)
+                .tap_err(|_| log::error!(once = true; "Invalid camera target: {}", &target_name))
         {
             *position = target_position.clone();
         }

@@ -62,7 +62,7 @@ pub struct EntityWindow {
 impl EntityWindow {
     pub fn new(entity_id: EntityId, ecs: &Ecs) -> Self {
         // Name is expected to be immutable, so we only have to set it once
-        let name = ecs.query_one_with_id::<&Name>(entity_id).map(|n| n.0.clone());
+        let name = ecs.query_one::<&Name>(entity_id).map(|n| n.0.clone()).ok();
 
         let window_id = egui::Id::new(f!("entity {entity_id:?}"));
 
@@ -151,21 +151,17 @@ where
     C: Component + Serialize + DeserializeOwned + 'static,
 {
     fn show(&mut self, ui: &mut Ui, ecs: &mut Ecs) {
-        let component = ecs.query_one_with_id::<&C>(self.entity_id);
-        if component.is_none() {
-            self.text.clear();
-            self.is_being_edited = false;
-            return;
-        }
+        {
+            let Ok(component) = ecs.query_one::<&C>(self.entity_id) else {
+                self.text.clear();
+                self.is_being_edited = false;
+                return;
+            };
 
-        if !self.is_being_edited {
-            self.text = component
-                .as_deref()
-                .map(|c| serde_json::to_string_pretty(c).expect("is serde"))
-                .expect("early return if none");
+            if !self.is_being_edited {
+                self.text = serde_json::to_string_pretty(&*component).expect("is serde");
+            }
         }
-
-        drop(component);
 
         ui.collapsing(C::name(), |ui| {
             ui.add(

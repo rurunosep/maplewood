@@ -314,7 +314,7 @@ where
     F: Fn(&mut C, V),
 {
     fn update(&mut self, ecs: &Ecs, delta: Duration) {
-        let Some(mut component) = ecs.query_one_with_id::<&mut C>(self.entity_id) else {
+        let Ok(mut component) = ecs.query_one::<&mut C>(self.entity_id) else {
             log::error!(once = true; "Tried to tween non-existent component `{}` in entity `{:?}`", C::name(), self.entity_id);
             return;
         };

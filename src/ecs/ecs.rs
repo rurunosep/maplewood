@@ -10,10 +10,22 @@ use std::collections::HashMap;
 use std::error::Error;
 use std::fmt::Display;
 
-// TODO EntityIdentifier enum that can be Name(String) or Id(EntityId)
-// String and EntityId implement Into<{Identifier}>
-// query_one can take Into<{Identifier}>
-// camera target can be an Option<{Identifier}>, etc
+pub enum EntityIdentifier {
+    Id(EntityId),
+    Name(String),
+}
+
+impl From<EntityId> for EntityIdentifier {
+    fn from(id: EntityId) -> Self {
+        Self::Id(id)
+    }
+}
+
+impl<T: AsRef<str>> From<T> for EntityIdentifier {
+    fn from(name: T) -> Self {
+        Self::Name(name.as_ref().to_string())
+    }
+}
 
 pub trait Component {
     // Unique name of the component
@@ -92,30 +104,28 @@ impl Ecs {
         )
     }
 
-    // DOES filter in a way that avoids double borrow in a nested query
-    // (Because it filters by id first, then runs the query)
-    // TODO should this return a Result? NoEntity vs MissingComponents?
-    // Remember that eventually we'll be using a unified EntityIdentifier enum
-    pub fn query_one_with_id<'ecs, Q>(&'ecs self, id: EntityId) -> Option<Q::Result<'ecs>>
+    pub fn query_one<'ecs, Q>(
+        &'ecs self,
+        identifier: impl Into<EntityIdentifier>,
+    ) -> Result<Q::Result<'ecs>, QueryOneError>
     where
         Q: Query,
     {
+        let id = match identifier.into() {
+            EntityIdentifier::Id(id) => id,
+            EntityIdentifier::Name(name) => {
+                *self.name_to_id.get(&name).ok_or(QueryOneError::NoEntity)?
+            }
+        };
+
+        if !self.entity_ids.contains_key(id) {
+            return Err(QueryOneError::NoEntity);
+        }
+
         Some(id)
             .filter(|id| Q::filter(*id, &self.component_maps))
             .map(|id| Q::borrow(id, &self.component_maps))
-    }
-
-    // NOW
-
-    pub fn query_one_with_name<'ecs, Q>(
-        &'ecs self,
-        name: &str,
-    ) -> Result<Q::Result<'ecs>, QueryOneError>
-    where
-        Q: Query + 'static,
-    {
-        let id = self.name_to_id.get(name).ok_or(QueryOneError::NoEntity)?;
-        self.query_one_with_id::<Q>(*id).ok_or(QueryOneError::MissingComponents)
+            .ok_or(QueryOneError::MissingComponents)
     }
 
     pub fn add_entity(&mut self) -> EntityId {
@@ -151,7 +161,7 @@ impl Ecs {
         // If the component is a Name, deregister it from the name_to_id map
         // (This should be optimized out by the compiler for every other component, probably)
         if std::any::TypeId::of::<C>() == std::any::TypeId::of::<Name>() {
-            // Make this constant time with a BiHashMap instead of a HashMap?
+            // TODO make this constant time with a BiHashMap instead of a HashMap?
             self.name_to_id.retain(|_, v| *v != entity_id);
         }
 
@@ -308,7 +318,7 @@ impl Ecs {
         ) where
             C: Component + Clone + Serialize + 'static,
         {
-            if let Some(component) = ecs.query_one_with_id::<&C>(id)
+            if let Ok(component) = ecs.query_one::<&C>(id)
                 && let Ok(value) = serde_json::to_value(component.clone())
             {
                 components.insert(C::name().to_string(), value);

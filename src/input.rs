@@ -79,7 +79,7 @@ pub fn process_input(
         // Zoom (where does this actually go?)
         if is_lctrl_pressed
             && let Event::MouseWheel { precise_y, .. } = event
-            && let Ok(mut camera) = ecs.query_one_with_name::<&mut Camera>(CAMERA_ENTITY_NAME)
+            && let Ok(mut camera) = ecs.query_one::<&mut Camera>(CAMERA_ENTITY_NAME)
         {
             camera.zoom =
                 (camera.zoom * std::f64::consts::E.powf(precise_y as f64 * 0.1)).clamp(0.1, 50.0);
@@ -95,9 +95,8 @@ pub fn process_input(
                     // for the presence of an entity with an
                     // interaction script. This fails in some cases,
                     // but it works okay for now.
-                    let (player_position, player_facing) = ecs
-                        .query_one_with_name::<(&Position, &Facing)>(PLAYER_ENTITY_NAME)
-                        .unwrap();
+                    let (player_position, player_facing) =
+                        ecs.query_one::<(&Position, &Facing)>(PLAYER_ENTITY_NAME).unwrap();
                     let target = player_position.map_pos
                         + match player_facing.0 {
                             Direction::Up => Vec2::new(0.0, -0.5),
@@ -131,7 +130,7 @@ pub fn process_input(
     // State-based input processing
 
     // Player movement
-    let mut walking = ecs.query_one_with_name::<&mut Walking>(PLAYER_ENTITY_NAME).unwrap();
+    let mut walking = ecs.query_one::<&mut Walking>(PLAYER_ENTITY_NAME).unwrap();
     walking.velocity = Vec2::zero();
     if message_window.is_none()
         && !player_movement_locked
