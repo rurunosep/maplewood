@@ -79,7 +79,7 @@ pub fn process_input(
         // Zoom (where does this actually go?)
         if is_lctrl_pressed
             && let Event::MouseWheel { precise_y, .. } = event
-            && let Some(mut camera) = ecs.query_one_with_name::<&mut Camera>(CAMERA_ENTITY_NAME)
+            && let Ok(mut camera) = ecs.query_one_with_name::<&mut Camera>(CAMERA_ENTITY_NAME)
         {
             camera.zoom =
                 (camera.zoom * std::f64::consts::E.powf(precise_y as f64 * 0.1)).clamp(0.1, 50.0);

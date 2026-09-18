@@ -36,7 +36,7 @@ where
                     components_map
                         .get("Name")
                         .and_then(|v| serde_json::from_value(v.clone()).ok())
-                        .and_then(|n: String| ecs.query_one_with_name::<EntityId>(&n))
+                        .and_then(|n: String| ecs.query_one_with_name::<EntityId>(&n).ok())
                 })
                 .unwrap_or_else(|| ecs.add_entity());
 

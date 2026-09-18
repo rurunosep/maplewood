@@ -1,4 +1,5 @@
 #![feature(try_blocks)]
+#![feature(min_specialization)]
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod components;

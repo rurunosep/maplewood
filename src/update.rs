@@ -75,7 +75,7 @@ fn start_auto_scripts(script_manager: &mut ScriptManager, auto_scripts: &Vec<Str
 }
 
 fn start_area_trigger_scripts(script_manager: &mut ScriptManager, ecs: &Ecs) {
-    let Some((player_aabb, player_map)) = ecs
+    let Ok((player_aabb, player_map)) = ecs
         .query_one_with_name::<(&Position, &Collision)>(PLAYER_ENTITY_NAME)
         .map(|(pos, coll)| (Aabb::new(pos.map_pos, coll.hitbox), pos.map.clone()))
     else {
@@ -233,7 +233,7 @@ fn apply_velocity_to_position(ecs: &Ecs, delta: Duration) {
 }
 
 fn start_collision_trigger_scripts(ecs: &Ecs, script_manager: &mut ScriptManager) {
-    let Some((player_id, player_position, player_collision)) =
+    let Ok((player_id, player_position, player_collision)) =
         ecs.query_one_with_name::<(EntityId, &Position, &Collision)>(PLAYER_ENTITY_NAME)
     else {
         return;

@@ -6,6 +6,9 @@ use serde::Serialize;
 use serde::de::DeserializeOwned;
 use slotmap::{Key, SecondaryMap, SlotMap, new_key_type};
 use std::cell::RefCell;
+use std::collections::HashMap;
+use std::error::Error;
+use std::fmt::Display;
 
 // TODO EntityIdentifier enum that can be Name(String) or Id(EntityId)
 // String and EntityId implement Into<{Identifier}>
@@ -48,6 +51,7 @@ pub struct Ecs {
     // TODO implement slotmap myself so that I can control its serde functionality
     pub entity_ids: SlotMap<EntityId, ()>,
     component_maps: AnyMap,
+    name_to_id: HashMap<String, EntityId>,
     deferred_mutations: RefCell<Vec<Box<dyn FnOnce(&mut Ecs)>>>,
     deferred_entity_ids: RefCell<SlotMap<DeferredEntityId, EntityId>>,
 }
@@ -57,6 +61,7 @@ impl Ecs {
         Self {
             entity_ids: SlotMap::with_key(),
             component_maps: AnyMap::new(),
+            name_to_id: HashMap::new(),
             deferred_mutations: RefCell::new(Vec::new()),
             deferred_entity_ids: RefCell::new(SlotMap::with_key()),
         }
@@ -89,6 +94,8 @@ impl Ecs {
 
     // DOES filter in a way that avoids double borrow in a nested query
     // (Because it filters by id first, then runs the query)
+    // TODO should this return a Result? NoEntity vs MissingComponents?
+    // Remember that eventually we'll be using a unified EntityIdentifier enum
     pub fn query_one_with_id<'ecs, Q>(&'ecs self, id: EntityId) -> Option<Q::Result<'ecs>>
     where
         Q: Query,
@@ -98,16 +105,17 @@ impl Ecs {
             .map(|id| Q::borrow(id, &self.component_maps))
     }
 
-    // Does NOT filter in a way that avoids double borrow in a nested query
-    // Because it filters by name during the query
-    // TODO map from entity name to entity id?
-    // This would also solve the double borrow, in addition to being faster
-    // Add an explicit add_component<Name> that adds the component and registers the name
-    pub fn query_one_with_name<'ecs, Q>(&'ecs self, name: &str) -> Option<Q::Result<'ecs>>
+    // NOW
+
+    pub fn query_one_with_name<'ecs, Q>(
+        &'ecs self,
+        name: &str,
+    ) -> Result<Q::Result<'ecs>, QueryOneError>
     where
         Q: Query + 'static,
     {
-        self.query::<(&Name, Q)>().find(|(n, _)| n.as_str() == name).map(|(_, q)| q)
+        let id = self.name_to_id.get(name).ok_or(QueryOneError::NoEntity)?;
+        self.query_one_with_id::<Q>(*id).ok_or(QueryOneError::MissingComponents)
     }
 
     pub fn add_entity(&mut self) -> EntityId {
@@ -122,19 +130,31 @@ impl Ecs {
     where
         C: Component + 'static,
     {
-        if let Some(cm) = self.component_maps.get_mut::<ComponentMap<C>>() {
-            cm.insert(entity_id, RefCell::new(component));
-        } else {
-            let mut cm = SecondaryMap::<EntityId, RefCell<C>>::new();
-            cm.insert(entity_id, RefCell::new(component));
-            self.component_maps.insert(cm);
+        // If the component is a Name, register it to the name_to_id map
+        // (This should be optimized out by the compiler for every other component, probably)
+        if std::any::TypeId::of::<C>() == std::any::TypeId::of::<Name>() {
+            // SAFETY: we checked that C is in fact Name
+            let name = unsafe { &*(&component as *const C as *const Name) };
+            self.name_to_id.insert(name.0.clone(), entity_id);
         }
+
+        self.component_maps
+            .entry::<ComponentMap<C>>()
+            .or_insert_with(|| ComponentMap::new())
+            .insert(entity_id, RefCell::new(component));
     }
 
     pub fn remove_component<C>(&mut self, entity_id: EntityId)
     where
         C: Component + 'static,
     {
+        // If the component is a Name, deregister it from the name_to_id map
+        // (This should be optimized out by the compiler for every other component, probably)
+        if std::any::TypeId::of::<C>() == std::any::TypeId::of::<Name>() {
+            // Make this constant time with a BiHashMap instead of a HashMap?
+            self.name_to_id.retain(|_, v| *v != entity_id);
+        }
+
         self.component_maps.get_mut::<ComponentMap<C>>().map(|cm| cm.remove(entity_id));
     }
 
@@ -315,5 +335,24 @@ impl Ecs {
         insert::<AreaTrigger>(&mut components, id, self);
 
         serde_json::Value::Object(components)
+    }
+}
+
+#[derive(Debug)]
+pub enum QueryOneError {
+    // TODO include the identifier?
+    NoEntity,
+    // TODO include a list of missing component names?
+    MissingComponents,
+}
+
+impl Error for QueryOneError {}
+
+impl Display for QueryOneError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            QueryOneError::NoEntity => write!(f, "queried entity doesn't exist"),
+            QueryOneError::MissingComponents => write!(f, "missing queried components"),
+        }
     }
 }
